@@ -28,6 +28,7 @@ depends: [
   "coq-primitive" {= "8.19.dev"}
   "coq-ceres"
   "coq-verified-extraction"
+  "cmdliner" {< "2.0.0"}
 ]
 
 pin-depends: [
