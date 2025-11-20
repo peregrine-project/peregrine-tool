@@ -17,6 +17,7 @@ From Coq Require PrimFloat.
 (* TODO: validate axioms *)
 Axiom prim_int_ser_complete : forall x, (prim_int_of_string (string_of_prim_int x)) = x.
 Axiom prim_float_ser_complete : forall x, (prim_float_of_string (string_of_prim_float x)) = x.
+Axiom prim_string_ser_complete : forall x, (prim_string_of_string (string_of_prim_string x)) = x.
 
 
 
@@ -45,6 +46,15 @@ Proof.
   reflexivity.
 Qed.
 
+Instance Complete_prim_string : CompleteClass PrimString.string.
+Proof.
+  unfold CompleteClass, Complete.
+  intros l x.
+  cbn.
+  rewrite prim_string_ser_complete.
+  reflexivity.
+Qed.
+
 Instance Complete_array_model {T : Set} `{CompleteClass T} : CompleteClass (array_model T).
 Proof.
   unfold CompleteClass, Complete.
@@ -68,6 +78,11 @@ Proof.
     rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_prim_float].
+    rewrite !eqb_ascii_refl.
+    rewrite !neqb_ascii_neq by congruence.
+    rewrite complete_class.
+    reflexivity.
+  - cbn -[Deserialize_prim_string].
     rewrite !eqb_ascii_refl.
     rewrite !neqb_ascii_neq by congruence.
     rewrite complete_class.

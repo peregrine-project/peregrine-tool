@@ -100,6 +100,7 @@ Section Wf.
     match prim_val_tag p with
     | primInt => assert has_primint (fun _ => "Program contains primitive integers")
     | primFloat => assert has_primfloat (fun _ => "Program contains primitive floats")
+    | primString => assert has_primstring (fun _ => "Program contains primitive strings")
     | primArray => assert has_primarray (fun _ => "Program contains primitive arrays")
     end.
 
@@ -396,6 +397,8 @@ Section WfCorrect.
       reflexivity.
     + rewrite result_assertb'.
       reflexivity.
+    + rewrite result_assertb'.
+      reflexivity.
   Qed.
 
   Theorem wellformed_equiv {efl  : EEnvFlags} : forall t Σ k,
@@ -529,6 +532,7 @@ Section WfCorrect.
       apply ssrbool.andb_id2l => _.
       rewrite result_assertb'.
       inversion X; subst.
+      + reflexivity.
       + reflexivity.
       + reflexivity.
       + cbn.

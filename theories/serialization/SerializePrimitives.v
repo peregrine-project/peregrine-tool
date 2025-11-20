@@ -17,9 +17,10 @@ Local Open Scope string_scope.
 (* Realized in extraction *)
 Axiom string_of_prim_int : PrimInt63.int -> string.
 Axiom string_of_prim_float : PrimFloat.float -> string.
+Axiom string_of_prim_string : PrimString.string -> string.
 Axiom prim_int_of_string : string -> PrimInt63.int.
 Axiom prim_float_of_string : string -> PrimFloat.float.
-
+Axiom prim_string_of_string : string -> PrimString.string.
 
 
 (** * Serializers *)
@@ -29,6 +30,7 @@ Instance Serialize_prim_tag : Serialize prim_tag :=
     match t with
     | primInt => Atom "primInt"
     | primFloat => Atom "primFloat"
+    | primString => Atom "primString"
     | primArray => Atom "primArray"
     end%sexp.
 
@@ -37,6 +39,9 @@ Instance Serialize_prim_int : Serialize PrimInt63.int :=
 
 Instance Serialize_prim_float : Serialize PrimFloat.float :=
   fun f => Atom (Str (string_of_prim_float f)).
+
+Instance Serialize_prim_string : Serialize PrimString.string :=
+  fun s => Atom (Str (string_of_prim_string s)).
 
 Instance Serialize_array_model {T : Set} `{Serialize T} : Serialize (array_model T) :=
   fun a =>
@@ -48,6 +53,7 @@ Instance Serialize_prim_val {T : Set} `{Serialize T} : Serialize (prim_val T) :=
     match prim_val_model p with
     | primIntModel i => to_sexp (t, i)
     | primFloatModel f => to_sexp (t, f)
+    | primStringModel s => to_sexp (t, s)
     | primArrayModel a => to_sexp (t, a)
     end.
 
@@ -60,6 +66,7 @@ Instance Deserialize_prim_tag : Deserialize prim_tag :=
     Deser.match_con "prim_tag"
       [ ("primInt", primInt)
       ; ("primFloat", primFloat)
+      ; ("primString", primString)
       ; ("primArray", primArray)
       ]
       [] l e.
@@ -75,6 +82,13 @@ Instance Deserialize_prim_float : Deserialize PrimFloat.float :=
   fun l e =>
     match e with
     | Atom_ (Str s) => inr (prim_float_of_string s)
+    | _ => inl (DeserError l "error")
+    end.
+
+Instance Deserialize_prim_string : Deserialize PrimString.string :=
+  fun l e =>
+    match e with
+    | Atom_ (Str s) => inr (prim_string_of_string s)
     | _ => inl (DeserError l "error")
     end.
 
@@ -102,6 +116,12 @@ Instance Deserialize_prim_val {T : Set} `{Deserialize T} : Deserialize (prim_val
         | inr v => inr (prim_float v)
         | inl e => inl e
         end
+      | inr primString =>
+        let v := @_from_sexp PrimString.string _ l e2 in
+        match v with
+        | inr v => inr (prim_string v)
+        | inl e => inl e
+        end
       | inr primArray =>
         let v := @_from_sexp (array_model T) _ l e2 in
         match v with
@@ -126,6 +146,9 @@ Definition string_of_prim_int' (i : PrimInt63.int) : string :=
 Definition string_of_prim_float' (f : PrimFloat.float) : string :=
   @to_string PrimFloat.float Serialize_prim_float f.
 
+Definition string_of_prim_string' (s : PrimString.string) : string :=
+  @to_string PrimString.string Serialize_prim_string s.
+
 Definition string_of_array_model {T : Set} `{Serialize T} (a : array_model T) : string :=
   @to_string (array_model T) Serialize_array_model a.
 
@@ -144,6 +167,9 @@ Definition prim_int_of_string' (s : string) : error + PrimInt63.int :=
 
 Definition prim_float_of_string' (s : string) : error + PrimFloat.float :=
   @from_string PrimFloat.float Deserialize_prim_float s.
+
+Definition prim_string_of_string' (s : string) : error + PrimString.string :=
+  @from_string PrimString.string Deserialize_prim_string s.
 
 Definition array_model_of_string {T : Set} `{Deserialize T} (s : string) : error + (array_model T) :=
   @from_string (array_model T) Deserialize_array_model s.

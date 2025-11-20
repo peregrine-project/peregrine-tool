@@ -17,6 +17,7 @@ From Coq Require PrimFloat.
 (* TODO: validate axioms *)
 Axiom prim_int_ser_sound : forall x, (string_of_prim_int (prim_int_of_string x)) = x.
 Axiom prim_float_ser_sound : forall x, (string_of_prim_float (prim_float_of_string x)) = x.
+Axiom prim_string_ser_sound : forall x, (string_of_prim_string (prim_string_of_string x)) = x.
 
 
 
@@ -26,6 +27,8 @@ Proof.
   intros l e t He.
   apply sound_match_con in He.
   destruct He as [He | He]; elim_Exists He.
+  - destruct He as [-> ->].
+    reflexivity.
   - destruct He as [-> ->].
     reflexivity.
   - destruct He as [-> ->].
@@ -58,6 +61,18 @@ Proof.
   reflexivity.
 Qed.
 
+Instance Sound_prim_string : SoundClass PrimString.string.
+Proof.
+  unfold SoundClass, Sound.
+  intros l e f He.
+  destruct e; cbn in *; try discriminate.
+  destruct a; cbn in *; try discriminate.
+  injection He as <-.
+  unfold to_sexp, Serialize_prim_string.
+  rewrite prim_string_ser_sound.
+  reflexivity.
+Qed.
+
 Instance Sound_array_model {T : Set} `{SoundClass T} : SoundClass (array_model T).
 Proof.
   unfold SoundClass, Sound.
@@ -85,6 +100,11 @@ Proof.
   destruct _from_sexp eqn:Hs; try discriminate.
   apply sound_class in Hs.
   destruct p0.
+  - destruct (_from_sexp l s0) eqn:Hs2; try discriminate.
+    apply sound_class in Hs2.
+    injection He as <-.
+    rewrite <- Hs, <- Hs2.
+    reflexivity.
   - destruct (_from_sexp l s0) eqn:Hs2; try discriminate.
     apply sound_class in Hs2.
     injection He as <-.

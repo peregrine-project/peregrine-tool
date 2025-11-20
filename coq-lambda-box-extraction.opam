@@ -13,30 +13,27 @@ dev-repo: "git+https://github.com/AU-COBRA/lambda-box-extraction.git"
 bug-reports: "https://github.com/AU-COBRA/lambda-box-extraction/issues"
 
 depends: [
-  "coq" {>= "8.19" & < "8.20~"}
-  "coq-metacoq-utils" {= "1.3.3+8.19"}
-  "coq-metacoq-common" {= "1.3.3+8.19"}
-  "coq-metacoq-template" {= "1.3.3+8.19"}
-  "coq-metacoq-template-pcuic" {= "1.3.3+8.19"}
-  "coq-metacoq-pcuic" {= "1.3.3+8.19"}
-  "coq-metacoq-safechecker" {= "1.3.3+8.19"}
-  "coq-metacoq-erasure" {= "1.3.3+8.19"}
-  "coq-rust-extraction" {= "dev"}
-  "coq-elm-extraction" {= "dev"}
+  "coq" {>= "8.20" & < "9.0~"}
+  "coq-metacoq-utils" {= "1.3.4+8.20"}
+  "coq-metacoq-common" {= "1.3.4+8.20"}
+  "coq-metacoq-template" {= "1.3.4+8.20"}
+  "coq-metacoq-template-pcuic" {= "1.3.4+8.20"}
+  "coq-metacoq-pcuic" {= "1.3.4+8.20"}
+  "coq-metacoq-safechecker" {= "1.3.4+8.20"}
+  "coq-metacoq-erasure" {= "1.3.4+8.20"}
+  "coq-rust-extraction" {= "0.1.1"}
+  "coq-elm-extraction" {= "0.1.1"}
   "coq-certicoq" {= "dev"}
-  "coq-wasm" {= "dev"}
-  "coq-primitive" {= "8.19.dev"}
+  "coq-primitive" {= "8.20.dev"}
   "coq-ceres"
-  "coq-verified-extraction"
-  "cmdliner" {< "2.0.0"}
+  "coq-verified-extraction" {= "8.20.dev"}
+  "cmdliner" {>= "2.0.0"}
 ]
 
 pin-depends: [
-  ["coq-certicoq.dev" "git+https://github.com/4ever2/certicoqwasm.git#36c16acc63f91b4331625327af91ad124935fbb0"]
-  ["coq-wasm.dev" "git+https://github.com/womeier/wasmcert-coq.git#88a42ee"]
-  ["coq-rust-extraction.dev" "git+https://github.com/AU-COBRA/coq-rust-extraction.git#7ab557c684b07e1d8410bd7585973dec8dd35b6c"]
-  ["coq-elm-extraction.dev" "git+https://github.com/AU-COBRA/coq-elm-extraction.git#188e44e746303ec3365243006ceeafe6f44167d2"]
-  ["coq-primitive.8.19.dev" "git+https://github.com/palmskog/coq-primitive.git"]
+  ["coq-certicoq.dev" "git+https://github.com/CertiCoq/certicoq.git#131494c512b516c49379b5ea432ed9ae23484af6"]
+  ["coq-primitive.8.20.dev" "git+https://github.com/4ever2/coq-primitive.git#ccd389d209aec3ce4563714981283a1ea3497ce3"]
+  ["coq-verified-extraction.8.20.dev" "git+https://github.com/4ever2/rocq-verified-extraction.git#a235bc2549027aed696300a5fe5aa73ff95262cd"]
 ]
 
 build: [ "dune" "build" "-p" name "-j" jobs "@install" ]

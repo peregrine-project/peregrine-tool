@@ -74,6 +74,11 @@ Proof.
     rewrite !neqb_ascii_neq by congruence.
     rewrite complete_class.
     reflexivity.
+  - cbn -[Deserialize_prim_string].
+    rewrite !eqb_ascii_refl.
+    rewrite !neqb_ascii_neq by congruence.
+    rewrite complete_class.
+    reflexivity.
   - inversion_clear X; subst.
     destruct X0 as [H1 H2].
     cbn.
@@ -192,6 +197,11 @@ Proof.
       rewrite complete_class.
       reflexivity.
     + cbn -[Deserialize_prim_float].
+      rewrite !eqb_ascii_refl.
+      rewrite !neqb_ascii_neq by congruence.
+      rewrite complete_class.
+      reflexivity.
+    + cbn -[Deserialize_prim_string].
       rewrite !eqb_ascii_refl.
       rewrite !neqb_ascii_neq by congruence.
       rewrite complete_class.

@@ -10,6 +10,7 @@ From LambdaBox Require Serialize.
 From Coq Require Import ExtrOcamlBasic.
 From Coq Require Import ExtrOCamlFloats.
 From Coq Require Import ExtrOCamlInt63.
+From Coq Require Import ExtrOCamlPString.
 (* From Coq Require Import ExtrOcamlNativeString. *)
 From Coq Require Import Extraction.
 
@@ -57,6 +58,14 @@ Extract Constant SerializePrimitives.string_of_prim_float =>
   (* "(fun s -> failwith "" "")". *)
 Extract Constant SerializePrimitives.prim_float_of_string =>
   "(fun s -> s |> Camlcoq.camlstring_of_coqstring |> Int64.of_string |> Int64.float_of_bits |> Float64.of_float)".
+  (* "(fun s -> failwith "" "")". *)
+
+(* TODO: validate prim string implementations *)
+Extract Constant SerializePrimitives.string_of_prim_string =>
+  "(fun f -> f |> Pstring.to_string |> Camlcoq.coqstring_of_camlstring)".
+  (* "(fun s -> failwith "" "")". *)
+Extract Constant SerializePrimitives.prim_string_of_string =>
+  "(fun s -> s |> Camlcoq.camlstring_of_coqstring |> Pstring.of_string |> Option.get)".
   (* "(fun s -> failwith "" "")". *)
 
 
