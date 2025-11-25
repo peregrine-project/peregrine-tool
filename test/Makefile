@@ -1,5 +1,7 @@
 RUNTIME_PATH := $(shell `coqc -where`/user-contrib/CertiCoq/Plugin/runtime/)
 
+all:
+
 %.wasm: %.ast
 	dune exec lbox -- wasm -o $@ $*.ast
 
@@ -49,3 +51,4 @@ clean:
 	find . -type f -name "*.mlf" -delete
 	find . -type f -name "*.cmx" -delete
 	find . -type f -name "*.cmo" -delete
+.PHONY: clean
