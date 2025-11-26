@@ -1,17 +1,17 @@
-From Coq Require Import List.
-From Coq Require Import String.
-From MetaCoq.Utils Require Import bytestring.
-From MetaCoq.Utils Require Import monad_utils.
-From MetaCoq.Common Require Import Kernames.
-From MetaCoq.Erasure Require Import ExAst.
+From Stdlib Require Import List.
+From Stdlib Require Import String.
+From MetaRocq.Utils Require Import bytestring.
+From MetaRocq.Utils Require Import monad_utils.
+From MetaRocq.Common Require Import Kernames.
+From MetaRocq.Erasure Require Import ExAst.
 From ElmExtraction Require Import PrettyPrinterMonad.
 From ElmExtraction Require Import ElmExtract.
 From ElmExtraction Require Import Common.
-From MetaCoq.Erasure.Typed Require Import ResultMonad.
+From MetaRocq.Erasure.Typed Require Import ResultMonad.
 From LambdaBox Require Import TypedTransforms.
 
 Import ListNotations.
-Import MCMonadNotation.
+Import MRMonadNotation.
 
 Local Open Scope bs_scope.
 

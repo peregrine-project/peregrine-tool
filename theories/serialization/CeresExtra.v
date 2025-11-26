@@ -1,11 +1,11 @@
-From Coq Require Import String.
-From Coq Require Import List.
+From Stdlib Require Import String.
+From Stdlib Require Import List.
 From Ceres Require Import Ceres.
 From Ceres Require Import CeresUtils.
 From Ceres Require CeresParserUtils.
 From Ceres Require CeresString.
-From MetaCoq.Utils Require bytestring.
-From MetaCoq.Utils Require All_Forall.
+From MetaRocq.Utils Require bytestring.
+From MetaRocq.Utils Require All_Forall.
 
 Local Notation "p >>= f" := (Deser.bind_field p f) (at level 50, left associativity) : deser_scope.
 Local Open Scope deser_scope.

@@ -1,9 +1,9 @@
-From MetaCoq.Utils Require bytestring.
-From MetaCoq.Common Require Import BasicAst.
-From MetaCoq.Common Require Import Kernames.
-From MetaCoq.Common Require Import Universes.
-From Coq Require Import List.
-From Coq Require Import String.
+From MetaRocq.Utils Require bytestring.
+From MetaRocq.Common Require Import BasicAst.
+From MetaRocq.Common Require Import Kernames.
+From MetaRocq.Common Require Import Universes.
+From Stdlib Require Import List.
+From Stdlib Require Import String.
 From Ceres Require Import Ceres.
 
 Import ListNotations.

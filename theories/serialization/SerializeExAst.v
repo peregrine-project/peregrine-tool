@@ -1,6 +1,6 @@
-From MetaCoq.Erasure Require Import ExAst.
-From Coq Require Import List.
-From Coq Require Import String.
+From MetaRocq.Erasure Require Import ExAst.
+From Stdlib Require Import List.
+From Stdlib Require Import String.
 From Ceres Require Import Ceres.
 From LambdaBox Require Import SerializeCommon.
 From LambdaBox Require Import SerializeEAst.

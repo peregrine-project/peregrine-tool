@@ -1,12 +1,12 @@
-From Coq Require Import List.
-From Coq Require Import Logic.Decidable.
-From Coq Require Import ssreflect.
-From MetaCoq.Utils Require Import ReflectEq.
-From MetaCoq.Common Require Import Kernames.
-From MetaCoq.Common Require Import EnvMap.
-From MetaCoq.Erasure Require Import EAst.
-From MetaCoq.Erasure Require Import EWellformed.
-From MetaCoq.Erasure.Typed Require ExAst.
+From Stdlib Require Import List.
+From Stdlib Require Import Logic.Decidable.
+From Stdlib Require Import ssreflect.
+From MetaRocq.Utils Require Import ReflectEq.
+From MetaRocq.Common Require Import Kernames.
+From MetaRocq.Common Require Import EnvMap.
+From MetaRocq.Erasure Require Import EAst.
+From MetaRocq.Erasure Require Import EWellformed.
+From MetaRocq.Erasure.Typed Require ExAst.
 From Equations Require Import Equations.
 
 Import ListNotations.
@@ -60,15 +60,15 @@ Definition agda_typed_eflags : EEnvFlags :=
      cstr_as_blocks  := false;
   |}.
 
-From MetaCoq.Erasure Require Import EGlobalEnv.
-From MetaCoq.Erasure Require Import EPrimitive.
+From MetaRocq.Erasure Require Import EGlobalEnv.
+From MetaRocq.Erasure Require Import EPrimitive.
 
-From MetaCoq.Utils Require Import utils.
-From MetaCoq.Erasure.Typed Require Import ResultMonad.
+From MetaRocq.Utils Require Import utils.
+From MetaRocq.Erasure.Typed Require Import ResultMonad.
 
-Import MCMonadNotation.
+Import MRMonadNotation.
 
-From MetaCoq.Common Require Import Primitive.
+From MetaRocq.Common Require Import Primitive.
 
 
 Section Wf.

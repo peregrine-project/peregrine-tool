@@ -4,16 +4,15 @@ all: build
 build: theory mllib
 .PHONY: build
 
-CoqMakefile: _CoqProject
-	coq_makefile -f _CoqProject -o CoqMakefile
+RocqMakefile: _CoqProject
+	rocq makefile -f _CoqProject -o RocqMakefile
 
-theory: CoqMakefile
-	+@make -f CoqMakefile
+theory: RocqMakefile
+	+@make -f RocqMakefile
 .PHONY: theory
 
 test:
-	cd test
-	npm run test
+	+@make -C test test
 .PHONY: test
 
 mllib: theory
@@ -25,9 +24,9 @@ clean-extraction:
 	find src/extraction/. -type f -name "*.ml" -delete
 	find src/extraction/. -type f -name "*.mli" -delete
 
-clean: CoqMakefile
-	+@make -f CoqMakefile clean
-	rm -f CoqMakefile
+clean: RocqMakefile
+	+@make -f RocqMakefile clean
+	rm -f RocqMakefile
 	dune clean
 	find src/extraction/. -type f -name "*.ml" -delete
 	find src/extraction/. -type f -name "*.mli" -delete
@@ -42,8 +41,8 @@ uninstall:
 .PHONY: uninstall
 
 # Forward most things to Coq makefile. Use 'force' to make this phony.
-%: CoqMakefile force
-	+@make -f CoqMakefile $@
+%: RocqMakefile force
+	+@make -f RocqMakefile $@
 force: ;
 all: theory
 

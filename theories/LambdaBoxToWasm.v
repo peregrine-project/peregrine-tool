@@ -1,12 +1,12 @@
-From MetaCoq.Erasure Require EAst.
-From MetaCoq.Utils Require Import bytestring.
+From MetaRocq.Erasure Require EAst.
+From MetaRocq.Utils Require Import bytestring.
 From CertiCoq Require Import Compiler.pipeline.
 From CertiCoq Require Import CodegenWasm.toplevel.
 From CertiCoq Require Import Common.Pipeline_utils.
 From LambdaBox Require Import CertiCoqPipeline.
 From ExtLib.Structures Require Import Monad.
 From Wasm Require Import binary_format_printer.
-From Coq Require Import ZArith.
+From Stdlib Require Import ZArith.
 
 Import MonadNotation.
 

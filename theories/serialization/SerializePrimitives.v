@@ -1,12 +1,12 @@
-From Coq Require Import List.
-From Coq Require Import ZArith_base.
-From Coq Require Import String.
-From Coq Require PrimInt63.
-From Coq Require PrimFloat.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
+From Stdlib Require Import String.
+From Stdlib Require PrimInt63.
+From Stdlib Require PrimFloat.
 From Ceres Require Import Ceres.
 
-From MetaCoq.Common Require Import Primitive.
-From MetaCoq.Erasure Require Import EPrimitive.
+From MetaRocq.Common Require Import Primitive.
+From MetaRocq.Erasure Require Import EPrimitive.
 
 Import ListNotations.
 Local Open Scope string_scope.

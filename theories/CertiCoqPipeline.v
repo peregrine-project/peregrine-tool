@@ -1,4 +1,4 @@
-From MetaCoq.Erasure Require EAst.
+From MetaRocq.Erasure Require EAst.
 From CertiCoq Require Import LambdaBoxMut.compile.
 From CertiCoq Require Import LambdaBoxLocal.toplevel.
 From CertiCoq Require Import LambdaANF.toplevel.
@@ -7,8 +7,8 @@ From CertiCoq Require Import Common.Common.
 From CertiCoq Require Import Common.compM.
 From CertiCoq Require Import Common.Pipeline_utils.
 From ExtLib.Structures Require Import Monad.
-From Coq Require Import List.
-From Coq Require Import ZArith.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
 
 Import ListNotations.
 Import Monads.

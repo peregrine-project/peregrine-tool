@@ -1,17 +1,17 @@
-From Coq Require Import List.
-From Coq Require Import String.
-From MetaCoq.Utils Require Import bytestring.
-From MetaCoq.Utils Require Import monad_utils.
-From MetaCoq.Common Require Import Kernames.
-From MetaCoq.Erasure Require Import ExAst.
-From MetaCoq.Erasure.Typed Require Import ResultMonad.
-From MetaCoq.Erasure.Typed Require Import Extraction.
-From MetaCoq.Erasure.Typed Require Import Transform.
-From MetaCoq.Erasure.Typed Require Import Optimize.
+From Stdlib Require Import List.
+From Stdlib Require Import String.
+From MetaRocq.Utils Require Import bytestring.
+From MetaRocq.Utils Require Import monad_utils.
+From MetaRocq.Common Require Import Kernames.
+From MetaRocq.Erasure Require Import ExAst.
+From MetaRocq.Erasure.Typed Require Import ResultMonad.
+From MetaRocq.Erasure.Typed Require Import Extraction.
+From MetaRocq.Erasure.Typed Require Import Transform.
+From MetaRocq.Erasure.Typed Require Import Optimize.
 
 
 Import ListNotations.
-Import MCMonadNotation.
+Import MRMonadNotation.
 
 Local Open Scope bs_scope.
 
@@ -34,7 +34,7 @@ Program Definition typed_transfoms (params : extract_pcuic_params)
                                    (Σ : global_env)
                                    : result ExAst.global_env _ :=
   if optimize_prop_discr params then
-    let Σ := MetaCoq.Erasure.Typed.Utils.timed "Removal of prop discrimination" (fun _ => OptimizePropDiscr.remove_match_on_box_env Σ _) in
+    let Σ := MetaRocq.Erasure.Typed.Utils.timed "Removal of prop discrimination" (fun _ => OptimizePropDiscr.remove_match_on_box_env Σ _) in
     compose_transforms (extract_transforms params) Σ
   else
     Ok Σ.

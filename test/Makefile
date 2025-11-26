@@ -52,3 +52,10 @@ clean:
 	find . -type f -name "*.cmx" -delete
 	find . -type f -name "*.cmo" -delete
 .PHONY: clean
+
+node_modules: package.json
+	npm i
+
+test: node_modules
+	npm run test
+.PHONY: test

@@ -14,8 +14,12 @@ result
 *~
 CoqMakefile
 CoqMakefile.conf
+RocqMakefile
+RocqMakefile.conf
 Makefile.coq
 Makefile.coq.conf
+Makefile.rocq
+Makefile.rocq.conf
 *.a
 *.cma
 *.cmi

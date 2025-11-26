@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: "~/.opam"
-          key: opam-${{env.OCAML_COMILER_VERSION}}-${{hashFiles('.github/coq-lambda-box-extraction.opam.locked')}}
+          key: opam-${{env.OCAML_COMILER_VERSION}}-${{hashFiles('.github/rocq-lambda-box-extraction.opam.locked')}}
           restore-keys: |
             opam-${{env.OCAML_COMILER_VERSION}}-
 
@@ -49,14 +49,14 @@ jobs:
       - name: Build dependencies
         #if: ${{ !steps.opam-cache.outputs.cache-hit }}
         run: |
-          opam repo add coq-released https://coq.inria.fr/opam/released
-          opam install --deps-only -j${{ env.JOBS }} .github/coq-lambda-box-extraction.opam.locked
+          opam repo add rocq-released https://rocq-prover.org/opam/released
+          opam install --deps-only -j${{ env.JOBS }} .github/rocq-lambda-box-extraction.opam.locked
           opam clean -a -c -s --logs
 
       - name: Set up environment
         run: |
           echo "::group::Setting up problem matcher"
-          echo "::add-matcher::./.github/coq-errors.json"
+          echo "::add-matcher::./.github/rocq-errors.json"
           echo "::endgroup::"
 
       - name: Build

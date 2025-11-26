@@ -1,0 +1,50 @@
+opam-version: "2.0"
+name: "rocq-lambda-box-extraction"
+version: "dev"
+synopsis: "Rocq extraction"
+description: "A framework for extracting lambda box programs"
+maintainer: "The COBRA team"
+authors: "The COBRA team"
+license: "MIT"
+tags: ["keyword:extraction" "logpath:LambdaBox"]
+homepage: "https://github.com/AU-COBRA/lambda-box-extraction"
+bug-reports: "https://github.com/AU-COBRA/lambda-box-extraction/issues"
+depends: [
+  "rocq-core" {= "9.0.0"}
+  "rocq-runtime" {= "9.0.0"}
+  "coq-ceres" {= "0.4.1"}
+  "coq-certicoq" {= "dev"}
+  "rocq-elm-extraction" {= "9.0.dev"}
+  "rocq-metarocq-common" {= "1.4+9.0"}
+  "rocq-metarocq-erasure" {= "1.4+9.0"}
+  "rocq-metarocq-pcuic" {= "1.4+9.0"}
+  "rocq-metarocq-safechecker" {= "1.4+9.0"}
+  "rocq-metarocq-template" {= "1.4+9.0"}
+  "rocq-metarocq-template-pcuic" {= "1.4+9.0"}
+  "rocq-metarocq-utils" {= "1.4+9.0"}
+  "coq-primitive" {= "8.20.dev"}
+  "rocq-rust-extraction" {= "9.0.dev"}
+  "rocq-verified-extraction" {= "0.9.3+9.0"}
+  "cmdliner" {= "2.0.0"}
+]
+build: ["dune" "build" "-p" name "-j" jobs "@install"]
+install: ["dune" "install" "-p" name]
+dev-repo: "git+https://github.com/AU-COBRA/lambda-box-extraction.git"
+pin-depends: [
+  [
+    "coq-certicoq.dev"
+    "git+https://github.com/4ever2/certicoq.git#476ba6f262b8180600853c304e873fd9f7f20b8d"
+  ]
+  [
+    "coq-primitive.8.20.dev"
+    "git+https://github.com/4ever2/coq-primitive.git#ccd389d209aec3ce4563714981283a1ea3497ce3"
+  ]
+  [
+    "rocq-rust-extraction.9.0.dev"
+    "git+https://github.com/AU-COBRA/coq-rust-extraction.git#8c4185f5a790461e8c329ec9a7e5cb4bfd85a4b6"
+  ]
+  [
+    "rocq-elm-extraction.9.0.dev"
+    "git+https://github.com/AU-COBRA/coq-elm-extraction.git#805565ee5f519a8ca17a0bacb3fc2b44534f2b45"
+  ]
+]

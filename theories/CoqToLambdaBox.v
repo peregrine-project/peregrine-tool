@@ -1,15 +1,15 @@
-From MetaCoq.Utils Require Import utils.
-From MetaCoq.Template Require Import Ast.
-From MetaCoq.Template Require Import Loader.
-From MetaCoq.ErasurePlugin Require Import Erasure.
-From MetaCoq.ErasurePlugin Require Import Loader.
-From MetaCoq.Erasure.Typed Require Import ResultMonad.
-From MetaCoq.Erasure.Typed Require Import Optimize.
-From MetaCoq.Erasure.Typed Require Import Extraction.
-From Coq Require Import ZArith.
-From Coq Require Import List.
+From MetaRocq.Utils Require Import utils.
+From MetaRocq.Template Require Import Ast.
+From MetaRocq.Template Require Import Loader.
+From MetaRocq.ErasurePlugin Require Import Erasure.
+From MetaRocq.ErasurePlugin Require Import Loader.
+From MetaRocq.Erasure.Typed Require Import ResultMonad.
+From MetaRocq.Erasure.Typed Require Import Optimize.
+From MetaRocq.Erasure.Typed Require Import Extraction.
+From Stdlib Require Import ZArith.
+From Stdlib Require Import List.
 
-Import MCMonadNotation.
+Import MRMonadNotation.
 Import ListNotations.
 
 
@@ -50,8 +50,8 @@ Definition cic_to_box_typed p :=
 (* Example term *)
 (* Definition t (X : Type) (x : X) := x. *)
 
-(* Translate Coq def -> lambda_cic *)
-(* MetaCoq Quote Recursively Definition ex1 := t. *)
+(* Translate Stdlib def -> lambda_cic *)
+(* MetaRocq Quote Recursively Definition ex1 := t. *)
 
 (* Translate lambda_cic -> lambda_box *)
 (* Eval vm_compute in cic_to_box ex1. *)

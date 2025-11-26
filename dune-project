@@ -1,6 +1,6 @@
 (lang dune 3.17)
 
-(name coq-lambda-box-extraction)
+(name rocq-lambda-box-extraction)
 
 (generate_opam_files false)
 
@@ -14,7 +14,7 @@
 (license MIT)
 
 (package
- (name coq-lambda-box-extraction)
+ (name rocq-lambda-box-extraction)
  (synopsis "A framework for extracting lambda box programs")
  (description "A framework for extracting lambda box programs")
  (depends ocaml coq-primitive)

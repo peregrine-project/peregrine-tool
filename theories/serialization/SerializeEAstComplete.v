@@ -8,10 +8,10 @@ From Ceres Require Import CeresRoundtrip.
 From Ceres Require Import CeresSerialize.
 From Ceres Require Import CeresDeserialize.
 From Ceres Require Import CeresUtils.
-From MetaCoq.Erasure Require Import EAst.
-From MetaCoq.Erasure Require EInduction.
-From Coq Require Import String.
-From Coq Require Import List.
+From MetaRocq.Erasure Require Import EAst.
+From MetaRocq.Erasure Require EInduction.
+From Stdlib Require Import String.
+From Stdlib Require Import List.
 
 
 

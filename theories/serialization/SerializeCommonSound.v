@@ -3,11 +3,11 @@ From LambdaBox Require Import CeresExtra.
 From Ceres Require Import CeresRoundtrip.
 From Ceres Require Import CeresSerialize.
 From Ceres Require Import CeresDeserialize.
-From MetaCoq.Common Require Import BasicAst.
-From MetaCoq.Common Require Import Kernames.
-From MetaCoq.Common Require Import Universes.
-From MetaCoq.Utils Require Import bytestring.
-From Coq Require Import String.
+From MetaRocq.Common Require Import BasicAst.
+From MetaRocq.Common Require Import Kernames.
+From MetaRocq.Common Require Import Universes.
+From MetaRocq.Utils Require Import bytestring.
+From Stdlib Require Import String.
 
 
 

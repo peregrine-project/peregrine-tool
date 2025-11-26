@@ -1,7 +1,7 @@
-From MetaCoq.Erasure Require EAst.
-From MetaCoq.Common Require Import Kernames.
+From MetaRocq.Erasure Require EAst.
+From MetaRocq.Common Require Import Kernames.
 From Malfunction Require Import Pipeline.
-From Coq Require Import List.
+From Stdlib Require Import List.
 
 Import ListNotations.
 
@@ -15,7 +15,7 @@ Definition extract_names (t : EAst.term) : list ident :=
   end.
 
 From Malfunction Require Import CeresSerialize Serialize SemanticsSpec.
-From MetaCoq.Common Require Import Transform.
+From MetaRocq.Common Require Import Transform.
 Import Transform.
 
 Definition print_program config nms p :=

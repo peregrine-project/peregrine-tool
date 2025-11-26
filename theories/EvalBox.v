@@ -1,8 +1,8 @@
 (* This file provides utilises to evaluate lambda box programs *)
 
-From Coq Require Import Nat.
-From MetaCoq.Utils Require Import utils.
-From MetaCoq.Erasure Require Import EAst.
+From Stdlib Require Import Nat.
+From MetaRocq.Utils Require Import utils.
+From MetaRocq.Erasure Require Import EAst.
 From CertiCoq.Common Require Import Common.
 From CertiCoq.Common Require Import Pipeline_utils.
 From CertiCoq.LambdaBoxMut Require Import compile.

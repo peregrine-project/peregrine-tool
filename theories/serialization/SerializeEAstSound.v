@@ -7,9 +7,9 @@ From LambdaBox Require Import CeresExtra.
 From Ceres Require Import CeresRoundtrip.
 From Ceres Require Import CeresSerialize.
 From Ceres Require Import CeresDeserialize.
-From MetaCoq.Erasure Require Import EAst.
-From Coq Require Import String.
-From Coq Require Import List.
+From MetaRocq.Erasure Require Import EAst.
+From Stdlib Require Import String.
+From Stdlib Require Import List.
 
 
 

@@ -1,16 +1,16 @@
-From Coq Require Import List.
-From Coq Require Import String.
-From MetaCoq.Utils Require Import bytestring.
-From MetaCoq.Utils Require Import monad_utils.
-From MetaCoq.Erasure Require Import ExAst.
-From MetaCoq.Erasure.Typed Require Import ResultMonad.
+From Stdlib Require Import List.
+From Stdlib Require Import String.
+From MetaRocq.Utils Require Import bytestring.
+From MetaRocq.Utils Require Import monad_utils.
+From MetaRocq.Erasure Require Import ExAst.
+From MetaRocq.Erasure.Typed Require Import ResultMonad.
 From RustExtraction Require Import PrettyPrinterMonad.
 From RustExtraction Require Import Printing.
 From RustExtraction Require Import RustExtract.
 From LambdaBox Require Import TypedTransforms.
 
 Import ListNotations.
-Import MCMonadNotation.
+Import MRMonadNotation.
 
 
 
@@ -65,5 +65,5 @@ Definition mk_preamble top program :=
 Definition box_to_rust (remaps : remaps) preamble attrs params (Σ : ExAst.global_env) : result (list string) string :=
    Σ <- typed_transfoms params Σ;;
    let p := @print_program Σ remaps RustConfig attrs preamble in
-   '(_, s) <- MetaCoq.Erasure.Typed.Utils.timed "Printing" (fun _ => (finish_print_lines p));;
+   '(_, s) <- MetaRocq.Erasure.Typed.Utils.timed "Printing" (fun _ => (finish_print_lines p));;
    Ok s.

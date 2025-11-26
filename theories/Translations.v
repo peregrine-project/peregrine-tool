@@ -1,4 +1,4 @@
-From MetaCoq.Erasure Require EAst.
+From MetaRocq.Erasure Require EAst.
 From LambdaBox Require LambdaBoxToWasm.
 From LambdaBox Require LambdaBoxToRust.
 From LambdaBox Require LambdaBoxToElm.

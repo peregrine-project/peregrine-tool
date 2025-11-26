@@ -1,8 +1,8 @@
-From MetaCoq.Erasure Require Import EImplementBox.
-From MetaCoq.Erasure Require Import EProgram.
+From MetaRocq.Erasure Require Import EImplementBox.
+From MetaRocq.Erasure Require Import EProgram.
 
-From MetaCoq.Common Require Import Transform.
-From MetaCoq.Utils Require Import bytestring.
+From MetaRocq.Common Require Import Transform.
+From MetaRocq.Utils Require Import bytestring.
 Import Transform.
 
 Local Open Scope bs.
