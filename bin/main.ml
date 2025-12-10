@@ -33,16 +33,15 @@ let help man_format cmds topic = match topic with
 | None -> `Help (`Pager, None)
 | Some topic ->
   let topics = "topics" :: "errors" :: "warnings" :: "environment" :: cmds in
-  let conv = Cmdliner.Arg.enum (List.rev_map (fun s -> (s, s)) topics) in
-  let parse = Cmdliner.Arg.Conv.parser conv in
-  match parse topic with
-  | Error e -> `Error (false, e)
-  | Ok t when t = "topics" -> List.iter print_endline topics; `Ok ()
-  | Ok t when List.mem t cmds -> `Help (man_format, Some t)
-  | Ok t when t = "environment" ->
+  let conv, _ = Cmdliner.Arg.enum (List.rev_map (fun s -> (s, s)) topics) in
+  match conv topic with
+  | `Error e -> `Error (false, e)
+  | `Ok t when t = "topics" -> List.iter print_endline topics; `Ok ()
+  | `Ok t when List.mem t cmds -> `Help (man_format, Some t)
+  | `Ok t when t = "environment" ->
     let page = (topic, 7, "", "", ""), [`S topic; `P "Not implemented yet";] in
     `Ok (Cmdliner.Manpage.print man_format Format.std_formatter page)
-  | Ok _ ->
+  | `Ok _ ->
     let page = (topic, 7, "", "", ""), [`S topic; `P "Not implemented yet";] in
     `Ok (Cmdliner.Manpage.print man_format Format.std_formatter page)
 
