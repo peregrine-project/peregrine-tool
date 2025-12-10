@@ -14,8 +14,8 @@
     coqPackages.coq.override.version = "9.0";
     rocqPacakges.rocq-core.override.version = "9.0";
     coqPackages.metarocq.override.version = "1.4-9.0";
-    coqPackages.RustExtraction.override.version = "rocq";
-    coqPackages.ElmExtraction.override.version = "rocq";
+    coqPackages.RustExtraction.override.version = "rocq-9.0";
+    coqPackages.ElmExtraction.override.version = "rocq-9.0";
     coqPackages.CertiCoq.override.version = "coq-9.0";
     coqPackages.verified-extraction.override.version = "rocq-9.0";
   };
