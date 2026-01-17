@@ -1,28 +1,28 @@
-open LambdaBox.Translations
-open LambdaBox.EAst
-open LambdaBox.ExAst
-open LambdaBox.SerializeEAst
-open LambdaBox.SerializeExAst
-open LambdaBox.CheckWf
+open Peregrine.Translations
+open Peregrine.EAst
+open Peregrine.ExAst
+open Peregrine.SerializeEAst
+open Peregrine.SerializeExAst
+open Peregrine.CheckWf
 open Unicode
 open Common
-open LambdaBox.Caml_bytestring
+open Peregrine.Caml_bytestring
 
-module Datatypes = LambdaBox.Datatypes
-module CeresExtra = LambdaBox.CeresExtra
-module TypedTransforms = LambdaBox.TypedTransforms
-module LambdaBoxToWasm = LambdaBox.LambdaBoxToWasm
-module LambdaBoxToRust = LambdaBox.LambdaBoxToRust
-module LambdaBoxToElm = LambdaBox.LambdaBoxToElm
-module CompM = LambdaBox.CompM
-module ResultMonad = LambdaBox.ResultMonad
-module ExceptionMonad = LambdaBox.ExceptionMonad
-module Cps = LambdaBox.Cps
-module Eval = LambdaBox.EvalBox
+module Datatypes = Peregrine.Datatypes
+module CeresExtra = Peregrine.CeresExtra
+module TypedTransforms = Peregrine.TypedTransforms
+module LambdaBoxToWasm = Peregrine.LambdaBoxToWasm
+module LambdaBoxToRust = Peregrine.LambdaBoxToRust
+module LambdaBoxToElm = Peregrine.LambdaBoxToElm
+module CompM = Peregrine.CompM
+module ResultMonad = Peregrine.ResultMonad
+module ExceptionMonad = Peregrine.ExceptionMonad
+module Cps = Peregrine.Cps
+module Eval = Peregrine.EvalBox
 
 
-let string_of_cstring = LambdaBox.Camlcoq.camlstring_of_coqstring
-let cstring_of_string = LambdaBox.Camlcoq.coqstring_of_camlstring
+let string_of_cstring = Peregrine.Camlcoq.camlstring_of_coqstring
+let cstring_of_string = Peregrine.Camlcoq.coqstring_of_camlstring
 
 let cprint_endline s =
   print_endline (string_of_cstring s)
@@ -31,7 +31,7 @@ let mk_tparams eopts =
   TypedTransforms.mk_params eopts.optimize eopts.optimize
 
 let convert_typed kn opt p =
-  match LambdaBox.SerializeCommon.kername_of_string (cstring_of_string kn) with
+  match Peregrine.SerializeCommon.kername_of_string (cstring_of_string kn) with
   | Datatypes.Coq_inr kn ->
     let p =
       if opt
@@ -43,7 +43,7 @@ let convert_typed kn opt p =
              exit 1
       else p
     in
-    (LambdaBox.ExAst.trans_env p, LambdaBox.EAst.Coq_tConst kn)
+    (Peregrine.ExAst.trans_env p, Peregrine.EAst.Coq_tConst kn)
   | Datatypes.Coq_inl e ->
     let err_msg = CeresExtra.string_of_error true true e in
     print_endline "Failed parsing kername";
@@ -154,12 +154,12 @@ let print_debug opts dbg =
 
 
 let mk_copts opts copts =
-  LambdaBox.CertiCoqPipeline.make_opts copts.cps opts.debug
+  Peregrine.CertiCoqPipeline.make_opts copts.cps opts.debug
 
 let compile_wasm opts eopts copts f =
   let p = get_ast opts eopts f in
   print_endline "Compiling:";
-  let p = LambdaBox.ErasurePipeline.implement_box agda_eflags p in
+  let p = Peregrine.ErasurePipeline.implement_box agda_eflags p in
   let p = l_box_to_wasm (mk_copts opts copts) p in
   match p with
   | (CompM.Ret prg, dbg) ->
@@ -218,7 +218,7 @@ let compile_elm opts eopts pre f =
 let eval_box opts eopts copts anf f =
   let p = get_ast opts eopts f in
   print_endline "Evaluating:";
-  let p = LambdaBox.ErasurePipeline.implement_box agda_eflags p in
+  let p = Peregrine.ErasurePipeline.implement_box agda_eflags p in
   let p = Eval.eval (mk_copts opts copts) anf p in
   match p with
   | (CompM.Ret t, dbg) ->
@@ -240,12 +240,12 @@ let printCProg prog names (dest : string) (imports : import list) =
     | FromLibrary (s, _) -> "#include <" ^ s ^ ">"
     | FromAbsolutePath _ ->
         failwith "Import with absolute path should have been filled") imports in
-  LambdaBox.PrintClight.print_dest_names_imports prog (Cps.M.elements names) dest imports'
+  Peregrine.PrintClight.print_dest_names_imports prog (Cps.M.elements names) dest imports'
 
 let compile_c opts eopts copts f =
   let p = get_ast opts eopts f in
   print_endline "Compiling:";
-  let p = LambdaBox.ErasurePipeline.implement_box agda_eflags p in
+  let p = Peregrine.ErasurePipeline.implement_box agda_eflags p in
   let p = l_box_to_c (mk_copts opts copts) p in
   match p with
   | (CompM.Ret ((nenv, header), prg), dbg) ->
@@ -266,8 +266,8 @@ let compile_c opts eopts copts f =
 let compile_anf opts eopts copts f =
   let p = get_ast opts eopts f in
   print_endline "Compiling:";
-  let p = LambdaBox.ErasurePipeline.implement_box agda_eflags p in
-  let p = LambdaBox.CertiCoqPipeline.show_IR (mk_copts opts copts) p in
+  let p = Peregrine.ErasurePipeline.implement_box agda_eflags p in
+  let p = Peregrine.CertiCoqPipeline.show_IR (mk_copts opts copts) p in
   match p with
   | (CompM.Ret prg, dbg) ->
     print_debug opts dbg;

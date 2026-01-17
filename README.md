@@ -1,16 +1,18 @@
-# lambda-box-extraction
-[![Build](https://github.com/AU-COBRA/lambda-box-extraction/actions/workflows/build.yml/badge.svg)](https://github.com/AU-COBRA/lambda-box-extraction/actions/workflows/build.yml)
-[![GitHub](https://img.shields.io/github/license/AU-COBRA/lambda-box-extraction)](https://github.com/AU-COBRA/lambda-box-extraction/blob/master/LICENSE)
+# Peregrine
+[![Build](https://github.com/peregrine-project/peregrine-tool/actions/workflows/build.yml/badge.svg)](https://github.com/peregrine-project/peregrine-tool/actions/workflows/build.yml)
+[![GitHub](https://img.shields.io/github/license/peregrine-project/peregrine-tool)](https://github.com/peregrine-project/peregrine-tool/blob/master/LICENSE)
 
-A backend for compiling $\lambda_\square$ (LambdaBox) and $\lambda_\square^T$ (LambdaBox-typed) to WebAssembly, C, Rust, OCaml and Elm. The compilation phases have been verified in the Coq proof assistant.
+The Peregrine Project provides a unified middle-end for code generation from proof assistants. It supports Agda, Lean, and Rocq and can generate code in CakeML, C, Rust, OCaml.
+
+It puts a focus on correct code extraction: The middle end is verified in the Rocq proof assistant, and some of the frontends and backends are. It is based on an intermediate language called $\lambda_\square$ (LambdaBox).
 
 ## Setup
-The backend requires OCaml 4.13 or later to run. The development also depends on Coq 8.19, and developer builds of CertiCoq.
+The backend requires OCaml 4.13 or later to run. The development also depends on Rocq 9.0, and developer builds of CertiCoq.
 
 The backend can be installed using [Opam](https://opam.ocaml.org/doc/Install.html) with:
 ```bash
-git clone https://github.com/AU-COBRA/lambda-box-extraction.git
-cd lambda-box-extraction
+git clone https://github.com/peregrine-project/peregrine-tool.git
+cd peregrine-tool
 opam switch create . 4.14.2 --repositories default,coq-released=https://coq.inria.fr/opam/released
 eval $(opam env)
 opam install .
@@ -18,11 +20,11 @@ opam install .
 
 ## Usage
 ```
-lbox TARGETLANGUAGE FILE [-o FILE]
+peregrine TARGETLANGUAGE FILE [-o FILE]
 ```
 E.g. compiling `prog.ast` file to WebAssembly.
 ```
-lbox wasm prog.ast -o prog.wasm
+peregrine wasm prog.ast -o prog.wasm
 ```
 Valid values for `TARGETLANGUAGE` are:
 * `wasm`
@@ -31,7 +33,7 @@ Valid values for `TARGETLANGUAGE` are:
 * `rust`
 * `elm`
 
-For detailed usage on all commands and flags see [here](#command-line-interface) or use `lbox --help`.
+For detailed usage on all commands and flags see [here](#command-line-interface) or use `peregrine --help`.
 
 
 ## Pipeline
@@ -92,7 +94,7 @@ The extracted Elm code does not depend on any external libraries and can be comp
 
 
 ### Frontends
-The lbox tool compiles $\lambda_\square$ and $\lambda_\square^T$ to various languages, the $\lambda_\square$ programs can be obtained from either Coq or Agda using the frontends described here.
+The peregrine tool compiles $\lambda_\square$ and $\lambda_\square^T$ to various languages, the $\lambda_\square$ programs can be obtained from either Coq or Agda using the frontends described here.
 
 #### Agda (Agda2lambox)
 [Agda2lambox](https://github.com/agda/agda2lambox) is a backend for [Agda](https://github.com/agda/agda) translating Agda programs into $\lambda_\square$ and $\lambda_\square^T$.
@@ -116,7 +118,7 @@ agda2lambox --typed --no-block FILE
 #### Coq (MetaCoq)
 [MetaCoq](https://github.com/MetaRocq/metarocq) is a project formalizing Coq in Coq and providing tools for manipulating Coq terms and developing certified plugins (i.e. translations, compilers or tactics) in Coq. It can be used to translate Coq programs into $\lambda_\square$ and $\lambda_\square^T$ using [CoqToLambdaBox.v](theories/CoqToLambdaBox.v).
 
-For extracting Coq programs it is recommended to use the respective extraction backends in Coq rather than using the standalone lbox tool.
+For extracting Coq programs it is recommended to use the respective extraction backends in Coq rather than using the standalone peregrine tool.
 
 
 ## Command Line Interface
@@ -129,7 +131,7 @@ For extracting Coq programs it is recommended to use the respective extraction b
 
 ### Extraction commands
 ```
-lbox TARGETLANGUAGE FILE [-o FILE]
+peregrine TARGETLANGUAGE FILE [-o FILE]
 ```
 Valid values for `TARGETLANGUAGE` are:
 * `wasm`
@@ -146,14 +148,14 @@ These commands main purpose are for debugging $\lambda_\square$ programs and the
 #### $\lambda_\square$ evaluator
 This command evaluates $\lambda_\square$ programs, the `--anf` flag can be used to use an alternative evaluator which first translates the program to $\lambda_{ANF}$ before evaluating the program.
 ```
-lbox eval FILE [-anf]
+peregrine eval FILE [-anf]
 ```
 
 Also supports the `--cps, --opt, --typed` flags.
 
 #### $\lambda_\square$ validator
 ```
-lbox validate FILE
+peregrine validate FILE
 ```
 Validates that the program in `FILE` can be parsed and is wellformed.
 
@@ -162,7 +164,7 @@ Also supports the `--typed` flag.
 #### $\lambda_{ANF}$ compiler
 Compiles $\lambda_\square$ to $\lambda_{ANF}$, used for inspecting intermediate representations.
 ```
-lbox anf FILE
+peregrine anf FILE
 ```
 
 Also supports the `--cps, --opt, --typed` flags.

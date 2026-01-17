@@ -59,5 +59,5 @@ export type TestCase = {
 }
 
 // Test configuration consisting of a target language, testset name, and a set of options
-// for the lbox compiler
+// for the peregrine compiler
 export type TestConfiguration = [Lang, string, string]

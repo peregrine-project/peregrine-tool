@@ -1,6 +1,6 @@
 import { Lang, SimpleType, TestCase, TestConfiguration } from "./types";
 
-/* (backend, lbox flags) pair configurations */
+/* (backend, peregrine flags) pair configurations */
 export var test_configurations: TestConfiguration[] = [
     [Lang.OCaml, "", ""],
     // [Lang.C, "cps", "--cps"], // TODO

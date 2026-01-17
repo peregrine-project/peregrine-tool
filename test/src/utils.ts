@@ -10,8 +10,8 @@ export function print_line(s: string) {
   process.stdout.write(s + "\n");
 }
 
-// Convert Lang to target language argument for lbox compiler
-export function lang_to_lbox_arg(lang: Lang): string {
+// Convert Lang to target language argument for peregrine compiler
+export function lang_to_peregrine_arg(lang: Lang): string {
   switch (lang) {
     case Lang.OCaml:
       return "ocaml";

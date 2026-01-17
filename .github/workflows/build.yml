@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: "~/.opam"
-          key: opam-${{env.OCAML_COMILER_VERSION}}-${{hashFiles('.github/rocq-lambda-box-extraction.opam.locked')}}
+          key: opam-${{env.OCAML_COMILER_VERSION}}-${{hashFiles('.github/rocq-peregrine.opam.locked')}}
           restore-keys: |
             opam-${{env.OCAML_COMILER_VERSION}}-
 
@@ -50,7 +50,7 @@ jobs:
         #if: ${{ !steps.opam-cache.outputs.cache-hit }}
         run: |
           opam repo add rocq-released https://rocq-prover.org/opam/released
-          opam install --deps-only -j${{ env.JOBS }} .github/rocq-lambda-box-extraction.opam.locked
+          opam install --deps-only -j${{ env.JOBS }} .github/rocq-peregrine.opam.locked
           opam clean -a -c -s --logs
 
       - name: Set up environment

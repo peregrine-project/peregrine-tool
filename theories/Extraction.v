@@ -1,12 +1,12 @@
 From MetaRocq.Erasure Require EAst.
-From LambdaBox Require CheckWf.
-From LambdaBox Require EvalBox.
-From LambdaBox Require ErasurePipeline.
+From Peregrine Require CheckWf.
+From Peregrine Require EvalBox.
+From Peregrine Require ErasurePipeline.
 Local Unset Universe Checking. (* TODO: fix universe inconsistency *)
-From LambdaBox Require Translations.
+From Peregrine Require Translations.
 Local Set Universe Checking.
-From LambdaBox Require SerializePrimitives.
-From LambdaBox Require Serialize.
+From Peregrine Require SerializePrimitives.
+From Peregrine Require Serialize.
 From Stdlib Require Import ExtrOcamlBasic.
 From Stdlib Require Import ExtrOCamlFloats.
 From Stdlib Require Import ExtrOCamlInt63.

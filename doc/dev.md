@@ -9,15 +9,15 @@
 
 # Dev environment setup
 ```bash
-git clone https://github.com/AU-COBRA/lambda-box-extraction.git
-cd lambda-box-extraction
+git clone https://github.com/peregrine-project/peregrine-tool.git
+cd peregrine-tool
 opam switch create . 4.14.2 --repositories default,coq-released=https://coq.inria.fr/opam/released
 eval $(opam env)
 opam install . --deps-only
 ```
 
 The project can be built with `make`.
-Running the dev executable with `dune exec lbox`.
+Running the dev executable with `dune exec peregrine`.
 
 
 # Coq Extractions
@@ -40,18 +40,18 @@ Running the dev executable with `dune exec lbox`.
   * https://github.com/CertiCoq/certicoq/wiki/The-CertiCoq-pipeline
   * AST: https://github.com/CertiCoq/certicoq/blob/master/theories/LambdaANF/cps.v
 * $\lambda_{\square}^T$ -> Rust
-  * Printing: https://github.com/AU-COBRA/coq-rust-extraction/blob/master/theories/RustExtract.v
+  * Printing: https://github.com/peregrine-project/rocq-typed-extraction/blob/master/elm/theories/RustExtract.v
 * $\lambda_{\square}^T$ -> Elm
-  * Printing: https://github.com/AU-COBRA/coq-elm-extraction/blob/master/theories/ElmExtract.v
+  * Printing: https://github.com/peregrine-project/rocq-typed-extraction/blob/master/rust/theories/ElmExtract.v
 * $\lambda_{ANF}$ -> Clight
 * $\lambda_{ANF}$ -> WASM
   * https://github.com/womeier/certicoqwasm/blob/master/theories/CodegenWasm/LambdaANF_to_Wasm.v
 
 ## Examples
 * Rust
-  * https://github.com/AU-COBRA/coq-rust-extraction/tree/master/tests/theories
+  * https://github.com/peregrine-project/rocq-typed-extraction/tree/master/tests/theories
 * Elm
-  * https://github.com/AU-COBRA/coq-elm-extraction/tree/master/tests/theories
+  * https://github.com/peregrine-project/rocq-typed-extraction/tree/master/tests/theories
 * WASM
   * https://github.com/womeier/certicoqwasm-testing
 * C (Clight)

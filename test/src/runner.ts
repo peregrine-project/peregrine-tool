@@ -4,7 +4,7 @@ import { run_wasm } from "./wasm";
 import { execSync } from "child_process";
 import path from "path";
 import { existsSync, mkdirSync } from "fs";
-import { lang_to_ext, lang_to_lbox_arg, print_line, replace_ext } from "./utils";
+import { lang_to_ext, lang_to_peregrine_arg, print_line, replace_ext } from "./utils";
 import { compile_c, set_c_env } from "./c";
 import { compile_types } from "./ocaml";
 import { compile_ocaml } from "./ocaml";
@@ -32,7 +32,7 @@ var tmpdir = process.env.TMPDIR;
 // returns a string containing the location of the compiled code or an ExecFailure object
 function compile_box(file: string, outdir: string, lang: Lang, opts: string): string | ExecFailure {
   const out_f = path.join(outdir, path.basename(replace_ext(file, lang_to_ext(lang))));
-  const cmd = `dune exec --no-print-directory lbox -- ${lang_to_lbox_arg(lang)} ${file} -o ${out_f} ${opts}`;
+  const cmd = `dune exec --no-print-directory peregrine -- ${lang_to_peregrine_arg(lang)} ${file} -o ${out_f} ${opts}`;
 
   try {
     execSync(cmd, { stdio: "pipe", timeout: compile_timeout });
@@ -42,7 +42,7 @@ function compile_box(file: string, outdir: string, lang: Lang, opts: string): st
       return { type: "error", reason: "timeout" };
     }
 
-    return { type: "error", reason: "compile error", compiler: "lbox", code: e.status, error: e.stdout.toString('utf8') };
+    return { type: "error", reason: "compile error", compiler: "peregrine", code: e.status, error: e.stdout.toString('utf8') };
   }
 }
 
@@ -120,7 +120,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
-        // Compile lbox
+        // Compile peregrine
         const f_mlf = compile_box(test.src, tmpdir, Lang.OCaml, opts);
         if (typeof f_mlf !== "string") {
           print_result(f_mlf, test.src);
@@ -147,7 +147,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
-        // Compile lbox
+        // Compile peregrine
         const f_c = compile_box(test.src, tmpdir, Lang.C, opts);
         if (typeof f_c !== "string") {
           print_result(f_c, test.src);
@@ -173,7 +173,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
-        // Compile lbox
+        // Compile peregrine
         const f = compile_box(test.src, tmpdir, Lang.Wasm, opts);
         if (typeof f !== "string") {
           print_result(f, test.src);
@@ -195,7 +195,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         if (test.tsrc === undefined) continue;
         process.stdout.write(`  ${test.tsrc}: `);
 
-        // Compile lbox
+        // Compile peregrine
         const f_rs = compile_box(test.tsrc, otudir, Lang.Rust, opts);
         if (typeof f_rs !== "string") {
           print_result(f_rs, test.tsrc);
@@ -224,7 +224,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         if (test.tsrc === undefined) continue;
         process.stdout.write(`  ${test.tsrc}: `);
 
-        // Compile lbox
+        // Compile peregrine
         const f_elm = compile_box(test.tsrc, otudir, Lang.Elm, opts);
         if (typeof f_elm !== "string") {
           print_result(f_elm, test.tsrc);
@@ -251,7 +251,7 @@ async function main() {
     print_line("error: could not find tmpdir");
     exit(1);
   }
-  tmpdir = path.join(tmpdir, "lbox/");
+  tmpdir = path.join(tmpdir, "peregrine/");
   if (!existsSync(tmpdir)) mkdirSync(tmpdir, { recursive: false });
 
   // For each test configuration run all test programs

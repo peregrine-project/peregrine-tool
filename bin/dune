@@ -1,4 +1,4 @@
 (executable
- (public_name lbox)
+ (public_name peregrine)
  (name main)
- (libraries LambdaBox cmdliner str))
+ (libraries Peregrine cmdliner str))

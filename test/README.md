@@ -1,4 +1,4 @@
-# LBox tests
+# Peregrine tests
 
 To run the tests suite run `npm run test`.
 
@@ -21,7 +21,7 @@ The type programs (`*.tast`) were compiled with `--typed --no-block` flags.
 To reproduce the files run:
 ```bash
 #!/bin/bash
-git clone git@github.com:omelkonian/agda2lambox.git
+git clone git@github.com:agda/agda2lambox.git
 cd agda2lambox
 cabal install
 

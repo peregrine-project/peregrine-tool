@@ -3,31 +3,31 @@ RUNTIME_PATH := $(shell `coqc -where`/user-contrib/CertiCoq/Plugin/runtime/)
 all:
 
 %.wasm: %.ast
-	dune exec lbox -- wasm -o $@ $*.ast
+	dune exec peregrine -- wasm -o $@ $*.ast
 
 %.cwasm: %.wasm
 	wasmtime compile $*.wasm
 
 %.c: %.ast
-	dune exec lbox -- c -o $@ $*.ast
+	dune exec peregrine -- c -o $@ $*.ast
 
 %.o: %.c
 	gcc -o $@ -w -Wno-everything -O2 -fomit-frame-pointer -I${RUNTIME_PATH} main.c ${RUNTIME_PATH}/gc_stack.c $*.c
 
 %.elm: %.tast
-	dune exec lbox -- elm -o $@ $*.tast
+	dune exec peregrine -- elm -o $@ $*.tast
 
 %.js: %.elm
 	elm make $*.elm --output=$@
 
 %.rs: %.tast
-	dune exec lbox -- rust -o $@ $*.tast
+	dune exec peregrine -- rust -o $@ $*.tast
 
 %.exe: %.rs
 	rustc $*.rs -o $@
 
 %.mlf: %.ast
-	dune exec lbox -- ocaml -o $@ $*.ast
+	dune exec peregrine -- ocaml -o $@ $*.ast
 
 %.cmx: %.mlf
 	malfunction cmx $*.mlf

@@ -7,7 +7,7 @@ From MetaRocq.Erasure.Typed Require Import ResultMonad.
 From TypedExtraction Require Import PrettyPrinterMonad.
 From TypedExtraction Require Import Printing.
 From TypedExtraction Require Import RustExtract.
-From LambdaBox Require Import TypedTransforms.
+From Peregrine Require Import TypedTransforms.
 
 Import ListNotations.
 Import MRMonadNotation.

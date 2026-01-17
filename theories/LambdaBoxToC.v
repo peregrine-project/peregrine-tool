@@ -1,7 +1,7 @@
 From MetaRocq.Erasure Require EAst.
 From CertiCoq Require Import Compiler.pipeline.
 From CertiCoq Require Import Common.Pipeline_utils.
-From LambdaBox Require Import CertiCoqPipeline.
+From Peregrine Require Import CertiCoqPipeline.
 From ExtLib.Structures Require Import Monad.
 From Stdlib Require Import ZArith.
 
