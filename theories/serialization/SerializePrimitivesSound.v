@@ -1,5 +1,5 @@
-From LambdaBox Require Import SerializePrimitives.
-From LambdaBox Require Import CeresExtra.
+From Peregrine Require Import SerializePrimitives.
+From Peregrine Require Import CeresExtra.
 From Ceres Require Import CeresRoundtrip.
 From Ceres Require Import CeresSerialize.
 From Ceres Require Import CeresDeserialize.

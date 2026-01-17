@@ -4,7 +4,7 @@
   ## unless you made an automated or manual update
   ## to another supported format.
 
-  attribute = "lambda-box-extraction";
+  attribute = "Peregrine";
 
   no-rocq-yet = true;
 

@@ -1,22 +1,22 @@
 (lang dune 3.17)
 
-(name rocq-lambda-box-extraction)
+(name rocq-peregrine)
 
 (generate_opam_files false)
 
 (source
- (github AU-COBRA/lambda-box-extraction))
+ (github peregrine-project/peregrine-tool))
 
-(authors "The COBRA team")
+(authors "The Peregrine team")
 
-(maintainers "The COBRA team")
+(maintainers "The Peregrine team")
 
 (license MIT)
 
 (package
- (name rocq-lambda-box-extraction)
+ (name rocq-peregrine)
  (synopsis "A framework for extracting lambda box programs")
  (description "A framework for extracting lambda box programs")
  (depends ocaml coq-primitive)
  (tags
-  ("keyword:extraction" "logpath:LambdaBox")))
+  ("keyword:extraction" "logpath:Peregrine")))

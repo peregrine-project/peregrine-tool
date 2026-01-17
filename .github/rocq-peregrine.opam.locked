@@ -1,14 +1,14 @@
 opam-version: "2.0"
-name: "rocq-lambda-box-extraction"
+name: "rocq-peregrine"
 version: "dev"
 synopsis: "Rocq extraction"
 description: "A framework for extracting lambda box programs"
-maintainer: "The COBRA team"
-authors: "The COBRA team"
+maintainer: "The Peregrine team"
+authors: "The Peregrine team"
 license: "MIT"
-tags: ["keyword:extraction" "logpath:LambdaBox"]
-homepage: "https://github.com/AU-COBRA/lambda-box-extraction"
-bug-reports: "https://github.com/AU-COBRA/lambda-box-extraction/issues"
+tags: ["keyword:extraction" "logpath:Peregrine"]
+homepage: "https://peregrine-project.github.io/"
+bug-reports: "https://github.com/peregrine-project/peregrine-tool/issues"
 depends: [
   "rocq-core" {= "9.0.0"}
   "rocq-runtime" {= "9.0.0"}
@@ -30,7 +30,7 @@ depends: [
 ]
 build: ["dune" "build" "-p" name "-j" jobs "@install"]
 install: ["dune" "install" "-p" name]
-dev-repo: "git+https://github.com/AU-COBRA/lambda-box-extraction.git"
+dev-repo: "git+https://github.com/peregrine-project/peregrine-tool.git"
 pin-depends: [
   [
     "coq-certicoq.dev"

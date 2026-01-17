@@ -1,4 +1,4 @@
--Q theories LambdaBox
+-Q theories Peregrine
 theories/CheckWf.v
 theories/EvalBox.v
 theories/CoqToLambdaBox.v

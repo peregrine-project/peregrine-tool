@@ -3,7 +3,7 @@ From MetaRocq.Utils Require Import bytestring.
 From CertiCoq Require Import Compiler.pipeline.
 From CertiCoq Require Import CodegenWasm.toplevel.
 From CertiCoq Require Import Common.Pipeline_utils.
-From LambdaBox Require Import CertiCoqPipeline.
+From Peregrine Require Import CertiCoqPipeline.
 From ExtLib.Structures Require Import Monad.
 From Wasm Require Import binary_format_printer.
 From Stdlib Require Import ZArith.

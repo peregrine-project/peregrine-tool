@@ -6,11 +6,11 @@
   , version ? null }:
 
 with lib; mkCoqDerivation {
-  pname = "lambda-box-extraction";
-  repo = "lambda-box-extraction";
-  owner = "AU-COBRA";
+  pname = "Peregrine";
+  repo = "peregrine-tool";
+  owner = "peregrine-project";
   domain = "github.com";
-  opam-name = "rocq-lambda-box-extraction";
+  opam-name = "rocq-peregrine";
 
   inherit version;
   defaultVersion = with versions; switch coq.coq-version [
@@ -37,7 +37,7 @@ with lib; mkCoqDerivation {
 
   installPhase = ''
     runHook preInstall
-    dune install --prefix=$out --libdir $OCAMLFIND_DESTDIR  rocq-lambda-box-extraction
+    dune install --prefix=$out --libdir $OCAMLFIND_DESTDIR  rocq-peregrine
     runHook postInstall
   '';
 

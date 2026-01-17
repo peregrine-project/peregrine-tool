@@ -1,10 +1,10 @@
 From MetaRocq.Erasure Require EAst.
-From LambdaBox Require LambdaBoxToWasm.
-From LambdaBox Require LambdaBoxToRust.
-From LambdaBox Require LambdaBoxToElm.
-From LambdaBox Require LambdaBoxToC.
+From Peregrine Require LambdaBoxToWasm.
+From Peregrine Require LambdaBoxToRust.
+From Peregrine Require LambdaBoxToElm.
+From Peregrine Require LambdaBoxToC.
 Local Unset Universe Checking. (* TODO: fix universe inconsistency *)
-From LambdaBox Require LambdaBoxToOCaml.
+From Peregrine Require LambdaBoxToOCaml.
 Local Set Universe Checking.
 
 

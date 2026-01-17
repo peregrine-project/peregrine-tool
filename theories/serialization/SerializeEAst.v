@@ -2,8 +2,8 @@ From MetaRocq.Erasure Require Import EAst.
 From Stdlib Require Import List.
 From Stdlib Require Import String.
 From Ceres Require Import Ceres.
-From LambdaBox Require Import SerializeCommon.
-From LambdaBox Require Import SerializePrimitives.
+From Peregrine Require Import SerializeCommon.
+From Peregrine Require Import SerializePrimitives.
 
 Import ListNotations.
 Local Open Scope string_scope.
