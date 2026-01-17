@@ -51,7 +51,7 @@ let help_secs = [
   `S "MORE HELP";
   `P "Use $(mname) $(i,COMMAND) --help for help on a single command.";`Noblank;
   `P "Use $(mname) $(b,help environment) for help on environment variables.";
-  `S Manpage.s_bugs; `P "Please report bugs at https://github.com/AU-COBRA/lambda-box-extraction/issues.";]
+  `S Manpage.s_bugs; `P "Please report bugs at https://github.com/peregrine-project/peregrine-tool/issues.";]
 
 let help_cmd =
   let topic =
@@ -241,7 +241,7 @@ let elm_cmd =
 let main_cmd =
   let doc = "a compiler for lambda box to webassembly" in
   let man = help_secs in
-  let info = Cmd.info "lbox" ~version ~doc ~sdocs ~man ~exits in
+  let info = Cmd.info "peregrine" ~version ~doc ~sdocs ~man ~exits in
   let default = Term.(ret (const (fun _ -> `Help (`Pager, None)) $ copts_t)) in
   Cmd.group info ~default [eval_cmd; validate_cmd; wasm_cmd; c_cmd; anf_cmd; ocaml_cmd; rust_cmd; elm_cmd; help_cmd]
 
