@@ -14,7 +14,8 @@ Definition extract_names (t : EAst.term) : list ident :=
   | _ => []
   end.
 
-From Malfunction Require Import CeresSerialize Serialize SemanticsSpec.
+From Malfunction Require Import Serialize SemanticsSpec.
+From Ceres Require Import CeresSerialize.
 From MetaRocq.Common Require Import Transform.
 Import Transform.
 

@@ -1,15 +1,15 @@
 From Stdlib Require Import List.
 From Stdlib Require Import ZArith.
-From Stdlib Require Import String.
 From Stdlib Require PrimInt63.
 From Stdlib Require PrimFloat.
 From Ceres Require Import Ceres.
 
+From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Common Require Import Primitive.
 From MetaRocq.Erasure Require Import EPrimitive.
 
 Import ListNotations.
-Local Open Scope string_scope.
+Local Open Scope bs_scope.
 
 
 

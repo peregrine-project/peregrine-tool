@@ -8,7 +8,6 @@ From Ceres Require Import CeresRoundtrip.
 From Ceres Require Import CeresSerialize.
 From Ceres Require Import CeresDeserialize.
 From MetaRocq.Erasure Require Import EAst.
-From Stdlib Require Import String.
 From Stdlib Require Import List.
 
 

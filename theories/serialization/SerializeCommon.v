@@ -1,13 +1,12 @@
-From MetaRocq.Utils Require bytestring.
+From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Common Require Import BasicAst.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import Universes.
 From Stdlib Require Import List.
-From Stdlib Require Import String.
 From Ceres Require Import Ceres.
 
 Import ListNotations.
-Local Open Scope string_scope.
+Local Open Scope bs_scope.
 
 
 
@@ -16,7 +15,7 @@ Local Open Scope string_scope.
 (** ** Kername *)
 Instance Serialize_ident : Serialize ident :=
   fun i =>
-    Atom (Str (bytestring.String.to_string i)).
+    Atom (Str i).
 
 Instance Serialize_dirpath : Serialize dirpath :=
   fun d =>
@@ -76,7 +75,7 @@ Instance Serialize_allowed_eliminations : Serialize allowed_eliminations :=
 Instance Deserialize_ident : Deserialize ident :=
   fun l e =>
     match e with
-    | Atom_ (Str s) => inr (bytestring.String.of_string s)
+    | Atom_ (Str s) => inr s
     | _ => inl (DeserError l "error")
     end.
 

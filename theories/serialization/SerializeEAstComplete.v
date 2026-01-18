@@ -10,7 +10,6 @@ From Ceres Require Import CeresDeserialize.
 From Ceres Require Import CeresUtils.
 From MetaRocq.Erasure Require Import EAst.
 From MetaRocq.Erasure Require EInduction.
-From Stdlib Require Import String.
 From Stdlib Require Import List.
 
 

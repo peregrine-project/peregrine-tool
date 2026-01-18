@@ -7,7 +7,6 @@ From MetaRocq.Common Require Import BasicAst.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import Universes.
 From MetaRocq.Utils Require Import bytestring.
-From Stdlib Require Import String.
 
 
 
@@ -16,7 +15,6 @@ Proof.
   unfold CompleteClass, Complete.
   intros l a.
   cbn.
-  rewrite bytestring_complete.
   reflexivity.
 Qed.
 

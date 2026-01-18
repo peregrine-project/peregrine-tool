@@ -5,10 +5,8 @@ From Ceres Require Import CeresSerialize.
 From Ceres Require Import CeresDeserialize.
 From MetaRocq.Common Require Import Primitive.
 From MetaRocq.Erasure Require Import EPrimitive.
-From Stdlib Require Import String.
 From Stdlib Require Import List.
 From Stdlib Require Import ZArith.
-From Stdlib Require Import String.
 From Stdlib Require PrimInt63.
 From Stdlib Require PrimFloat.
 

@@ -1,10 +1,9 @@
-From Stdlib Require Import String.
 From Stdlib Require Import List.
 From Ceres Require Import Ceres.
 From Ceres Require Import CeresUtils.
 From Ceres Require CeresParserUtils.
 From Ceres Require CeresString.
-From MetaRocq.Utils Require bytestring.
+From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Utils Require All_Forall.
 
 Local Notation "p >>= f" := (Deser.bind_field p f) (at level 50, left associativity) : deser_scope.
@@ -69,6 +68,8 @@ Definition con10_ {A B C D E F G H I J R} (f : A -> B -> C -> D -> E -> F -> G -
 
 
 
+Local Open Scope bs_scope.
+
 Definition string_of_loc (l : loc) : string := CeresString.comma_sep (map CeresString.string_of_nat l).
 
 Fixpoint string_of_message (print_sexp : bool) (m : message) : string :=
@@ -96,20 +97,17 @@ Definition string_of_error (print_loc print_sexp : bool) (e : error) : string :=
 
 
 Lemma eqb_ascii_refl : forall c,
-  CeresString.eqb_ascii c c = true.
+  CeresString.eqb_byte c c = true.
 Proof.
   intros c.
-  destruct c.
-  unfold CeresString.eqb_ascii.
-  rewrite !Bool.eqb_reflx.
-  reflexivity.
+  destruct c; reflexivity.
 Qed.
 
 Lemma neqb_ascii_neq : forall a b,
-  a <> b -> CeresString.eqb_ascii a b = false.
+  a <> b -> CeresString.eqb_byte a b = false.
 Proof.
   intros.
-  apply CeresString.neqb_neq_ascii.
+  apply CeresString.neqb_neq_byte.
   assumption.
 Qed.
 
@@ -140,7 +138,7 @@ Lemma complete_class_list_all {A : Type} {H : Serialize A} {H0 : Deserialize A} 
     All_Forall.All
       (fun t : A =>
        forall l : loc, _from_sexp l (to_sexp t) = inr t) a ->
-    _sexp_to_list _from_sexp xs n l (map to_sexp a) = inr (rev xs ++ a).
+    _sexp_to_list _from_sexp xs n l (map to_sexp a) = inr (rev xs ++ a)%list.
 Proof.
   induction a; intros; cbn.
   - rewrite rev_alt, app_nil_r.

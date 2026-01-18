@@ -7,7 +7,6 @@ From MetaRocq.Common Require Import BasicAst.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import Universes.
 From MetaRocq.Utils Require Import bytestring.
-From Stdlib Require Import String.
 
 
 
@@ -19,7 +18,6 @@ Proof.
   destruct a0; cbn in He; try discriminate.
   injection He as <-.
   unfold to_sexp, Serialize_ident.
-  rewrite bytestring_sound.
   reflexivity.
 Qed.
 

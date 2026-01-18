@@ -1,12 +1,12 @@
 From MetaRocq.Erasure Require Import EAst.
+From MetaRocq.Utils Require Import bytestring.
 From Stdlib Require Import List.
-From Stdlib Require Import String.
 From Ceres Require Import Ceres.
 From Peregrine Require Import SerializeCommon.
 From Peregrine Require Import SerializePrimitives.
 
 Import ListNotations.
-Local Open Scope string_scope.
+Local Open Scope bs_scope.
 
 
 
