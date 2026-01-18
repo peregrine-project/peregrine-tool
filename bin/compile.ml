@@ -25,13 +25,13 @@ let string_of_cstring = Peregrine.Camlcoq.camlstring_of_coqstring
 let cstring_of_string = Peregrine.Camlcoq.coqstring_of_camlstring
 
 let cprint_endline s =
-  print_endline (string_of_cstring s)
+  print_endline (caml_string_of_bytestring s)
 
 let mk_tparams eopts =
   TypedTransforms.mk_params eopts.optimize eopts.optimize
 
 let convert_typed kn opt p =
-  match Peregrine.SerializeCommon.kername_of_string (cstring_of_string kn) with
+  match Peregrine.SerializeCommon.kername_of_string (bytestring_of_caml_string kn) with
   | Datatypes.Coq_inr kn ->
     let p =
       if opt
@@ -75,7 +75,7 @@ let read_file f =
   escape_unicode s
 
 let parse_ast p s =
-  let t = p (cstring_of_string (String.trim s)) in
+  let t = p (bytestring_of_caml_string (String.trim s)) in
   match t with
   | Datatypes.Coq_inr t -> t
   | Datatypes.Coq_inl e ->

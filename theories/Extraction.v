@@ -47,25 +47,25 @@ Extract Constant MetaRocq.Common.Transform.time =>
 
 (* TODO: validate prim int implementations *)
 Extract Constant SerializePrimitives.string_of_prim_int =>
-  "(fun i -> i |> Uint63.to_int64 |> Int64.to_string |> Camlcoq.coqstring_of_camlstring)".
+  "(fun i -> i |> Uint63.to_int64 |> Int64.to_string |> Caml_bytestring.bytestring_of_caml_string)".
 Extract Constant SerializePrimitives.prim_int_of_string =>
-  "(fun s -> s |> Camlcoq.camlstring_of_coqstring |> Int64.of_string |> Uint63.of_int64)".
+  "(fun s -> s |> Caml_bytestring.caml_string_of_bytestring |> Int64.of_string |> Uint63.of_int64)".
   (* "(fun s -> failwith "" "")". *)
 
 (* TODO: validate prim float implementations *)
 Extract Constant SerializePrimitives.string_of_prim_float =>
-  "(fun f -> f |> Float64.to_float |> Int64.bits_of_float |> Int64.to_string |> Camlcoq.coqstring_of_camlstring)".
+  "(fun f -> f |> Float64.to_float |> Int64.bits_of_float |> Int64.to_string |> Caml_bytestring.bytestring_of_caml_string)".
   (* "(fun s -> failwith "" "")". *)
 Extract Constant SerializePrimitives.prim_float_of_string =>
-  "(fun s -> s |> Camlcoq.camlstring_of_coqstring |> Int64.of_string |> Int64.float_of_bits |> Float64.of_float)".
+  "(fun s -> s |> Caml_bytestring.caml_string_of_bytestring |> Int64.of_string |> Int64.float_of_bits |> Float64.of_float)".
   (* "(fun s -> failwith "" "")". *)
 
 (* TODO: validate prim string implementations *)
 Extract Constant SerializePrimitives.string_of_prim_string =>
-  "(fun f -> f |> Pstring.to_string |> Camlcoq.coqstring_of_camlstring)".
+  "(fun f -> f |> Pstring.to_string |> Caml_bytestring.bytestring_of_caml_string)".
   (* "(fun s -> failwith "" "")". *)
 Extract Constant SerializePrimitives.prim_string_of_string =>
-  "(fun s -> s |> Camlcoq.camlstring_of_coqstring |> Pstring.of_string |> Option.get)".
+  "(fun s -> s |> Caml_bytestring.caml_string_of_bytestring |> Pstring.of_string |> Option.get)".
   (* "(fun s -> failwith "" "")". *)
 
 
