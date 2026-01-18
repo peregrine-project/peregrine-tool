@@ -12,7 +12,7 @@
 
 (mkCoqDerivation {
   pname = "verified-extraction";
-  owner = "MetaRocq";
+  owner = "4ever2";
   repo = "rocq-verified-extraction";
   opam-name = "rocq-verified-extraction";
   inherit version;

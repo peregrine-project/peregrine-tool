@@ -27,14 +27,16 @@ depends: [
   "rocq-elm-extraction" {= "9.0.dev"}
   "coq-certicoq" {= "dev"}
   "coq-primitive" {= "8.20.dev"}
-  "coq-ceres"
-  "rocq-verified-extraction" {= "0.9.3+9.0"}
+  "coq-ceres" {= "dev"}
+  "rocq-verified-extraction" {= "9.0.dev"}
   "cmdliner" {< "2.0.0"}
 ]
 
 pin-depends: [
+  ["coq-ceres.dev" "git+https://github.com/4ever2/rocq-ceres.git#01bee32638df4b6180b3e9ee70beed11150a5da0"]
   ["coq-certicoq.dev" "git+https://github.com/4ever2/certicoq.git#476ba6f262b8180600853c304e873fd9f7f20b8d"]
   ["coq-primitive.8.20.dev" "git+https://github.com/4ever2/coq-primitive.git#ccd389d209aec3ce4563714981283a1ea3497ce3"]
+  ["rocq-verified-extraction.9.0.dev" "git+https://github.com/4ever2/rocq-verified-extraction.git#ab5009fddd7744225533f7b4d5b19cbff652f5a3"]
   ["rocq-typed-extraction-common.9.0.dev" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#5b9de3c5eaf47177e46cc8177bf44cf6f89291a1"]
   ["rocq-rust-extraction.9.0.dev" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#5b9de3c5eaf47177e46cc8177bf44cf6f89291a1"]
   ["rocq-elm-extraction.9.0.dev" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#5b9de3c5eaf47177e46cc8177bf44cf6f89291a1"]

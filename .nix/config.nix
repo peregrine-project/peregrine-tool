@@ -16,7 +16,8 @@
     coqPackages.metarocq.override.version = "1.4-9.0";
     coqPackages.TypedExtraction.override.version = "rocq-9.0";
     coqPackages.CertiCoq.override.version = "coq-9.0";
-    coqPackages.verified-extraction.override.version = "rocq-9.0";
+    coqPackages.verified-extraction.override.version = "ceres-bs";
+    coqPackages.ceres.override.version = "dev";
   };
 
   bundles."9.0".push-branches = ["master"];
