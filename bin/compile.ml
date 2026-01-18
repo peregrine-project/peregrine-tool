@@ -4,7 +4,6 @@ open Peregrine.ExAst
 open Peregrine.SerializeEAst
 open Peregrine.SerializeExAst
 open Peregrine.CheckWf
-open Unicode
 open Common
 open Peregrine.Caml_bytestring
 
@@ -72,7 +71,7 @@ let read_file f =
   let c = open_in f in
   let s = really_input_string c (in_channel_length c) in
   close_in c;
-  escape_unicode s
+  s
 
 let parse_ast p s =
   let t = p (bytestring_of_caml_string (String.trim s)) in
@@ -128,13 +127,13 @@ let write_wasm_res opts f p =
 
 let write_elm_res opts f p =
   let f = get_out_file opts f "elm" in
-  let p = unescape_unicode (caml_string_of_bytestring p) in
+  let p = caml_string_of_bytestring p in
   write_res f (fun f -> output_string f p)
 
 let write_rust_res opts f p =
   let f = get_out_file opts f "rs" in
   write_res f (fun f ->
-    List.iter (fun s -> output_string f ((unescape_unicode (caml_string_of_bytestring s)) ^ "\n")) p)
+    List.iter (fun s -> output_string f ((caml_string_of_bytestring s) ^ "\n")) p)
 
 let write_anf_res opts f p =
   let f = get_out_file opts f "anf" in
