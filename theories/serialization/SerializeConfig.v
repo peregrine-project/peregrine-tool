@@ -216,3 +216,326 @@ Instance Serialize_config' : Serialize config' :=
      to_sexp (remappings_opts' o);
      to_sexp (custom_attributes_opts' o)
     ]%sexp.
+
+
+
+(** * Deserializers *)
+
+(** ** Backend Config *)
+
+Instance Deserialize_rust_config : Deserialize rust_config :=
+  fun l e =>
+    Deser.match_con "rust_config" []
+      [ ("rust_config", Deser.con5_ Build_rust_config) ]
+      l e.
+
+Instance Deserialize_rust_config' : Deserialize rust_config' :=
+  fun l e =>
+    Deser.match_con "rust_config" []
+      [ ("rust_config", Deser.con5_ Build_rust_config') ]
+      l e.
+
+Instance Deserialize_elm_config : Deserialize elm_config :=
+  fun l e =>
+    Deser.match_con "elm_config" []
+      [ ("elm_config", con7_ Build_elm_config) ]
+      l e.
+
+Instance Deserialize_elm_config' : Deserialize elm_config' :=
+  fun l e =>
+    Deser.match_con "elm_config" []
+      [ ("elm_config", con7_ Build_elm_config') ]
+      l e.
+
+Instance Deserialize_certicoq_config : Deserialize certicoq_config :=
+  fun l e =>
+    Deser.match_con "certicoq_config" []
+      [ ("certicoq_config", Deser.con5_ Build_certicoq_config) ]
+      l e.
+
+Instance Deserialize_certicoq_config' : Deserialize certicoq_config' :=
+  fun l e =>
+    Deser.match_con "certicoq_config" []
+      [ ("certicoq_config", Deser.con5_ Build_certicoq_config') ]
+      l e.
+
+Instance Deserialize_program_type : Deserialize Serialize.program_type :=
+  fun l e =>
+    Deser.match_con "program_type"
+      [ ("Standalone", Serialize.Standalone) ]
+      [ ("Shared_lib", Deser.con2_ Serialize.Shared_lib) ]
+      l e.
+
+Instance Deserialize_ocaml_config : Deserialize ocaml_config :=
+  fun l e =>
+    Deser.match_con "ocaml_config" []
+      [ ("ocaml_config", Deser.con1_ Build_ocaml_config) ]
+      l e.
+
+Instance Deserialize_ocaml_config' : Deserialize ocaml_config' :=
+  fun l e =>
+    Deser.match_con "ocaml_config" []
+      [ ("ocaml_config", Deser.con1_ Build_ocaml_config') ]
+      l e.
+
+Instance Deserialize_backend_config : Deserialize backend_config :=
+  fun l e =>
+    Deser.match_con "backend_config" []
+      [ ("Rust", Deser.con_ Rust);
+        ("Elm", Deser.con_ Elm);
+        ("C", Deser.con_ C);
+        ("Wasm", Deser.con_ Wasm);
+        ("OCaml", Deser.con_ OCaml)
+      ]
+      l e.
+
+Instance Deserialize_backend_config' : Deserialize backend_config' :=
+  fun l e =>
+    Deser.match_con "backend_config" []
+      [ ("Rust", Deser.con_ Rust');
+        ("Elm", Deser.con_ Elm');
+        ("C", Deser.con_ C');
+        ("Wasm", Deser.con_ Wasm');
+        ("OCaml", Deser.con_ OCaml')
+      ]
+      l e.
+
+
+
+(** ** Config *)
+
+Instance Deserialize_remapped_inductive : Deserialize remapped_inductive :=
+  fun l e =>
+    Deser.match_con "remapped_inductive" []
+      [ ("remapped_inductive", Deser.con3_ build_remapped_inductive) ]
+      l e.
+
+Instance Deserialize_external_remapping : Deserialize external_remapping :=
+  fun l e =>
+    _from_sexp l e.
+
+Instance Deserialize_inductive_mapping : Deserialize EProgram.inductive_mapping :=
+  fun l e =>
+    Deser.match_con "inductive_mapping" []
+      [ ("inductive_mapping", Deser.con3_ (fun kn s n => (kn, (s, n)))) ]
+      l e.
+
+Instance Deserialize_remapping : Deserialize remapping :=
+  fun l e =>
+    Deser.match_con "remapping" []
+      [ ("RemapInductive", Deser.con3_ RemapInductive);
+        ("ReorderInductive", Deser.con1_ ReorderInductive);
+        ("RemapConstant", Deser.con3_ RemapConstant);
+        ("RemapInlineConstant", Deser.con3_ RemapInlineConstant)
+      ]
+      l e.
+
+Instance Deserialize_custom_attribute : Deserialize custom_attribute :=
+  fun l e =>
+    _from_sexp l e.
+
+Instance Deserialize_inlinings : Deserialize inlinings :=
+  fun l e =>
+    _from_sexp l e.
+
+Instance Deserialize_remappings : Deserialize remappings :=
+  fun l e =>
+    _from_sexp l e.
+
+Instance Deserialize_custom_attributes : Deserialize custom_attributes :=
+  fun l e =>
+    _from_sexp l e.
+
+Instance Deserialize_erasure_phases : Deserialize erasure_phases :=
+  fun l e =>
+    Deser.match_con "erasure_phases" []
+      [ ("erasure_phases", con7_ Build_erasure_phases) ]
+      l e.
+
+Instance Deserialize_erasure_config : Deserialize erasure_config :=
+  fun l e =>
+    Deser.match_con "erasure_config" []
+      [ ("erasure_config", Deser.con3_ Build_erasure_config) ]
+      l e.
+
+Instance Deserialize_erasure_config' : Deserialize erasure_config' :=
+  fun l e =>
+    Deser.match_con "erasure_config" []
+      [ ("erasure_config", Deser.con3_ Build_erasure_config') ]
+      l e.
+
+Instance Deserialize_config : Deserialize config :=
+  fun l e =>
+    Deser.match_con "config" []
+      [ ("config", Deser.con5_ Build_config) ]
+      l e.
+
+Instance Deserialize_config' : Deserialize config' :=
+  fun l e =>
+    Deser.match_con "config" []
+      [ ("config", Deser.con5_ Build_config') ]
+      l e.
+
+
+
+(** * Main serialization functions *)
+
+(** ** Backend Config *)
+
+Definition string_of_rust_config (x : rust_config) : string :=
+  @to_string rust_config Serialize_rust_config x.
+
+Definition string_of_rust_config' (x : rust_config') : string :=
+  @to_string rust_config' Serialize_rust_config' x.
+
+Definition string_of_elm_config (x : elm_config) : string :=
+  @to_string elm_config Serialize_elm_config x.
+
+Definition string_of_elm_config' (x : elm_config') : string :=
+  @to_string elm_config' Serialize_elm_config' x.
+
+Definition string_of_certicoq_config (x : certicoq_config) : string :=
+  @to_string certicoq_config Serialize_certicoq_config x.
+
+Definition string_of_certicoq_config' (x : certicoq_config') : string :=
+  @to_string certicoq_config' Serialize_certicoq_config' x.
+
+Definition string_of_program_type (x : Serialize.program_type) : string :=
+  @to_string Serialize.program_type Serialize_program_type x.
+
+Definition string_of_ocaml_config (x : ocaml_config) : string :=
+  @to_string ocaml_config Serialize_ocaml_config x.
+
+Definition string_of_ocaml_config' (x : ocaml_config') : string :=
+  @to_string ocaml_config' Serialize_ocaml_config' x.
+
+Definition string_of_backend_config (x : backend_config) : string :=
+  @to_string backend_config Serialize_backend_config x.
+
+Definition string_of_backend_config' (x : backend_config') : string :=
+  @to_string backend_config' Serialize_backend_config' x.
+
+
+
+(** ** Config *)
+
+Definition string_of_remapped_inductive (x : remapped_inductive) : string :=
+  @to_string remapped_inductive Serialize_remapped_inductive x.
+
+Definition string_of_external_remapping (x : external_remapping) : string :=
+  @to_string external_remapping Serialize_external_remapping x.
+
+Definition string_of_inductive_mapping (x : inductive_mapping) : string :=
+  @to_string inductive_mapping Serialize_inductive_mapping x.
+
+Definition string_of_remapping (x : remapping) : string :=
+  @to_string remapping Serialize_remapping x.
+
+Definition string_of_custom_attribute (x : custom_attribute) : string :=
+  @to_string custom_attribute Serialize_custom_attribute x.
+
+Definition string_of_inlinings (x : inlinings) : string :=
+  @to_string inlinings Serialize_inlinings x.
+
+Definition string_of_remappings (x : remappings) : string :=
+  @to_string remappings Serialize_remappings x.
+
+Definition string_of_custom_attributes (x : custom_attributes) : string :=
+  @to_string custom_attributes Serialize_custom_attributes x.
+
+Definition string_of_erasure_phases (x : erasure_phases) : string :=
+  @to_string erasure_phases Serialize_erasure_phases x.
+
+Definition string_of_erasure_config (x : erasure_config) : string :=
+  @to_string erasure_config Serialize_erasure_config x.
+
+Definition string_of_erasure_config' (x : erasure_config') : string :=
+  @to_string erasure_config' Serialize_erasure_config' x.
+
+Definition string_of_config (x : config) : string :=
+  @to_string config Serialize_config x.
+
+Definition string_of_config' (x : config') : string :=
+  @to_string config' Serialize_config' x.
+
+
+
+(** * Main deserialization functions *)
+
+(** ** Backend Config *)
+
+Definition rust_config_of_string (s : string) : error + rust_config :=
+  @from_string rust_config Deserialize_rust_config s.
+
+Definition rust_config'_of_string (s : string) : error + rust_config' :=
+  @from_string rust_config' Deserialize_rust_config' s.
+
+Definition elm_config_of_string (s : string) : error + elm_config :=
+  @from_string elm_config Deserialize_elm_config s.
+
+Definition elm_config'_of_string (s : string) : error + elm_config' :=
+  @from_string elm_config' Deserialize_elm_config' s.
+
+Definition certicoq_config_of_string (s : string) : error + certicoq_config :=
+  @from_string certicoq_config Deserialize_certicoq_config s.
+
+Definition certicoq_config'_of_string (s : string) : error + certicoq_config' :=
+  @from_string certicoq_config' Deserialize_certicoq_config' s.
+
+Definition program_type_of_string (s : string) : error + Serialize.program_type :=
+  @from_string Serialize.program_type Deserialize_program_type s.
+
+Definition ocaml_config_of_string (s : string) : error + ocaml_config :=
+  @from_string ocaml_config Deserialize_ocaml_config s.
+
+Definition ocaml_config'_of_string (s : string) : error + ocaml_config' :=
+  @from_string ocaml_config' Deserialize_ocaml_config' s.
+
+Definition backend_config_of_string (s : string) : error + backend_config :=
+  @from_string backend_config Deserialize_backend_config s.
+
+Definition backend_config'_of_string (s : string) : error + backend_config' :=
+  @from_string backend_config' Deserialize_backend_config' s.
+
+
+
+(** ** Config *)
+
+Definition remapped_inductive_of_string (s : string) : error + remapped_inductive :=
+  @from_string remapped_inductive Deserialize_remapped_inductive s.
+
+Definition external_remapping_of_string (s : string) : error + external_remapping :=
+  @from_string external_remapping Deserialize_external_remapping s.
+
+Definition inductive_mapping_of_string (s : string) : error + inductive_mapping :=
+  @from_string inductive_mapping Deserialize_inductive_mapping s.
+
+Definition remapping_of_string (s : string) : error + remapping :=
+  @from_string remapping Deserialize_remapping s.
+
+Definition custom_attribute_of_string (s : string) : error + custom_attribute :=
+  @from_string custom_attribute Deserialize_custom_attribute s.
+
+Definition inlinings_of_string (s : string) : error + inlinings :=
+  @from_string inlinings Deserialize_inlinings s.
+
+Definition remappings_of_string (s : string) : error + remappings :=
+  @from_string remappings Deserialize_remappings s.
+
+Definition custom_attributes_of_string (s : string) : error + custom_attributes :=
+  @from_string custom_attributes Deserialize_custom_attributes s.
+
+Definition erasure_phases_of_string (s : string) : error + erasure_phases :=
+  @from_string erasure_phases Deserialize_erasure_phases s.
+
+Definition erasure_config_of_string (s : string) : error + erasure_config :=
+  @from_string erasure_config Deserialize_erasure_config s.
+
+Definition erasure_config'_of_string (s : string) : error + erasure_config' :=
+  @from_string erasure_config' Deserialize_erasure_config' s.
+
+Definition config_of_string (s : string) : error + config :=
+  @from_string config Deserialize_config s.
+
+Definition config'_of_string (s : string) : error + config' :=
+  @from_string config' Deserialize_config' s.
