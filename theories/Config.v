@@ -169,3 +169,120 @@ Section BackendConfigOptional.
     end.
 
 End BackendConfigOptional.
+
+
+
+Section GeneralConfig.
+
+  Record remapped_inductive := build_remapped_inductive {
+      re_ind_name  : string;
+      re_ind_ctors : list string;
+      re_ind_match : option string;
+    }.
+
+  Definition external_remapping : Type := option string.
+
+  Inductive remapping :=
+  | RemapInductive      : Kernames.inductive -> external_remapping -> remapped_inductive -> remapping
+  | ReorderInductive    : EProgram.inductive_mapping -> remapping
+  | RemapConstant       : Kernames.kername -> external_remapping -> string -> remapping
+  | RemapInlineConstant : Kernames.kername -> external_remapping -> string -> remapping.
+
+  Definition custom_attribute : Type := string.
+
+  Definition inlinings : Type := list Kernames.kername.
+  Definition remappings : Type := list remapping.
+  Definition custom_attributes : Type := list custom_attribute.
+
+  Record erasure_phases := {
+      dearg          : bool;
+      implement_box  : bool;
+      implement_lazy : bool;
+      cofix_to_laxy  : bool;
+      betared        : bool;
+      inlining       : bool;
+      unboxing       : bool;
+    }.
+
+  Record erasure_config := {
+      phases                       : erasure_phases;
+      dearging_do_trim_const_masks : bool;
+      dearging_do_trim_ctor_masks  : bool;
+    }.
+
+  Record config := {
+      backend_opts           : backend_config;
+      erasure_opts           : erasure_config;
+      inlinings_opts         : inlinings;
+      remappings_opts        : remappings;
+      custom_attributes_opts : custom_attributes;
+    }.
+
+End GeneralConfig.
+
+Section GeneralConfigOptional.
+
+  Definition default_erasure_phases := {|
+      dearg          := false;
+      implement_box  := false;
+      implement_lazy := false;
+      cofix_to_laxy  := false;
+      betared        := false;
+      inlining       := false;
+      unboxing       := false;
+  |}.
+
+  Definition default_rust_phases := default_erasure_phases (* TODO *).
+  Definition default_elm_phases := default_erasure_phases (* TODO *).
+  Definition default_c_phases := default_erasure_phases (* TODO *).
+  Definition default_wasm_phases := default_erasure_phases (* TODO *).
+  Definition default_ocaml_phases := default_erasure_phases (* TODO *).
+
+  Definition mk_erasure_phases (b : backend_config') (o : option erasure_phases) : erasure_phases :=
+    match o with
+    | Some o => o
+    | None =>
+      match b with
+      | Rust' _ => default_rust_phases
+      | Elm' _ => default_elm_phases
+      | C' _ => default_c_phases
+      | Wasm' _ => default_wasm_phases
+      | OCaml' _ => default_ocaml_phases
+      end
+    end.
+
+  Record erasure_config' := {
+      phases'                       : option erasure_phases;
+      dearging_do_trim_const_masks' : option bool;
+      dearging_do_trim_ctor_masks'  : option bool;
+    }.
+  Definition mk_erasure_config (b : backend_config') (o : erasure_config') : erasure_config := {|
+    phases := mk_erasure_phases b o.(phases');
+    dearging_do_trim_const_masks :=
+      match o.(dearging_do_trim_const_masks') with
+      | Some x => x
+      | None => true
+      end;
+    dearging_do_trim_ctor_masks :=
+      match o.(dearging_do_trim_ctor_masks') with
+      | Some x => x
+      | None => true
+      end;
+  |}.
+
+  Record config' := {
+      backend_opts'           : backend_config';
+      erasure_opts'           : erasure_config';
+      inlinings_opts'         : inlinings;
+      remappings_opts'        : remappings;
+      custom_attributes_opts' : custom_attributes;
+    }.
+  Definition mk_config (o : config') : config := {|
+    backend_opts           := mk_backend_config o.(backend_opts');
+    erasure_opts           := mk_erasure_config o.(backend_opts') o.(erasure_opts');
+    inlinings_opts         := o.(inlinings_opts');
+    remappings_opts        := o.(remappings_opts');
+    custom_attributes_opts := o.(custom_attributes_opts');
+  |}.
+
+End GeneralConfigOptional.
