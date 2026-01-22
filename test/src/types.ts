@@ -39,9 +39,9 @@ export enum Lang {
 
 export type TestCase = {
   // Path to file containing the program lambda box source
-  src: string,
+  src?: string,
   // Path to file containg the typed lambda box source
-  tsrc: string,
+  tsrc?: string,
   // Name of the programs main function
   // Only used for typed backends where there isn't an explicit main function
   main: string,
