@@ -61,7 +61,7 @@ jobs:
 
       - name: Build
         run: |
-          opam exec -- make -j${{ env.JOBS }}
+          opam install -j${{ env.JOBS }} ./rocq-peregrine.opam
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@v1
