@@ -20,6 +20,8 @@ permissions:
   contents: read
 env:
   OCAML_COMILER_VERSION: "4.14.2"
+  GHC_VERSION: "9.10.1"
+  CABAL_VERSION: "3.12.1"
   JOBS: 4
   TMPDIR: /tmp
 jobs:
@@ -84,10 +86,10 @@ jobs:
 
       - name: Set up GHC
         uses: haskell-actions/setup@v2
-        id: setup
+        id: haskell-setup
         with:
-          ghc-version: 9.10.1
-          cabal-version: 3.12.1
+          ghc-version: ${{env.GHC_VERSION}}
+          cabal-version: ${{env.CABAL_VERSION}}
 
       - name: Checkout agda2lambox
         uses: actions/checkout@v6
@@ -100,12 +102,28 @@ jobs:
           cd agda && \
           cabal configure --disable-documentation && \
           cabal build all --dry-run
+      - name: Restore cached Haskell dependencies
+        uses: actions/cache/restore@v4
+        id: haskell-cache
+        env:
+          key: ${{ runner.os }}-${{ env.GHC_VERSION }}-${{ env.CABAL_VERSION }}
+        with:
+          path: ${{ steps.haskell-setup.outputs.cabal-store }}
+          key:  ${{ env.key }}-plan-${{ hashFiles('**/plan.json') }}
+          restore-keys: ${{ env.key }}-
 
       - name: Install agda2lambox dependencies
+        if: steps.haskell-cache.outputs.cache-hit != 'true'
         run: cd agda && cabal build all --only-dependencies
-      - name: Install agda2lambox
-        run: cd agda && make install
+      - name: Save cached dependencies
+        uses: actions/cache/save@v4
+        if: steps.haskell-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ steps.haskell-setup.outputs.cabal-store }}
+          key:  ${{ steps.haskell-cache.outputs.cache-primary-key }}
 
+      - name: Build agda2lambox
+        run: cd agda && make build
       - name: Generate Agda ASTs
         run: cd agda && make test && mv test/dist/ ../test/agda/
 
