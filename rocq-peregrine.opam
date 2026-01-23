@@ -30,10 +30,12 @@ depends: [
   "coq-ceres" {= "dev"}
   "rocq-verified-extraction" {= "9.0.dev"}
   "cmdliner" {< "2.0.0"}
+  "coq-compcert" {= "3.16"}
 ]
 
 pin-depends: [
   ["coq-ceres.dev" "git+https://github.com/4ever2/rocq-ceres.git#01bee32638df4b6180b3e9ee70beed11150a5da0"]
+  ["coq-compcert.3.16" "git+https://github.com/4ever2/CompCert.git#4d57cc53a535484578846e05d1896a5b6abed30b"]
   ["coq-certicoq.dev" "git+https://github.com/4ever2/certicoq.git#476ba6f262b8180600853c304e873fd9f7f20b8d"]
   ["coq-primitive.8.20.dev" "git+https://github.com/4ever2/coq-primitive.git#ccd389d209aec3ce4563714981283a1ea3497ce3"]
   ["rocq-verified-extraction.9.0.dev" "git+https://github.com/4ever2/rocq-verified-extraction.git#ab5009fddd7744225533f7b4d5b19cbff652f5a3"]

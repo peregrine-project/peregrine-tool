@@ -19,16 +19,19 @@ concurrency:
 permissions:
   contents: read
 env:
-  OCAML_COMILER_VERSION: "4.14.2"
   GHC_VERSION: "9.10.1"
   CABAL_VERSION: "3.12.1"
   JOBS: 4
   TMPDIR: /tmp
 jobs:
   build:
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write
+    name: OCaml ${{ matrix.ocaml_version }} build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04]
+        ocaml_version: ["4.14.2", "5.3.0"]
     steps:
       - name: Checkout branch ${{ github.ref_name }}
         uses: actions/checkout@v6
@@ -39,14 +42,14 @@ jobs:
         uses: actions/cache@v5
         with:
           path: "~/.opam"
-          key: opam-${{env.OCAML_COMILER_VERSION}}-${{hashFiles('.github/rocq-peregrine.opam.locked')}}
+          key: opam-${{matrix.ocaml_version}}-${{hashFiles('.github/rocq-peregrine.opam.locked')}}
           restore-keys: |
-            opam-${{env.OCAML_COMILER_VERSION}}-
+            opam-${{matrix.ocaml_version}}-
 
       - name: Set up OCaml
         uses: avsm/setup-ocaml@v1
         with:
-          ocaml-version: ${{env.OCAML_COMILER_VERSION}}
+          ocaml-version: ${{matrix.ocaml_version}}
 
       - name: Build dependencies
         #if: ${{ !steps.opam-cache.outputs.cache-hit }}
