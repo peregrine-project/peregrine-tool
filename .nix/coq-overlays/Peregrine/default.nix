@@ -2,7 +2,7 @@
 { lib, mkCoqDerivation, which, coq
   , metarocq, TypedExtraction
   , ceres, CertiCoq, verified-extraction
-  , coq-primitive
+  , rocq-primitive
   , version ? null }:
 
 with lib; mkCoqDerivation {
@@ -25,7 +25,7 @@ with lib; mkCoqDerivation {
     ceres
     CertiCoq
     verified-extraction
-    coq-primitive
+    rocq-primitive
   ];
 
   mlPlugin = true;

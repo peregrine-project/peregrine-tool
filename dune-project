@@ -17,6 +17,6 @@
  (name rocq-peregrine)
  (synopsis "The Peregrine tool is a unified middle-end for code generation from proof assistants")
  (description "The Peregrine tool is a unified middle-end for code generation from proof assistants")
- (depends ocaml coq-primitive)
+ (depends ocaml rocq-primitive)
  (tags
   ("keyword:extraction" "logpath:Peregrine")))
