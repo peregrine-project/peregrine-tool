@@ -5,13 +5,13 @@
 }@args:
 
 ocaml-ng.ocamlPackages_4_14.buildDunePackage {
-  pname = "coq-primitive";
-  defaultVersion = "8.20";
-  version = "8.20";
+  pname = "rocq-primitive";
+  defaultVersion = "9.0";
+  version = "9.0";
 
   src = fetchzip {
-    url = "https://github.com/4ever2/coq-primitive/archive/refs/heads/v8.20.tar.gz";
-    hash = "sha256-kwx/v7rTopHgedsdFnSnMm9QISiyX7ffgQzsCYlDLJA=";
+    url = "https://github.com/palmskog/rocq-primitive/archive/refs/heads/v9.0.tar.gz";
+    hash = "sha256-AGVYWIiAe/cmAffV6jDHc166yUg1zDFzUj6b1NvWyvk=";
   };
 
   duneVersion = "3";
@@ -24,8 +24,8 @@ ocaml-ng.ocamlPackages_4_14.buildDunePackage {
   ];
 
   meta = with lib; {
-    homepage = "https://github.com/palmskog/coq-primitive";
-    description = "This library provides OCaml modules for primitive objects in Coq.";
+    homepage = "https://github.com/palmskog/rocq-primitive";
+    description = "This library provides OCaml modules for primitive objects in Rocq.";
     license = licenses.lgpl21;
     maintainers = with maintainers; [ _4ever2 ];
   };

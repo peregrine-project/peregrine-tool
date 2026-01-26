@@ -1,6 +1,6 @@
 (library
  (name Peregrine)
- (libraries coq-primitive.uint63 coq-primitive.float64 coq-primitive.pstring str))
+ (libraries rocq-primitive.uint63 rocq-primitive.float64 rocq-primitive.pstring str))
 (include_subdirs unqualified)
 
 (env

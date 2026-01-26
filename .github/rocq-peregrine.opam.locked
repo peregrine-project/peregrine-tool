@@ -22,7 +22,7 @@ depends: [
   "rocq-metarocq-template" {= "1.4+9.0"}
   "rocq-metarocq-template-pcuic" {= "1.4+9.0"}
   "rocq-metarocq-utils" {= "1.4+9.0"}
-  "coq-primitive" {= "8.20.dev"}
+  "rocq-primitive" {= "9.0.dev"}
   "rocq-typed-extraction-common" {= "9.0.dev"}
   "rocq-rust-extraction" {= "9.0.dev"}
   "rocq-verified-extraction" {= "9.0.dev"}
@@ -46,8 +46,8 @@ pin-depends: [
     "git+https://github.com/4ever2/certicoq.git#476ba6f262b8180600853c304e873fd9f7f20b8d"
   ]
   [
-    "coq-primitive.8.20.dev"
-    "git+https://github.com/4ever2/coq-primitive.git#ccd389d209aec3ce4563714981283a1ea3497ce3"
+    "rocq-primitive.9.0.dev"
+    "git+https://github.com/palmskog/rocq-primitive.git#64f5e58bce115415bd61e3285aa077410a3f25d0"
   ]
   [
     "rocq-verified-extraction.9.0.dev"
