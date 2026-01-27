@@ -135,3 +135,8 @@ jobs:
           echo "::group::Running tests"
           eval $(opam env) && cd test && npm install && npm run test
           echo "::endgroup::"
+
+      - name: Cache clean up
+        run: |
+          opam remove rocq-peregrine
+          opam clean -a -c -s --logs
