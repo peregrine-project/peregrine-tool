@@ -1,4 +1,5 @@
 From MetaRocq.Utils Require Import utils.
+From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Template Require Import Ast.
 From MetaRocq.Template Require Import Loader.
 From MetaRocq.ErasurePlugin Require Import Erasure.
@@ -8,6 +9,8 @@ From MetaRocq.Erasure.Typed Require Import Optimize.
 From MetaRocq.Erasure.Typed Require Import Extraction.
 From Stdlib Require Import ZArith.
 From Stdlib Require Import List.
+From Peregrine Require SerializeEAst.
+From Peregrine Require SerializeExAst.
 
 Import MRMonadNotation.
 Import ListNotations.
@@ -46,11 +49,44 @@ Definition cic_to_box_typed p :=
   Ok Σ.
 
 
+Definition serialize_box p :=
+  SerializeEAst.string_of_program p.
+
+Definition serialize_box_typed p :=
+  SerializeExAst.string_of_global_env p.
+
+Definition erase_untyped' p :=
+  serialize_box (cic_to_box p).
+
+Definition erase_typed' p :=
+  match cic_to_box_typed p with
+  | Ok p => serialize_box_typed p
+  | Err e => e
+  end.
+
+From MetaRocq.Template Require Import TemplateMonad.
+
+Definition erase_untyped {A : Type} (p : A) : TemplateMonad _ :=
+t <- tmQuoteRecTransp p false ;;
+let s := erase_untyped' t in
+tmMsg s.
+
+Definition erase_typed {A : Type} (p : A) : TemplateMonad _ :=
+t <- tmQuoteRecTransp p false ;;
+let s := erase_typed' t in
+tmMsg s.
+
 
 (* Example term *)
 (* Definition t (X : Type) (x : X) := x. *)
 
-(* Translate Stdlib def -> lambda_cic *)
+(* Erase and serialize untyped AST *)
+(* MetaRocq Run (erase_untyped t). *)
+
+(* Erase and serialize typed AST *)
+(* MetaRocq Run (erase_typed t). *)
+
+(* Translate Rocq def -> lambda_cic *)
 (* MetaRocq Quote Recursively Definition ex1 := t. *)
 
 (* Translate lambda_cic -> lambda_box *)
