@@ -1,0 +1,75 @@
+DECLARE PLUGIN "rocq-peregrine.plugin"
+
+{
+
+open Datatypes
+open Names
+open Pp
+open Stdarg
+
+let string_of_bytestring l = Caml_bytestring.caml_string_of_bytestring l
+
+let bytestring_of_string l = Caml_bytestring.bytestring_of_caml_string l
+
+let time prefix f x =
+  let start = Unix.gettimeofday () in
+  let res = f x in
+  let stop = Unix.gettimeofday () in
+  let () =
+    Feedback.msg_debug
+      (Pp.str (Printf.sprintf "%s executed in: %fs" prefix (stop -. start))) in
+  res
+
+let print_res s f =
+  match f with
+  | None -> Feedback.msg_notice (str (string_of_bytestring s))
+  | Some f ->
+    (* TODO: support Rocq extraction-dir config *)
+    let cout = open_out f in
+    Printf.fprintf cout "%s\n" (string_of_bytestring s);
+    close_out cout
+
+let extract_untyped prog f =
+  let do_extract _ = CoqToLambdaBox.cic_to_box prog in
+  let res = time "Extraction" do_extract () in
+  let do_serialize _ = CoqToLambdaBox.serialize_box res in
+  let res = time "Serializing" do_serialize () in
+  print_res res f
+
+let extract_typed prog f =
+  let do_extract _ = CoqToLambdaBox.cic_to_box_typed prog in
+  let res = time "Extraction" do_extract () in
+  match res with
+  | ResultMonad.Ok p ->
+      let do_serialize _ = CoqToLambdaBox.serialize_box_typed p in
+      let res = time "Serializing" do_serialize () in
+      print_res res f
+  | ResultMonad.Err e ->
+      CErrors.user_err Pp.(str (string_of_bytestring e))
+
+let extract c f typed =
+  let env = Global.env () in
+  let evm = Evd.from_env env in
+  let (c, _) = Constrintern.interp_constr env evm c in
+  let prog = time "Quoting" (Ast_quoter.quote_term_rec ~bypass:false env evm) (EConstr.to_constr evm c) in
+  if typed
+  then extract_typed prog f
+  else extract_untyped prog f
+
+}
+
+
+VERNAC COMMAND EXTEND PeregrineExtract CLASSIFIED AS QUERY
+| [ "Peregrine" "Extract" constr(c) ] -> {
+    extract c None false
+  }
+| [ "Peregrine" "Extract" string(f) constr(c) ] -> {
+    extract c (Some f) false
+  }
+| [ "Peregrine" "Extract" "Typed" constr(c) ] -> {
+    extract c None true
+  }
+| [ "Peregrine" "Extract" "Typed" string(f) constr(c) ] -> {
+    extract c (Some f) true
+  }
+END
