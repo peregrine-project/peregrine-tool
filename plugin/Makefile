@@ -13,6 +13,9 @@ theory: RocqMakefile
 .PHONY: plugin
 
 plugin: theory RocqMakefile.plugin
+	@# First build the OCaml plugin (.cmxs) - required before Loader.v can compile
+	+@make -f RocqMakefile.plugin optfiles
+	@# Then build the Rocq theories that load the plugin
 	+@make -f RocqMakefile.plugin
 .PHONY: plugin
 

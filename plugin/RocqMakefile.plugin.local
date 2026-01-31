@@ -15,3 +15,6 @@ CAMLOPTC="$(OCAMLFIND)" opt      -c -Oclassic
 
 merlin-hook::
 		$(HIDE)echo 'FLG $(OPENS)' >> .merlin
+
+# Ensure the plugin .cmxs is built before Loader.v tries to load it
+theories/Loader.vo: src/peregrine_plugin.cmxs
