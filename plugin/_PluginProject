@@ -1,7 +1,7 @@
 -Q theories Peregrine.Plugin
 -I src
 
-src/META.rocq-peregrine
+META.rocq-peregrine
 
 src/ceresFormat.ml
 src/ceresFormat.mli

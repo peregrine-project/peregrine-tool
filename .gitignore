@@ -41,7 +41,6 @@ Makefile.rocq.conf
 *.lia.cache
 _opam/
 .merlin
-META.*
 
 .coq-native/
 .csdp.cache
