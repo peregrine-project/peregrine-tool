@@ -1,0 +1,7 @@
+-R theories BenchmarksGame
+
+theories/Common.v
+theories/BinaryTrees.v
+theories/Fannkuch.v
+theories/Pidigits.v
+theories/Extract.v
