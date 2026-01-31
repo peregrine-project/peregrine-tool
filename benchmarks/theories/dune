@@ -1,0 +1,3 @@
+(coq.theory
+ (name BenchmarksGame)
+ (theories Stdlib MetaRocq.Template Peregrine Peregrine.Plugin))

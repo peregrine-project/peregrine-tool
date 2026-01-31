@@ -1,0 +1,34 @@
+[package]
+name = "peregrine-benchmarks"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bumpalo = "3.14"
+
+[[bin]]
+name = "binary_trees_10"
+path = "src/binary_trees_10_main.rs"
+
+[[bin]]
+name = "binary_trees_14"
+path = "src/binary_trees_14_main.rs"
+
+[[bin]]
+name = "pidigits_27"
+path = "src/pidigits_27_main.rs"
+
+[[bin]]
+name = "pidigits_100"
+path = "src/pidigits_100_main.rs"
+
+# Skip fannkuch - 6MB source files are too large
+# [[bin]]
+# name = "fannkuch_7"
+# path = "src/fannkuch_7_main.rs"
+
+[profile.release]
+opt-level = 3
+
+[lib]
+path = "src/lib.rs"
