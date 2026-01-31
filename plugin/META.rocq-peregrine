@@ -1,6 +1,6 @@
 
 package "plugin" (
-  directory = "."
+  directory = "src"
   requires = "rocq-runtime.plugins.ltac"
   archive(byte) = "peregrine_plugin.cma"
   archive(native) = "peregrine_plugin.cmxa"
