@@ -43,3 +43,13 @@ bench/targets/lean/build/
 # AST files
 *.ast
 *.tast
+
+# Generated C files in root
+*.c
+*.h
+*_main.c
+
+# Compiled executables in root
+ackermann_*
+nqueens_*
+quicksort_*

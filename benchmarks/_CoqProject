@@ -16,3 +16,11 @@ theories/Extract.v
 theories/BenchExtract.v
 theories/RustExtract.v
 theories/NewBenchExtract.v
+theories/NQueensZ.v
+theories/NQueensZExtract.v
+theories/AckermannN.v
+theories/AckermannNExtract.v
+theories/QuicksortZ.v
+theories/QuicksortZExtract.v
+theories/QuicksortWf.v
+theories/QuicksortWfExtract.v
