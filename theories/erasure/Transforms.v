@@ -177,3 +177,73 @@ Final Obligation.
   cbn. intros.
   apply H.
 Qed.
+
+
+
+
+Program Definition trans_env_transform {fl : EWcbvEval.WcbvFlags} {efl : EWellformed.EEnvFlags} :
+  Transform.t _ _  _ _ _ _ (eval_typed_eprogram_mapping fl) (eval_eprogram_mapping fl) :=
+  {| name := "typed to untyped transform";
+    pre p := EReorderCstrs.wf_inductives_mapping (ExAst.trans_env p.2.1) p.1 /\ wf_eprogram efl (ExAst.trans_env p.2.1, p.2.2) /\ EEtaExpandedFix.expanded_eprogram (ExAst.trans_env p.2.1, p.2.2);
+    transform p hp := (p.1, (ExAst.trans_env p.2.1, p.2.2)) ;
+    post p := EReorderCstrs.wf_inductives_mapping p.2.1 p.1 /\ wf_eprogram efl p.2 /\ EEtaExpandedFix.expanded_eprogram p.2 ;
+    obseq p hp p' v v' := v' = v |}.
+Next Obligation.
+  intros ? ? ? H.
+  cbn in *.
+  move: H; rewrite /EReorderCstrs.wf_inductives_mapping; solve_all.
+Qed.
+Final Obligation.
+  intros ? ? ? ? ? ?.
+  unfold eval_typed_eprogram_mapping, eval_typed_eprogram in H.
+  exists v.
+  unfold eval_eprogram_mapping, eval_eprogram.
+  cbn.
+  split; auto.
+Qed.
+
+
+Program Definition typed_to_untyped_transform_pipeline {guard : abstract_guard_impl}
+  (efl := EWellformed.all_env_flags) econf
+  : Transform.t _ _ _ _ _ _
+   (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (EProgram.eval_eprogram final_wcbv_flags) :=
+
+   typed_transform_pipeline econf ▷
+   trans_env_transform ▷
+   rebuild_wf_env_transform_mapping true true ▷
+   verified_lambdabox_typed_pipeline econf.
+Next Obligation.
+  intros.
+  cbn in *.
+  destruct H as [? [? ?]].
+  split; auto.
+Qed.
+Next Obligation.
+  intros.
+  cbn in *.
+  destruct H as [? [? ?]].
+  split; auto.
+Qed.
+Final Obligation.
+  intros.
+  cbn in *.
+  destruct H as [? [? ?]].
+  split; auto.
+Qed.
+
+
+Program Definition run_untyped_transforms econf ind_reorder p :=
+  run (untyped_transform_pipeline econf) (ind_reorder, p) _.
+Final Obligation.
+Admitted. (* assumed for now, but this should be checked *)
+
+Program Definition run_typed_transforms econf ind_reorder p :=
+  run (typed_transform_pipeline econf) (ind_reorder, p) _.
+Final Obligation.
+Admitted.
+
+Program Definition run_typed_to_untyped_transforms econf ind_reorder p :=
+  run (typed_to_untyped_transform_pipeline econf) (ind_reorder, p) _.
+Final Obligation.
+Admitted.
