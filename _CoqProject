@@ -15,6 +15,10 @@ theories/LambdaBoxToOCaml.v
 theories/Translations.v
 theories/Extraction.v
 
+theories/erasure/Erasure.v
+theories/erasure/ErasureTyped.v
+theories/erasure/Transforms.v
+
 theories/serialization/CeresExtra.v
 theories/serialization/Serialize.v
 theories/serialization/SerializeCommon.v
