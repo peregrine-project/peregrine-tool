@@ -30,22 +30,19 @@ let print_res s f =
     close_out cout
 
 let extract_untyped prog f =
-  let do_extract _ = CoqToLambdaBox.cic_to_box prog in
+  let do_extract _ = CoqToLambdaBox.erase_untyped_past prog in
   let res = time "Extraction" do_extract () in
-  let do_serialize _ = CoqToLambdaBox.serialize_box res in
+  let do_serialize _ = CoqToLambdaBox.serialize_past res in
   let res = time "Serializing" do_serialize () in
   print_res res f
 
 let extract_typed prog f =
-  let do_extract _ = CoqToLambdaBox.cic_to_box_typed prog in
+  let do_extract _ = CoqToLambdaBox.erase_typed_past prog in
   let res = time "Extraction" do_extract () in
-  match res with
-  | ResultMonad.Ok p ->
-      let do_serialize _ = CoqToLambdaBox.serialize_box_typed p in
-      let res = time "Serializing" do_serialize () in
-      print_res res f
-  | ResultMonad.Err e ->
-      CErrors.user_err Pp.(str (string_of_bytestring e))
+  let do_serialize _ = CoqToLambdaBox.serialize_past res in
+  let res = time "Serializing" do_serialize () in
+  print_res res f
+
 
 let extract c f typed =
   let env = Global.env () in

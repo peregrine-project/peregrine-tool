@@ -64,7 +64,6 @@ Set Warnings "-extraction-logical-axiom".
 #[local]
 Set Extraction Output Directory "src/".
 
-Separate Extraction CoqToLambdaBox.cic_to_box
-                    CoqToLambdaBox.cic_to_box_typed
-                    CoqToLambdaBox.serialize_box
-                    CoqToLambdaBox.serialize_box_typed.
+Separate Extraction CoqToLambdaBox.erase_untyped_past
+                    CoqToLambdaBox.erase_typed_past
+                    CoqToLambdaBox.serialize_past.
