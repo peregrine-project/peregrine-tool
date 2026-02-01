@@ -21,6 +21,8 @@ clean: RocqMakefile
 	+@make -f RocqMakefile.plugin clean
 	rm -f RocqMakefile
 	rm -f RocqMakefile.plugin
+	find src/. -type f -name "*.ml" -delete
+	find src/. -type f -name "*.mli" -delete
 .PHONY: clean
 
 clean-make:
