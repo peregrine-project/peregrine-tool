@@ -3,6 +3,7 @@ From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Erasure Require EProgram.
 From Malfunction Require Serialize.
 From Peregrine Require Import Config.
+From Peregrine Require Import ConfigUtils.
 From Peregrine Require Import SerializeCommon.
 From Peregrine Require Import SerializeConfig.
 From Peregrine Require Import SerializeCommonComplete.
@@ -24,7 +25,7 @@ Proof.
   intros l o.
   cbn -[Deserialize_bool Deserialize_ident].
   rewrite !eqb_ascii_refl.
-  rewrite 5!complete_class.
+  rewrite 7!complete_class.
   destruct o; cbn.
   reflexivity.
 Qed.
@@ -35,7 +36,7 @@ Proof.
   intros l o.
   cbn -[Deserialize_bool Deserialize_ident].
   rewrite !eqb_ascii_refl.
-  rewrite 5!complete_class.
+  rewrite 7!complete_class.
   destruct o; cbn.
   reflexivity.
 Qed.
@@ -220,11 +221,6 @@ Proof.
     rewrite !eqb_ascii_refl.
     rewrite 3!complete_class.
     reflexivity.
-  - cbn -[Deserialize_inductive_mapping].
-    rewrite !eqb_ascii_refl.
-    rewrite !neqb_ascii_neq by congruence.
-    rewrite !complete_class.
-    reflexivity.
   - cbn -[Deserialize_ident Deserialize_external_remapping Deserialize_kername].
     rewrite !eqb_ascii_refl.
     rewrite !neqb_ascii_neq by congruence.
@@ -263,7 +259,7 @@ Proof.
   intros l o.
   cbn -[Deserialize_bool].
   rewrite !eqb_ascii_refl.
-  rewrite 7!complete_class.
+  rewrite 5!complete_class.
   destruct o; cbn.
   reflexivity.
 Qed.
@@ -294,9 +290,9 @@ Instance Complete_config : CompleteClass config.
 Proof.
   unfold CompleteClass, Complete.
   intros l o.
-  cbn -[Deserialize_backend_config Deserialize_erasure_config Deserialize_inlinings Deserialize_remappings Deserialize_custom_attributes].
+  cbn -[Deserialize_backend_config Deserialize_erasure_config Deserialize_list Deserialize_inlinings Deserialize_inductive_mapping Deserialize_remappings Deserialize_custom_attributes].
   rewrite !eqb_ascii_refl.
-  rewrite 5!complete_class.
+  rewrite 6!complete_class.
   destruct o; cbn.
   reflexivity.
 Qed.
@@ -305,9 +301,9 @@ Instance Complete_config' : CompleteClass config'.
 Proof.
   unfold CompleteClass, Complete.
   intros l o.
-  cbn -[Deserialize_backend_config' Deserialize_erasure_config' Deserialize_inlinings Deserialize_remappings Deserialize_custom_attributes].
+  cbn -[Deserialize_backend_config' Deserialize_erasure_config' Deserialize_list Deserialize_inlinings Deserialize_inductive_mapping Deserialize_remappings Deserialize_custom_attributes].
   rewrite !eqb_ascii_refl.
-  rewrite 5!complete_class.
+  rewrite 6!complete_class.
   destruct o; cbn.
   reflexivity.
 Qed.

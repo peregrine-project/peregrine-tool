@@ -3,6 +3,7 @@ From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Erasure Require EProgram.
 From Malfunction Require Serialize.
 From Peregrine Require Import Config.
+From Peregrine Require Import ConfigUtils.
 From Peregrine Require Import SerializeCommon.
 From Peregrine Require Import SerializeConfig.
 From Peregrine Require Import SerializeCommonSound.
@@ -31,9 +32,11 @@ Proof.
   apply sound_class in Ea2.
   apply sound_class in Ea3.
   apply sound_class in Ea4.
+  apply sound_class in Ea5.
+  apply sound_class in Ea6.
   unfold to_sexp, Serialize_rust_config.
   cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4.
+  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6.
   reflexivity.
 Qed.
 
@@ -50,9 +53,11 @@ Proof.
   apply sound_class in Ea2.
   apply sound_class in Ea3.
   apply sound_class in Ea4.
+  apply sound_class in Ea5.
+  apply sound_class in Ea6.
   unfold to_sexp, Serialize_rust_config'.
   cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4.
+  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6.
   reflexivity.
 Qed.
 
@@ -309,11 +314,6 @@ Proof.
     reflexivity.
   - destruct He as [es [<- He]].
     sound_field He.
-    apply sound_class in Ea1.
-    rewrite <- Ea1.
-    reflexivity.
-  - destruct He as [es [<- He]].
-    sound_field He.
     apply sound_class in Ea0.
     apply sound_class in Ea1.
     apply sound_class in Ea2.
@@ -361,11 +361,9 @@ Proof.
   apply sound_class in Ea2.
   apply sound_class in Ea3.
   apply sound_class in Ea4.
-  apply sound_class in Ea5.
-  apply sound_class in Ea6.
   unfold to_sexp, Serialize_erasure_phases.
   cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6.
+  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4.
   reflexivity.
 Qed.
 
@@ -416,9 +414,10 @@ Proof.
   apply sound_class in Ea2.
   apply sound_class in Ea3.
   apply sound_class in Ea4.
+  apply sound_class in Ea5.
   unfold to_sexp, Serialize_config.
   cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4.
+  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5.
   reflexivity.
 Qed.
 
@@ -435,8 +434,9 @@ Proof.
   apply sound_class in Ea2.
   apply sound_class in Ea3.
   apply sound_class in Ea4.
+  apply sound_class in Ea5.
   unfold to_sexp, Serialize_config'.
   cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4.
+  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5.
   reflexivity.
 Qed.

@@ -12,16 +12,18 @@ Local Open Scope bs_scope.
 Section BackendConfig.
 
   Record rust_config := {
-    rust_preamble         : string;
-    rust_term_box_symbol  : string;
-    rust_type_box_symbol  : string;
-    rust_any_type_symbol  : string;
-    rust_print_full_names : bool;
+    rust_preamble_top       : string;
+    rust_preamble_program   : string;
+    rust_term_box_symbol    : string;
+    rust_type_box_symbol    : string;
+    rust_any_type_symbol    : string;
+    rust_print_full_names   : bool;
+    rust_default_attributes : string;
   }.
 
   Record elm_config := {
     elm_preamble         : string;
-    elm_module_name      : string;
+    elm_module_name      : option string;
     elm_term_box_symbol  : string;
     elm_type_box_symbol  : string;
     elm_any_type_symbol  : string;
@@ -184,7 +186,6 @@ Section GeneralConfig.
 
   Inductive remapping :=
   | RemapInductive      : Kernames.inductive -> external_remapping -> remapped_inductive -> remapping
-  | ReorderInductive    : EProgram.inductive_mapping -> remapping
   | RemapConstant       : Kernames.kername -> external_remapping -> string -> remapping
   | RemapInlineConstant : Kernames.kername -> external_remapping -> string -> remapping.
 
@@ -195,12 +196,10 @@ Section GeneralConfig.
   Definition custom_attributes : Type := list custom_attribute.
 
   Record erasure_phases := {
-      dearg          : bool;
       implement_box  : bool;
       implement_lazy : bool;
       cofix_to_laxy  : bool;
       betared        : bool;
-      inlining       : bool;
       unboxing       : bool;
     }.
 
@@ -215,6 +214,7 @@ Section GeneralConfig.
       erasure_opts           : erasure_config;
       inlinings_opts         : inlinings;
       remappings_opts        : remappings;
+      cstr_reorders_opts     : EProgram.inductives_mapping;
       custom_attributes_opts : custom_attributes;
     }.
 

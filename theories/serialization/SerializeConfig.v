@@ -2,6 +2,7 @@ From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Erasure Require Import EProgram.
 From Malfunction Require Serialize.
 From Peregrine Require Import Config.
+From Peregrine Require Import ConfigUtils.
 From Peregrine Require Import SerializeCommon.
 From Peregrine Require Import CeresExtra.
 From Stdlib Require Import List.
@@ -19,21 +20,25 @@ Local Open Scope bs_scope.
 Instance Serialize_rust_config : Serialize rust_config :=
   fun o =>
     [Atom "rust_config";
-     to_sexp (rust_preamble o);
+     to_sexp (rust_preamble_top o);
+     to_sexp (rust_preamble_program o);
      to_sexp (rust_term_box_symbol o);
      to_sexp (rust_type_box_symbol o);
      to_sexp (rust_any_type_symbol o);
-     to_sexp (rust_print_full_names o)
+     to_sexp (rust_print_full_names o);
+     to_sexp (rust_default_attributes o)
     ]%sexp.
 
 Instance Serialize_rust_config' : Serialize rust_config' :=
   fun o =>
     [Atom "rust_config";
-     to_sexp (rust_preamble' o);
+     to_sexp (rust_preamble_top' o);
+     to_sexp (rust_preamble_program' o);
      to_sexp (rust_term_box_symbol' o);
      to_sexp (rust_type_box_symbol' o);
      to_sexp (rust_any_type_symbol' o);
-     to_sexp (rust_print_full_names' o)
+     to_sexp (rust_print_full_names' o);
+     to_sexp (rust_default_attributes' o)
     ]%sexp.
 
 Instance Serialize_elm_config : Serialize elm_config :=
@@ -148,7 +153,6 @@ Instance Serialize_remapping : Serialize remapping :=
   fun r =>
     match r with
     | RemapInductive kn er ri => [Atom "RemapInductive"; to_sexp kn; to_sexp er; to_sexp ri ]
-    | ReorderInductive im => [Atom "ReorderInductive"; to_sexp im ]
     | RemapConstant kn er s => [Atom "RemapConstant"; to_sexp kn; to_sexp er; to_sexp s ]
     | RemapInlineConstant kn er s => [Atom "RemapInlineConstant"; to_sexp kn; to_sexp er; to_sexp s ]
     end%sexp.
@@ -172,12 +176,10 @@ Instance Serialize_custom_attributes : Serialize custom_attributes :=
 Instance Serialize_erasure_phases : Serialize erasure_phases :=
   fun o =>
     [Atom "erasure_phases";
-     to_sexp (dearg o);
      to_sexp (implement_box o);
      to_sexp (implement_lazy o);
      to_sexp (cofix_to_laxy o);
      to_sexp (betared o);
-     to_sexp (inlining o);
      to_sexp (unboxing o)
     ]%sexp.
 
@@ -204,6 +206,7 @@ Instance Serialize_config : Serialize config :=
      to_sexp (erasure_opts o);
      to_sexp (inlinings_opts o);
      to_sexp (remappings_opts o);
+     to_sexp (cstr_reorders_opts o);
      to_sexp (custom_attributes_opts o)
     ]%sexp.
 
@@ -214,6 +217,7 @@ Instance Serialize_config' : Serialize config' :=
      to_sexp (erasure_opts' o);
      to_sexp (inlinings_opts' o);
      to_sexp (remappings_opts' o);
+     to_sexp (cstr_reorders_opts' o);
      to_sexp (custom_attributes_opts' o)
     ]%sexp.
 
@@ -226,13 +230,13 @@ Instance Serialize_config' : Serialize config' :=
 Instance Deserialize_rust_config : Deserialize rust_config :=
   fun l e =>
     Deser.match_con "rust_config" []
-      [ ("rust_config", Deser.con5_ Build_rust_config) ]
+      [ ("rust_config", con7_ Build_rust_config) ]
       l e.
 
 Instance Deserialize_rust_config' : Deserialize rust_config' :=
   fun l e =>
     Deser.match_con "rust_config" []
-      [ ("rust_config", Deser.con5_ Build_rust_config') ]
+      [ ("rust_config", con7_ Build_rust_config') ]
       l e.
 
 Instance Deserialize_elm_config : Deserialize elm_config :=
@@ -324,7 +328,6 @@ Instance Deserialize_remapping : Deserialize remapping :=
   fun l e =>
     Deser.match_con "remapping" []
       [ ("RemapInductive", Deser.con3_ RemapInductive);
-        ("ReorderInductive", Deser.con1_ ReorderInductive);
         ("RemapConstant", Deser.con3_ RemapConstant);
         ("RemapInlineConstant", Deser.con3_ RemapInlineConstant)
       ]
@@ -349,7 +352,7 @@ Instance Deserialize_custom_attributes : Deserialize custom_attributes :=
 Instance Deserialize_erasure_phases : Deserialize erasure_phases :=
   fun l e =>
     Deser.match_con "erasure_phases" []
-      [ ("erasure_phases", con7_ Build_erasure_phases) ]
+      [ ("erasure_phases", Deser.con5_ Build_erasure_phases) ]
       l e.
 
 Instance Deserialize_erasure_config : Deserialize erasure_config :=
@@ -367,13 +370,13 @@ Instance Deserialize_erasure_config' : Deserialize erasure_config' :=
 Instance Deserialize_config : Deserialize config :=
   fun l e =>
     Deser.match_con "config" []
-      [ ("config", Deser.con5_ Build_config) ]
+      [ ("config", con6_ Build_config) ]
       l e.
 
 Instance Deserialize_config' : Deserialize config' :=
   fun l e =>
     Deser.match_con "config" []
-      [ ("config", Deser.con5_ Build_config') ]
+      [ ("config", con6_ Build_config') ]
       l e.
 
 
