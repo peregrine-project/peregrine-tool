@@ -41,8 +41,35 @@ Definition get_config (c : string + config') : result config string :=
   | inr c' => Ok (mk_config c')
   end.
 
+Definition check_wf (p : PAst) : result unit string :=
+  map_error (fun e => "Program not wellformed\n" ++ e)
+  match p with
+  | Untyped env (Some t) =>
+      @check_wf_program EWellformed.all_env_flags (env, t)
+  | Untyped env None =>
+      @check_wf_glob EWellformed.all_env_flags env
+  | Typed env (Some t) =>
+      _ <- @CheckWfExAst.check_wf_typed_program EWellformed.all_env_flags env;;
+      @wellformed EWellformed.all_env_flags (ExAst.trans_env env) 0 t
+  | Typed env None =>
+      @CheckWfExAst.check_wf_typed_program EWellformed.all_env_flags env
+  end.
+
+(* TODO: move *)
+Definition assert {E : Type} (b : bool) (e : E) : result unit E :=
+  if b then Ok tt else Err e.
+
+Definition validate_ast_type (c : config) (p : PAst) : result unit string :=
+  match c.(backend_opts) with
+  | Rust _ => assert (is_typed_ast p) "Rust extraction requires typed lambda box input"
+  | Elm _ => assert (is_typed_ast p) "Elm extraction requires typed lambda box input"
+  | C _ | Wasm _ | OCaml _ => Ok tt
+  end.
+
 
 
 Definition peregrine_pipeline (c : string + config') (p : string) (f : string) : extraction_result :=
   p <- parse_ast p;; (* Parse input string into AST *)
   c <- get_config c;; (* Parse or construct config *)
+  check_wf p;; (* Check that AST is wellformed *)
+  validate_ast_type c p;; (* Check that the provided AST is compatible with the chosen backend *)
