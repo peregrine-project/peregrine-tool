@@ -100,9 +100,66 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result PAst
 
 
 
+Inductive extracted_program :=
+| RustProgram : list string -> extracted_program
+| ElmProgram : string -> extracted_program
+| CProgram : CertiCoq.Codegen.toplevel.Cprogram -> extracted_program
+| WasmProgram : string -> extracted_program
+| OCamlProgram : (list string * string) -> extracted_program.
+
+Definition extraction_result : Type := result extracted_program string.
+
+#[local]
+Existing Instance Monad_result.
+
+Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result :=
+  match c.(backend_opts) with
+  | Rust opts =>
+    p' <- PAst_to_ExAst p;;
+    res <- LambdaBoxToRust.box_to_rust
+      LambdaBoxToRust.default_remaps
+      (LambdaBoxToRust.mk_preamble None None)
+      LambdaBoxToRust.default_attrs
+      TypedTransforms.default_params
+      p';;
+    Ok (RustProgram res)
+
+  | Elm opts =>
+    p' <- PAst_to_ExAst p;;
+    res <- LambdaBoxToElm.box_to_elm
+      f
+      None
+      LambdaBoxToElm.default_remaps
+      TypedTransforms.default_params
+      p';;
+    Ok (ElmProgram res)
+
+  | OCaml opts =>
+    p' <- PAst_to_EAst p;;
+    let res := LambdaBoxToOCaml.box_to_ocaml p' in
+    Ok (OCamlProgram res)
+
+  | C opts =>
+    p' <- PAst_to_EAst p;;
+    let opts := CertiCoqPipeline.make_opts false false in
+    match LambdaBoxToC.run_translation opts p' with
+    | (compM.Ret prg, _) => Ok (CProgram prg)
+    | (compM.Err e, _) => Err e
+    end
+
+  | Wasm opts =>
+    p' <- PAst_to_EAst p;;
+    let opts := CertiCoqPipeline.make_opts false false in
+    match LambdaBoxToWasm.run_translation opts p' with
+    | (compM.Ret prg, _) => Ok (WasmProgram prg)
+    | (compM.Err e, _) => Err e
+    end
+  end.
+
 Definition peregrine_pipeline (c : string + config') (p : string) (f : string) : extraction_result :=
   p <- parse_ast p;; (* Parse input string into AST *)
   c <- get_config c;; (* Parse or construct config *)
   check_wf p;; (* Check that AST is wellformed *)
   validate_ast_type c p;; (* Check that the provided AST is compatible with the chosen backend *)
   p <- apply_transforms c p (needs_typed c);; (* Apply program transformation *)
+  run_backend c f p. (* Run extraction backend *)
