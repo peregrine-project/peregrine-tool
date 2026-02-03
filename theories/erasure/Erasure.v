@@ -7,6 +7,7 @@ From MetaRocq.SafeChecker Require Import PCUICErrors PCUICWfEnvImpl.
 From MetaRocq.Erasure Require EAstUtils ErasureFunction ErasureCorrectness EPretty Extract.
 From MetaRocq.Erasure Require Import EProgram EInlining EBeta.
 From MetaRocq.ErasurePlugin Require Import ETransform Erasure.
+From Peregrine Require Import Config.
 
 Import PCUICProgram.
 Import PCUICTransform (template_to_pcuic_transform, pcuic_expand_lets_transform).

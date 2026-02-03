@@ -5,8 +5,11 @@ From MetaRocq.Template Require Import EtaExpand TemplateProgram.
 From MetaRocq.PCUIC Require PCUICAst PCUICAstUtils PCUICProgram.
 From MetaRocq.SafeChecker Require Import PCUICErrors PCUICWfEnvImpl.
 From MetaRocq.Erasure Require EAstUtils ErasureFunction ErasureCorrectness EPretty Extract.
-From MetaRocq.Erasure Require Import EProgram EInlining EBeta.
+From MetaRocq.Erasure Require Import EProgram EInlining EBeta EWellformed.
 From MetaRocq.ErasurePlugin Require Import ETransform Erasure.
+From MetaRocq.Erasure Require EImplementBox.
+From Peregrine Require EImplementLazyForce.
+From Malfunction Require Pipeline.
 
 Import PCUICProgram.
 Import PCUICTransform (template_to_pcuic_transform, pcuic_expand_lets_transform).
