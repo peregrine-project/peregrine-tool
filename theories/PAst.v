@@ -29,3 +29,15 @@ Definition PAst_to_ExAst (ast : PAst) : result ExAst.global_env string :=
   | Typed env (Some t) => Ok env (* TODO: add t to env, with a fresh name or hardcoded main? *)
   | Typed env None => Ok env
   end.
+
+Definition is_typed_ast (p : PAst) : bool :=
+  match p with
+  | Untyped _ _ => false
+  | Typed _ _ => true
+  end.
+
+Definition is_untyped_ast (p : PAst) : bool :=
+  match p with
+  | Untyped _ _ => true
+  | Typed _ _ => false
+  end.

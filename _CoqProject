@@ -1,6 +1,7 @@
 -Q theories Peregrine
 theories/PAst.v
 theories/Config.v
+theories/ConfigUtils.v
 theories/CheckWf.v
 theories/EvalBox.v
 theories/CoqToLambdaBox.v
@@ -13,11 +14,20 @@ theories/LambdaBoxToElm.v
 theories/LambdaBoxToC.v
 theories/LambdaBoxToOCaml.v
 theories/Translations.v
-theories/Extraction.v
+#theories/Extraction.v
+
+theories/Pipeline.v
 
 theories/erasure/Erasure.v
 theories/erasure/ErasureTyped.v
 theories/erasure/Transforms.v
+theories/erasure/EImplementLazyForce.v
+
+theories/backends/RustBackend.v
+theories/backends/ElmBackend.v
+theories/backends/OCamlBackend.v
+theories/backends/CBackend.v
+theories/backends/WasmBackend.v
 
 theories/serialization/CeresExtra.v
 theories/serialization/Serialize.v
