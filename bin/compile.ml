@@ -1,109 +1,27 @@
-open Peregrine.Translations
-open Peregrine.EAst
-open Peregrine.ExAst
-open Peregrine.SerializeEAst
-open Peregrine.SerializeExAst
-open Peregrine.CheckWf
 open Common
 open Peregrine.Caml_bytestring
 
 module Datatypes = Peregrine.Datatypes
 module CeresExtra = Peregrine.CeresExtra
-module TypedTransforms = Peregrine.TypedTransforms
-module LambdaBoxToWasm = Peregrine.LambdaBoxToWasm
-module LambdaBoxToRust = Peregrine.LambdaBoxToRust
-module LambdaBoxToElm = Peregrine.LambdaBoxToElm
+module Config = Peregrine.Config1
+module ConfigUtils = Peregrine.ConfigUtils
+module Pipeline = Peregrine.Pipeline1
 module CompM = Peregrine.CompM
 module ResultMonad = Peregrine.ResultMonad
-module ExceptionMonad = Peregrine.ExceptionMonad
 module Cps = Peregrine.Cps
-module Eval = Peregrine.EvalBox
 
 
+
+(* Bytestring conversion *)
 let string_of_cstring = Peregrine.Camlcoq.camlstring_of_coqstring
 let cstring_of_string = Peregrine.Camlcoq.coqstring_of_camlstring
 
 let cprint_endline s =
   print_endline (caml_string_of_bytestring s)
 
-let mk_tparams eopts =
-  TypedTransforms.mk_params eopts.optimize eopts.optimize
-
-let convert_typed kn opt p =
-  match Peregrine.SerializeCommon.kername_of_string (bytestring_of_caml_string kn) with
-  | Datatypes.Coq_inr kn ->
-    let p =
-      if opt
-      then match TypedTransforms.typed_transfoms (mk_tparams (mk_typed_erasure_opts opt)) p with
-           | ResultMonad.Ok p -> p
-           | ResultMonad.Err e ->
-             print_endline "Failed optimizing:";
-             print_endline (caml_string_of_bytestring e);
-             exit 1
-      else p
-    in
-    (Peregrine.ExAst.trans_env p, Peregrine.EAst.Coq_tConst kn)
-  | Datatypes.Coq_inl e ->
-    let err_msg = CeresExtra.string_of_error true true e in
-    print_endline "Failed parsing kername";
-    cprint_endline err_msg;
-    exit 1
-
-let check_wf checker flags opts p =
-  if opts.bypass_wf then ()
-  else
-  (print_endline "Checking program wellformedness";
-  match checker flags p with
-  | ResultMonad.Ok _ -> ()
-  | ResultMonad.Err e ->
-    print_endline "Program not wellformed";
-    print_endline (caml_string_of_bytestring e);
-    exit 1
-  )
-
-let check_wf_untyped flags =
-  check_wf check_wf_program flags
-
-let check_wf_typed flags =
-  check_wf CheckWfExAst.check_wf_typed_program flags
-
-let read_file f =
-  let c = open_in f in
-  let s = really_input_string c (in_channel_length c) in
-  close_in c;
-  s
-
-let parse_ast p s =
-  let t = p (bytestring_of_caml_string (String.trim s)) in
-  match t with
-  | Datatypes.Coq_inr t -> t
-  | Datatypes.Coq_inl e ->
-    let err_msg = CeresExtra.string_of_error true true e in
-    print_endline "Failed parsing input program";
-    cprint_endline err_msg;
-    exit 1
-
-let get_ast opts eopts f : program =
-  let s = read_file f in
-  print_endline "Parsing AST:";
-  match eopts.typed with
-  | None ->
-    let p = parse_ast program_of_string s in
-    check_wf_untyped agda_eflags opts p;
-    p
-  | Some kn ->
-    let p = parse_ast global_env_of_string s in
-    check_wf_typed agda_eflags opts p;
-    convert_typed kn eopts.optimize p
-
-let get_typed_ast opts f : global_env =
-  let s = read_file f in
-  print_endline "Parsing AST:";
-  let p = parse_ast global_env_of_string s in
-  check_wf_typed agda_typed_eflags opts p;
-  p
 
 
+(* Extraction output helper functions *)
 let get_out_file opts f ext =
   match opts.output_file with
   | Some f -> f
@@ -135,103 +53,10 @@ let write_rust_res opts f p =
   write_res f (fun f ->
     List.iter (fun s -> output_string f ((caml_string_of_bytestring s) ^ "\n")) p)
 
-let write_anf_res opts f p =
-  let f = get_out_file opts f "anf" in
-  let p = caml_string_of_bytestring p in
-  write_res f (fun f -> output_string f p)
-
 let write_ocaml_res opts f p =
   let f = get_out_file opts f "mlf" in
   write_res f (fun f ->
     output_string f (caml_string_of_bytestring (snd p)))
-
-let print_debug opts dbg =
-  if opts.debug then
-    (print_endline "Pipeline debug:";
-    print_endline (caml_string_of_bytestring dbg))
-
-
-
-let mk_copts opts copts =
-  Peregrine.CertiCoqPipeline.make_opts copts.cps opts.debug
-
-let compile_wasm opts eopts copts f =
-  let p = get_ast opts eopts f in
-  print_endline "Compiling:";
-  let p = Peregrine.ErasurePipeline.implement_box agda_eflags p in
-  let p = l_box_to_wasm (mk_copts opts copts) p in
-  match p with
-  | (CompM.Ret prg, dbg) ->
-    print_debug opts dbg;
-    print_endline "Compiled successfully:";
-    write_wasm_res opts f prg
-  | (CompM.Err s, dbg) ->
-    print_debug opts dbg;
-    print_endline "Could not compile:";
-    print_endline (caml_string_of_bytestring s);
-    exit 1
-
-let compile_ocaml opts eopts f =
-  let p = get_ast opts eopts f in
-  print_endline "Compiling:";
-  l_box_to_ocaml p |>
-  write_ocaml_res opts f
-
-let get_rust_attr e =
-  match e with
-  | None -> LambdaBoxToRust.default_attrs
-  | Some s -> fun _ -> bytestring_of_caml_string s
-
-let compile_rust opts eopts top_pre prog_pre attr f =
-  let top_pre = Option.map bytestring_of_caml_string top_pre in
-  let prog_pre = Option.map bytestring_of_caml_string prog_pre in
-  let preamble = LambdaBoxToRust.mk_preamble top_pre prog_pre in
-  let attr = get_rust_attr attr in
-  let p = get_typed_ast opts f in
-  print_endline "Compiling:";
-  let p = l_box_to_rust LambdaBoxToRust.default_remaps preamble attr (mk_tparams eopts) p in
-  match p with
-  | ResultMonad.Ok prg ->
-    print_endline "Compiled successfully:";
-    write_rust_res opts f prg
-  | ResultMonad.Err e ->
-    print_endline "Could not compile:";
-    print_endline (caml_string_of_bytestring e);
-    exit 1
-
-let compile_elm opts eopts pre f =
-  let pre = Option.map bytestring_of_caml_string pre in
-  let mod_name = f |> Filename.basename |> Filename.chop_extension |> bytestring_of_caml_string in
-  let p = get_typed_ast opts f in
-  print_endline "Compiling:";
-  let p = l_box_to_elm mod_name pre LambdaBoxToElm.default_remaps (mk_tparams eopts) p in
-  match p with
-  | ResultMonad.Ok prg ->
-    print_endline "Compiled successfully:";
-    write_elm_res opts f prg
-  | ResultMonad.Err e ->
-    print_endline "Could not compile:";
-    print_endline (caml_string_of_bytestring e);
-    exit 1
-
-let eval_box opts eopts copts anf f =
-  let p = get_ast opts eopts f in
-  print_endline "Evaluating:";
-  let p = Peregrine.ErasurePipeline.implement_box agda_eflags p in
-  let p = Eval.eval (mk_copts opts copts) anf p in
-  match p with
-  | (CompM.Ret t, dbg) ->
-    print_debug opts dbg;
-    print_endline "Evaluated program to:";
-    print_endline (caml_string_of_bytestring t)
-  | (CompM.Err s, dbg) ->
-    print_debug opts dbg;
-    print_endline "Could not compile:";
-    print_endline (caml_string_of_bytestring s);
-    exit 1
-
-let validate_box opts eopts f =
-  ignore @@ get_ast opts eopts f
 
 let printCProg prog names (dest : string) (imports : import list) =
   let imports' = List.map (fun i -> match i with
@@ -241,39 +66,74 @@ let printCProg prog names (dest : string) (imports : import list) =
         failwith "Import with absolute path should have been filled") imports in
   Peregrine.PrintClight.print_dest_names_imports prog (Cps.M.elements names) dest imports'
 
-let compile_c opts eopts copts f =
-  let p = get_ast opts eopts f in
-  print_endline "Compiling:";
-  let p = Peregrine.ErasurePipeline.implement_box agda_eflags p in
-  let p = l_box_to_c (mk_copts opts copts) p in
+let write_c_res opts f p =
   match p with
-  | (CompM.Ret ((nenv, header), prg), dbg) ->
-    print_debug opts dbg;
-    print_endline "Compiled successfully:";
-    let runtime_imports = [FromLibrary ((if copts.cps then "gc.h" else "gc_stack.h"), None)] in
+  | (((nenv, header), prg), libs) ->
+    let runtime_imports = List.map (fun x -> FromLibrary (caml_string_of_bytestring x, None)) libs in
     let imports = runtime_imports in
     let cstr = get_out_file opts f "c" in
     let hstr = get_header_file opts f in
     printCProg prg nenv cstr (imports @ [FromRelativePath hstr]);
-    printCProg header nenv hstr (runtime_imports);
-  | (CompM.Err s, dbg) ->
-    print_debug opts dbg;
+    printCProg header nenv hstr (runtime_imports)
+
+let write_program opts f p =
+  match p with
+  | Pipeline.RustProgram p -> write_rust_res opts f p
+  | Pipeline.ElmProgram p -> write_elm_res opts f p
+  | Pipeline.OCamlProgram p -> write_ocaml_res opts f p
+  | Pipeline.CProgram p -> write_c_res opts f p
+  | Pipeline.WasmProgram p -> write_wasm_res opts f p
+
+
+
+let read_file f =
+  let c = open_in f in
+  let s = really_input_string c (in_channel_length c) in
+  close_in c;
+  s
+
+
+
+(* Compile functions *)
+let compile_aux opts f prog config =
+  let f_name = f |> Filename.basename |> Filename.chop_extension |> bytestring_of_caml_string in
+  print_endline "Compiling:";
+  let res = Pipeline.peregrine_pipeline config prog f_name in
+  match res with
+  | ResultMonad.Ok p ->
+    print_endline "Compiled successfully:";
+    write_program opts f p
+  | ResultMonad.Err e ->
     print_endline "Could not compile:";
-    print_endline (caml_string_of_bytestring s);
+    cprint_endline e;
     exit 1
 
-let compile_anf opts eopts copts f =
-  let p = get_ast opts eopts f in
-  print_endline "Compiling:";
-  let p = Peregrine.ErasurePipeline.implement_box agda_eflags p in
-  let p = Peregrine.CertiCoqPipeline.show_IR (mk_copts opts copts) p in
-  match p with
-  | (CompM.Ret prg, dbg) ->
-    print_debug opts dbg;
-    print_endline "Compiled successfully:";
-    write_anf_res opts f prg
-  | (CompM.Err s, dbg) ->
-    print_debug opts dbg;
-    print_endline "Could not compile:";
-    print_endline (caml_string_of_bytestring s);
-    exit 1
+let compile opts f_prog f_config =
+  let prog = f_prog |> read_file |> bytestring_of_caml_string in
+  let config = f_config |> read_file |> bytestring_of_caml_string in
+  compile_aux opts f_prog prog (Datatypes.Coq_inl config)
+
+let compile_backend backend_opts opts f_prog =
+  let prog = f_prog |> read_file |> bytestring_of_caml_string in
+  let config = backend_opts |> ConfigUtils.empty_config' in
+  compile_aux opts f_prog prog (Datatypes.Coq_inr config)
+
+let compile_rust opts f_prog =
+  let b_opts = ConfigUtils.Rust' ConfigUtils.empty_rust_config' in
+  compile_backend b_opts opts f_prog
+
+let compile_elm opts f_prog =
+  let b_opts = ConfigUtils.Elm' ConfigUtils.empty_elm_config' in
+  compile_backend b_opts opts f_prog
+
+let compile_ocaml opts f_prog =
+  let b_opts = ConfigUtils.OCaml' ConfigUtils.empty_ocaml_config' in
+  compile_backend b_opts opts f_prog
+
+let compile_c opts f_prog =
+  let b_opts = ConfigUtils.C' ConfigUtils.empty_certicoq_config' in
+  compile_backend b_opts opts f_prog
+
+let compile_wasm opts f_prog =
+  let b_opts = ConfigUtils.Wasm' ConfigUtils.empty_certicoq_config' in
+  compile_backend b_opts opts f_prog
