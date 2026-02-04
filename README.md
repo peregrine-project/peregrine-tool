@@ -97,7 +97,7 @@ The extracted Elm code does not depend on any external libraries and can be comp
 The peregrine tool compiles $\lambda_\square$ and $\lambda_\square^T$ to various languages, the $\lambda_\square$ programs can be obtained from either Coq or Agda using the frontends described here.
 
 #### Agda (Agda2lambox)
-[Agda2lambox](https://github.com/agda/agda2lambox) is a backend for [Agda](https://github.com/agda/agda) translating Agda programs into $\lambda_\square$ and $\lambda_\square^T$.
+[Agda2lambox](https://github.com/agda/agda2lambox) is a frontend translating [Agda](https://github.com/agda/agda) programs into $\lambda_\square$ and $\lambda_\square^T$.
 
 To use the Agda2lambox frontend you should first annotate the definition you wish to translate with `{-# COMPILE AGDA2LAMBOX DEF_NAME #-}`.
 For example
@@ -116,10 +116,38 @@ agda2lambox --typed --no-block FILE
 ```
 
 #### Coq (MetaCoq)
-[MetaCoq](https://github.com/MetaRocq/metarocq) is a project formalizing Coq in Coq and providing tools for manipulating Coq terms and developing certified plugins (i.e. translations, compilers or tactics) in Coq. It can be used to translate Coq programs into $\lambda_\square$ and $\lambda_\square^T$ using [CoqToLambdaBox.v](theories/CoqToLambdaBox.v).
+[MetaCoq](https://github.com/MetaRocq/metarocq) is a project formalizing Coq in Coq and providing tools for manipulating Coq terms and developing certified plugins (i.e. translations, compilers or tactics) in Coq.
+It can be used to translate Coq programs into $\lambda_\square$ and $\lambda_\square^T$ using the Peregrine Rocq plugin.
+
+```coq
+From Peregrine Require Import Loader.
+
+Definition add_5 (n : nat) : nat := n + 5.
+
+(* Extract to untyped lambda box *)
+Peregrine Extract "test.ast" add_5.
+
+(* Extract to typed lambda box *)
+Peregrine Extract Typed "test.ast" add_5.
+```
+
+
+ It can be used to translate Coq programs into $\lambda_\square$ and $\lambda_\square^T$ using [CoqToLambdaBox.v](theories/CoqToLambdaBox.v).
 
 For extracting Coq programs it is recommended to use the respective extraction backends in Coq rather than using the standalone peregrine tool.
 
+#### Lean (lean-to-lambox)
+The [lean-to-lambox](https://github.com/peregrine-project/lean-to-lambdabox) frontend produces $\lambda_\square$ for [Lean]() programs.
+
+Usage
+To use the lean-to-lambox frontend use the `#erase DEF_NAME to "FILE"` notation in Lean.
+```
+import Erasure
+
+def val_at_false (f: Bool -> Nat): Nat := f .false
+
+#erase val_at_false to "out.ast"
+```
 
 ## Command Line Interface
 ### Common arguments
