@@ -73,7 +73,7 @@ Section GeneralConfig.
   | RemapConstant       : Kernames.kername -> external_remapping -> string -> remapping
   | RemapInlineConstant : Kernames.kername -> external_remapping -> string -> remapping.
 
-  Definition custom_attribute : Type := string.
+  Definition custom_attribute : Type := (Kernames.kername * string).
 
   Definition inlinings : Type := list Kernames.kername.
   Definition remappings : Type := list remapping.

@@ -1,5 +1,6 @@
 -Q theories Peregrine
 theories/PAst.v
+theories/Utils.v
 theories/Config.v
 theories/ConfigUtils.v
 theories/CheckWf.v
@@ -28,6 +29,7 @@ theories/backends/ElmBackend.v
 theories/backends/OCamlBackend.v
 theories/backends/CBackend.v
 theories/backends/WasmBackend.v
+theories/backends/CertiCoqBackend.v
 
 theories/serialization/CeresExtra.v
 theories/serialization/Serialize.v
