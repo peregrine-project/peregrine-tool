@@ -63,7 +63,7 @@ Definition print_program prims pt nms p :=
 Definition mk_remaps (rs : remappings) : Malfunction.primitives :=
   Utils.filter_map (fun x =>
     match x with
-    | RemapConstant kn _ s =>
+    | RemapConstant kn _ _ _ s =>
       let '(m, s) := split_name s in
       Some (string_of_kername kn, Malfunction.Global m s)
     | _ => None

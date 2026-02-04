@@ -52,7 +52,7 @@ Definition mk_config (o : elm_config) : ElmPrintConfig := {|
 Definition mk_remaps (rs : remappings) : Kernames.kername -> option string :=
   let re_const := filter_map (fun x =>
     match x with
-    | RemapConstant kn _ s => Some (kn, s)
+    | RemapConstant kn _ _ _ s => Some (kn, s)
     | _ => None
     end
   ) rs in

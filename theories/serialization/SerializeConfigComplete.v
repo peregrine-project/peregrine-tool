@@ -221,15 +221,15 @@ Proof.
     rewrite !eqb_ascii_refl.
     rewrite 3!complete_class.
     reflexivity.
-  - cbn -[Deserialize_ident Deserialize_external_remapping Deserialize_kername].
+  - cbn -[Deserialize_ident Deserialize_external_remapping Deserialize_kername Deserialize_option Deserialize_SemiIntegral Deserialize_bool].
     rewrite !eqb_ascii_refl.
     rewrite !neqb_ascii_neq by congruence.
-    rewrite 3!complete_class.
+    rewrite 5!complete_class.
     reflexivity.
-  - cbn -[Deserialize_ident Deserialize_external_remapping Deserialize_kername].
+  - cbn -[Deserialize_ident Deserialize_external_remapping Deserialize_kername Deserialize_option Deserialize_SemiIntegral Deserialize_bool].
     rewrite !eqb_ascii_refl.
     rewrite !neqb_ascii_neq by congruence.
-    rewrite 3!complete_class.
+    rewrite 5!complete_class.
     reflexivity.
 Qed.
 

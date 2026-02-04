@@ -317,14 +317,18 @@ Proof.
     apply sound_class in Ea0.
     apply sound_class in Ea1.
     apply sound_class in Ea2.
-    rewrite <- Ea0, <- Ea1, <- Ea2.
+    apply sound_class in Ea3.
+    apply sound_class in Ea4.
+    rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4.
     reflexivity.
   - destruct He as [es [<- He]].
     sound_field He.
     apply sound_class in Ea0.
     apply sound_class in Ea1.
     apply sound_class in Ea2.
-    rewrite <- Ea0, <- Ea1, <- Ea2.
+    apply sound_class in Ea3.
+    apply sound_class in Ea4.
+    rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4.
     reflexivity.
 Qed.
 

@@ -67,11 +67,12 @@ Section GeneralConfig.
     }.
 
   Definition external_remapping : Type := option string.
+  Definition arity : Type := option nat.
 
   Inductive remapping :=
   | RemapInductive      : Kernames.inductive -> external_remapping -> remapped_inductive -> remapping
-  | RemapConstant       : Kernames.kername -> external_remapping -> string -> remapping
-  | RemapInlineConstant : Kernames.kername -> external_remapping -> string -> remapping.
+  | RemapConstant       : Kernames.kername -> external_remapping -> arity -> bool -> string -> remapping
+  | RemapInlineConstant : Kernames.kername -> external_remapping -> arity -> bool -> string -> remapping.
 
   Definition custom_attribute : Type := (Kernames.kername * string).
 

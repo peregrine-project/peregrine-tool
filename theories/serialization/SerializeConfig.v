@@ -153,8 +153,8 @@ Instance Serialize_remapping : Serialize remapping :=
   fun r =>
     match r with
     | RemapInductive kn er ri => [Atom "RemapInductive"; to_sexp kn; to_sexp er; to_sexp ri ]
-    | RemapConstant kn er s => [Atom "RemapConstant"; to_sexp kn; to_sexp er; to_sexp s ]
-    | RemapInlineConstant kn er s => [Atom "RemapInlineConstant"; to_sexp kn; to_sexp er; to_sexp s ]
+    | RemapConstant kn er a gc s => [Atom "RemapConstant"; to_sexp kn; to_sexp er; to_sexp a; to_sexp gc; to_sexp s ]
+    | RemapInlineConstant kn er a gc s => [Atom "RemapInlineConstant"; to_sexp kn; to_sexp er; to_sexp a; to_sexp gc; to_sexp s ]
     end%sexp.
 
 Instance Serialize_custom_attribute : Serialize custom_attribute :=
@@ -328,8 +328,8 @@ Instance Deserialize_remapping : Deserialize remapping :=
   fun l e =>
     Deser.match_con "remapping" []
       [ ("RemapInductive", Deser.con3_ RemapInductive);
-        ("RemapConstant", Deser.con3_ RemapConstant);
-        ("RemapInlineConstant", Deser.con3_ RemapInlineConstant)
+        ("RemapConstant", Deser.con5_ RemapConstant);
+        ("RemapInlineConstant", Deser.con5_ RemapInlineConstant)
       ]
       l e.
 

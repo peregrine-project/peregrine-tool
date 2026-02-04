@@ -86,13 +86,13 @@ Definition mk_remaps (rs : remappings) : remaps :=
   ) rs in
   let re_const := filter_map (fun x =>
     match x with
-    | RemapConstant kn _ s => Some (kn, s)
+    | RemapConstant kn _ _ _ s => Some (kn, s)
     | _ => None
     end
   ) rs in
   let re_in_const := filter_map (fun x =>
     match x with
-    | RemapInlineConstant kn _ s => Some (kn, s)
+    | RemapInlineConstant kn _ _ _ s => Some (kn, s)
     | _ => None
     end
   ) rs in
