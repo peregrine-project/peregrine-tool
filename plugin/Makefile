@@ -10,7 +10,7 @@ theory: RocqMakefile
 	+@make -f RocqMakefile
 	@echo "Done extracting the extraction, processing produced files!"
 	./process_extraction.sh
-.PHONY: plugin
+.PHONY: theory
 
 plugin: theory RocqMakefile.plugin
 	+@make -f RocqMakefile.plugin
