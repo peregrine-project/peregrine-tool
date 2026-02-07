@@ -39,7 +39,7 @@ pin-depends: [
   ]
   [
     "coq-compcert.3.16"
-    "git+https://github.com/4ever2/CompCert.git#4d57cc53a535484578846e05d1896a5b6abed30b"
+    "git+https://github.com/4ever2/CompCert.git#6ca6ac1858b3444a266c60970102e8ca533e7827"
   ]
   [
     "coq-certicoq.dev"
