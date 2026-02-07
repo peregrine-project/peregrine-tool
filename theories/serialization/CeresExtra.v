@@ -183,7 +183,7 @@ Lemma sound_list_from_forall {A : Type} (ser : A -> sexp) (des : FromSexp A) (es
   forall xs n l ts,
     Forall (fun e => forall l' t, des l' e = inr t -> ser t = e) es ->
     _sexp_to_list des xs n l es = inr ts ->
-    map ser ts = map ser (rev xs) ++ es.
+    map ser ts = (map ser (rev xs) ++ es)%list.
 Proof.
   induction es as [| e es' IHes]; intros xs n l ts Hforall Hdeser.
   - (* Base case: empty list *)
@@ -320,7 +320,7 @@ Lemma sound_prod_list_from_strong {A B : Type}
     forall xs n l ts,
       _sexp_to_list (Deserialize_prod desA desB) xs n l es = inr ts ->
       map (fun p => List [serA (fst p); serB (snd p)]) ts =
-      map (fun p => List [serA (fst p); serB (snd p)]) (rev xs) ++ es.
+      (map (fun p => List [serA (fst p); serB (snd p)]) (rev xs) ++ es)%list.
 Proof.
   induction es as [| e es' IHes]; intros Hss xs n l ts Hdeser.
   - (* Base case: empty list *)
@@ -383,7 +383,7 @@ Lemma sound_def_list_from_strong {T : Set}
     Forall (StrongSound P) es ->
     forall xs n l (ts : list (def T)),
       _sexp_to_list (@_from_sexp (def T) (@Deserialize_def T desT)) xs n l es = inr ts ->
-      map to_sexp ts = map to_sexp (rev xs) ++ es.
+      map to_sexp ts = (map to_sexp (rev xs) ++ es)%list.
 Proof.
   induction es as [| e es' IHes]; intros Hss xs n l ts Hdeser.
   - (* Base case *)
