@@ -1,0 +1,32 @@
+--- extraction/Ascii.hs.orig
++++ extraction/Ascii.hs
+@@ -4,6 +4,8 @@ import qualified Prelude
+ import qualified BinNat
+ import qualified BinNums
+ import qualified Datatypes
++import Data.Char (ord, chr)
++import Data.Bits (testBit, shiftL)
+ 
+ zero :: Prelude.Char
+ zero =
+--- extraction/DecimalString.hs.orig
++++ extraction/DecimalString.hs
+@@ -3,6 +3,8 @@ module DecimalString where
+ import qualified Prelude
+ import qualified Datatypes
+ import qualified Decimal
++import Data.Char (ord)
++import Data.Bits (testBit)
+ 
+ uint_of_char :: Prelude.Char -> (Prelude.Maybe Decimal.Coq_uint) ->
+                 Prelude.Maybe Decimal.Coq_uint
+
+--- extraction/PrimInt63.hs.orig
++++ extraction/PrimInt63.hs
+@@ -1,5 +1,6 @@
+ module PrimInt63 where
+ 
+ import qualified Prelude
++import Data.Int (Int64)
+ 
+ type Coq_int = Data.Int.Int64
