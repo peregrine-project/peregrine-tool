@@ -26,7 +26,7 @@ then
   rm -f $files
 
   cd ../
-  OUT="$(patch -p0 --forward < fix_extraction.patch)" || echo "${OUT}" | grep "Skipping patch" -q || (echo "$OUT" && false);
+  patch -p0 --forward < fix_extraction.patch || true
 else
   echo "Extraction up to date"
 fi

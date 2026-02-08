@@ -58,7 +58,7 @@ SerializeEAst
 SerializeExAst
 SerializePAst
 Erasure1
-ErasueTyped
+ErasureTyped
 CoqToLambdaBox
 
 G_peregrine
