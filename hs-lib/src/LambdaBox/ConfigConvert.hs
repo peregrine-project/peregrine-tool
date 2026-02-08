@@ -120,29 +120,23 @@ customAttributesConv l =
   map (\x -> (kerNameConv $ fst x, stringConv $ snd x)) l
 
 -- Configure optional compilation phases
-phasesConv :: Phases -> Config0.Coq_erasure_phases
-phasesConv Phases {..} =
-  Config0.Build_erasure_phases
+erasurePhasesConv :: ErasurePhases -> ConfigUtils.Coq_erasure_phases'
+erasurePhasesConv ErasurePhases {..} =
+  ConfigUtils.Build_erasure_phases'
     implementBox
     implementLaxy
     cofixToLazy
     betared
     unboxing
-
--- Erasure config
-erasureConfigConv :: ErasureConfig -> ConfigUtils.Coq_erasure_config'
-erasureConfigConv ErasureConfig {..} =
-  ConfigUtils.Build_erasure_config'
-    (fmap phasesConv phases)
-    deargConst
     deargCtor
+    deargConst
 
 -- Configuration of Peregrine
 configConv :: Config -> ConfigUtils.Coq_config'
 configConv Config {..} =
   ConfigUtils.Build_config'
     (backendConfigConv backendOpts)
-    (erasureConfigConv erasureOpts)
+    (fmap erasurePhasesConv erasureOpts)
     (inliningsConv inlinings)
     (remappingsConv remappings)
     (inductivesMappingConv cstrReorders)
