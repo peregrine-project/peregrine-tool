@@ -32,6 +32,7 @@ theories/backends/WasmBackend.v
 theories/backends/CertiCoqBackend.v
 
 theories/serialization/CeresExtra.v
+theories/serialization/Deserialize.v
 theories/serialization/Serialize.v
 theories/serialization/SerializeCommon.v
 theories/serialization/SerializePrimitives.v
