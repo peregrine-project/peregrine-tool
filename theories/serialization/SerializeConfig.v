@@ -261,32 +261,32 @@ Instance Deserialize_elm_config' : Deserialize elm_config' :=
 Instance Deserialize_certicoq_config : Deserialize certicoq_config :=
   fun l e =>
     Deser.match_con "certicoq_config" []
-      [ ("certicoq_config", Deser.con5_ Build_certicoq_config) ]
+      [ ("certicoq_config", con5_ Build_certicoq_config) ]
       l e.
 
 Instance Deserialize_certicoq_config' : Deserialize certicoq_config' :=
   fun l e =>
     Deser.match_con "certicoq_config" []
-      [ ("certicoq_config", Deser.con5_ Build_certicoq_config') ]
+      [ ("certicoq_config", con5_ Build_certicoq_config') ]
       l e.
 
 Instance Deserialize_program_type : Deserialize Serialize.program_type :=
   fun l e =>
     Deser.match_con "program_type"
       [ ("Standalone", Serialize.Standalone) ]
-      [ ("Shared_lib", Deser.con2_ Serialize.Shared_lib) ]
+      [ ("Shared_lib", con2_ Serialize.Shared_lib) ]
       l e.
 
 Instance Deserialize_ocaml_config : Deserialize ocaml_config :=
   fun l e =>
     Deser.match_con "ocaml_config" []
-      [ ("ocaml_config", Deser.con1_ Build_ocaml_config) ]
+      [ ("ocaml_config", con1_ Build_ocaml_config) ]
       l e.
 
 Instance Deserialize_ocaml_config' : Deserialize ocaml_config' :=
   fun l e =>
     Deser.match_con "ocaml_config" []
-      [ ("ocaml_config", Deser.con1_ Build_ocaml_config') ]
+      [ ("ocaml_config", con1_ Build_ocaml_config') ]
       l e.
 
 Instance Deserialize_backend_config : Deserialize backend_config :=
@@ -318,7 +318,7 @@ Instance Deserialize_backend_config' : Deserialize backend_config' :=
 Instance Deserialize_remapped_inductive : Deserialize remapped_inductive :=
   fun l e =>
     Deser.match_con "remapped_inductive" []
-      [ ("remapped_inductive", Deser.con3_ build_remapped_inductive) ]
+      [ ("remapped_inductive", con3_ build_remapped_inductive) ]
       l e.
 
 Instance Deserialize_external_remapping : Deserialize external_remapping :=
@@ -328,15 +328,15 @@ Instance Deserialize_external_remapping : Deserialize external_remapping :=
 Instance Deserialize_inductive_mapping : Deserialize EProgram.inductive_mapping :=
   fun l e =>
     Deser.match_con "inductive_mapping" []
-      [ ("inductive_mapping", Deser.con3_ (fun kn s n => (kn, (s, n)))) ]
+      [ ("inductive_mapping", con3_ (fun kn s n => (kn, (s, n)))) ]
       l e.
 
 Instance Deserialize_remapping : Deserialize remapping :=
   fun l e =>
     Deser.match_con "remapping" []
-      [ ("RemapInductive", Deser.con3_ RemapInductive);
-        ("RemapConstant", Deser.con5_ RemapConstant);
-        ("RemapInlineConstant", Deser.con5_ RemapInlineConstant)
+      [ ("RemapInductive", con3_ RemapInductive);
+        ("RemapConstant", con5_ RemapConstant);
+        ("RemapInlineConstant", con5_ RemapInlineConstant)
       ]
       l e.
 
@@ -383,7 +383,7 @@ Instance Deserialize_config' : Deserialize config' :=
 Instance Deserialize_attributes_config : Deserialize attributes_config :=
   fun l e =>
     Deser.match_con "attributes_config" []
-      [ ("attributes_config", Deser.con4_ Build_attributes_config) ]
+      [ ("attributes_config", con4_ Build_attributes_config) ]
       l e.
 
 

@@ -2,6 +2,7 @@ From MetaRocq.Utils Require Import bytestring.
 From Peregrine Require Import PAst.
 From Peregrine Require Import SerializeEAst.
 From Peregrine Require Import SerializeExAst.
+From Peregrine Require Import CeresExtra.
 From Stdlib Require Import List.
 From Ceres Require Import Ceres.
 
@@ -43,8 +44,8 @@ Instance Deserialize_PAst : Deserialize PAst :=
   fun l e =>
     Deser.match_con "PAst"
       []
-      [ ("Untyped", Deser.con2_ Untyped)
-      ; ("Typed", Deser.con2_ Typed)
+      [ ("Untyped", con2_ Untyped)
+      ; ("Typed", con2_ Typed)
       ]
       l e.
 

@@ -7,6 +7,7 @@ From Ceres Require Import Ceres.
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Common Require Import Primitive.
 From MetaRocq.Erasure Require Import EPrimitive.
+From Peregrine Require Import CeresExtra.
 
 Import ListNotations.
 Local Open Scope bs_scope.
@@ -95,7 +96,7 @@ Instance Deserialize_prim_string : Deserialize PrimString.string :=
 Instance Deserialize_array_model {T : Set} `{Deserialize T} : Deserialize (array_model T) :=
   fun l e =>
     Deser.match_con "array_model" []
-      [ ("array_model", Deser.con2_ Build_array_model) ]
+      [ ("array_model", con2_ Build_array_model) ]
       l e.
 
 Instance Deserialize_prim_val {T : Set} `{Deserialize T} : Deserialize (prim_val T) :=
