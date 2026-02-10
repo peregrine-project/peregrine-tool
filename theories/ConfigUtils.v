@@ -10,6 +10,7 @@ From Peregrine Require Import Config.
 From Peregrine Require Import RustBackend.
 From Peregrine Require Import ElmBackend.
 From Peregrine Require Import OCamlBackend.
+From Peregrine Require Import CakeMLBackend.
 From Peregrine Require Import CBackend.
 From Peregrine Require Import WasmBackend.
 
@@ -145,7 +146,7 @@ Section BackendConfigOptional.
   Record ocaml_config' := {
     program_type' : option Malfunction.Serialize.program_type;
   }.
-  Definition empty_ocaml_config' :ocaml_config' := {|
+  Definition empty_ocaml_config' : ocaml_config' := {|
     program_type' := None;
   |}.
 
@@ -153,19 +154,26 @@ Section BackendConfigOptional.
     program_type := get_optional o default_ocaml_config program_type' program_type;
   |}.
 
+  Definition cakeml_config' : Type := unit.
+  Definition empty_cakeml_config' : cakeml_config' := tt.
+
+  Definition mk_cakeml_config (o : cakeml_config') : cakeml_config := tt.
+
   Inductive backend_config' :=
-  | Rust' : rust_config' -> backend_config'
-  | Elm' : elm_config' -> backend_config'
-  | C' : c_config' -> backend_config'
-  | Wasm' : wasm_config' -> backend_config'
-  | OCaml' : ocaml_config' -> backend_config'.
+  | Rust'   : rust_config' -> backend_config'
+  | Elm'    : elm_config' -> backend_config'
+  | C'      : c_config' -> backend_config'
+  | Wasm'   : wasm_config' -> backend_config'
+  | OCaml'  : ocaml_config' -> backend_config'
+  | CakeML' : cakeml_config' -> backend_config'.
   Definition mk_backend_config (o : backend_config') : backend_config :=
     match o with
-    | Rust' o => Rust (mk_rust_config o)
-    | Elm' o => Elm (mk_elm_config o)
-    | C' o => C (mk_certicoq_config default_c_config o)
-    | Wasm' o => Wasm (mk_certicoq_config default_wasm_config o)
-    | OCaml' o => OCaml (mk_ocaml_config o)
+    | Rust' o   => Rust (mk_rust_config o)
+    | Elm' o    => Elm (mk_elm_config o)
+    | C' o      => C (mk_certicoq_config default_c_config o)
+    | Wasm' o   => Wasm (mk_certicoq_config default_wasm_config o)
+    | OCaml' o  => OCaml (mk_ocaml_config o)
+    | CakeML' o => CakeML (mk_cakeml_config o)
     end.
 
 End BackendConfigOptional.
@@ -234,25 +242,27 @@ Section GeneralConfigOptional.
   Definition mk_erasure_phases (b : backend_config') (o : option erasure_phases') : erasure_phases :=
     let def_opt :=
       match b with
-      | Rust' _  => get_default_phases_opt rust_phases
-      | Elm' _   => get_default_phases_opt elm_phases
-      | C' _     => get_default_phases_opt c_phases
-      | Wasm' _  => get_default_phases_opt wasm_phases
-      | OCaml' _ => get_default_phases_opt ocaml_phases
+      | Rust' _   => get_default_phases_opt rust_phases
+      | Elm' _    => get_default_phases_opt elm_phases
+      | C' _      => get_default_phases_opt c_phases
+      | Wasm' _   => get_default_phases_opt wasm_phases
+      | OCaml' _  => get_default_phases_opt ocaml_phases
+      | CakeML' _ => get_default_phases_opt cakeml_phases
       end in
     match o with
     | Some o =>
       match b with
-      | Rust' _  => enforce_phases o def_opt rust_phases
-      | Elm' _   => enforce_phases o def_opt elm_phases
-      | C' _     => enforce_phases o def_opt c_phases
-      | Wasm' _  => enforce_phases o def_opt wasm_phases
-      | OCaml' _ => enforce_phases o def_opt ocaml_phases
+      | Rust' _   => enforce_phases o def_opt rust_phases
+      | Elm' _    => enforce_phases o def_opt elm_phases
+      | C' _      => enforce_phases o def_opt c_phases
+      | Wasm' _   => enforce_phases o def_opt wasm_phases
+      | OCaml' _  => enforce_phases o def_opt ocaml_phases
+      | CakeML' _ => enforce_phases o def_opt cakeml_phases
       end
     | None => def_opt
     end.
 
-  Definition mk_erasure_config (b : backend_config') (o : option erasure_phases') : erasure_phases := 
+  Definition mk_erasure_config (b : backend_config') (o : option erasure_phases') : erasure_phases :=
     mk_erasure_phases b o.
 
   Record config' := {
@@ -316,6 +326,12 @@ Section GeneralConfigOptional.
   Definition is_ocaml_config (o : config) : bool :=
     match o.(backend_opts) with
     | OCaml _ => true
+    | _ => false
+    end.
+
+  Definition is_cakeml_config (o : config) : bool :=
+    match o.(backend_opts) with
+    | CakeML _ => true
     | _ => false
     end.
 
