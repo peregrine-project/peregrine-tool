@@ -278,7 +278,28 @@ var rocq_tests: TestCase[] =
 // Lean Tests
 var lean_tests: TestCase[] =
     [
-
+        {
+            src: "lean/extraction/Demo.ast",
+            main: "Demo_test",
+            output_type: { type: "list", a_t: SimpleType.Bool },
+            expected_output: [
+                "(cons true (cons false (cons true (cons false nil))))",
+                "(Cons () (True) (Cons () (False) (Cons () (True) (Cons () (False) (Empty)))))",
+                "Cons True (Cons False (Cons True (Cons False Empty)))"
+            ],
+            parameters: []
+        },
+/*         {
+            src: "lean/extraction/Map.ast",
+            main: "Map_ys",
+            output_type: { type: "list", a_t: SimpleType.Nat },
+            expected_output: [
+                "(cons (S (S O)) (cons (S (S (S (S (S (S O)))))) (cons (S (S (S (S (S (S (S (S (S (S O)))))))))) nil)))",
+                "",
+                ""
+            ],
+            parameters: []
+        }, */ // Generates invalid identifier names in C backend
     ];
 
 // List of programs to be tested
