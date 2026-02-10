@@ -189,12 +189,35 @@ Proof.
   reflexivity.
 Qed.
 
+Instance Sound_cakeml_config : SoundClass cakeml_config.
+Proof.
+  unfold SoundClass, Sound.
+  intros l e a He.
+  destruct a.
+  apply (@sound_class _ Serialize_unit Deserialize_unit _)  in He.
+  exact He.
+Qed.
+
+Instance Sound_cakeml_config' : SoundClass cakeml_config'.
+Proof.
+  unfold SoundClass, Sound.
+  intros l e a He.
+  destruct a.
+  apply (@sound_class _ Serialize_unit Deserialize_unit _)  in He.
+  exact He.
+Qed.
+
 Instance Sound_backend_config : SoundClass backend_config.
 Proof.
   unfold SoundClass, Sound.
   intros l e n He.
   apply sound_match_con in He.
   destruct He as [He | He]; elim_Exists He.
+  - destruct He as [es [<- He]].
+    sound_field He.
+    apply sound_class in Ea1.
+    rewrite <- Ea1.
+    reflexivity.
   - destruct He as [es [<- He]].
     sound_field He.
     apply sound_class in Ea1.
@@ -228,6 +251,11 @@ Proof.
   intros l e n He.
   apply sound_match_con in He.
   destruct He as [He | He]; elim_Exists He.
+  - destruct He as [es [<- He]].
+    sound_field He.
+    apply sound_class in Ea1.
+    rewrite <- Ea1.
+    reflexivity.
   - destruct He as [es [<- He]].
     sound_field He.
     apply sound_class in Ea1.

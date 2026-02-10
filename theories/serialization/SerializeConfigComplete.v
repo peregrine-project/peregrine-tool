@@ -120,6 +120,24 @@ Proof.
   reflexivity.
 Qed.
 
+Instance Complete_cakeml_config : CompleteClass cakeml_config.
+Proof.
+  unfold CompleteClass, Complete.
+  intros l o.
+  cbn.
+  destruct o.
+  reflexivity.
+Qed.
+
+Instance Complete_cakeml_config' : CompleteClass cakeml_config'.
+Proof.
+  unfold CompleteClass, Complete.
+  intros l o.
+  cbn.
+  destruct o.
+  reflexivity.
+Qed.
+
 Instance Complete_backend_config : CompleteClass backend_config.
 Proof.
   unfold CompleteClass, Complete.
@@ -145,6 +163,11 @@ Proof.
     rewrite !complete_class.
     reflexivity.
   - cbn -[Deserialize_ocaml_config].
+    rewrite !eqb_ascii_refl.
+    rewrite !neqb_ascii_neq by congruence.
+    rewrite !complete_class.
+    reflexivity.
+  - cbn -[Deserialize_cakeml_config'].
     rewrite !eqb_ascii_refl.
     rewrite !neqb_ascii_neq by congruence.
     rewrite !complete_class.
@@ -176,6 +199,11 @@ Proof.
     rewrite !complete_class.
     reflexivity.
   - cbn -[Deserialize_ocaml_config'].
+    rewrite !eqb_ascii_refl.
+    rewrite !neqb_ascii_neq by congruence.
+    rewrite !complete_class.
+    reflexivity.
+  - cbn -[Deserialize_cakeml_config'].
     rewrite !eqb_ascii_refl.
     rewrite !neqb_ascii_neq by congruence.
     rewrite !complete_class.

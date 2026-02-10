@@ -104,6 +104,14 @@ Instance Serialize_ocaml_config' : Serialize ocaml_config' :=
      to_sexp (program_type' o)
     ]%sexp.
 
+Instance Serialize_cakeml_config : Serialize cakeml_config :=
+  fun o =>
+    @to_sexp _ Serialize_unit o.
+
+Instance Serialize_cakeml_config' : Serialize cakeml_config' :=
+  fun o =>
+    @to_sexp _ Serialize_unit o.
+
 Instance Serialize_backend_config : Serialize backend_config :=
   fun b =>
     match b with
@@ -112,6 +120,7 @@ Instance Serialize_backend_config : Serialize backend_config :=
     | C o => [Atom "C"; to_sexp o ]
     | Wasm o => [Atom "Wasm"; to_sexp o ]
     | OCaml o => [Atom "OCaml"; to_sexp o ]
+    | CakeML o => [Atom "CakeML"; to_sexp o ]
     end%sexp.
 
 Instance Serialize_backend_config' : Serialize backend_config' :=
@@ -122,6 +131,7 @@ Instance Serialize_backend_config' : Serialize backend_config' :=
     | C' o => [Atom "C"; to_sexp o ]
     | Wasm' o => [Atom "Wasm"; to_sexp o ]
     | OCaml' o => [Atom "OCaml"; to_sexp o ]
+    | CakeML' o => [Atom "CakeML"; to_sexp o ]
     end%sexp.
 
 
@@ -289,6 +299,14 @@ Instance Deserialize_ocaml_config' : Deserialize ocaml_config' :=
       [ ("ocaml_config", con1_ Build_ocaml_config') ]
       l e.
 
+Instance Deserialize_cakeml_config : Deserialize cakeml_config :=
+  fun l e =>
+    @_from_sexp _ Deserialize_unit l e.
+
+Instance Deserialize_cakeml_config' : Deserialize cakeml_config' :=
+  fun l e =>
+    @_from_sexp _ Deserialize_unit l e.
+
 Instance Deserialize_backend_config : Deserialize backend_config :=
   fun l e =>
     Deser.match_con "backend_config" []
@@ -296,7 +314,8 @@ Instance Deserialize_backend_config : Deserialize backend_config :=
         ("Elm", Deser.con_ Elm);
         ("C", Deser.con_ C);
         ("Wasm", Deser.con_ Wasm);
-        ("OCaml", Deser.con_ OCaml)
+        ("OCaml", Deser.con_ OCaml);
+        ("CakeML", Deser.con_ CakeML)
       ]
       l e.
 
@@ -307,7 +326,8 @@ Instance Deserialize_backend_config' : Deserialize backend_config' :=
         ("Elm", Deser.con_ Elm');
         ("C", Deser.con_ C');
         ("Wasm", Deser.con_ Wasm');
-        ("OCaml", Deser.con_ OCaml')
+        ("OCaml", Deser.con_ OCaml');
+        ("CakeML", Deser.con_ CakeML')
       ]
       l e.
 
@@ -419,6 +439,12 @@ Definition string_of_ocaml_config (x : ocaml_config) : string :=
 Definition string_of_ocaml_config' (x : ocaml_config') : string :=
   @to_string ocaml_config' Serialize_ocaml_config' x.
 
+Definition string_of_cakeml_config (x : cakeml_config) : string :=
+  @to_string cakeml_config Serialize_cakeml_config x.
+
+Definition string_of_cakeml_config' (x : cakeml_config') : string :=
+  @to_string cakeml_config' Serialize_cakeml_config' x.
+
 Definition string_of_backend_config (x : backend_config) : string :=
   @to_string backend_config Serialize_backend_config x.
 
@@ -500,6 +526,12 @@ Definition ocaml_config_of_string (s : string) : error + ocaml_config :=
 
 Definition ocaml_config'_of_string (s : string) : error + ocaml_config' :=
   @from_string ocaml_config' Deserialize_ocaml_config' s.
+
+Definition cakeml_config_of_string (s : string) : error + cakeml_config :=
+  @from_string cakeml_config Deserialize_cakeml_config s.
+
+Definition cakeml_config'_of_string (s : string) : error + cakeml_config' :=
+  @from_string cakeml_config' Deserialize_cakeml_config' s.
 
 Definition backend_config_of_string (s : string) : error + backend_config :=
   @from_string backend_config Deserialize_backend_config s.
