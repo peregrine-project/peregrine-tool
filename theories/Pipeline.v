@@ -76,13 +76,13 @@ Definition validate_ast_type (c : config) (p : PAst) : result unit string :=
   match c.(backend_opts) with
   | Rust _ => assert (is_typed_ast p) "Rust extraction requires typed lambda box input"
   | Elm _ => assert (is_typed_ast p) "Elm extraction requires typed lambda box input"
-  | C _ | Wasm _ | OCaml _ => Ok tt
+  | C _ | Wasm _ | OCaml _ | CakeML _ => Ok tt
   end.
 
 Definition needs_typed (c : config) : bool :=
   match c.(backend_opts) with
   | Rust _ | Elm _ => true
-  | C _ | Wasm _ | OCaml _ => false
+  | C _ | Wasm _ | OCaml _ | CakeML _ => false
   end.
 
 Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result PAst string :=
@@ -118,7 +118,8 @@ Inductive extracted_program :=
 | ElmProgram : string -> extracted_program
 | CProgram : (CertiCoq.Codegen.toplevel.Cprogram * list string) -> extracted_program
 | WasmProgram : string -> extracted_program
-| OCamlProgram : (list string * string) -> extracted_program.
+| OCamlProgram : (list string * string) -> extracted_program
+| CakeMLProgram : (list string * string) -> extracted_program.
 
 Definition extraction_result : Type := result extracted_program string.
 
@@ -155,6 +156,16 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       f
       p';;
     Ok (OCamlProgram res)
+
+  | CakeML opts =>
+    p' <- PAst_to_EAst p;;
+    res <- CakeMLBackend.extract_cakeml
+      remaps
+      custom_attr
+      opts
+      f
+      p';;
+    Ok (CakeMLProgram res)
 
   | C opts =>
     p' <- PAst_to_EAst p;;
