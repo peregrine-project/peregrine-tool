@@ -131,6 +131,9 @@ jobs:
       - name: Generate Agda ASTs
         run: cd agda && make test && mv test/dist/ ../test/agda/
 
+      - name: Generate Rocq ASTs
+        run: cd test/rocq && make build-ci
+
       - name: Test extraction
         run: |
           echo "::group::Running tests"
