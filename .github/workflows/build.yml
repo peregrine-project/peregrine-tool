@@ -134,6 +134,15 @@ jobs:
       - name: Generate Rocq ASTs
         run: cd test/rocq && make build-ci
 
+      - name: Set up lean and generate Lean ASTs
+        uses: leanprover/lean-action@v1
+        with:
+          use-github-cache: false
+          build: true
+          test: false
+          lint: false
+          lake-package-directory: "test/lean/"
+
       - name: Test extraction
         run: |
           echo "::group::Running tests"
