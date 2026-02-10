@@ -30,6 +30,7 @@ Valid values for `TARGETLANGUAGE` are:
 * `wasm`
 * `c`
 * `ocaml`
+* `cakeml`
 * `rust`
 * `elm`
 
@@ -162,6 +163,7 @@ Valid values for `TARGETLANGUAGE` are:
 * `wasm`
 * `c`
 * `ocaml`
+* `cakeml`
 * `rust`
 * `elm`
 
