@@ -20,3 +20,6 @@
 *.d
 
 !META.*
+
+*.rej
+*.orig

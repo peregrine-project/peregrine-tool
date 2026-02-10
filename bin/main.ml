@@ -21,12 +21,36 @@ let copts_t =
     let doc = "Output file." in
     Arg.(value & opt (some string) None & info ["o"; "outfile"] ~docs ~doc)
   in
-  let wf_arg =
-    let doc = "Bypass welformedness checks." in
-    Arg.(value & flag & info ["bypass-wf"] ~docs ~doc)
+  let attrs_arg =
+    let doc = "Attribute config files." in
+    Arg.(value & opt (list file) [] & info ["attributes"] ~docs ~doc)
   in
-  Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ wf_arg)
+  Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg)
 
+let certicoq_opts_t =
+  let cps_arg =
+    let doc = "Use CPS translation pipeline." in
+    Arg.(value & flag & info ["cps"] ~doc)
+  in
+  let c_args_arg =
+    let doc = "Numbers of C arguments." in
+    Arg.(value & opt (some int) None & info ["c-args"] ~doc)
+  in
+  let o_level_arg =
+    let doc = "Optimization level." in
+    Arg.(value & opt (some int) None & info ["O"] ~doc)
+  in
+  let prefix_arg =
+    let doc = "Prefix to generated FFI." in
+    Arg.(value & opt (some string) None & info ["prefix"] ~doc)
+  in
+  let body_name_arg =
+    let doc = "Name of the toplevel function." in
+    Arg.(value & opt (some string) None & info ["body-name"] ~doc)
+  in
+  Term.(const mk_certicoq_opts $ cps_arg $ c_args_arg $ o_level_arg $ prefix_arg $ body_name_arg)
+
+  
 let sdocs = Manpage.s_common_options
 
 let help man_format cmds topic = match topic with
@@ -73,176 +97,106 @@ let exits = Cmd.Exit.defaults @ [
   Cmd.Exit.info 20 ~max:29 ~doc:"on compiler errors.";
 ]
 
-let certicoq_opts_t =
-  let cps_arg =
-    let doc = "Use CPS translation pipeline." in
-    Arg.(value & flag & info ["cps"] ~doc)
-  in
-  Term.(const (fun x -> mk_certicoq_opts x) $ cps_arg )
-
-let eopts_t =
-  let typed_arg =
-    let doc = "Parse input as typed lambda box program." in
-    Arg.(value & opt (some string) None & info ["typed"] ~doc)
-  in
-  let opt_arg =
-    let doc = "Enable dearging optimization (only available when using --typed)." in
-    Arg.(value & flag & info ["opt"] ~doc)
-  in
-  Term.(const mk_erasure_opts $ typed_arg $ opt_arg)
-
-let teopts_t =
-  let opt_arg =
-    let doc = "Enable dearging optimization." in
-    Arg.(value & flag & info ["opt"] ~doc)
-  in
-  Term.(const mk_typed_erasure_opts $ opt_arg)
-
-let eval_cmd =
-  let file =
+let compile_cmd =
+  let program_file =
     let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None  & info []
-           ~docv:"FILE" ~doc)
+    Arg.(required & pos 0 (some file) None & info []
+           ~docv:"PROGRAM_FILE" ~doc)
   in
-  let anf_arg =
-    let doc = "Use lambda ANF evaluator." in
-    Arg.(value & flag & info ["anf"] ~doc)
+  let config_file =
+    let doc = "config file" in
+    Arg.(required & pos 1 (some file) None & info []
+           ~docv:"CONFIG_FILE" ~doc)
   in
-  let doc = "Evaluate lambda box program" in
+  let doc = "Compile lambda box program" in
   let man = [
     `S Manpage.s_description;
     `P "";
     `Blocks help_secs; ]
   in
-  let info = Cmd.info "eval" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const eval_box $ copts_t $ eopts_t $ certicoq_opts_t $ anf_arg $ file)
-
-let validate_cmd =
-  let file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None  & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Validate lambda box program" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "validate" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const validate_box $ copts_t $ eopts_t $ file)
-
-let wasm_cmd =
-  let file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None  & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box to webassembly" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "wasm" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_wasm $ copts_t $ eopts_t $ certicoq_opts_t $ file)
-
-let c_cmd =
-  let file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None  & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box to C" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "c" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_c $ copts_t $ eopts_t $ certicoq_opts_t $ file)
-
-let anf_cmd =
-  let file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None  & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box to ANF" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "anf" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_anf $ copts_t $ eopts_t $ certicoq_opts_t $ file)
-
-let ocaml_cmd =
-  let file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None  & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box to OCaml" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "ocaml" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_ocaml $ copts_t $ eopts_t $ file)
+  let info = Cmd.info "compile" ~doc ~sdocs ~man in
+  Cmd.v info Term.(const compile $ copts_t $ program_file $ config_file)
 
 let rust_cmd =
-  let file =
-    let doc = "lambda box typed environment" in
-    Arg.(required & pos 0 (some file) None  & info []
+  let program_file =
+    let doc = "lambda box program" in
+    Arg.(required & pos 0 (some file) None & info []
            ~docv:"FILE" ~doc)
   in
-  let attr_arg =
-    let doc = "Type attributes, defaults to \"#[derive(Debug, Clone)]\"" in
-    Arg.(value & opt (some string) None & info ["attr"] ~doc)
-  in
-  let top_pre_arg =
-    let doc = "File preamble" in
-    Arg.(value & opt (some string) None & info ["top-preamble"] ~doc)
-  in
-  let prog_pre_arg =
-    let doc = "Program preamble" in
-    Arg.(value & opt (some string) None & info ["prog-preamble"] ~doc)
-  in
-  let doc = "Compile lambda box to rust" in
+  let doc = "Compile lambda box program to Rust" in
   let man = [
     `S Manpage.s_description;
     `P "";
     `Blocks help_secs; ]
   in
   let info = Cmd.info "rust" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_rust $ copts_t $ teopts_t $ top_pre_arg $ prog_pre_arg $ attr_arg $ file)
+  Cmd.v info Term.(const compile_rust $ copts_t $ program_file)
 
 let elm_cmd =
-  let file =
-    let doc = "lambda box typed environment" in
-    Arg.(required & pos 0 (some file) None  & info []
+  let program_file =
+    let doc = "lambda box program" in
+    Arg.(required & pos 0 (some file) None & info []
            ~docv:"FILE" ~doc)
   in
-  let top_pre_arg =
-    let doc = "File preamble" in
-    Arg.(value & opt (some string) None & info ["top-preamble"] ~doc)
-  in
-  let doc = "Compile lambda box to elm" in
+  let doc = "Compile lambda box program to Elm" in
   let man = [
     `S Manpage.s_description;
     `P "";
     `Blocks help_secs; ]
   in
   let info = Cmd.info "elm" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_elm $ copts_t $ teopts_t $ top_pre_arg $ file)
+  Cmd.v info Term.(const compile_elm $ copts_t $ program_file)
+
+let ocaml_cmd =
+  let program_file =
+    let doc = "lambda box program" in
+    Arg.(required & pos 0 (some file) None & info []
+           ~docv:"FILE" ~doc)
+  in
+  let doc = "Compile lambda box program to OCaml" in
+  let man = [
+    `S Manpage.s_description;
+    `P "";
+    `Blocks help_secs; ]
+  in
+  let info = Cmd.info "ocaml" ~doc ~sdocs ~man in
+  Cmd.v info Term.(const compile_ocaml $ copts_t $ program_file)
+
+let c_cmd =
+  let program_file =
+    let doc = "lambda box program" in
+    Arg.(required & pos 0 (some file) None & info []
+           ~docv:"FILE" ~doc)
+  in
+  let doc = "Compile lambda box program to C" in
+  let man = [
+    `S Manpage.s_description;
+    `P "";
+    `Blocks help_secs; ]
+  in
+  let info = Cmd.info "c" ~doc ~sdocs ~man in
+  Cmd.v info Term.(const compile_c $ copts_t $ certicoq_opts_t $ program_file)
+
+let wasm_cmd =
+  let program_file =
+    let doc = "lambda box program" in
+    Arg.(required & pos 0 (some file) None & info []
+           ~docv:"FILE" ~doc)
+  in
+  let doc = "Compile lambda box program to WebAssembly" in
+  let man = [
+    `S Manpage.s_description;
+    `P "";
+    `Blocks help_secs; ]
+  in
+  let info = Cmd.info "wasm" ~doc ~sdocs ~man in
+  Cmd.v info Term.(const compile_wasm $ copts_t $ certicoq_opts_t $ program_file)
 
 let main_cmd =
   let doc = "Verified compiler from LambdaBox to WebAssembly, C, Rust, and OCaml" in
   let man = help_secs in
   let info = Cmd.info "peregrine" ~version ~doc ~sdocs ~man ~exits in
   let default = Term.(ret (const (fun _ -> `Help (`Pager, None)) $ copts_t)) in
-  Cmd.group info ~default [eval_cmd; validate_cmd; wasm_cmd; c_cmd; anf_cmd; ocaml_cmd; rust_cmd; elm_cmd; help_cmd]
+  Cmd.group info ~default [compile_cmd; rust_cmd; elm_cmd; ocaml_cmd; c_cmd; wasm_cmd; help_cmd]
 
 let () = exit (Cmd.eval main_cmd)

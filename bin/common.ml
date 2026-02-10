@@ -1,14 +1,33 @@
 type verbose = Normal | Quiet | Verbose
 
-type copts = { verbose: verbose; debug: bool; output_file: string option; bypass_wf: bool }
-let mk_copts verbose debug output_file bypass_wf = { verbose; debug; output_file; bypass_wf }
+type copts = {
+  verbose: verbose;
+  debug: bool;
+  output_file: string option;
+  attrs: string list;
+}
+let mk_copts verbose debug output_file attrs = {
+  verbose;
+  debug;
+  output_file;
+  attrs
+}
 
-type erasure_opts = { typed : string option; optimize : bool }
-let mk_erasure_opts typed optimize = { typed; optimize }
-let mk_typed_erasure_opts optimize = { typed=None; optimize }
+type certicoq_opts = {
+  cps: bool;
+  c_args: int option;
+  o_level: int option;
+  prefix: string option;
+  body_name: string option;
+}
 
-type certicoq_opts = { cps : bool }
-let mk_certicoq_opts cps = { cps }
+let mk_certicoq_opts cps c_args o_level prefix body_name = {
+  cps;
+  c_args;
+  o_level;
+  prefix;
+  body_name;
+}
 
 
 type import =

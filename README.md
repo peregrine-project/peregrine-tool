@@ -142,7 +142,7 @@ The [lean-to-lambox](https://github.com/peregrine-project/lean-to-lambdabox) fro
 Usage
 To use the lean-to-lambox frontend use the `#erase DEF_NAME to "FILE"` notation in Lean.
 ```
-import Erasure
+import LeanToLambdaBox
 
 def val_at_false (f: Bool -> Nat): Nat := f .false
 
@@ -152,10 +152,7 @@ def val_at_false (f: Bool -> Nat): Nat := f .false
 ## Command Line Interface
 ### Common arguments
 * `-o FILE` output file for extracted program
-* `--bypass-wf` bypass wellformedness check on input programs, note that the correctness guarantees of proofs don't apply when bypassing these checks
 * `--quiet`, `--verbose`, `--debug` controls the level of feedback from the program
-* `--typed=MAIN_FUNCTION` attempts to parse the input program as a $\lambda_\square^T$ program rather than $\lambda_\square$, only available for untyped extraction targets
-* `--opt` enable extra optimizations
 
 ### Extraction commands
 ```
@@ -169,30 +166,3 @@ Valid values for `TARGETLANGUAGE` are:
 * `elm`
 
 The `wasm` and `c` targets also supports the `--cps` flag that uses verified cps translation during compilation instead of the unverified direct translation.
-
-### Debug commands
-These commands main purpose are for debugging $\lambda_\square$ programs and the compilation pipeline.
-
-#### $\lambda_\square$ evaluator
-This command evaluates $\lambda_\square$ programs, the `--anf` flag can be used to use an alternative evaluator which first translates the program to $\lambda_{ANF}$ before evaluating the program.
-```
-peregrine eval FILE [-anf]
-```
-
-Also supports the `--cps, --opt, --typed` flags.
-
-#### $\lambda_\square$ validator
-```
-peregrine validate FILE
-```
-Validates that the program in `FILE` can be parsed and is wellformed.
-
-Also supports the `--typed` flag.
-
-#### $\lambda_{ANF}$ compiler
-Compiles $\lambda_\square$ to $\lambda_{ANF}$, used for inspecting intermediate representations.
-```
-peregrine anf FILE
-```
-
-Also supports the `--cps, --opt, --typed` flags.

@@ -2,6 +2,7 @@ From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Common Require Import BasicAst.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import Universes.
+From Peregrine Require Import CeresExtra.
 From Stdlib Require Import List.
 From Ceres Require Import Ceres.
 
@@ -86,9 +87,9 @@ Instance Deserialize_dirpath : Deserialize dirpath :=
 Instance Deserialize_modpath : Deserialize modpath :=
   fix ds (l : loc) (e : sexp) : error + modpath :=
     Deser.match_con "modpath" []
-      [ ("MPfile", Deser.con1_ MPfile)
-      ; ("MPbound", Deser.con3_ MPbound)
-      ; ("MPdot", Deser.con2 MPdot ds _from_sexp )
+      [ ("MPfile", con1_ MPfile)
+      ; ("MPbound", con3_ MPbound)
+      ; ("MPdot", con2 MPdot ds _from_sexp )
       ] l e.
 
 Instance Deserialize_kername : Deserialize kername :=
@@ -98,13 +99,13 @@ Instance Deserialize_kername : Deserialize kername :=
 Instance Deserialize_inductive : Deserialize inductive :=
   fun l e =>
     Deser.match_con "inductive" []
-      [ ("inductive", Deser.con2_ mkInd) ]
+      [ ("inductive", con2_ mkInd) ]
       l e.
 
 Instance Deserialize_projection : Deserialize projection :=
   fun l e =>
     Deser.match_con "projection" []
-      [ ("projection", Deser.con3_ mkProjection) ]
+      [ ("projection", con3_ mkProjection) ]
       l e.
 
 (** ** BasicAst *)
@@ -112,7 +113,7 @@ Instance Deserialize_name : Deserialize name :=
   fun l e =>
     Deser.match_con "name"
       [ ("nAnon", nAnon) ]
-      [ ("nNamed", Deser.con1_ nNamed) ]
+      [ ("nNamed", con1_ nNamed) ]
       l e.
 
 Instance Deserialize_recursivity_kind : Deserialize recursivity_kind :=

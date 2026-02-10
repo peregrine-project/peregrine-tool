@@ -68,6 +68,9 @@ jobs:
         run: |
           opam install -j${{ env.JOBS }} ./rocq-peregrine.opam
 
+      - name: Generate Rocq ASTs
+        run: opam exec -- make -C test/rocq build-ci
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@v1
         with:
@@ -97,7 +100,8 @@ jobs:
       - name: Checkout agda2lambox
         uses: actions/checkout@v6
         with:
-          repository: agda/agda2lambox
+          repository: 4ever2/agda2lambox
+          ref: 7efe9646f3c50db6dc73ead7c9c772104e5eba8c
           path: agda
 
       - name: Configure the agda2lambox build
@@ -130,6 +134,15 @@ jobs:
       - name: Generate Agda ASTs
         run: cd agda && make test && mv test/dist/ ../test/agda/
 
+      - name: Set up lean and generate Lean ASTs
+        uses: leanprover/lean-action@v1
+        with:
+          use-github-cache: false
+          build: true
+          test: false
+          lint: false
+          lake-package-directory: "test/lean/"
+
       - name: Test extraction
         run: |
           echo "::group::Running tests"
@@ -139,4 +152,6 @@ jobs:
       - name: Cache clean up
         run: |
           opam remove rocq-peregrine
+          opam pin remove rocq-peregrine
+          eval $(opam env)
           opam clean -a -c -s --logs

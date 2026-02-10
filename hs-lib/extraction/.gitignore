@@ -1,0 +1,6 @@
+# Generated Haskell sources
+*.hs
+
+# Patch files
+*.rej
+*.orig

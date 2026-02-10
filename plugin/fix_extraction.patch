@@ -12,21 +12,3 @@
 -open Nat0
  open PeanoNat
  open Bytestring
-
---- src/optimize.ml.orig
-+++ src/optimize.ml
-@@ -1,5 +1,6 @@
- open All_Forall
- open Ascii
-+open String0
- open BasicAst
- open Byte
- open ClosedAux
-@@ -18,7 +19,6 @@ open Nat0
- open PeanoNat
- open ReflectEq
- open ResultMonad
--open String0
- open Transform0
- open Utils
- open Bytestring

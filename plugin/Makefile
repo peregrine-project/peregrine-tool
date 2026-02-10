@@ -10,7 +10,7 @@ theory: RocqMakefile
 	+@make -f RocqMakefile
 	@echo "Done extracting the extraction, processing produced files!"
 	./process_extraction.sh
-.PHONY: plugin
+.PHONY: theory
 
 plugin: theory RocqMakefile.plugin
 	+@make -f RocqMakefile.plugin
@@ -21,6 +21,8 @@ clean: RocqMakefile
 	+@make -f RocqMakefile.plugin clean
 	rm -f RocqMakefile
 	rm -f RocqMakefile.plugin
+	find src/. -type f -name "*.ml" -delete
+	find src/. -type f -name "*.mli" -delete
 .PHONY: clean
 
 clean-make:

@@ -1,0 +1,4 @@
+-Q ../theories Peregrine
+
+-Q theories PeregrineHaskellLib
+theories/ExtractionHaskell.v

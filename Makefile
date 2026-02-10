@@ -23,6 +23,10 @@ mllib: theory
 	dune build
 .PHONY: mllib
 
+hslib: theory
+	+@make -C hs-lib
+.PHONY: hslib
+
 clean-extraction:
 	dune clean
 	find src/extraction/. -type f -name "*.ml" -delete

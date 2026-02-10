@@ -1,0 +1,11 @@
+-Q ../../plugin/theories Peregrine.Plugin
+-I ../../plugin/src
+
+-Q theories Peregrine.Tests
+theories/Extraction.v
+theories/Demo.v
+theories/Hello.v
+theories/Map.v
+theories/Mutual.v
+theories/Nat.v
+theories/OddEven.v

@@ -1,12 +1,7 @@
 From MetaRocq.Erasure Require EAst.
-From Peregrine Require CheckWf.
-From Peregrine Require EvalBox.
-From Peregrine Require ErasurePipeline.
-Local Unset Universe Checking. (* TODO: fix universe inconsistency *)
-From Peregrine Require Translations.
-Local Set Universe Checking.
+From Peregrine Require Pipeline.
+From Peregrine Require ConfigUtils.
 From Peregrine Require SerializePrimitives.
-From Peregrine Require Serialize.
 From Stdlib Require Import ExtrOcamlBasic.
 From Stdlib Require Import ExtrOCamlFloats.
 From Stdlib Require Import ExtrOCamlInt63.
@@ -69,8 +64,8 @@ Extract Constant SerializePrimitives.prim_string_of_string =>
   (* "(fun s -> failwith "" "")". *)
 
 
-Extract Constant Malfunction.FFI.coq_msg_info => "(fun s -> ())".
-Extract Constant Malfunction.FFI.coq_user_error => "(fun s -> ())".
+Extract Constant Malfunction.FFI.coq_msg_info => "(fun s -> s |> Caml_bytestring.caml_string_of_bytestring |> Stdlib.print_endline)".
+Extract Constant Malfunction.FFI.coq_user_error => "(fun s -> s |> Caml_bytestring.caml_string_of_bytestring |> Stdlib.print_endline)".
 Extraction Inline Malfunction.FFI.coq_msg_info.
 Extraction Inline Malfunction.FFI.coq_user_error.
 
@@ -83,15 +78,8 @@ Set Extraction Output Directory "src/extraction/".
 Require compcert.cfrontend.Csyntax
         compcert.cfrontend.Clight.
 
-Separate Extraction Translations.l_box_to_wasm CertiCoqPipeline.show_IR CertiCoqPipeline.make_opts
-                    Translations.l_box_to_rust LambdaBoxToRust.default_remaps LambdaBoxToRust.default_attrs LambdaBoxToRust.mk_preamble
-                    Translations.l_box_to_elm LambdaBoxToElm.default_remaps LambdaBoxToElm.mk_preamble
-                    Translations.l_box_to_c
-                    Translations.l_box_to_ocaml
-                    TypedTransforms.mk_params ErasurePipeline.implement_box
-                    EvalBox.eval
-                    CheckWf.check_wf_program CheckWf.CheckWfExAst.check_wf_typed_program CheckWf.agda_eflags CheckWf.agda_typed_eflags
-                    Serialize.program_of_string Serialize.global_env_of_string Serialize.kername_of_string Serialize.string_of_error
+Separate Extraction Pipeline.peregrine_pipeline
+                    ConfigUtils.empty_rust_config' ConfigUtils.empty_elm_config' ConfigUtils.empty_certicoq_config' ConfigUtils.empty_ocaml_config' ConfigUtils.empty_config'
                     Floats.Float32.to_bits Floats.Float.to_bits
                     Floats.Float32.of_bits Floats.Float.of_bits
                     Csyntax

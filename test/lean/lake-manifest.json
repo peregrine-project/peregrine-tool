@@ -1,0 +1,20 @@
+{
+    "version": "1.1.0",
+    "packagesDir": ".lake/packages",
+    "packages": [
+        {
+            "url": "https://github.com/peregrine-project/lean-to-lambdabox",
+            "type": "git",
+            "subDir": null,
+            "scope": "",
+            "rev": "c471c29fdbe6ff73b7dedca8630565c118c0f3ef",
+            "name": "lean_to_lambdabox",
+            "manifestFile": "lake-manifest.json",
+            "inputRev": "ast-format",
+            "inherited": false,
+            "configFile": "lakefile.toml"
+        }
+    ],
+    "name": "lean_peregrine",
+    "lakeDir": ".lake"
+}

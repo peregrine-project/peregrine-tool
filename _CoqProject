@@ -1,4 +1,10 @@
 -Q theories Peregrine
+theories/PAst.v
+theories/Utils.v
+theories/Config.v
+theories/ConfigUtils.v
+theories/Unicode.v
+theories/UnicodeXID.v
 theories/CheckWf.v
 theories/EvalBox.v
 theories/CoqToLambdaBox.v
@@ -13,12 +19,31 @@ theories/LambdaBoxToOCaml.v
 theories/Translations.v
 theories/Extraction.v
 
+theories/Pipeline.v
+
+theories/erasure/Erasure.v
+theories/erasure/ErasureTyped.v
+theories/erasure/Transforms.v
+theories/erasure/EImplementLazyForce.v
+
+theories/backends/RustBackend.v
+theories/backends/ElmBackend.v
+theories/backends/OCamlBackend.v
+theories/backends/CBackend.v
+theories/backends/WasmBackend.v
+theories/backends/CertiCoqBackend.v
+
 theories/serialization/CeresExtra.v
+theories/serialization/Deserialize.v
 theories/serialization/Serialize.v
+theories/serialization/SerializeComplete.v
+theories/serialization/SerializeSound.v
 theories/serialization/SerializeCommon.v
 theories/serialization/SerializePrimitives.v
 theories/serialization/SerializeEAst.v
 theories/serialization/SerializeExAst.v
+theories/serialization/SerializePAst.v
+theories/serialization/SerializeConfig.v
 theories/serialization/SerializeCommonComplete.v
 theories/serialization/SerializeCommonSound.v
 theories/serialization/SerializePrimitivesComplete.v
@@ -27,3 +52,7 @@ theories/serialization/SerializeEAstComplete.v
 theories/serialization/SerializeEAstSound.v
 theories/serialization/SerializeExAstComplete.v
 theories/serialization/SerializeExAstSound.v
+theories/serialization/SerializePAstComplete.v
+theories/serialization/SerializePAstSound.v
+theories/serialization/SerializeConfigComplete.v
+theories/serialization/SerializeConfigSound.v
