@@ -136,7 +136,6 @@ jobs:
 
       - name: Set up lean and generate Lean ASTs
         uses: leanprover/lean-action@v1
-        continue-on-error: true
         with:
           use-github-cache: false
           build: true
