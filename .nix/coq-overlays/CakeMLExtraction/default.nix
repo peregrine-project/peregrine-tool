@@ -10,7 +10,7 @@
 
 (mkCoqDerivation {
   pname = "CakeMLExtraction";
-  owner = "4ever2";
+  owner = "peregrine-project";
   repo = "cakeml-backend";
   opam-name = "rocq-cakeml-extraction";
   inherit version;
