@@ -1,4 +1,0 @@
-(lang dune 3.21)
-(name benchmarks-game)
-(using coq 0.9)
-(warnings (deprecated_coq_lang disabled))
