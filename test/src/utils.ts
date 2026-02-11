@@ -23,6 +23,8 @@ export function lang_to_peregrine_arg(lang: Lang): string {
       return "rust";
     case Lang.Elm:
       return "elm";
+    case Lang.CakeML:
+      return "cakeml";
   }
 }
 
@@ -39,5 +41,7 @@ export function lang_to_ext(lang: Lang): string {
       return ".rs";
     case Lang.Elm:
       return ".elm";
+    case Lang.CakeML:
+      return ".cml";
   }
 }

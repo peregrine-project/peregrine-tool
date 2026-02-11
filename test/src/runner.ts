@@ -7,6 +7,7 @@ import { existsSync, mkdirSync } from "fs";
 import { lang_to_ext, lang_to_peregrine_arg, print_line, replace_ext } from "./utils";
 import { compile_c, set_c_env } from "./c";
 import { compile_ocaml, compile_types } from "./ocaml";
+import { compile_cakeml, get_cake } from "./cakeml";
 import { compile_rust, prepare_cargo, run_rust } from "./rust";
 import { prepare_elm_project, run_elm } from "./elm";
 import { test_configurations, tests } from "./tests";
@@ -145,6 +146,35 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
 
         // Run executable
         const res = run_exec(f_exec, test, false);
+
+        // Report result
+        print_result(res, test.src);
+      }
+      break;
+    case Lang.CakeML:
+      //compile_types(compile_timeout);
+      get_cake(compile_timeout, tmpdir)
+      for (var test of tests) {
+        if (test.src === undefined) continue;
+        process.stdout.write(`  ${test.src}: `);
+
+        // Compile peregrine
+        const f_cml = compile_box(test.src, tmpdir, Lang.CakeML, opts);
+        if (typeof f_cml !== "string") {
+          print_result(f_cml, test.src);
+          continue;
+        }
+
+
+        // Compile CakeML
+        const f_exec = compile_cakeml(f_cml, test, compile_timeout, tmpdir);
+        if (typeof f_exec !== "string") {
+          print_result(f_exec, test.src);
+          continue;
+        }
+
+        // Run executable
+        const res = run_exec(f_exec, test, true); //TODO: support checking that output is correct
 
         // Report result
         print_result(res, test.src);
