@@ -6,8 +6,7 @@ import path from "path";
 import { existsSync, mkdirSync } from "fs";
 import { lang_to_ext, lang_to_peregrine_arg, print_line, replace_ext } from "./utils";
 import { compile_c, set_c_env } from "./c";
-import { compile_types } from "./ocaml";
-import { compile_ocaml } from "./ocaml";
+import { compile_ocaml, compile_types } from "./ocaml";
 import { compile_rust, prepare_cargo, run_rust } from "./rust";
 import { prepare_elm_project, run_elm } from "./elm";
 import { test_configurations, tests } from "./tests";
@@ -58,7 +57,7 @@ function compile_box(file: string, outdir: string, lang: Lang, opts: string): st
 
 
 // Run the given executable and compare against the expected test result
-function run_exec(file: string, test: TestCase): ExecResult {
+function run_exec(file: string, test: TestCase, skip_output_check: boolean): ExecResult {
   // Command to run
   const cmd = file;
 
@@ -71,7 +70,7 @@ function run_exec(file: string, test: TestCase): ExecResult {
 
     // Return success if there is no expected output to compare against or if the program
     // returns a type that we don't know how to print
-    if (test.expected_output === undefined || test.output_type === SimpleType.Other) {
+    if (test.expected_output === undefined || test.output_type === SimpleType.Other || skip_output_check) {
       return { type: "success", time: time_main };
     }
 
@@ -145,7 +144,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         }
 
         // Run executable
-        const res = run_exec(f_exec, test);
+        const res = run_exec(f_exec, test, false);
 
         // Report result
         print_result(res, test.src);
@@ -172,7 +171,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         }
 
         // Run executable
-        const res = run_exec(f_exec, test);
+        const res = run_exec(f_exec, test, false);
 
         // Report result
         print_result(res, test.src);
