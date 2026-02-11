@@ -255,6 +255,19 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
   }
 }
 
+function check_peregrine() {
+  const cmd = `which peregrine`;
+
+  try {
+    execSync(cmd, { stdio: "pipe", timeout: compile_timeout });
+    use_local_binary = false;
+  } catch (e) {
+    print_line("Could not locate peregrine, falling back to using dune");
+    use_local_binary = true;
+  }
+
+}
+
 async function main() {
   // Create tmp dir
   if (tmpdir === undefined) {
@@ -263,6 +276,9 @@ async function main() {
   }
   tmpdir = path.join(tmpdir, "peregrine/");
   if (!existsSync(tmpdir)) mkdirSync(tmpdir, { recursive: false });
+
+  // Check if the peregrine binary exists
+  check_peregrine();
 
   // For each test configuration run all test programs
   for (var backend of test_configurations) {
