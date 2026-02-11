@@ -131,7 +131,7 @@ export function compile_ocaml(file: string, test: TestCase, timeout: number, tmp
       return { type: "error", reason: "timeout" };
     }
 
-    return { type: "error", reason: "compile error", compiler: "gcc", code: e.status, error: e.stderr.toString('utf8') };
+    return { type: "error", reason: "compile error", compiler: "ocamlopt", code: e.status, error: e.stderr.toString('utf8') };
   }
 }
 

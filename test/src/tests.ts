@@ -2,11 +2,11 @@ import { Lang, SimpleType, TestCase, TestConfiguration } from "./types";
 
 /* (backend, peregrine flags) pair configurations */
 export var test_configurations: TestConfiguration[] = [
-   [Lang.OCaml, "", ""],
+    [Lang.OCaml, "", ""],
     // [Lang.C, "cps", "--cps"], // TODO
-   [Lang.C, "", ""],
-   [Lang.Wasm, "cps", "--cps"],
-   [Lang.Wasm, "", ""],
+    [Lang.C, "", ""],
+    [Lang.Wasm, "cps", "--cps"],
+    [Lang.Wasm, "", ""],
     // [Lang.Rust, "", "--attr=\"#[derive(Debug, Clone, Serialize)]\" --top-preamble=\"use lexpr::{to_string}; use serde_derive::{Serialize}; use serde_lexpr::{to_value};\n\""],
     // [Lang.Elm, "", "--top-preamble=\"import Test\nimport Html\nimport Expect exposing (Expectation)\""],
     [Lang.CakeML, "", ""]

@@ -34,10 +34,6 @@ export function get_cake(timeout: number, tmpdir: string) {
 
   // Download cakeml
   execSync(`curl -L ${url} | tar zx`, { stdio: "pipe", timeout: timeout, cwd: tmpdir });
-
-  // Patch makefile
-  var sed = process.platform === "darwin" ? "gsed" : "sed";
-  execSync(`${sed} -i 's/$(CAKEFLAGS)/$(CAKEFLAGS) --sexp=true --exclude_prelude=true --skip_type_inference=true/g' ${path.join(path.join(tmpdir, cake_dir), "Makefile")}`, { stdio: "pipe", timeout: timeout, cwd: tmpdir });
 }
 
 
@@ -46,11 +42,10 @@ export function compile_cakeml(file: string, test: TestCase, timeout: number, tm
 
   try {
     // Patch names
-    var sed = process.platform === "darwin" ? "gsed" : "sed";
-    execSync(`${sed} -i 's/Ֆ/f/g' ${file}`, { stdio: "pipe", timeout: timeout, cwd: tmpdir });
+    execSync(`sed -i.tmp 's/Ֆ/f/g' ${file}`, { stdio: "pipe", timeout: timeout, cwd: tmpdir });
 
     // Compile program
-    execSync(`make -C ${path.join(tmpdir, cake_dir)} ${f_cake}`, { stdio: "pipe", timeout: timeout, cwd: tmpdir });
+    execSync(`make -C ${path.join(tmpdir, cake_dir)} CAKEFLAGS="--sexp=true --exclude_prelude=true --skip_type_inference=true" ${f_cake}`, { stdio: "pipe", timeout: timeout, cwd: tmpdir });
 
     return f_cake;
   } catch (e) {
@@ -58,6 +53,6 @@ export function compile_cakeml(file: string, test: TestCase, timeout: number, tm
       return { type: "error", reason: "timeout" };
     }
 
-    return { type: "error", reason: "compile error", compiler: "gcc", code: e.status, error: e.stderr.toString('utf8') };
+    return { type: "error", reason: "compile error", compiler: "cake", code: e.status, error: e.stderr.toString('utf8') };
   }
 }
