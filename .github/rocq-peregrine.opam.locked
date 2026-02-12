@@ -66,6 +66,6 @@ pin-depends: [
   ]
   [
     "rocq-cakeml-extraction.9.0.dev"
-    "git+https://github.com/peregrine-project/cakeml-backend.git#8d90f408738019e4808a5bf1d0fb7c8fc8ae53ec"
+    "git+https://github.com/peregrine-project/cakeml-backend.git#947266e5e28ed9f09d9c9d9e398acd4a7b92704d"
   ]
 ]
