@@ -103,7 +103,7 @@ let read_file f =
 (* Compile functions *)
 let compile_aux opts f prog config =
   let f_name = f |> Filename.basename |> Filename.chop_extension |> bytestring_of_caml_string in
-  let attrs = List.map bytestring_of_caml_string opts.attrs in
+  let attrs = List.map (fun s -> s |> read_file |> bytestring_of_caml_string) opts.attrs in
   print_endline "Compiling:";
   let res = Pipeline.peregrine_pipeline config attrs prog f_name in
   match res with
