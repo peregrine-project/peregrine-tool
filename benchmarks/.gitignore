@@ -53,3 +53,6 @@ bench/targets/lean/build/
 ackermann_*
 nqueens_*
 quicksort_*
+
+# Generated Agda files
+*.agdai
