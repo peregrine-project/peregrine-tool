@@ -1,0 +1,37 @@
+{
+  "source": "Computer Language Benchmarks Game (Debian)",
+  "url": "https://benchmarksgame-team.pages.debian.net/benchmarksgame/",
+  "note": "Times are for optimized, often multi-threaded implementations. Our single-threaded functional code will be slower.",
+  "benchmarks": {
+    "binary_trees": {
+      "input": 21,
+      "unit": "seconds",
+      "times": {
+        "c_gcc": 1.56,
+        "rust": 1.07,
+        "ocaml": 3.55,
+        "nodejs": 8.61
+      }
+    },
+    "fannkuch_redux": {
+      "input": 12,
+      "unit": "seconds",
+      "times": {
+        "c_gcc": 2.14,
+        "rust": 3.81,
+        "ocaml": 8.84,
+        "nodejs": 11.07
+      }
+    },
+    "pidigits": {
+      "input": 10000,
+      "unit": "seconds",
+      "times": {
+        "c_gcc": 0.74,
+        "rust": 0.71,
+        "ocaml": 2.77,
+        "nodejs": 1.15
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 From MetaRocq.Erasure Require EAst.
+From MetaRocq.Common Require Import Kernames.
 From CertiCoq Require Import LambdaBoxMut.compile.
 From CertiCoq Require Import LambdaBoxLocal.toplevel.
 From CertiCoq Require Import LambdaANF.toplevel.
@@ -9,12 +10,68 @@ From CertiCoq Require Import Common.Pipeline_utils.
 From ExtLib.Structures Require Import Monad.
 From Stdlib Require Import List.
 From Stdlib Require Import ZArith.
+From MetaRocq.Utils Require Import bytestring.
 
 Import ListNotations.
 Import Monads.
 Import MonadNotation.
 
+Open Scope bs_scope.
 
+(* Uint63 primitive kernel names *)
+Definition int63_mod : modpath := MPfile ["PrimInt63"; "Int63"; "Cyclic"; "Numbers"; "Corelib"].
+
+Definition mk_int63_kn (s : ident) : kername := (int63_mod, s).
+
+(* Uint63 primitive mappings: (kername, c_function_name, needs_tinfo, arity)
+   Arities are hardcoded since EAst doesn't have type information for primitives *)
+Definition int63_prims_with_arity : list (kername * bytestring.string * bool * nat) :=
+  [ (* The int type itself - mapped to primint type, arity 0 *)
+    (mk_int63_kn "int"%bs, "primint"%bs, false, 0);
+    (* Binary arithmetic operations - arity 2 *)
+    (mk_int63_kn "add"%bs, "prim_int63_add"%bs, false, 2);
+    (mk_int63_kn "sub"%bs, "prim_int63_sub"%bs, false, 2);
+    (mk_int63_kn "mul"%bs, "prim_int63_mul"%bs, false, 2);
+    (mk_int63_kn "div"%bs, "prim_int63_div"%bs, false, 2);
+    (mk_int63_kn "mod"%bs, "prim_int63_mod"%bs, false, 2);
+    (* Binary bitwise operations - arity 2 *)
+    (mk_int63_kn "lsl"%bs, "prim_int63_lsl"%bs, false, 2);
+    (mk_int63_kn "lsr"%bs, "prim_int63_lsr"%bs, false, 2);
+    (mk_int63_kn "land"%bs, "prim_int63_land"%bs, false, 2);
+    (mk_int63_kn "lor"%bs, "prim_int63_lor"%bs, false, 2);
+    (mk_int63_kn "lxor"%bs, "prim_int63_lxor"%bs, false, 2);
+    (* Binary comparison operations - arity 2 *)
+    (mk_int63_kn "eqb"%bs, "prim_int63_eqb"%bs, false, 2);
+    (mk_int63_kn "ltb"%bs, "prim_int63_ltb"%bs, false, 2);
+    (mk_int63_kn "leb"%bs, "prim_int63_leb"%bs, false, 2);
+    (mk_int63_kn "compare"%bs, "prim_int63_compare"%bs, false, 2);
+    (* Unary operations - arity 1 *)
+    (mk_int63_kn "head0"%bs, "prim_int63_head0"%bs, false, 1);
+    (mk_int63_kn "tail0"%bs, "prim_int63_tail0"%bs, false, 1);
+    (* Binary operations that allocate - arity 2, need tinfo *)
+    (mk_int63_kn "addc"%bs, "prim_int63_addc"%bs, true, 2);
+    (mk_int63_kn "addcarryc"%bs, "prim_int63_addcarryc"%bs, true, 2);
+    (mk_int63_kn "subc"%bs, "prim_int63_subc"%bs, true, 2);
+    (mk_int63_kn "subcarryc"%bs, "prim_int63_subcarryc"%bs, true, 2);
+    (mk_int63_kn "mulc"%bs, "prim_int63_mulc"%bs, true, 2);
+    (mk_int63_kn "diveucl"%bs, "prim_int63_diveucl"%bs, true, 2);
+    (* Ternary operations - arity 3 *)
+    (mk_int63_kn "diveucl_21"%bs, "prim_int63_diveucl_21"%bs, true, 3);
+    (mk_int63_kn "addmuldiv"%bs, "prim_int63_addmuldiv"%bs, false, 3)
+  ].
+
+(* Strip arities for Options.prims which expects (kername * string * bool) *)
+Definition int63_prims : list (kername * bytestring.string * bool) :=
+  map (fun '(kn, s, b, _) => (kn, s, b)) int63_prims_with_arity.
+
+(* Lookup hardcoded arity for a primitive *)
+Fixpoint lookup_prim_arity (prims : list (kername * bytestring.string * bool * nat)) (kn : kername) : option nat :=
+  match prims with
+  | [] => None
+  | (kn', _, _, arity) :: rest =>
+    if eq_kername kn kn' then Some arity
+    else lookup_prim_arity rest kn
+  end.
 
 Definition make_opts (cps debug : bool) : Options :=
   {| erasure_config := Erasure.default_erasure_config;
@@ -30,7 +87,7 @@ Definition make_opts (cps debug : bool) : Options :=
      dev := 0;
      Pipeline_utils.prefix := "";
      Pipeline_utils.body_name := "body";
-     prims := [];
+     prims := int63_prims;
   |}.
 
 Fixpoint find_arity (tau : EAst.term) : nat :=
@@ -39,12 +96,18 @@ Fixpoint find_arity (tau : EAst.term) : nat :=
   | _ => 0
   end.
 
-Definition find_global_decl_arity (gd : EAst.global_decl) : error nat :=
+(* Find arity from global decl, with fallback to hardcoded arities for primitives *)
+Definition find_global_decl_arity (kn : kername) (gd : EAst.global_decl) : error nat :=
   match gd with
   | EAst.ConstantDecl bd =>
     match (EAst.cst_body bd) with
     | Some bd => Ret (find_arity bd)
-    | None => Err ("Found empty ConstantDecl body")
+    | None =>
+      (* Primitive with no body - use hardcoded arity if available *)
+      match lookup_prim_arity int63_prims_with_arity kn with
+      | Some arity => Ret arity
+      | None => Err ("Found empty ConstantDecl body for " ++ string_of_kername kn)
+      end
     end
   | EAst.InductiveDecl _ => Err ("Expected ConstantDecl but found InductiveDecl")
   end.
@@ -53,7 +116,7 @@ Fixpoint find_prim_arity (env : EAst.global_declarations) (pr : kername) : error
   match env with
   | [] => Err ("Constant " ++ string_of_kername pr ++ " not found in environment")
   | (n, gd) :: env =>
-    if eq_kername pr n then find_global_decl_arity gd
+    if eq_kername pr n then find_global_decl_arity pr gd
     else find_prim_arity env pr
   end.
 
