@@ -1,0 +1,175 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>agda2lambox</title>
+<style>
+body {
+  font-family: 'JetBrains Mono', monospace;
+  height: 100vh;
+  margin: 0;
+  padding: 1rem;
+  box-sizing: border-box;
+  display: grid;
+  gap: 1em;
+  grid-template-rows: auto 1fr;
+}
+h1 {
+  margin: 0 0 .5rem;
+  font-size: 1.4rem;
+  text-transform: uppercase;
+}
+button, select, input[type="text"],
+input[type="file"]::file-selector-button {
+  padding: .2rem .5rem
+}
+fieldset {
+  margin: 0;
+  padding: 0;
+  border: none;
+  +fieldset {margin-top: .5rem;}
+}
+pre {
+  overflow-y: scroll;
+  white-space: pre-wrap;
+  border-radius: .3rem;
+  background: #eee;
+  margin: 0;
+  padding: 1rem;
+}
+.error { color: #900 }
+</style>
+  </head>
+  <body>
+<header>
+  <h1>agda2lambox</h1>
+  <fieldset>
+    <button id="run" disabled>Run</button>
+    <button id="reload" disabled>Reload</button>
+    <button id="clear">Clear</button>
+    <select id="decoder">
+      <option value="nat">Nat</option>
+      <option value="bool">Bool</option>
+      <option value="listnat">List Nat</option>
+      <option value="listbool">List Bool</option>
+      <option value="string">String (List Nat)</option>
+    </select>
+    <input type="file" id="file" />
+  </fieldset>
+</header>
+<pre><code id="output"></code></pre>
+<script type="module">
+const on = (t, e, f) => t.addEventListener(e, f)
+
+run.disabled = true
+reload.disabled = true
+
+let wasm = null
+let mem  = null
+
+on(file,   "change", load)
+on(reload, "click",  load)
+on(run,    "click",  exec)
+on(clear,  "click", () => {output.innerHTML = ""})
+
+async function load() {
+  if (file.files.length == 0) return
+
+  let [blob] = file.files
+
+  log(`Loading ${blob.name}...`)
+
+  try {
+
+    wasm =
+      await blob.arrayBuffer()
+        .then(buf => {
+            log("Compiling...")
+            return WebAssembly.compile(buf)
+          })
+        .then(mod => new WebAssembly.Instance(mod))
+
+    log(`Compiled!`)
+
+    run.disabled = false
+    reload.disabled = false
+
+  } catch (e) {
+    log(`Failed to compile: ${e}`, true)
+  }
+}
+
+async function exec() {
+  log("Running main_function()")
+
+  try {
+    wasm.exports.main_function()
+
+    mem = new Uint32Array(wasm.exports.memory.buffer)
+    let res = wasm.exports.result.value
+    let dec = decoders[decoder.value]
+    // mem = new Uint32Array(wasm.exports.memory.buffer)
+    log(`Result: ${pretty(dec(res))}`)
+  } catch (e) {
+    log(`Failed to run: ${e}`, true)
+    if (wasm.exports.out_of_mem.value) {
+      log(`Wasm instance may have run out of memory...`, true)
+    }
+    throw e
+  }
+}
+
+function log(str, err = false) { // ugly logging
+  if (err)
+    output.innerHTML += `<span class="error">${str}</span>\n`
+  else output.innerHTML += `${str}\n`
+}
+
+function pretty(v) {
+  if (typeof v == "string")
+    return `"${v}"`
+  else if (Array.isArray(v))
+    return `[${v.map(pretty)}]`
+  else return v.toString()
+}
+
+load()
+
+// custom decoders -------------------------
+
+const bool = value => (value >> 1) == 1
+
+const nat = value => {
+  let acc = 0
+  while (!(value & 1)) {
+    value = mem[value + 4 >> 2]
+    acc++
+  }
+  return acc
+}
+
+const list = decoder => value => {
+  let acc = []
+  while (!(value & 1)) {
+    let head = mem[value + 4 >> 2]
+    value    = mem[value + 8 >> 2]
+    acc.push(decoder(head))
+  }
+  return acc
+}
+
+const string = value => {
+  let chars = list(nat)(value)
+  return String.fromCharCode(...chars)
+}
+
+const decoders =
+  { nat
+  , bool
+  , listnat: list(nat)
+  , listbool: list(bool)
+  , string
+  }
+</script>
+  </body>
+</html>

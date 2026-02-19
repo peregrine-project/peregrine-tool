@@ -1,0 +1,83 @@
+cabal-version:       2.2
+name:                agda2lambox
+version:             1.1
+author:              Anon
+category:            Language, Compiler
+build-type:          Simple
+synopsis:            Compiling Agda code to λ-box.
+license:             MIT
+license-file:        LICENSE
+
+extra-doc-files:    README.md
+
+source-repository head
+  type:     git
+  location: https://github.com/agda/agda2lambox.git
+
+executable agda2lambox
+  hs-source-dirs:      src
+  main-is:             Main.hs
+  other-modules:       Agda.Utils,
+                       Agda.Utils.EliminateDefaults,
+                       Agda.Utils.EtaExpandConstructors,
+                       Agda.Utils.Simplify,
+                       Agda.Utils.Treeless,
+                       Agda2Lambox.Compile.Utils,
+                       Agda2Lambox.Compile.Monad,
+                       Agda2Lambox.Compile.Term,
+                       Agda2Lambox.Compile.Function,
+                       Agda2Lambox.Compile.Inductive,
+                       Agda2Lambox.Compile.Type,
+                       Agda2Lambox.Compile.TypeScheme,
+                       Agda2Lambox.Compile,
+                       LambdaBox.Names,
+                       LambdaBox.Term,
+                       LambdaBox.Type,
+                       LambdaBox.Env,
+                       LambdaBox,
+                       CodeGen.Coq,
+                       Paths_agda2lambox
+  autogen-modules:     Paths_agda2lambox
+  build-depends:       base       >= 4.10  && < 4.22,
+                       Agda       >= 2.8   && < 2.9,
+                       deepseq    >= 1.4.4 && < 1.6,
+                       sexpresso  >= 1.2.5 && < 1.3,
+                       pretty-show,
+                       containers,
+                       directory,
+                       filepath,
+                       text,
+                       mtl,
+                       unicode-data,
+                       lambdabox
+  default-language:    Haskell2010
+  default-extensions:
+    LambdaCase RecordWildCards PatternSynonyms TupleSections
+    ViewPatterns PatternGuards
+    ScopedTypeVariables
+    TypeFamilies TypeOperators TypeApplications
+    FunctionalDependencies TypeSynonymInstances ConstraintKinds
+    DoAndIfThenElse BlockArguments MultiWayIf
+    ImportQualifiedPost
+
+test-suite agda2lambox-tests
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Main.hs
+  build-depends:       base       >= 4.10  && < 4.22,
+                       tasty      >= 1.4   && < 1.6,
+                       tasty-hunit >= 0.10 && < 0.11,
+                       process    >= 1.6   && < 1.7,
+                       filepath   >= 1.4   && < 1.5,
+                       directory  >= 1.3   && < 1.4,
+                       text       >= 1.2   && < 2.2
+  build-tool-depends:  agda2lambox:agda2lambox
+  default-language:    Haskell2010
+  default-extensions:
+    LambdaCase RecordWildCards PatternSynonyms TupleSections
+    ViewPatterns PatternGuards
+    ScopedTypeVariables
+    TypeFamilies TypeOperators TypeApplications
+    FunctionalDependencies TypeSynonymInstances ConstraintKinds
+    DoAndIfThenElse BlockArguments MultiWayIf
+    ImportQualifiedPost

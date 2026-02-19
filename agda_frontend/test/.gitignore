@@ -1,0 +1,4 @@
+dist/
+html/
+_build/
+Tests.agda

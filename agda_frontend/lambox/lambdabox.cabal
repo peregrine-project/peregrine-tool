@@ -1,0 +1,82 @@
+cabal-version:      3.0
+name:               lambdabox
+version:            0.0.1.0
+license:            MIT
+license-file:       LICENSE
+author:             Anon
+maintainer:         anon@users.noreply.github.com
+category:           Development
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+    exposed-modules:  LambdaBox.LambdaBox
+                      LambdaBox.Config
+                      LambdaBox.SExpr
+                      LambdaBox.Target
+    other-modules:    Ascii
+                      BasicAst
+                      BinInt
+                      BinNat
+                      BinNums
+                      BinPos
+                      Byte
+                      ByteCompare
+                      Bytestring
+                      CeresFormat
+                      CeresS
+                      CeresSerialize
+                      CeresString
+                      Config0
+                      ConfigUtils
+                      LambdaBox.ConfigConvert
+                      Datatypes
+                      Decimal
+                      DecimalString
+                      Deserialize
+                      EAst
+                      EPrimitive
+                      EProgram
+                      ERemapInductives
+                      ExAst
+                      Kernames
+                      LambdaBox.LBoxConvert
+                      List0
+                      ListDef
+                      Nat0
+                      PAst
+                      PeanoNat
+                      PosDef
+                      PrimFloat
+                      PrimInt63
+                      Primitive
+                      PrimString
+                      Serialize
+                      SerializeCommon
+                      SerializeConfig
+                      SerializeEAst
+                      SerializeExAst
+                      SerializePAst
+                      SerializePrimitives
+                      Specif
+                      String0
+                      Universes0
+    build-depends:    base       ^>=4.20.0.0,
+                      ghc-internal,
+                      deepseq    >= 1.4.4 && < 1.6,
+                      bytestring,
+                      text
+    hs-source-dirs:   src
+                      extraction
+    default-language: Haskell2010
+    default-extensions:
+        LambdaCase RecordWildCards PatternSynonyms TupleSections
+        ViewPatterns PatternGuards
+        ScopedTypeVariables
+        TypeFamilies TypeOperators TypeApplications
+        FunctionalDependencies TypeSynonymInstances ConstraintKinds
+        DoAndIfThenElse BlockArguments MultiWayIf
+        ImportQualifiedPost

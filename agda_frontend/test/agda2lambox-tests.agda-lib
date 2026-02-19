@@ -1,0 +1,6 @@
+name: agda2lambox-untyped
+include: . typed untyped
+flags:
+  --no-projection-like
+  --erasure
+  --prop

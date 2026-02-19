@@ -1,0 +1,4 @@
+packages: agda2lambox.cabal lambox/lambdabox.cabal
+constraints: Agda +debug
+ignore-project: False
+tests: True
