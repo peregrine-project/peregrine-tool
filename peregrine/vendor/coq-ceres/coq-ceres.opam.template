@@ -1,0 +1,1 @@
+run-test: [ "dune" "build" "-p" name "test" "tutorial" ]
