@@ -1,0 +1,2 @@
+all:
+	coqc test.v

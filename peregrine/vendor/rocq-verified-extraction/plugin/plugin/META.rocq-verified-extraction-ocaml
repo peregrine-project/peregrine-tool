@@ -1,0 +1,10 @@
+
+package "plugin" (
+  directory = "."
+  requires = "rocq-runtime.plugins.ltac rocq-metarocq-template-ocaml.plugin rocq_verified_extraction.plugin stdlib-shims"
+  archive(byte) = "verified_extraction_ocaml.cma"
+  archive(native) = "verified_extraction_ocaml.cmxa"
+  plugin(byte) = "verified_extraction_ocaml.cma"
+  plugin(native) = "verified_extraction_ocaml.cmxs"
+)
+directory = "."

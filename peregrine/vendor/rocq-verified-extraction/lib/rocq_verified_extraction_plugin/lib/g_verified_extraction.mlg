@@ -1,0 +1,74 @@
+(*i camlp4deps: "grammar/grammar.cma" i*)
+
+DECLARE PLUGIN "rocq_verified_extraction.plugin"
+
+{
+
+open Names
+open Pp
+open Ltac_plugin
+open Stdarg
+open Procq.Prim
+open Tacexpr
+open Tacinterp
+open Stdarg
+open Tacarg
+open Genredexpr
+
+open Verified_extraction
+
+
+}
+
+VERNAC ARGUMENT EXTEND metaRocqRegister_extract_cnst 
+| [ reference(gr) "erased" ] -> { (constant_of_qualid ~loc gr, Erased) }
+| [ reference(gr) "=>" string(str) natural(arity) ] ->
+  { extract_primitive (constant_of_qualid ~loc gr) str arity }
+| [ reference(gr) "=>" string(str) ] -> { extract_constant (constant_of_qualid ~loc gr) str }
+END
+
+VERNAC ARGUMENT EXTEND metaRocqRegister_extract_inline
+| [ reference(gr) ] -> { (constant_of_qualid ~loc gr) }
+END
+
+VERNAC ARGUMENT EXTEND metaRocqRegister_extract_inductive 
+| [ reference(gr) "=>" string(ty) "[" natural_list(cstrs) "]" ] ->
+  { extract_inductive (inductive_of_qualid ~loc gr) (ty, cstrs) }
+END
+
+VERNAC COMMAND EXTEND MetaRocqExtract_Register CLASSIFIED AS SIDEFF
+| [ "Verified" "Extract" "Constants" "[" metaRocqRegister_extract_cnst_list_sep(prims, ",") "]" "Packages" "[" string_list_sep(packages, ",") "]" ] -> {
+    register prims packages
+  }
+| [ "Verified" "Extract" "Constants" "[" metaRocqRegister_extract_cnst_list_sep(prims, ",") "]" ] -> {
+    register prims []
+  }
+| [ "Verified" "Extract" "Inductives" "[" metaRocqRegister_extract_inductive_list_sep(inds, ",") "]" ] -> {
+    register_inductives inds
+}
+| [ "Verified" "Extract" "Inline" "[" metaRocqRegister_extract_inline_list_sep(csts, ",") "]" ] -> {
+    register_inlines csts
+}
+END
+
+ARGUMENT EXTEND unsafe_flag
+| [ "cofix-to-lazy" ] -> { CoFixToLazy }
+| [ "inlining" ] -> { Inlining }
+| [ "unboxing" ] -> { Unboxing }
+| [ "betared" ] -> { BetaRed }
+END
+
+ARGUMENT EXTEND extract_args
+| [ "-unsafe" unsafe_flag_list(fl )] -> { Unsafe fl }
+| [ "-time" ] -> { Time }
+| [ "-typed" ] -> { Typed }
+| [ "-bypass-qeds" ] -> { BypassQeds }
+| [ "-compile-plugin" ] -> { ProgramType Plugin }
+| [ "-compile-with-coq" ] -> { ProgramType (Standalone true) }
+| [ "-compile" ] -> { ProgramType (Standalone false) }
+| [ "-load" ] -> { Load }
+| [ "-run" ] -> { Run }
+| [ "-verbose" ] -> { Verbose }
+| [ "-fmt" ] -> { Format }
+| [ "-optimize" ] -> { Optimize }
+END

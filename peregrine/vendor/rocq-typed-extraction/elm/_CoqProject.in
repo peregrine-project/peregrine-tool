@@ -1,0 +1,5 @@
+
+-arg -w -arg -non-reversible-notation
+
+-Q theories TypedExtraction.Elm
+theories/ElmExtract.v

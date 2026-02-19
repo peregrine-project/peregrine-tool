@@ -1,0 +1,2 @@
+all:
+	coqc bench.v

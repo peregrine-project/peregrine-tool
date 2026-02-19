@@ -1,0 +1,5 @@
+g_verified_extraction_malfunction.cmx: compile_malfunction.cmx 
+	ocamlfind opt ${CAMLFLAGS} ${FINDLIBPKGS} -c  -for-pack Verified_extraction_malfunction compile_malfunction.mli g_verified_extraction_malfunction.ml
+
+verified_extraction_malfunction.cmx: axioms.cmx compile_malfunction.cmx
+	ocamlfind opt ${CAMLFLAGS} ${FINDLIBPKGS} -pack -o $@ $+

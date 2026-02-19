@@ -1,0 +1,97 @@
+(*i camlp4deps: "grammar/grammar.cma" i*)
+
+DECLARE PLUGIN "rocq-verified-extraction-ocaml.plugin"
+
+{
+
+open Names
+open Pp
+open Ltac_plugin
+open Stdarg
+open Procq.Prim
+open Tacexpr
+open Tacinterp
+open Stdarg
+open Tacarg
+open Genredexpr
+
+open Rocq_verified_extraction_plugin.Verified_extraction
+open Rocq_verified_extraction_plugin.G_verified_extraction
+
+type pipeline_config = Pipeline.malfunction_pipeline_config
+
+let interp_prim = function
+  | Global (module_, label) ->
+    let module_ = Caml_bytestring.bytestring_of_caml_string module_ in
+    let label = Caml_bytestring.bytestring_of_caml_string label in
+    Malfunction.Global (module_, label)
+  | Erased -> Malfunction.Erased
+  | Primitive (symb, arity) ->
+    let symbol = Caml_bytestring.bytestring_of_caml_string symb in
+    let arity = Caml_nat.nat_of_caml_int arity in
+    Malfunction.Primitive (symbol, arity)
+
+let interp_prims prims = 
+  List.map (fun (kn, p) -> (Kernames.string_of_kername kn, interp_prim p)) prims
+
+let interp_inductive_mapping (ind, (tyna, tags)) = 
+  (ind, (Caml_bytestring.bytestring_of_caml_string tyna, 
+    List.map Caml_nat.nat_of_caml_int tags))
+
+let interp_unsafe uns =
+  { Erasure0.cofix_to_lazy = uns.cofix_to_lazy;
+    Erasure0.inlining = uns.inlining;
+    Erasure0.unboxing = uns.unboxing;
+    Erasure0.betared = uns.betared }
+
+let interp_pipeline_config c = 
+  let { 
+    erasure_config = 
+      { enable_unsafe = enable_unsafe; 
+        enable_typed_erasure = enable_typed_erasure; 
+        inlined_constants };
+    reorder_constructors = inductives_mapping;
+    prims = prims } = c in
+  let erasure_config = 
+    Erasure0.({ 
+      enable_unsafe = interp_unsafe enable_unsafe; enable_typed_erasure; 
+      dearging_config = default_dearging_config;
+      inlined_constants
+      })
+  in
+  Pipeline.{ 
+    erasure_config;
+    reorder_cstrs = List.map interp_inductive_mapping inductives_mapping;
+    prims = interp_prims prims
+  }
+
+let interp_program_type = function
+  | Standalone_binary -> Serialize.Standalone
+  | Shared_library (modname, label) -> 
+  Serialize.Shared_lib (Caml_bytestring.bytestring_of_caml_string modname, Caml_bytestring.bytestring_of_caml_string label)
+
+let compile_malfunction conf pt p = 
+  let conf = interp_pipeline_config conf in
+  let pt = interp_program_type pt in
+  let names, code = Pipeline.compile_malfunction_gen conf pt p in
+  (List.map Caml_bytestring.caml_string_of_bytestring names,
+  Caml_bytestring.caml_string_of_bytestring code)
+
+let extract = extract compile_malfunction
+
+}
+
+VERNAC COMMAND EXTEND Verified_Extraction CLASSIFIED AS QUERY
+| [ "Verified" "Extraction" "-help" ] -> {
+  let usage = "Verified (Bypass)? Extraction [term] [output_file]?" in
+  Feedback.msg_notice (str usage)
+  }
+| [ "Verified" "Extraction" extract_args_list(l) constr(c) string_opt(dest) ] -> {
+    let env = Global.env () in
+    let evm = Evd.from_env env in
+    let loc = Constrexpr_ops.constr_loc c in
+    let (c, _) = Constrintern.interp_constr env evm c in
+    extract ?loc l env evm c dest
+  }
+| [ "Verified" "Eval" extract_args_list(l) reference(c) ] -> { eval_plugin l c }
+END

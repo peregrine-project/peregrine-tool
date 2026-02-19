@@ -1,0 +1,6 @@
+-R ../../plugin/plugin Malfunction.Plugin 
+-I ../../plugin/plugin 
+-R ../lib VerifiedExtraction.Benchmarks.lib
+-arg -w -arg -deprecated
+
+test.v

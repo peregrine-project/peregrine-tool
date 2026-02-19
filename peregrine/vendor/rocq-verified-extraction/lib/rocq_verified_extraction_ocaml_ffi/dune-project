@@ -1,0 +1,26 @@
+(lang dune 3.7)
+
+(name rocq_verified_extraction_ocaml_ffi)
+
+(generate_opam_files true)
+
+(source
+ (github username/reponame))
+
+(authors "Matthieu Sozeau <matthieu.sozeau@inria.fr>")
+
+(maintainers "Matthieu Sozeau")
+
+(license MIT)
+
+(documentation https://url/to/documentation)
+
+(package
+ (name rocq_verified_extraction_ocaml_ffi)
+ (synopsis "An FFI for programs extracted using Verified Extraction to Malfunction/OCaml")
+ (description "This provides access to OCaml's standard library functions for extracted programs")
+ (depends ocaml dune)
+ (tags
+  (topics "to describe" your project)))
+
+; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project

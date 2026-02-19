@@ -1,0 +1,10 @@
+(library
+ (public_name rocq_verified_extraction.plugin)
+ (name rocq_verified_extraction_plugin)
+ (libraries rocq-runtime.kernel rocq-runtime.lib rocq-runtime.library rocq-runtime.interp rocq-runtime.vernac rocq-runtime.plugins.ltac rocq-metarocq-template-ocaml.plugin)
+ (flags -open Metarocq_template_plugin))
+
+(rule
+ (target g_verified_extraction.ml)
+ (deps g_verified_extraction.mlg)
+ (action (run coqpp g_verified_extraction.mlg)))

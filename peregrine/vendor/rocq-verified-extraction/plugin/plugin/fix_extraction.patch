@@ -1,0 +1,83 @@
+--- extraction/ceresString.ml.orig
++++ extraction/ceresString.ml
+@@ -1,11 +1,11 @@
+ open Ascii
++open Nat0
+ open BinInt
+ open BinNums
+ open Byte
+ open ByteCompare
+ open Datatypes
+ open DecimalString
+-open Nat0
+ open PeanoNat
+ open Bytestring
+ 
+--- extraction/serialize.ml.orig	2025-04-10 11:58:52
++++ extraction/serialize.ml	2025-04-10 12:02:37
+@@ -16,14 +16,14 @@
+ open List0
+ open ListDef
+ open MRString
+-open Malfunction
+-open Nat0
+ open PeanoNat
+ open PrimInt63
++open Nat0
+ open Sint63Axioms
+ open SpecFloat
+ open String0
+ open Bytestring
++open Malfunction
+ 
+ (** val _escape_ident : String.t -> String.t -> String.t **)
+ 
+--- extraction/compile.ml.orig	2025-04-08 00:49:09
++++ extraction/compile.ml	2025-04-08 00:49:25
+@@ -12,9 +12,9 @@
+ open ListDef
+ open MRList
+ open Malfunction
+-open Nat0
+ open PrimString
+ open PrimStringAxioms
++open Nat0
+ open Specif
+ open Uint63Axioms
+ open Bytestring
+--- extraction/compile.mli.orig	2025-04-08 00:45:00
++++ extraction/compile.mli	2025-04-08 00:50:38
+@@ -11,7 +11,6 @@
+ open List0
+ open ListDef
+ open MRList
+-open Malfunction
+ open Nat0
+ open PrimString
+ open PrimStringAxioms
+@@ -19,6 +18,7 @@
+ open Uint63Axioms
+ open Bytestring
+ open Utils_array
++open Malfunction
+ 
+ val coq_Mapply_ : (t * t list) -> t
+ 
+--- extraction/serialize.mli.orig	2025-04-10 12:04:50
++++ extraction/serialize.mli	2025-04-10 12:05:04
+@@ -15,7 +15,6 @@ open Kernames
+ open List0
+ open ListDef
+ open MRString
+-open Malfunction
+ open Nat0
+ open PeanoNat
+ open Serialize_util
+@@ -22,6 +23,7 @@ open Sint63Axioms
+ open SpecFloat
+ open String0
+ open Bytestring
++open Malfunction
+ 
+ val _escape_ident : String.t -> String.t -> String.t
+ 

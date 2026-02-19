@@ -1,0 +1,28 @@
+(lang dune 3.7)
+
+(name rocq_verified_extraction)
+
+(generate_opam_files true)
+
+(source
+ (github username/reponame))
+
+(authors 
+  "Yannick Forster <yannick.forster@inria.fr"
+  "Matthieu Sozeau <matthieu.sozeau@inria.fr")
+  
+(maintainers "Matthieu Sozeau")
+
+(license MIT)
+
+(documentation https://url/to/documentation)
+
+(package
+ (name rocq_verified_extraction)
+ (synopsis "A short synopsis")
+ (description "A longer description")
+ (depends ocaml dune)
+ (tags
+  (topics "to describe" your project)))
+
+; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project

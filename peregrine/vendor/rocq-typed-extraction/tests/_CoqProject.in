@@ -1,0 +1,15 @@
+
+-arg -w -arg -default-output-directory
+-arg -w -arg -non-reversible-notation
+
+-Q theories TypedExtraction.Tests
+-arg "-output-dir extracted-code"
+theories/BernsteinYangTermination.v
+theories/InternalFix.v
+theories/RustExtractTests.v
+theories/Ack.v
+theories/ElmExtractExamples.v
+theories/ElmExtractTests.v
+theories/ElmForms.v
+theories/RecordSet.v
+theories/RecordUpdate.v

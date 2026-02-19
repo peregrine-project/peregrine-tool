@@ -1,0 +1,7 @@
+*.mlf
+*.vo
+lib/*.ml
+lib/*.mli
+Makefile.conf
+*/mainopt
+*/main.native

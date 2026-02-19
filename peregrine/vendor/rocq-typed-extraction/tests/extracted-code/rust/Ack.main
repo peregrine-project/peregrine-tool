@@ -1,0 +1,3 @@
+fn main() {
+  println!("{:?}", Program::new().TypedExtraction_Tests_InternalFix_ack(3,4))
+}
