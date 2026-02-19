@@ -1,0 +1,11 @@
+ast/
+bin/
+*.aux
+*.vo
+*.vok
+*.vos
+*.glob
+*.v.d
+RocqMakefile
+RocqMakefile.conf
+.RocqMakefile.d

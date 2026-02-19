@@ -1,0 +1,6 @@
+-Q theories Benchmark
+theories/BinaryTrees.v
+theories/Fannkuch.v
+theories/Sieve.v
+theories/Quicksort.v
+theories/Arith.v

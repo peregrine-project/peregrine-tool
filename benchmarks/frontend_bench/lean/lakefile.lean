@@ -8,5 +8,5 @@ require lean_to_lambdabox from
   "../../../lean_frontend"
 
 @[default_target]
-lean_lib Tests where
-  roots := #[`src.Demo, `src.Map]
+lean_lib Benchmarks where
+  roots := #[`BinaryTrees, `Fannkuch, `Sieve, `Quicksort, `Arith]
