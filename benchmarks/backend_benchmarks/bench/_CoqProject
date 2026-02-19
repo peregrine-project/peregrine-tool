@@ -1,0 +1,26 @@
+-R theories BenchmarksGame
+
+theories/Common.v
+theories/BinaryTrees.v
+theories/Fannkuch.v
+theories/Pidigits.v
+theories/NQueens.v
+theories/Ackermann.v
+theories/Tak.v
+theories/Quicksort.v
+theories/Sieve.v
+theories/Treesort.v
+theories/SymbolicDiff.v
+theories/LambdaInterp.v
+theories/Extract.v
+theories/BenchExtract.v
+theories/RustExtract.v
+theories/NewBenchExtract.v
+theories/NQueensZ.v
+theories/NQueensZExtract.v
+theories/AckermannN.v
+theories/AckermannNExtract.v
+theories/QuicksortZ.v
+theories/QuicksortZExtract.v
+theories/QuicksortWf.v
+theories/QuicksortWfExtract.v

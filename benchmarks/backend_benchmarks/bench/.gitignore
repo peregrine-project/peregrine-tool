@@ -1,0 +1,55 @@
+# Build artifacts
+_build/
+*.vo
+*.vok
+*.vos
+*.glob
+*.aux
+
+# Generated WASM files
+*.wasm
+run_wasm.js
+
+# Generated C files
+bench/targets/c/direct/*.c
+bench/targets/c/direct/*.h
+bench/targets/c/cps/*.c
+bench/targets/c/cps/*.h
+bench/targets/c/bin/
+
+# Generated OCaml files
+bench/targets/ocaml/*.ml
+bench/targets/ocaml/*.mlf
+bench/targets/ocaml/bin/
+
+# Generated Rust files
+bench/targets/rust/src/*.rs
+bench/targets/rust/target/
+bench/targets/rust/bin/
+bench/targets/rust/wasm/
+
+# Compiled OCaml native
+bench/targets/ocaml_native/*.cmi
+bench/targets/ocaml_native/*.cmx
+bench/targets/ocaml_native/*.o
+bench/targets/ocaml_native/binary_trees
+bench/targets/ocaml_native/fannkuch
+bench/targets/ocaml_native/pidigits
+
+# Lean build
+bench/targets/lean/.lake/
+bench/targets/lean/build/
+
+# AST files
+*.ast
+*.tast
+
+# Generated C files in root
+*.c
+*.h
+*_main.c
+
+# Compiled executables in root
+ackermann_*
+nqueens_*
+quicksort_*
