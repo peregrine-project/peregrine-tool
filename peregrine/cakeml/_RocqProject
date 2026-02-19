@@ -1,0 +1,16 @@
+-Q theories CakeML
+
+./theories/CakeML/ast.v
+./theories/CakeML/bigstep.v
+./theories/CakeML/functions.v
+./theories/CakeML/namespace.v
+./theories/CakeML/proofs/equivalence_proofs.v
+./theories/CakeML/proofs/helper_lemmas.v
+./theories/CakeML/proofs/invariants.v
+./theories/CakeML/semanticPrimitives.v
+./theories/CakeML/smallstep_rel.v
+./theories/CakeML/smallstep.v
+./theories/Compile.v
+./theories/FFI.v
+./theories/Pipeline.v
+./theories/Serialize.v
