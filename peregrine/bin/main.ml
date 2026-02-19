@@ -75,7 +75,7 @@ let help_secs = [
   `S "MORE HELP";
   `P "Use $(mname) $(i,COMMAND) --help for help on a single command.";`Noblank;
   `P "Use $(mname) $(b,help environment) for help on environment variables.";
-  `S Manpage.s_bugs; `P "Please report bugs at https://github.com/peregrine-project/peregrine-tool/issues.";]
+  `S Manpage.s_bugs; `P "Please report bugs at ...";]
 
 let help_cmd =
   let topic =

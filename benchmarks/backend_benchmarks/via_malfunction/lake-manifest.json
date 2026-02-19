@@ -6,7 +6,7 @@
    "name": "lean_to_lambdabox",
    "manifestFile": "lake-manifest.json",
    "inherited": false,
-   "dir": "../..",
+   "dir": "../../../lean_frontend",
    "configFile": "lakefile.toml"},
   {"type": "path",
    "scope": "",

@@ -3,15 +3,12 @@
     "packagesDir": ".lake/packages",
     "packages": [
         {
-            "url": "https://github.com/peregrine-project/lean-to-lambdabox",
-            "type": "git",
-            "subDir": null,
+            "type": "path",
             "scope": "",
-            "rev": "42f8f510ca19d7c950f22cfae8072c43e72e7d68",
             "name": "lean_to_lambdabox",
             "manifestFile": "lake-manifest.json",
-            "inputRev": "ast-format",
             "inherited": false,
+            "dir": "../../../lean_frontend",
             "configFile": "lakefile.toml"
         }
     ],

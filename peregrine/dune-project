@@ -5,7 +5,7 @@
 (generate_opam_files false)
 
 (source
- (github peregrine-project/peregrine-tool))
+ (github anon/anon))
 
 (authors "The Peregrine team")
 

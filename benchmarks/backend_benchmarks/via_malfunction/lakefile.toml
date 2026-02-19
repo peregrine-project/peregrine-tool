@@ -6,4 +6,4 @@ path = ".."
 
 [[require]]
 name = "lean_to_lambdabox"
-path = "../.."
+path = "../../../lean_frontend"
