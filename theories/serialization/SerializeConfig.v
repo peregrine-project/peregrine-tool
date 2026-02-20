@@ -176,8 +176,8 @@ Instance Serialize_extract_inductive : Serialize extract_inductive :=
 Instance Serialize_remap_inductive : Serialize remap_inductive :=
   fun r =>
     match r with
-    | KnIndRemap r => [Atom "KnIndRemap"; to_sexp r]
-    | StringIndRemap r => [Atom "StringIndRemap"; to_sexp r ]
+    | KnIndRemap kn r => [Atom "KnIndRemap"; to_sexp kn; to_sexp r]
+    | StringIndRemap ind r => [Atom "StringIndRemap"; to_sexp ind; to_sexp r ]
     end%sexp.
 
 Instance Serialize_custom_attribute : Serialize custom_attribute :=
@@ -382,8 +382,8 @@ Instance Deserialize_extract_inductive : Deserialize extract_inductive :=
 Instance Deserialize_remap_inductive : Deserialize remap_inductive :=
   fun l e =>
     Deser.match_con "remap_inductive" []
-      [ ("KnIndRemap", con1_ KnIndRemap);
-        ("StringIndRemap", con1_ StringIndRemap)
+      [ ("KnIndRemap", con2_ KnIndRemap);
+        ("StringIndRemap", con2_ StringIndRemap)
       ]
       l e.
 

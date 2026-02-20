@@ -15,3 +15,6 @@ CAMLOPTC="$(OCAMLFIND)" opt      -c -Oclassic
 
 merlin-hook::
 		$(HIDE)echo 'FLG $(OPENS)' >> .merlin
+
+# hack to fix problem where rocq dep in some cases doesn't make this link in the depgraph
+theories/Loader.vo: src/peregrine_plugin.cmxs

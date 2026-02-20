@@ -828,11 +828,13 @@ Definition sanitize_extract_inductive (f : utf8_string -> string) (r : ERemapInd
 
 Definition sanitize_remap_inductive (f : utf8_string -> string) (r : Config.remap_inductive) : result Config.remap_inductive string :=
   match r with
-  | Config.KnIndRemap r =>
-    r <- sanitize_extract_inductive f r;;
-    Ok (Config.KnIndRemap r)
-  | Config.StringIndRemap r =>
-    Ok (Config.StringIndRemap r)
+  | Config.KnIndRemap kn r =>
+    kn <- sanitize_kername f kn;;
+    r <- monad_map (sanitize_extract_inductive f) r;;
+    Ok (Config.KnIndRemap kn r)
+  | Config.StringIndRemap ind r =>
+    ind <- sanitize_inductive f ind;;
+    Ok (Config.StringIndRemap ind r)
   end.
 
 Definition sanitize_config (f : utf8_string -> string) (c : Config.config) : result Config.config string :=
@@ -841,11 +843,7 @@ Definition sanitize_config (f : utf8_string -> string) (c : Config.config) : res
     kn <- sanitize_kername f kn;;
     Ok (kn, r)
     ) c.(Config.const_remappings_opts);;
-  ind_rmps <- monad_map (fun '(ind, r) =>
-    ind <- sanitize_inductive f ind;;
-    r <- sanitize_remap_inductive f r;;
-    Ok (ind, r)
-    ) c.(Config.ind_remappings_opts);;
+  ind_rmps <- monad_map (sanitize_remap_inductive f) c.(Config.ind_remappings_opts);;
   cstr_reorders <- monad_map (fun '(ind, s) =>
     ind <- sanitize_inductive f ind;;
     Ok (ind, s)

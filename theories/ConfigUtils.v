@@ -38,9 +38,9 @@ Section ErasureConfig.
   Definition mk_cstr_reorders (c : config) := c.(cstr_reorders_opts).
 
   Definition mk_ind_remaps (c : config) : ERemapInductives.extract_inductives :=
-    Utils.filter_map (fun '(kn, r) =>
+    Utils.filter_map (fun r =>
       match r with
-      | KnIndRemap r => Some (kn, r)
+      | KnIndRemap kn r => Some (kn, r)
       | _ => None
       end
     ) c.(ind_remappings_opts).

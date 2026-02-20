@@ -76,9 +76,9 @@ Definition mk_attributes (attrs : custom_attributes) (o : rust_config) : Kername
   end.
 
 Definition mk_remaps (rs : constant_remappings) (is : inductive_remappings) : remaps :=
-  let re_inds := filter_map (fun '(ind, x) =>
+  let re_inds := filter_map (fun x =>
     match x with
-    | StringIndRemap r => Some (ind, {|
+    | StringIndRemap ind r => Some (ind, {|
       re_ind_name  := r.(Config.re_ind_name);
       re_ind_ctors := r.(Config.re_ind_ctors);
       re_ind_match := r.(Config.re_ind_match);

@@ -14,15 +14,12 @@ From MetaRocq.Erasure Require Import EProgram EPrimitive EAst ESpineView EEtaExp
 Import Kernames.
 Import MRMonadNotation.
 
-
-
 Record extract_inductive :=
   { cstrs : list kername; (* One constant for each constructor *)
     elim : kername } (* The new eliminator *).
 
-Definition extract_inductives : Type := list (inductive * extract_inductive).
-
-
+(** Association from one mutual inductive block to the translations of each of its components *)
+Definition extract_inductives := list (kername * list extract_inductive).
 
 Lemma lookup_declared_constructor {Σ id mdecl idecl cdecl} :
   lookup_constructor Σ id.1 id.2 = Some (mdecl, idecl, cdecl) ->
@@ -36,10 +33,10 @@ Proof.
   intros [= <- <- <-]. intuition auto.
 Qed.
 
-Fixpoint lookup_inductive_assoc {A} (Σ : list (inductive × A)) (kn : inductive) {struct Σ} : option A :=
+Fixpoint lookup_kername_assoc {A} (Σ : list (kername × A)) (kn : kername) {struct Σ} : option A :=
     match Σ with
     | [] => None
-    | d :: tl => if kn == d.1 then Some d.2 else lookup_inductive_assoc tl kn
+    | d :: tl => if kn == d.1 then Some d.2 else lookup_kername_assoc tl kn
     end.
 
 Equations filter_map {A B} (f : A -> option B) (l : list A) : list B :=
@@ -52,9 +49,13 @@ Section Remap.
   Context (Σ : global_declarations).
   Context (mapping : extract_inductives).
 
-  Definition lookup_constructor_mapping i c : option kername :=
-    trs <- lookup_inductive_assoc mapping i ;;
-    nth_error trs.(cstrs) c.
+  Definition lookup_inductive_assoc i : option extract_inductive :=
+    trs <- lookup_kername_assoc mapping (inductive_mind i) ;;
+    nth_error trs (inductive_ind i).
+
+  Definition lookup_constructor_mapping (i : inductive) c : option kername :=
+    tri <- lookup_inductive_assoc i ;;
+    nth_error tri.(cstrs) c.
 
   Definition lookup_constructor_remapping i c args :=
     match lookup_constructor_mapping i c with
@@ -75,7 +76,7 @@ Section Remap.
     end.
 
   Definition remap_case i c brs :=
-    match lookup_inductive_assoc mapping (fst i) with
+    match lookup_inductive_assoc (fst i) with
     | None => tCase i c brs
     | Some tr =>
         mkApps (tConst tr.(elim)) (c :: map make_branch brs)
@@ -106,24 +107,26 @@ Section Remap.
     Definition remap_constant_decl cb :=
       {| cst_body := option_map remap cb.(cst_body) |}.
 
-    Definition remaped_one_ind kn i (oib : one_inductive_body) : bool :=
-      match lookup_inductive_assoc mapping {| inductive_mind := kn; inductive_ind := i |} with
-      | None => false
-      | Some trs => true
-      end.
+    Definition axiom (kn : kername) := (kn, ConstantDecl {| cst_body := None |}).
+    Definition remapping_decls tr :=
+      let cstrs := map axiom tr.(cstrs) in
+      axiom tr.(elim) :: cstrs.
 
     Definition remap_inductive_decl kn idecl :=
-      let remapings := mapi (remaped_one_ind kn) idecl.(ind_bodies) in
-      List.forallb (fun b => b) remapings.
+      match lookup_kername_assoc mapping kn with
+      | None => [(kn, InductiveDecl idecl)]
+      | Some trs =>
+          concat (map remapping_decls trs)
+      end.
 
     Definition remap_decl d :=
       match d.2 with
-      | ConstantDecl cb => Some (d.1, ConstantDecl (remap_constant_decl cb))
-      | InductiveDecl idecl => if remap_inductive_decl d.1 idecl then None else Some d
+      | ConstantDecl cb => [(d.1, ConstantDecl (remap_constant_decl cb))]
+      | InductiveDecl idecl => remap_inductive_decl d.1 idecl
       end.
 
     Definition remap_env Σ :=
-      filter_map (remap_decl) Σ.
+      concat (map (remap_decl) Σ).
 
 End Remap.
 

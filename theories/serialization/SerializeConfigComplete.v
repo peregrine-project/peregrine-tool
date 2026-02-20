@@ -263,14 +263,14 @@ Proof.
   unfold CompleteClass, Complete.
   intros l r.
   destruct r.
-  - cbn -[Deserialize_extract_inductive].
+  - cbn -[Deserialize_extract_inductive Deserialize_kername Deserialize_list].
     rewrite !eqb_ascii_refl.
-    rewrite 1!complete_class.
+    rewrite 2!complete_class.
     reflexivity.
-  - cbn -[Deserialize_remapped_inductive].
+  - cbn -[Deserialize_remapped_inductive Deserialize_inductive].
     rewrite !eqb_ascii_refl.
     rewrite !neqb_ascii_neq by congruence.
-    rewrite 1!complete_class.
+    rewrite 2!complete_class.
     reflexivity.
 Qed.
 

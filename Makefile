@@ -23,9 +23,9 @@ mllib: theory
 	dune build
 .PHONY: mllib
 
-hslib: theory
+hs-lib: theory
 	+@make -C hs-lib
-.PHONY: hslib
+.PHONY: hs-lib
 
 clean-extraction:
 	dune clean

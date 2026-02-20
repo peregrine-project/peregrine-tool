@@ -90,16 +90,16 @@ Section GeneralConfig.
   Inductive remap_inductive :=
   (* Remap inductives to defined constants *)
   (* Supported by untyped targets *)
-  | KnIndRemap : ERemapInductives.extract_inductive -> remap_inductive
+  | KnIndRemap : Kernames.kername -> list ERemapInductives.extract_inductive -> remap_inductive
   (* Remap inductives to arbitrary strings *)
   (* Supported by typed targets *)
-  | StringIndRemap : remapped_inductive -> remap_inductive.
+  | StringIndRemap : Kernames.inductive -> remapped_inductive -> remap_inductive.
 
   Definition custom_attribute : Type := (Kernames.kername * string).
 
   Definition inlinings : Type := list Kernames.kername.
   Definition constant_remappings : Type := list (Kernames.kername * remapped_constant).
-  Definition inductive_remappings : Type := list (Kernames.inductive * remap_inductive).
+  Definition inductive_remappings : Type := list remap_inductive.
   Definition custom_attributes : Type := list custom_attribute.
 
   Inductive phases_config :=
