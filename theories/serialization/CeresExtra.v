@@ -550,8 +550,8 @@ Local Open Scope list_scope.
 (* Completeness helper lemmas *)
 
 Lemma complete_class_list_all {A : Type}
-                              {H : Serialize A}
-                              {H0 : Deserialize A} :
+                             `{Serialize A}
+                             `{Deserialize A} :
   forall (a xs : list A) (n : nat) (l : loc),
     All_Forall.All
       (fun t : A =>
@@ -569,10 +569,10 @@ Proof.
 Qed.
 
 Lemma complete_class_all_prod {A B : Type}
-                              {H : Serialize A}
-                              {H0 : Deserialize A}
-                              {H1 : Serialize B}
-                              {H2 : Deserialize B} :
+                             `{Serialize A}
+                             `{Deserialize A}
+                             `{Serialize B}
+                             `{Deserialize B} :
   forall xs,
     CompleteClass A ->
     All_Forall.All
@@ -642,14 +642,14 @@ Qed.
 
 (* Soundness helper lemmas *)
 
-Lemma sound_class_list_forall_aux {A : Type}
-                                 `{ser : Serialize A}
-                                 `{des : Deserialize A}
+Local Lemma sound_class_list_forall_aux {A : Type}
+                                 `{Serialize A}
+                                 `{Deserialize A}
                                   (es : list sexp) :
   forall xs n l a,
-    Forall (fun e => forall l' t, des l' e = inr t -> ser t = e) es ->
-    _sexp_to_list des xs n l es = inr a ->
-    map ser a = (map ser (rev xs) ++ es).
+    Forall (fun e => forall l' (t : A), _from_sexp l' e = inr t -> to_sexp t = e) es ->
+    _sexp_to_list _from_sexp xs n l es = inr a ->
+    map to_sexp a = (map to_sexp (rev xs) ++ es).
 Proof.
   induction es as [| e es IH].
   - (* nil *)
@@ -662,7 +662,7 @@ Proof.
   - (* cons *)
     intros xs n l ts Hall Hdes.
     cbn in Hdes.
-    destruct (des _ e) as [? | t] eqn:Hdes_e; try discriminate.
+    destruct (_from_sexp _ e) as [? | t] eqn:Hdes_e; try discriminate.
     inversion Hall as [|e' es' He Hes' Heq1]; subst.
     apply IH in Hdes; auto.
     rewrite Hdes; cbn.
@@ -673,13 +673,13 @@ Proof.
 Qed.
 
 Lemma sound_class_list_forall {A : Type}
-                             `{ser : Serialize A}
-                             `{des : Deserialize A}
+                             `{Serialize A}
+                             `{Deserialize A}
                               (es : list sexp) :
-  forall l xs,
-    Forall (fun e => forall l' t, des l' e = inr t -> ser t = e) es ->
-    _sexp_to_list des nil 0 l es = inr xs ->
-    map ser xs = es.
+  forall l (xs : list A),
+    Forall (fun e => forall l' (t : A), _from_sexp l' e = inr t -> to_sexp t = e) es ->
+    _sexp_to_list _from_sexp nil 0 l es = inr xs ->
+    map to_sexp xs = es.
 Proof.
   intros.
   erewrite sound_class_list_forall_aux; eauto.
@@ -687,65 +687,134 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma sound_class_list_prod_strong_aux {A B : Type}
-      `{serA : Serialize A} `{desA : Deserialize A}
-      `{serB : Serialize B} `{desB : Deserialize B}
-      `{HSCA : @SoundClass A serA desA}
+Lemma sound_class_list_strong {A : Type}
+     `{Serialize A}
+     `{Deserialize A}
       (P : sexp -> Prop)
-      (HP : forall e, P e -> forall l' t, desB l' e = inr t -> serB t = e) :
+      (HP : forall e, P e -> forall l' (t : A), _from_sexp l' e = inr t -> to_sexp t = e) :
   forall es,
-    Forall (SoundClassStrong P) es ->
-    forall xs n l a,
-      _sexp_to_list Deserialize_prod xs n l es = inr a ->
-      map (fun p => List [serA (fst p); serB (snd p)]) a =
-      map (fun p => List [serA (fst p); serB (snd p)]) (rev xs) ++ es.
+  Forall (SoundClassStrong P) es ->
+  forall l xs,
+    _sexp_to_list _from_sexp nil 0 l es = inr xs ->
+    map to_sexp xs = es.
 Proof.
-  induction es as [| e es IH].
-  - (* nil *)
-    intros Hss xs n l ts Hdes.
-    cbn in Hdes.
-    injection Hdes as <-.
-    rewrite rev_alt.
-    rewrite app_nil_r.
-    reflexivity.
-  - (* cons *)
-    intros Hss xs n l ts Hdes.
-    cbn in Hdes.
-    destruct e as [a | [| e1 [| e2 [|]]]]; try discriminate.
-    unfold Deserialize_prod, _from_sexp in Hdes.
-    destruct desA as [? | a] eqn:Hdes_a; try discriminate.
-    destruct desB as [? | b] eqn:Hdes_b; try discriminate.
-    inversion Hss as [|e' es'' Hss_e Hss_es' Heq1]; subst.
-    inversion Hss_e as [|elems' HP_list Hss_inner Heq3]; subst.
-    apply List.Forall_cons_iff in Hss_inner as [_ Hss_inner].
-    apply List.Forall_cons_iff in Hss_inner as [Hss_e2 _].
-    apply SoundClassStrong_implies_P in Hss_e2.
-    erewrite IH; eauto.
-    2: apply Hdes.
-    cbn.
-    rewrite map_app; cbn.
-    rewrite <- app_assoc; cbn.
-    do 4 f_equal.
-    + apply sound_class in Hdes_a.
-      rewrite <- Hdes_a.
-      unfold to_sexp.
-      reflexivity.
-    + erewrite HP; eauto.
+  intros.
+  erewrite sound_class_list_forall; eauto.
+  apply Forall_SoundClassStrong_Forall_P in H1.
+  eapply Forall_impl; [| exact H1].
+  exact HP.
 Qed.
 
 Lemma sound_class_list_prod_strong {A B : Type}
-      `{serA : Serialize A} `{desA : Deserialize A}
-      `{serB : Serialize B} `{desB : Deserialize B}
-      `{HSA : @SoundClass A serA desA}
+     `{Serialize B} `{Deserialize B}
+     `{SoundClass A}
       (P : sexp -> Prop)
-      (HP : forall e, P e -> forall l' t, desB l' e = inr t -> serB t = e) :
-  forall es l xs,
+      (HP : forall e, P e -> forall l' (t : B), _from_sexp l' e = inr t -> to_sexp t = e) :
+  forall es l (xs : list (A * B)),
     Forall (SoundClassStrong P) es ->
-    _sexp_to_list Deserialize_prod nil 0 l es = inr xs ->
-    map (fun p => List [serA (fst p); serB (snd p)]) xs = es.
+    _sexp_to_list _from_sexp nil 0 l es = inr xs ->
+    map (fun p => List [to_sexp (fst p); to_sexp (snd p)]) xs = es.
 Proof.
   intros.
-  erewrite sound_class_list_prod_strong_aux; eauto.
-  cbn.
-  reflexivity.
+  eapply sound_class_list_forall; eauto.
+  eapply Forall_impl; [| exact H4].
+  intros e HPe l' t Hdes.
+  destruct t as [a b].
+  unfold _from_sexp, Deserialize_prod in Hdes.
+  destruct e; try discriminate.
+  destruct xs0; try discriminate.
+  destruct xs0; try discriminate.
+  destruct xs0; try discriminate.
+  destruct (_from_sexp _ s) eqn:Hdesa in Hdes; try discriminate.
+  destruct (_from_sexp _ s0) eqn:Hdesb in Hdes; try discriminate.
+  injection Hdes as <- <-.
+  apply sound_class in Hdesa as <-.
+  inversion HPe as [|? HP_list Hss_inner]; subst.
+  apply List.Forall_cons_iff in Hss_inner as [_ Hss_inner].
+  apply List.Forall_cons_iff in Hss_inner as [Hss_b _].
+  apply SoundClassStrong_implies_P in Hss_b.
+  eapply HP in Hss_b as <-; eauto.
+  cbn. reflexivity.
+Qed.
+
+Lemma sound_class_list_sum_strong {A B : Type}
+     `{Serialize B} `{Deserialize B}
+     `{SoundClass A}
+      (P : sexp -> Prop)
+      (HP : forall e, P e -> forall l' (t : B), _from_sexp l' e = inr t -> to_sexp t = e) :
+  forall es l (xs : list (A + B)),
+    Forall (SoundClassStrong P) es ->
+    _sexp_to_list _from_sexp nil 0 l es = inr xs ->
+    map to_sexp xs = es.
+Proof.
+  intros.
+  eapply sound_class_list_forall; eauto.
+  eapply Forall_impl; [| exact H4].
+  intros e HPe l' t Hdes.
+  unfold _from_sexp, Deserialize_sum in Hdes.
+  apply sound_match_con in Hdes.
+  destruct Hdes as [ Ee | Ee ]; elim_Exists Ee; cbn [fst snd] in *.
+  - destruct Ee as [es' [<- Ea]].
+    sound_field Ea.
+    apply sound_class in Ea1 as <-.
+    cbn. reflexivity.
+  - destruct Ee as [es' [<- Ea]].
+    sound_field Ea.
+    inversion HPe as [|? HP_list Hss_inner]; subst.
+    apply List.Forall_cons_iff in Hss_inner as [_ Hss_inner].
+    apply List.Forall_cons_iff in Hss_inner as [Hss_e _].
+    apply SoundClassStrong_implies_P in Hss_e.
+    eapply HP in Hss_e as <-; eauto.
+    cbn. reflexivity.
+Qed.
+
+Lemma sound_class_list_option_strong {A : Type}
+     `{Serialize A} `{Deserialize A}
+      (P : sexp -> Prop)
+      (HP : forall e, P e -> forall l' (t : A), _from_sexp l' e = inr t -> to_sexp t = e) :
+  forall es l (xs : list (option A)),
+    Forall (SoundClassStrong P) es ->
+    _sexp_to_list _from_sexp nil 0 l es = inr xs ->
+    map to_sexp xs = es.
+Proof.
+  intros.
+  eapply sound_class_list_forall; eauto.
+  eapply Forall_impl; [| exact H1].
+  intros e HPe l' t Hdes.
+  unfold _from_sexp, Deserialize_option in Hdes.
+  apply sound_match_con in Hdes.
+  destruct Hdes as [ Ee | Ee ]; elim_Exists Ee; cbn [fst snd] in *.
+  - destruct Ee as [E1 E2]; subst; reflexivity.
+  - destruct Ee as [es' [<- Ea]].
+    sound_field Ea.
+    inversion HPe as [|? HP_list Hss_inner]; subst.
+    apply List.Forall_cons_iff in Hss_inner as [_ Hss_inner].
+    apply List.Forall_cons_iff in Hss_inner as [Hss_e _].
+    apply SoundClassStrong_implies_P in Hss_e.
+    eapply HP in Hss_e as <-; eauto.
+    cbn. reflexivity.
+Qed.
+
+Lemma sound_class_list_list_strong {A : Type}
+     `{Serialize A} `{Deserialize A}
+      (P : sexp -> Prop)
+      (HP : forall e, P e -> forall l' (t : A), _from_sexp l' e = inr t -> to_sexp t = e) :
+  forall es l (xs : list (list A)),
+    Forall (SoundClassStrong P) es ->
+    _sexp_to_list _from_sexp nil 0 l es = inr xs ->
+    map to_sexp xs = es.
+Proof.
+  intros.
+  eapply sound_class_list_forall; eauto.
+  eapply Forall_impl; [| exact H1].
+  intros e HPe l' t Hdes.
+  unfold _from_sexp, Deserialize_list in Hdes.
+  destruct e; try discriminate.
+  unfold to_sexp, Serialize_list.
+  erewrite sound_class_list_forall; eauto.
+  apply SoundClassStrong_List_inv in HPe.
+  eapply Forall_impl; [| exact HPe].
+  intros e HPe' ? t' Hdes'.
+  apply SoundClassStrong_implies_P in HPe'.
+  eapply HP in HPe' as <-; eauto.
 Qed.

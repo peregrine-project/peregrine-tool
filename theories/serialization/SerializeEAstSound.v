@@ -40,69 +40,39 @@ Qed.
 
 (* Helper lemmas for Term soundness proof *)
 
-Lemma sound_class_list_def_strong_aux {T : Set}
-      `{serT : Serialize T} `{desT : Deserialize T}
-      (P : sexp -> Prop)
-      (HP : forall e, P e -> forall l' t, desT l' e = inr t -> serT t = e) :
-  forall es,
-    Forall (SoundClassStrong P) es ->
-    forall xs n l (ts : list (def T)),
-      _sexp_to_list _from_sexp xs n l es = inr ts ->
-      map to_sexp ts = map to_sexp (rev xs) ++ es.
-Proof.
-  induction es as [| e es IH].
-  - (* nil *)
-    intros Hss xs n l ts Hdes.
-    cbn in Hdes.
-    injection Hdes as <-.
-    rewrite rev_alt.
-    rewrite app_nil_r.
-    reflexivity.
-  - (* cons *)
-    intros Hss xs n l ts Hdes.
-    inversion Hss as [|e' es'' Hss_e Hss_es' Heq1]; subst.
-    cbn in Hdes.
-    unfold _from_sexp, Deserialize_def in Hdes.
-    destruct Deser.match_con eqn:Heq2 in Hdes. congruence.
-    apply sound_match_con in Heq2.
-    destruct Heq2 as [Heq2 | Heq2]; elim_Exists Heq2.
-    destruct Heq2 as [fields [Heq Hfields]].
-    cbn in Heq; inversion Heq; subst.
-    sound_field Hfields.
-    apply sound_class in Ea1 as <-.
-    apply sound_class in Ea2 as <-.
-    inversion Hss_e as [|fields' HP_list Hss_inner Heq3]; subst.
-    apply Forall_cons_iff in Hss_inner as [_ Hss_inner].
-    apply Forall_cons_iff in Hss_inner as [_ Hss_inner].
-    apply Forall_cons_iff in Hss_inner as [Hss_body _].
-    apply SoundClassStrong_implies_P in Hss_body.
-    eapply HP in Hss_body; eauto.
-    erewrite IH; eauto; cbn.
-    rewrite map_app; cbn.
-    rewrite <- app_assoc; cbn.
-    rewrite <- Hss_body.
-    reflexivity.
-Qed.
-
 Lemma sound_class_list_def_strong {T : Set}
-      `{serT : Serialize T} `{desT : Deserialize T}
+     `{Serialize T} `{Deserialize T}
       (P : sexp -> Prop)
-      (HP : forall e, P e -> forall l' t, desT l' e = inr t -> serT t = e) :
+      (HP : forall e, P e -> forall l' (t : T), _from_sexp l' e = inr t -> to_sexp t = e) :
   forall es l (ts : list (def T)),
     Forall (SoundClassStrong P) es ->
     _sexp_to_list _from_sexp nil 0 l es = inr ts ->
     map to_sexp ts = es.
 Proof.
   intros.
-  erewrite sound_class_list_def_strong_aux; eauto.
-  cbn.
-  reflexivity.
+  eapply sound_class_list_forall; eauto.
+  eapply Forall_impl; [| exact H1].
+  intros e HPe l' t Hdes.
+  unfold _from_sexp, Deserialize_def in Hdes.
+  apply sound_match_con in Hdes.
+  destruct Hdes as [ Ee | Ee ]; elim_Exists Ee; cbn [fst snd] in *.
+  destruct Ee as [es' [<- Ea]].
+  sound_field Ea.
+  apply sound_class in Ea1 as <-.
+  apply sound_class in Ea2 as <-.
+  inversion HPe as [|? HP_list Hss_inner]; subst.
+  apply List.Forall_cons_iff in Hss_inner as [_ Hss_inner].
+  apply List.Forall_cons_iff in Hss_inner as [_ Hss_inner].
+  apply List.Forall_cons_iff in Hss_inner as [Hss_e _].
+  apply SoundClassStrong_implies_P in Hss_e.
+  eapply HP in Hss_e as <-; eauto.
+  cbn. reflexivity.
 Qed.
 
 Lemma sound_class_prim_val_strong {T : Set}
-      `{serT : Serialize T} `{desT : Deserialize T}
+     `{Serialize T} `{Deserialize T}
       (P : sexp -> Prop)
-      (HP : forall e, P e -> forall l' t, desT l' e = inr t -> serT t = e) :
+      (HP : forall e, P e -> forall l' (t : T), _from_sexp l' e = inr t -> to_sexp t = e) :
   forall e l (p : EPrimitive.prim_val T),
     SoundClassStrong P e ->
     _from_sexp l e = inr p ->
@@ -159,6 +129,7 @@ Proof.
       apply SoundClassStrong_List_inv in Hss_values.
       eapply sound_class_list_forall in Ea0.
       * unfold to_sexp, Serialize_list, to_sexp.
+        unfold to_sexp in Ea0.
         rewrite Ea0.
         reflexivity.
       * apply Forall_SoundClassStrong_Forall_P in Hss_values.
@@ -208,232 +179,215 @@ Proof.
 Qed.
 
 #[bypass_check(guard)]
-Lemma SoundStrong_term :
-  forall e,
-    SoundClassStrong SoundTerm e.
-Proof.
-  induction e.
-  - (* Atom constructors *)
-    constructor.
-    intros l t He.
-    unfold _from_sexp, Deserialize_term, deserialize_term in He.
-    apply sound_match_con in He.
-    destruct He as [He | He]; elim_Exists He;
-      try (destruct He as [? [H ?]]; cbn in H; discriminate);
-      try fold deserialize_term in He.
-    + (* tBox *)
-      destruct He as [-> He]; subst; simpl.
-      reflexivity.
-  - (* List constructors *)
-    constructor; auto.
-    rename xs into es.
-    rename H into Hall.
-    intros l t He.
-    unfold _from_sexp, Deserialize_term, deserialize_term in He.
-    apply sound_match_con in He.
-    destruct He as [He | He]; elim_Exists He;
-      try (now destruct He as [? ?]; discriminate);
-      try fold deserialize_term in He.
-    + (* tRel *)
-      destruct He as [es' [<- He]].
-      sound_field He.
-      apply sound_class in Ea1.
-      rewrite <- Ea1.
-      reflexivity.
-    + (* tVar *)
-      destruct He as [es' [<- He]].
-      sound_field He.
-      apply sound_class in Ea1.
-      rewrite <- Ea1.
-      reflexivity.
-    + (* tEvar *)
-      destruct He as [es' [H1 He]].
-      cbn in H1; inversion H1; subst; clear H1.
-      sound_field He.
-      apply sound_class in Ea1 as <-.
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [H _].
-
-      destruct (sexp_inv e0) as [[] | []]; subst; try discriminate.
-      cbn.
-      do 4 f_equal.
-      eapply sound_class_list_forall in Ea0 as <-.
-      reflexivity.
-      unfold SoundTerm in H.
-      apply SoundClassStrong_List_inv in H.
-      eapply Forall_impl; eauto.
-      intros ? Hss.
-      apply SoundClassStrong_implies_P in Hss.
-      exact Hss.
-    + (* tLambda *)
-      destruct He as [es' [H1 He]].
-      cbn in H1; inversion H1; subst; clear H1.
-      sound_field He.
-      apply sound_class in Ea1 as <-.
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [H _].
-      erewrite <- (SoundClassStrong_SoundTerm_sound _ H); eauto.
-      cbn.
-      reflexivity.
-    + (* tLetIn *)
-      destruct He as [es' [H1 He]].
-      cbn in H1; inversion H1; subst; clear H1.
-      sound_field He.
-      apply sound_class in Ea1 as <-.
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [H1 Hall].
-      apply Forall_cons_iff in Hall as [H2 _].
-      erewrite <- (SoundClassStrong_SoundTerm_sound _ H1); eauto.
-      erewrite <- (SoundClassStrong_SoundTerm_sound _ H2); eauto.
-      cbn.
-      reflexivity.
-    + (* tApp *)
-      fold deserialize_term in He.
-      destruct He as [es' [H1 He]].
-      cbn in H1; inversion H1; subst; clear H1.
-      sound_field He.
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [H1 Hall].
-      apply Forall_cons_iff in Hall as [H2 _].
-      erewrite <- (SoundClassStrong_SoundTerm_sound _ H1); eauto.
-      erewrite <- (SoundClassStrong_SoundTerm_sound _ H2); eauto.
-      cbn.
-      reflexivity.
-    + (* tConst *)
-      destruct He as [es' [<- He]].
-      sound_field He.
-      apply sound_class in Ea1.
-      rewrite <- Ea1.
-      reflexivity.
-    + (* tConstruct *)
-      destruct He as [es' [H1 He]].
-      cbn in H1; inversion H1; subst; clear H1.
-      sound_field He.
-      apply sound_class in Ea0 as <-.
-      apply sound_class in Ea1 as <-.
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [H _].
-
-      destruct (sexp_inv e1) as [[] | []]; subst; try discriminate.
-      cbn.
-      do 5 f_equal.
-      eapply sound_class_list_forall in Ea2 as <-.
-      reflexivity.
-      unfold SoundTerm in H.
-      apply SoundClassStrong_List_inv in H.
-      eapply Forall_impl; eauto.
-      intros ? Hss.
-      apply SoundClassStrong_implies_P in Hss.
-      exact Hss.
-    + (* tCase *)
-      destruct He as [es' [H1 He]].
-      cbn in H1; inversion H1; subst; clear H1.
-      sound_field He.
-      apply sound_class in Ea1 as <-.
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [H1 Hall].
-      apply Forall_cons_iff in Hall as [H2 _].
-      erewrite <- (SoundClassStrong_SoundTerm_sound _ H1); eauto.
-      clear dependent e0.
-      destruct e1; cbn in Ea2; try discriminate.
-      apply SoundClassStrong_SoundTerm_nested_strong in H2.
-      cbn.
-      do 5 f_equal.
-      eapply sound_class_list_prod_strong in Ea2; eauto.
-      * unfold to_sexp, Serialize_product, to_sexp.
-        rewrite Ea2.
-        reflexivity.
-      * intros ? HP.
-        exact HP.
-    + (* tProj *)
-      destruct He as [es' [H1 He]].
-      cbn in H1; inversion H1; subst; clear H1.
-      sound_field He.
-      apply sound_class in Ea1 as <-.
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [H _].
-      erewrite <- (SoundClassStrong_SoundTerm_sound _ H); eauto.
-      cbn.
-      reflexivity.
-    + (* tFix *)
-      destruct He as [es' [H1 He]].
-      cbn in H1; inversion H1; subst; clear H1.
-      sound_field He.
-      apply sound_class in Ea0 as <-.
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [H _].
-      destruct (sexp_inv e) as [[] | []]; subst; try discriminate.
-      apply SoundClassStrong_SoundTerm_nested_strong in H.
-      cbn.
-      do 3 f_equal.
-      unfold to_sexp; unfold Serialize_mfixpoint, to_sexp, Serialize_list.
-      eapply sound_class_list_def_strong in Ea1 as <-; eauto.
-      intros ? HP.
-      exact HP.
-    + (* tCoFix *)
-      destruct He as [es' [H1 He]].
-      cbn in H1; inversion H1; subst; clear H1.
-      sound_field He.
-      apply sound_class in Ea0 as <-.
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [H _].
-      destruct (sexp_inv e) as [[] | []]; subst; try discriminate.
-      apply SoundClassStrong_SoundTerm_nested_strong in H.
-      cbn.
-      do 3 f_equal.
-      unfold to_sexp; unfold Serialize_mfixpoint, to_sexp, Serialize_list.
-      eapply sound_class_list_def_strong in Ea1 as <-; eauto.
-      intros ? HP.
-      exact HP.
-    + (* tPrim *)
-      destruct He as [es' [H1 He]].
-      cbn in H1; inversion H1; subst; clear H1.
-      sound_field He.
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [H _].
-      eapply sound_class_prim_val_strong in Ea1; eauto.
-      cbn.
-      do 3 f_equal.
-      * exact Ea1.
-      * intros ? HP.
-        exact HP.
-    + (* tLazy *)
-      fold deserialize_term in He.
-      destruct He as [es' [H1 He]].
-      cbn in H1; inversion H1; subst; clear H1.
-      sound_field He.
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [H _].
-      erewrite <- (SoundClassStrong_SoundTerm_sound _ H); eauto.
-      cbn.
-      reflexivity.
-    + (* tForce *)
-      fold deserialize_term in He.
-      destruct He as [es' [H1 He]].
-      cbn in H1; inversion H1; subst; clear H1.
-      sound_field He.
-      apply Forall_cons_iff in Hall as [_ Hall].
-      apply Forall_cons_iff in Hall as [H _].
-      erewrite <- (SoundClassStrong_SoundTerm_sound _ H); eauto.
-      cbn.
-      reflexivity.
-Qed.
-
-Instance Sound_term : SoundClass term.
+Lemma Sound_term_aux : SoundClass term.
 Proof.
   unfold SoundClass, Sound.
   intros l e.
   generalize dependent l.
-  apply (SoundClassStrong_SoundTerm_sound e).
-  apply SoundStrong_term.
+  apply SoundClassStrong_SoundTerm_sound.
+  induction e as [a|es Hall];
+    constructor; auto;
+    intros l t He;
+    unfold _from_sexp, Deserialize_term, deserialize_term in He;
+    apply sound_match_con in He;
+    destruct He as [He | He]; elim_Exists He;
+      try (destruct He as [? [H ?]]; cbn in H; discriminate);
+      try (now destruct He as [? ?]; discriminate);
+      try fold deserialize_term in He.
+  - (* tBox *)
+    destruct He as [-> He]; subst; simpl.
+    reflexivity.
+  - (* tRel *)
+    destruct He as [es' [<- He]].
+    sound_field He.
+    apply sound_class in Ea1.
+    rewrite <- Ea1.
+    reflexivity.
+  - (* tVar *)
+    destruct He as [es' [<- He]].
+    sound_field He.
+    apply sound_class in Ea1.
+    rewrite <- Ea1.
+    reflexivity.
+  - (* tEvar *)
+    destruct He as [es' [H1 He]].
+    cbn in H1; inversion H1; subst; clear H1.
+    sound_field He.
+    apply sound_class in Ea1 as <-.
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [H _].
+
+    destruct (sexp_inv e0) as [[] | []]; subst; try discriminate.
+    cbn.
+    do 4 f_equal.
+    eapply sound_class_list_forall in Ea0 as <-.
+    reflexivity.
+    unfold SoundTerm in H.
+    apply SoundClassStrong_List_inv in H.
+    eapply Forall_impl; eauto.
+    intros ? Hss.
+    apply SoundClassStrong_implies_P in Hss.
+    exact Hss.
+  - (* tLambda *)
+    destruct He as [es' [H1 He]].
+    cbn in H1; inversion H1; subst; clear H1.
+    sound_field He.
+    apply sound_class in Ea1 as <-.
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [H _].
+    erewrite <- (SoundClassStrong_SoundTerm_sound _ H); eauto.
+    cbn.
+    reflexivity.
+  - (* tLetIn *)
+    destruct He as [es' [H1 He]].
+    cbn in H1; inversion H1; subst; clear H1.
+    sound_field He.
+    apply sound_class in Ea1 as <-.
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [H1 Hall].
+    apply Forall_cons_iff in Hall as [H2 _].
+    erewrite <- (SoundClassStrong_SoundTerm_sound _ H1); eauto.
+    erewrite <- (SoundClassStrong_SoundTerm_sound _ H2); eauto.
+    cbn.
+    reflexivity.
+  - (* tApp *)
+    destruct He as [es' [H1 He]].
+    cbn in H1; inversion H1; subst; clear H1.
+    sound_field He.
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [H1 Hall].
+    apply Forall_cons_iff in Hall as [H2 _].
+    erewrite <- (SoundClassStrong_SoundTerm_sound _ H1); eauto.
+    erewrite <- (SoundClassStrong_SoundTerm_sound _ H2); eauto.
+    cbn.
+    reflexivity.
+  - (* tConst *)
+    destruct He as [es' [<- He]].
+    sound_field He.
+    apply sound_class in Ea1.
+    rewrite <- Ea1.
+    reflexivity.
+  - (* tConstruct *)
+    destruct He as [es' [H1 He]].
+    cbn in H1; inversion H1; subst; clear H1.
+    sound_field He.
+    apply sound_class in Ea0 as <-.
+    apply sound_class in Ea1 as <-.
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [H _].
+
+    destruct (sexp_inv e1) as [[] | []]; subst; try discriminate.
+    cbn.
+    do 5 f_equal.
+    eapply sound_class_list_forall in Ea2 as <-.
+    reflexivity.
+    unfold SoundTerm in H.
+    apply SoundClassStrong_List_inv in H.
+    eapply Forall_impl; eauto.
+    intros ? Hss.
+    apply SoundClassStrong_implies_P in Hss.
+    exact Hss.
+  - (* tCase *)
+    destruct He as [es' [H1 He]].
+    cbn in H1; inversion H1; subst; clear H1.
+    sound_field He.
+    apply sound_class in Ea1 as <-.
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [H1 Hall].
+    apply Forall_cons_iff in Hall as [H2 _].
+    erewrite <- (SoundClassStrong_SoundTerm_sound _ H1); eauto.
+    clear dependent e0.
+    destruct e1; cbn in Ea2; try discriminate.
+    apply SoundClassStrong_SoundTerm_nested_strong in H2.
+    cbn.
+    do 5 f_equal.
+    eapply sound_class_list_prod_strong in Ea2; eauto.
+    + unfold to_sexp, Serialize_product, to_sexp.
+      unfold to_sexp, Serialize_product, to_sexp in Ea2.
+      rewrite Ea2.
+      reflexivity.
+    + intros ? HP.
+      exact HP.
+  - (* tProj *)
+    destruct He as [es' [H1 He]].
+    cbn in H1; inversion H1; subst; clear H1.
+    sound_field He.
+    apply sound_class in Ea1 as <-.
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [H _].
+    erewrite <- (SoundClassStrong_SoundTerm_sound _ H); eauto.
+    cbn.
+    reflexivity.
+  - (* tFix *)
+    destruct He as [es' [H1 He]].
+    cbn in H1; inversion H1; subst; clear H1.
+    sound_field He.
+    apply sound_class in Ea0 as <-.
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [H _].
+    destruct (sexp_inv e) as [[] | []]; subst; try discriminate.
+    apply SoundClassStrong_SoundTerm_nested_strong in H.
+    cbn.
+    do 3 f_equal.
+    unfold to_sexp; unfold Serialize_mfixpoint, to_sexp, Serialize_list.
+    eapply sound_class_list_def_strong in Ea1 as <-; eauto.
+    intros ? HP.
+    exact HP.
+  - (* tCoFix *)
+    destruct He as [es' [H1 He]].
+    cbn in H1; inversion H1; subst; clear H1.
+    sound_field He.
+    apply sound_class in Ea0 as <-.
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [H _].
+    destruct (sexp_inv e) as [[] | []]; subst; try discriminate.
+    apply SoundClassStrong_SoundTerm_nested_strong in H.
+    cbn.
+    do 3 f_equal.
+    unfold to_sexp; unfold Serialize_mfixpoint, to_sexp, Serialize_list.
+    eapply sound_class_list_def_strong in Ea1 as <-; eauto.
+    intros ? HP.
+    exact HP.
+  - (* tPrim *)
+    destruct He as [es' [H1 He]].
+    cbn in H1; inversion H1; subst; clear H1.
+    sound_field He.
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [H _].
+    eapply sound_class_prim_val_strong in Ea1; eauto.
+    cbn.
+    do 3 f_equal.
+    + exact Ea1.
+    + intros ? HP.
+      exact HP.
+  - (* tLazy *)
+    destruct He as [es' [H1 He]].
+    cbn in H1; inversion H1; subst; clear H1.
+    sound_field He.
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [H _].
+    erewrite <- (SoundClassStrong_SoundTerm_sound _ H); eauto.
+    cbn.
+    reflexivity.
+  - (* tForce *)
+    destruct He as [es' [H1 He]].
+    cbn in H1; inversion H1; subst; clear H1.
+    sound_field He.
+    apply Forall_cons_iff in Hall as [_ Hall].
+    apply Forall_cons_iff in Hall as [H _].
+    erewrite <- (SoundClassStrong_SoundTerm_sound _ H); eauto.
+    cbn.
+    reflexivity.
 Qed.
+
+Instance Sound_term : SoundClass term := Sound_term_aux.
 
 Instance Sound_constructor_body : SoundClass constructor_body.
 Proof.
