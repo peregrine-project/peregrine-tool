@@ -7,14 +7,12 @@ From Peregrine Require CeresExtra.
 
 
 
-Definition string_of_error := CeresExtra.string_of_error.
+Definition string_of_PAst := SerializePAst.string_of_PAst.
 
-Definition PAst_of_string := SerializePAst.PAst_of_string.
+Definition string_of_config := SerializeConfig.string_of_config'.
 
-Definition config_of_string := SerializeConfig.config'_of_string.
+Definition string_of_backend_config := SerializeConfig.string_of_backend_config'.
 
-Definition backend_config_of_string := SerializeConfig.backend_config'_of_string.
+Definition string_of_erasure_phases := SerializeConfig.string_of_erasure_phases'.
 
-Definition erasure_phases_of_string := SerializeConfig.erasure_phases'_of_string.
-
-Definition attributes_config_of_string := SerializeConfig.attributes_config_of_string.
+Definition string_of_attributes_config := SerializeConfig.string_of_attributes_config.

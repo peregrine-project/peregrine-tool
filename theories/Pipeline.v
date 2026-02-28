@@ -1,4 +1,4 @@
-From Peregrine Require Import Serialize.
+From Peregrine Require Import Deserialize.
 From Peregrine Require Import PAst.
 From Peregrine Require Import Config.
 From Peregrine Require Import ConfigUtils.

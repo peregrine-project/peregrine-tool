@@ -82,14 +82,14 @@ extractInductiveConv ExtractInductive {..} =
     (kerNameConv elim)
 
 remapInductiveConv :: RemapInductive -> Config0.Coq_remap_inductive
-remapInductiveConv (KnIndRemap r) =
-  Config0.KnIndRemap $ extractInductiveConv r
-remapInductiveConv (StringIndRemap r) =
-  Config0.StringIndRemap $ remappedInductiveConv r
+remapInductiveConv (KnIndRemap kn r) =
+  Config0.KnIndRemap (kerNameConv kn) (map extractInductiveConv r)
+remapInductiveConv (StringIndRemap ind r) =
+  Config0.StringIndRemap (inductiveConv ind) (remappedInductiveConv r)
 
 inductiveRemappingsConv :: InductiveRemappings -> Config0.Coq_inductive_remappings
 inductiveRemappingsConv l =
-  map (\x -> (inductiveConv $ fst x, remapInductiveConv $ snd x)) l
+  map remapInductiveConv l
 
 -- Constant remapping
 remappedConstantConv :: RemappedConstant -> Config0.Coq_remapped_constant

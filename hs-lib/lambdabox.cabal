@@ -36,7 +36,6 @@ library
                       Datatypes
                       Decimal
                       DecimalString
-                      Deserialize
                       EAst
                       EPrimitive
                       EProgram
@@ -55,6 +54,7 @@ library
                       Primitive
                       PrimString
                       Serialize
+                      Serialize0
                       SerializeCommon
                       SerializeConfig
                       SerializeEAst

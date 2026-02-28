@@ -77,10 +77,10 @@ data ExtractInductive = ExtractInductive
   }
 
 data RemapInductive
-  = KnIndRemap ExtractInductive
-  | StringIndRemap RemappedInductive
+  = KnIndRemap LambdaBox.LambdaBox.KerName [ExtractInductive]
+  | StringIndRemap LambdaBox.LambdaBox.Inductive RemappedInductive
 
-type InductiveRemappings = [(LambdaBox.LambdaBox.Inductive, RemapInductive)]
+type InductiveRemappings = [RemapInductive]
 
 -- Constant remapping
 data RemappedConstant = RemappedConstant
