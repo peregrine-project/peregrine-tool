@@ -3,40 +3,9 @@ From CeresBS Require Import Ceres.
 From CeresBS Require Import CeresUtils.
 From CeresBS Require CeresParserUtils.
 From CeresBS Require CeresString.
-From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Utils Require All_Forall.
 
 Import ListNotations.
-
-Local Open Scope bs_scope.
-
-(* Soundness and Completeness proofs for common types *)
-Instance Sound_unit : @SoundClass unit Serialize_unit Deserialize_unit.
-Proof.
-  unfold SoundClass, Sound.
-  intros l e a He.
-  unfold to_sexp, Serialize_unit.
-  unfold _from_sexp, Deserialize_unit in He.
-  destruct e; try discriminate.
-  destruct a0; try discriminate.
-  destruct s; try discriminate.
-  destruct b; try discriminate.
-  destruct s; try discriminate.
-  destruct b; try discriminate.
-  destruct s; try discriminate.
-  reflexivity.
-Qed.
-
-Instance Complete_unit : @CompleteClass unit Serialize_unit Deserialize_unit.
-Proof.
-  unfold CompleteClass, Complete.
-  intros l o.
-  cbn.
-  destruct o.
-  reflexivity.
-Qed.
-
-
 
 Local Open Scope list_scope.
 
