@@ -52,6 +52,13 @@ data OCamlConfig = OCamlConfig
 -- CakeML backend configuration
 type CakeMLConfig = ()
 
+-- Eval backend configuration
+data EvalConfig = EvalConfig
+  { copts    :: Maybe CertiCoqConfig,
+    fuel     :: Int,
+    evalAnf :: Bool
+  }
+
 -- Backend configuration
 -- States the backend that Peregrine should use along
 -- with with options specific to that backend
@@ -62,6 +69,7 @@ data BackendConfig
   | Wasm CertiCoqConfig
   | OCaml OCamlConfig
   | CakeML CakeMLConfig
+  | Eval EvalConfig
 
 
 
