@@ -476,56 +476,6 @@ Definition string_of_error (print_loc print_sexp : bool) (e : error) : string :=
 
 
 
-(* Bytestring utility functions *)
-
-Lemma eqb_byte_refl : forall c,
-  CeresString.eqb_byte c c = true.
-Proof.
-  intros c.
-  destruct c; reflexivity.
-Qed.
-
-Lemma neqb_byte_neq : forall a b,
-  a <> b -> CeresString.eqb_byte a b = false.
-Proof.
-  intros.
-  apply CeresString.neqb_neq_byte.
-  assumption.
-Qed.
-
-Ltac simpl_byte :=
-  match goal with
-  | [ |- context E [ CeresString.eqb_byte ?x ?x ] ] => rewrite eqb_byte_refl
-  | [ |- context E [ CeresString.eqb_byte ?x ?y ] ] => rewrite neqb_byte_neq by congruence
-  end.
-
-Ltac simpl_bytes :=
-  repeat simpl_byte.
-
-Lemma bytestring_of_to : forall s,
-  bytestring.String.of_string (bytestring.String.to_string s) = s.
-Proof.
-  induction s.
-  - reflexivity.
-  - cbn.
-    rewrite IHs.
-    rewrite Ascii.byte_of_ascii_of_byte.
-    reflexivity.
-Qed.
-
-Lemma bytestring_to_of : forall s,
-  bytestring.String.to_string (bytestring.String.of_string s) = s.
-Proof.
-  induction s.
-  - reflexivity.
-  - cbn.
-    rewrite IHs.
-    rewrite Ascii.ascii_of_byte_of_ascii.
-    reflexivity.
-Qed.
-
-
-
 (* Soundness and Completeness proofs for common types *)
 Instance Sound_unit : @SoundClass unit Serialize_unit Deserialize_unit.
 Proof.
