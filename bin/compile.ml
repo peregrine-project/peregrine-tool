@@ -97,6 +97,35 @@ let read_file f =
   s
 
 
+let mk_certicoq_config copts = {
+  ConfigUtils.direct'    = Some (not copts.cps);
+  ConfigUtils.c_args'    = Option.map Peregrine.Caml_nat.nat_of_caml_int copts.c_args;
+  ConfigUtils.o_level'   = Option.map Peregrine.Caml_nat.nat_of_caml_int copts.o_level;
+  ConfigUtils.anf_conf'  = Option.map Peregrine.Caml_nat.nat_of_caml_int copts.anf_conf;
+  ConfigUtils.prefix'    = Option.map bytestring_of_caml_string copts.prefix;
+  ConfigUtils.body_name' = Option.map bytestring_of_caml_string copts.body_name;
+}
+
+let mk_erasure_config eopts = {
+  ConfigUtils.implement_box'  = None;
+  ConfigUtils.implement_lazy' = None;
+  ConfigUtils.cofix_to_laxy'  = None;
+  ConfigUtils.betared'        = eopts.betared;
+  ConfigUtils.unboxing'       = eopts.unboxing;
+  ConfigUtils.dearg_ctors'    = eopts.dearg_ctors;
+  ConfigUtils.dearg_consts'   = eopts.dearg_consts;
+}
+
+let mk_config b eopts = {
+  ConfigUtils.backend_opts' = b;
+  ConfigUtils.erasure_opts' = Some (mk_erasure_config eopts);
+  ConfigUtils.inlinings_opts' = [];
+  ConfigUtils.const_remappings_opts' = [];
+  ConfigUtils.ind_remappings_opts' = [];
+  ConfigUtils.cstr_reorders_opts' = [];
+  ConfigUtils.custom_attributes_opts' = []
+}
+
 
 (* Compile functions *)
 let compile_aux opts f prog config =
@@ -118,43 +147,31 @@ let compile opts f_prog f_config =
   let config = f_config |> read_file |> bytestring_of_caml_string in
   compile_aux opts f_prog prog (Datatypes.Coq_inl config)
 
-let compile_backend backend_opts opts f_prog =
+let compile_backend backend_opts opts eopts f_prog =
   let prog = f_prog |> read_file |> bytestring_of_caml_string in
-  let config = backend_opts |> ConfigUtils.empty_config' in
+  let config = mk_config backend_opts eopts in
   compile_aux opts f_prog prog (Datatypes.Coq_inr config)
 
-let compile_rust opts f_prog =
+let compile_rust opts eopts f_prog =
   let b_opts = ConfigUtils.Rust' ConfigUtils.empty_rust_config' in
-  compile_backend b_opts opts f_prog
+  compile_backend b_opts opts eopts f_prog
 
-let compile_elm opts f_prog =
+let compile_elm opts eopts f_prog =
   let b_opts = ConfigUtils.Elm' ConfigUtils.empty_elm_config' in
-  compile_backend b_opts opts f_prog
+  compile_backend b_opts opts eopts f_prog
 
-let compile_ocaml opts f_prog =
+let compile_ocaml opts eopts f_prog =
   let b_opts = ConfigUtils.OCaml' ConfigUtils.empty_ocaml_config' in
-  compile_backend b_opts opts f_prog
+  compile_backend b_opts opts eopts f_prog
 
-let compile_cakeml opts f_prog =
+let compile_cakeml opts eopts f_prog =
   let b_opts = ConfigUtils.CakeML' ConfigUtils.empty_cakeml_config' in
-  compile_backend b_opts opts f_prog
+  compile_backend b_opts opts eopts f_prog
 
-
-
-let mk_certicoq_config copts = {
-  ConfigUtils.direct'    = Some (not copts.cps);
-  ConfigUtils.c_args'    = Option.map Peregrine.Caml_nat.nat_of_caml_int copts.c_args;
-  ConfigUtils.o_level'   = Option.map Peregrine.Caml_nat.nat_of_caml_int copts.o_level;
-  ConfigUtils.anf_conf'  = Option.map Peregrine.Caml_nat.nat_of_caml_int copts.anf_conf;
-  ConfigUtils.prefix'    = Option.map bytestring_of_caml_string copts.prefix;
-  ConfigUtils.body_name' = Option.map bytestring_of_caml_string copts.body_name;
-}
-
-
-let compile_c opts copts f_prog =
+let compile_c opts copts eopts f_prog =
   let b_opts = ConfigUtils.C' (mk_certicoq_config copts) in
-  compile_backend b_opts opts f_prog
+  compile_backend b_opts opts eopts f_prog
 
-let compile_wasm opts copts f_prog =
+let compile_wasm opts copts eopts f_prog =
   let b_opts = ConfigUtils.Wasm' (mk_certicoq_config copts) in
-  compile_backend b_opts opts f_prog
+  compile_backend b_opts opts eopts f_prog

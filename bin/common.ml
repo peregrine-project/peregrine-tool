@@ -13,6 +13,20 @@ let mk_copts verbose debug output_file attrs = {
   attrs
 }
 
+type erasure_opts = {
+  betared        : bool option;
+  unboxing       : bool option;
+  dearg_ctors    : bool option;
+  dearg_consts   : bool option;
+}
+
+let mk_erasure_opts betared unboxing dearg_ctors dearg_consts = {
+  betared;
+  unboxing;
+  dearg_ctors;
+  dearg_consts;
+}
+
 type certicoq_opts = {
   cps: bool;
   c_args: int option;

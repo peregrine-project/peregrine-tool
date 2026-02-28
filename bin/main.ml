@@ -54,6 +54,25 @@ let certicoq_opts_t =
   in
   Term.(const mk_certicoq_opts $ cps_arg $ c_args_arg $ o_level_arg $ anf_conf_arg $ prefix_arg $ body_name_arg)
 
+let erasure_opts_t =
+  let betared_arg =
+    let doc = "Perform beta reduction." in
+    Arg.(value & opt (some bool) None & info ["betared"] ~doc)
+  in
+  let unbox_arg =
+    let doc = "Unbox singleton types." in
+    Arg.(value & opt (some bool) None & info ["unboxing"] ~doc)
+  in
+  let dearg_ctors_arg =
+    let doc = "Dearg constructors." in
+    Arg.(value & opt (some bool) None & info ["dearg-ctors"] ~doc)
+  in
+  let dearg_consts_arg =
+    let doc = "Dearg constants." in
+    Arg.(value & opt (some bool) None & info ["dearg-consts"] ~doc)
+  in
+  Term.(const mk_erasure_opts $ betared_arg $ unbox_arg $ dearg_ctors_arg $ dearg_consts_arg)
+
 
 let sdocs = Manpage.s_common_options
 
@@ -134,7 +153,7 @@ let rust_cmd =
     `Blocks help_secs; ]
   in
   let info = Cmd.info "rust" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_rust $ copts_t $ program_file)
+  Cmd.v info Term.(const compile_rust $ copts_t $ erasure_opts_t $ program_file)
 
 let elm_cmd =
   let program_file =
@@ -149,7 +168,7 @@ let elm_cmd =
     `Blocks help_secs; ]
   in
   let info = Cmd.info "elm" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_elm $ copts_t $ program_file)
+  Cmd.v info Term.(const compile_elm $ copts_t $ erasure_opts_t $ program_file)
 
 let ocaml_cmd =
   let program_file =
@@ -164,7 +183,7 @@ let ocaml_cmd =
     `Blocks help_secs; ]
   in
   let info = Cmd.info "ocaml" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_ocaml $ copts_t $ program_file)
+  Cmd.v info Term.(const compile_ocaml $ copts_t $ erasure_opts_t $ program_file)
 
 let cakeml_cmd =
   let program_file =
@@ -179,7 +198,7 @@ let cakeml_cmd =
     `Blocks help_secs; ]
   in
   let info = Cmd.info "cakeml" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_cakeml $ copts_t $ program_file)
+  Cmd.v info Term.(const compile_cakeml $ copts_t $ erasure_opts_t $ program_file)
 
 let c_cmd =
   let program_file =
@@ -194,7 +213,7 @@ let c_cmd =
     `Blocks help_secs; ]
   in
   let info = Cmd.info "c" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_c $ copts_t $ certicoq_opts_t $ program_file)
+  Cmd.v info Term.(const compile_c $ copts_t $ certicoq_opts_t $ erasure_opts_t $ program_file)
 
 let wasm_cmd =
   let program_file =
@@ -209,7 +228,7 @@ let wasm_cmd =
     `Blocks help_secs; ]
   in
   let info = Cmd.info "wasm" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_wasm $ copts_t $ certicoq_opts_t $ program_file)
+  Cmd.v info Term.(const compile_wasm $ copts_t $ certicoq_opts_t $ erasure_opts_t $ program_file)
 
 let main_cmd =
   let doc = "Verified compiler from LambdaBox to WebAssembly, C, Rust, and OCaml" in
