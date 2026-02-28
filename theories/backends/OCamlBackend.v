@@ -11,7 +11,7 @@ From Malfunction Require Import Pipeline.
 From Malfunction Require Import Serialize.
 From Malfunction Require Import SemanticsSpec.
 From Stdlib Require Import List.
-From Ceres Require Import CeresSerialize.
+From CeresBS Require Import CeresSerialize.
 
 Import ListNotations.
 Import MRMonadNotation.

@@ -1,9 +1,9 @@
 From Peregrine Require Import DeserializePrimitives.
 From Peregrine Require Import SerializePrimitives.
 From Peregrine Require Import CeresExtra.
-From Ceres Require Import CeresRoundtrip.
-From Ceres Require Import CeresSerialize.
-From Ceres Require Import CeresDeserialize.
+From CeresBS Require Import CeresRoundtrip.
+From CeresBS Require Import CeresSerialize.
+From CeresBS Require Import CeresDeserialize.
 From MetaRocq.Common Require Import Primitive.
 From MetaRocq.Erasure Require Import EPrimitive.
 From Stdlib Require Import List.
@@ -55,7 +55,7 @@ Proof.
   destruct e; cbn in *; try discriminate.
   destruct a; cbn in *; try discriminate.
   injection He as <-.
-  unfold to_sexp, Serialize_prim_float.
+  unfold to_sexp, SerializePrimitives.Serialize_prim_float.
   rewrite prim_float_ser_sound.
   reflexivity.
 Qed.

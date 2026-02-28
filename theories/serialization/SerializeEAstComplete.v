@@ -7,10 +7,10 @@ From Peregrine Require Import SerializePrimitivesComplete.
 From Peregrine Require Import DeserializeEAst.
 From Peregrine Require Import SerializeEAst.
 From Peregrine Require Import CeresExtra.
-From Ceres Require Import CeresRoundtrip.
-From Ceres Require Import CeresSerialize.
-From Ceres Require Import CeresDeserialize.
-From Ceres Require Import CeresUtils.
+From CeresBS Require Import CeresRoundtrip.
+From CeresBS Require Import CeresSerialize.
+From CeresBS Require Import CeresDeserialize.
+From CeresBS Require Import CeresUtils.
 From MetaRocq.Erasure Require Import EAst.
 From MetaRocq.Erasure Require EInduction.
 From MetaRocq.Utils Require Import bytestring.
@@ -72,7 +72,7 @@ Proof.
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
-  - cbn -[Deserialize_prim_float].
+  - cbn -[DeserializePrimitives.Deserialize_prim_float].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
@@ -184,7 +184,7 @@ Proof.
       simpl_bytes.
       rewrite complete_class.
       reflexivity.
-    + cbn -[Deserialize_prim_float].
+    + cbn -[DeserializePrimitives.Deserialize_prim_float].
       simpl_bytes.
       rewrite complete_class.
       reflexivity.

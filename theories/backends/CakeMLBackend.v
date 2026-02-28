@@ -8,7 +8,7 @@ From MetaRocq.ErasurePlugin Require Import ETransform.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
 From Stdlib Require Import List.
-From Ceres Require Import CeresSerialize.
+From CeresBS Require Import CeresSerialize.
 From CakeML Require Import Pipeline.
 From CakeML Require Import Serialize.
 

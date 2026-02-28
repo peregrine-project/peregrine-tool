@@ -7,7 +7,7 @@ From Peregrine Require Import SerializePrimitivesSound.
 From Peregrine Require Import DeserializeEAst.
 From Peregrine Require Import SerializeEAst.
 From Peregrine Require Import CeresExtra.
-From Ceres Require Import Ceres.
+From CeresBS Require Import Ceres.
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Erasure Require Import EAst.
 From Stdlib Require Import List.

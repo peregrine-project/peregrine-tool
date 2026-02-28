@@ -1,7 +1,7 @@
 
 { lib, mkCoqDerivation, which, coq
   , metarocq, TypedExtraction
-  , ceres, CertiCoq, verified-extraction
+  , ceres-bs, CertiCoq, verified-extraction
   , rocq-primitive, CakeMLExtraction
   , version ? null }:
 
@@ -22,7 +22,7 @@ with lib; mkCoqDerivation {
     coq.ocamlPackages.dune_3
     metarocq
     TypedExtraction
-    ceres
+    ceres-bs
     CertiCoq
     verified-extraction
     CakeMLExtraction

@@ -2,7 +2,7 @@ From Stdlib Require Import List.
 From Stdlib Require Import ZArith.
 From Stdlib Require PrimInt63.
 From Stdlib Require PrimFloat.
-From Ceres Require Import Ceres.
+From CeresBS Require Import Ceres.
 
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Common Require Import Primitive.

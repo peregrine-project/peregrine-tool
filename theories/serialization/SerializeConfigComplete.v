@@ -11,7 +11,7 @@ From Peregrine Require Import SerializeConfig.
 From Peregrine Require Import SerializeCommonComplete.
 From Peregrine Require Import CeresExtra.
 From Stdlib Require Import List.
-From Ceres Require Import Ceres.
+From CeresBS Require Import Ceres.
 
 
 Import ListNotations.

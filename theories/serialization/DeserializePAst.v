@@ -4,7 +4,7 @@ From Peregrine Require Import DeserializeEAst.
 From Peregrine Require Import DeserializeExAst.
 From Peregrine Require Import CeresExtra.
 From Stdlib Require Import List.
-From Ceres Require Import Ceres.
+From CeresBS Require Import Ceres.
 
 Import ListNotations.
 Local Open Scope bs_scope.

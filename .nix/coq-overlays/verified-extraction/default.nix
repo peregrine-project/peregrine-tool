@@ -3,7 +3,7 @@
   mkCoqDerivation,
   coq,
   dune_3,
-  ceres,
+  ceres-bs,
   equations,
   metarocq,
   malfunction,
@@ -21,7 +21,7 @@
   mlPlugin = true;
   useDune = false;
 
-  buildInputs = [ dune_3 malfunction equations metarocq ceres ];
+  buildInputs = [ dune_3 malfunction equations metarocq ceres-bs ];
   propagatedBuildInputs = [ coq.ocamlPackages.ppx_optcomp coq.ocamlPackages.findlib malfunction ];
 
   patchPhase = ''

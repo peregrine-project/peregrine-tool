@@ -2,7 +2,7 @@
   lib,
   mkCoqDerivation,
   coq,
-  ceres,
+  ceres-bs,
   equations,
   metarocq,
   version ? null,
@@ -19,7 +19,7 @@
   mlPlugin = false;
   useDune = false;
 
-  buildInputs = [ equations metarocq ceres ];
+  buildInputs = [ equations metarocq ceres-bs ];
   propagatedBuildInputs = [ coq.ocamlPackages.findlib ];
 
   meta = with lib; {

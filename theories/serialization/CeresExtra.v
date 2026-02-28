@@ -1,8 +1,8 @@
 From Stdlib Require Import List.
-From Ceres Require Import Ceres.
-From Ceres Require Import CeresUtils.
-From Ceres Require CeresParserUtils.
-From Ceres Require CeresString.
+From CeresBS Require Import Ceres.
+From CeresBS Require Import CeresUtils.
+From CeresBS Require CeresParserUtils.
+From CeresBS Require CeresString.
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Utils Require All_Forall.
 

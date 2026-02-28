@@ -4,7 +4,7 @@ From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import Universes.
 From Peregrine Require Import CeresExtra.
 From Stdlib Require Import List.
-From Ceres Require Import Ceres.
+From CeresBS Require Import Ceres.
 
 Import ListNotations.
 Local Open Scope bs_scope.
