@@ -68,7 +68,7 @@ Set Extraction Output Directory "src/extraction/".
 Require compcert.cfrontend.Csyntax
         compcert.cfrontend.Clight.
 
-Separate Extraction Pipeline.peregrine_pipeline
+Separate Extraction Pipeline.peregrine_pipeline Pipeline.peregrine_validate
                     ConfigUtils.empty_rust_config' ConfigUtils.empty_elm_config' ConfigUtils.empty_certicoq_config'
                     ConfigUtils.empty_ocaml_config' ConfigUtils.empty_cakeml_config' ConfigUtils.empty_config'
                     Floats.Float32.to_bits Floats.Float.to_bits

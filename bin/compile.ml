@@ -127,6 +127,26 @@ let mk_config b eopts = {
 }
 
 
+(* Validate function *)
+let validate opts f_prog f_config =
+  let prog = f_prog |> read_file |> bytestring_of_caml_string in
+  (* backend part of config isn't check so we just use any *)
+  let config =
+    match f_config with
+    | Some f -> Datatypes.Coq_inl (f |> read_file |> bytestring_of_caml_string)
+    | None -> Datatypes.Coq_inr (ConfigUtils.empty_config' (ConfigUtils.OCaml' ConfigUtils.empty_ocaml_config')) in
+  let attrs = List.map (fun s -> s |> read_file |> bytestring_of_caml_string) opts.attrs in
+  print_endline "Validating AST:";
+  let res = Pipeline.peregrine_validate config attrs prog in
+  match res with
+  | ResultMonad.Ok _ ->
+    print_endline "AST is valid"
+  | ResultMonad.Err e ->
+    print_endline "Error validating AST:";
+    cprint_endline e;
+    exit 1
+
+
 (* Compile functions *)
 let compile_aux opts f prog config =
   let f_name = f |> Filename.basename |> Filename.chop_extension |> bytestring_of_caml_string in

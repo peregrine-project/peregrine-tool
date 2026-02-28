@@ -230,11 +230,30 @@ let wasm_cmd =
   let info = Cmd.info "wasm" ~doc ~sdocs ~man in
   Cmd.v info Term.(const compile_wasm $ copts_t $ certicoq_opts_t $ erasure_opts_t $ program_file)
 
+let validate_cmd =
+  let program_file =
+    let doc = "lambda box program" in
+    Arg.(required & pos 0 (some file) None & info []
+           ~docv:"FILE" ~doc)
+  in
+  let config_file =
+    let doc = "config file" in
+    Arg.(value & opt (some file) None & info ["config"] ~doc)
+  in
+  let doc = "Validate program and compile configuration" in
+  let man = [
+    `S Manpage.s_description;
+    `P "";
+    `Blocks help_secs; ]
+  in
+  let info = Cmd.info "validate" ~doc ~sdocs ~man in
+  Cmd.v info Term.(const validate $ copts_t $ program_file $ config_file)
+
 let main_cmd =
   let doc = "Verified compiler from LambdaBox to WebAssembly, C, Rust, and OCaml" in
   let man = help_secs in
   let info = Cmd.info "peregrine" ~version ~doc ~sdocs ~man ~exits in
   let default = Term.(ret (const (fun _ -> `Help (`Pager, None)) $ copts_t)) in
-  Cmd.group info ~default [compile_cmd; rust_cmd; elm_cmd; ocaml_cmd; cakeml_cmd; c_cmd; wasm_cmd; help_cmd]
+  Cmd.group info ~default [compile_cmd; rust_cmd; elm_cmd; ocaml_cmd; cakeml_cmd; c_cmd; wasm_cmd; validate_cmd; help_cmd]
 
 let () = exit (Cmd.eval main_cmd)

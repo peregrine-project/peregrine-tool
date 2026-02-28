@@ -203,3 +203,8 @@ Definition peregrine_pipeline (c : string + config') (attrs : list string) (p : 
   c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;; (* Sanitize names in config *)
   p <- apply_transforms c p (needs_typed c);; (* Apply program transformation *)
   run_backend c f p. (* Run extraction backend *)
+
+Definition peregrine_validate (c : string + config') (attrs : list string) (p : string) : result unit string :=
+  p <- parse_ast p;; (* Parse input string into AST *)
+  c <- get_config c attrs;; (* Parse or construct config *)
+  check_wf p. (* Check that AST is wellformed *)
