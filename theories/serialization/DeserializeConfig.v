@@ -80,6 +80,18 @@ Instance Deserialize_cakeml_config' : Deserialize cakeml_config' :=
   fun l e =>
     @_from_sexp _ Deserialize_unit l e.
 
+Instance Deserialize_eval_config : Deserialize eval_config :=
+  fun l e =>
+    Deser.match_con "eval_config" []
+      [ ("eval_config", Deser.con3_ Build_eval_config) ]
+      l e.
+
+Instance Deserialize_eval_config' : Deserialize eval_config' :=
+  fun l e =>
+    Deser.match_con "eval_config" []
+      [ ("eval_config", Deser.con3_ Build_eval_config') ]
+      l e.
+
 Instance Deserialize_backend_config : Deserialize backend_config :=
   fun l e =>
     Deser.match_con "backend_config" []
@@ -88,7 +100,8 @@ Instance Deserialize_backend_config : Deserialize backend_config :=
         ("C", Deser.con_ C);
         ("Wasm", Deser.con_ Wasm);
         ("OCaml", Deser.con_ OCaml);
-        ("CakeML", Deser.con_ CakeML)
+        ("CakeML", Deser.con_ CakeML);
+        ("Eval", Deser.con_ Eval)
       ]
       l e.
 
@@ -100,7 +113,8 @@ Instance Deserialize_backend_config' : Deserialize backend_config' :=
         ("C", Deser.con_ C');
         ("Wasm", Deser.con_ Wasm');
         ("OCaml", Deser.con_ OCaml');
-        ("CakeML", Deser.con_ CakeML')
+        ("CakeML", Deser.con_ CakeML');
+        ("Eval", Deser.con_ Eval')
       ]
       l e.
 
@@ -228,6 +242,12 @@ Definition cakeml_config_of_string (s : string) : error + cakeml_config :=
 
 Definition cakeml_config'_of_string (s : string) : error + cakeml_config' :=
   @from_string cakeml_config' Deserialize_cakeml_config' s.
+
+Definition eval_config_of_string (s : string) : error + eval_config :=
+  @from_string eval_config Deserialize_eval_config s.
+
+Definition eval_config'_of_string (s : string) : error + eval_config' :=
+  @from_string eval_config' Deserialize_eval_config' s.
 
 Definition backend_config_of_string (s : string) : error + backend_config :=
   @from_string backend_config Deserialize_backend_config s.

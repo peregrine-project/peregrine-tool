@@ -132,3 +132,10 @@ Definition anf_pipeline (p : EAst.program) prs next_id :=
     else compile_LambdaANF in
   p_anf <- anf_trans next_id p_anf;;
   ret p_anf.
+
+Definition mut_pipeline (p : EAst.program) prs :=
+  o <- get_options;;
+  (* Translate lambda_box -> lambda_boxmut *)
+  p_mut <- compile_LambdaBoxMut p;;
+  check_axioms prs p_mut;;
+  ret p_mut.

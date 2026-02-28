@@ -87,6 +87,7 @@ let write_program opts f p =
   | Pipeline.CakeMLProgram p -> write_cakeml_res opts f p
   | Pipeline.CProgram p -> write_c_res opts f p
   | Pipeline.WasmProgram p -> write_wasm_res opts f p
+  | Pipeline.EvalProgram p -> cprint_endline p
 
 
 
@@ -194,4 +195,13 @@ let compile_c opts copts eopts f_prog =
 
 let compile_wasm opts copts eopts f_prog =
   let b_opts = ConfigUtils.Wasm' (mk_certicoq_config copts) in
+  compile_backend b_opts opts eopts f_prog
+
+let compile_eval opts copts eopts fuel anf f_prog =
+  let copts = (mk_certicoq_config copts) in
+  let b_opts = ConfigUtils.Eval' {
+      ConfigUtils.copts'    = Some copts;
+      ConfigUtils.fuel'     = Peregrine.Caml_nat.nat_of_caml_int fuel;
+      ConfigUtils.eval_anf' = anf;
+    } in
   compile_backend b_opts opts eopts f_prog

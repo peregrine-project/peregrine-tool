@@ -139,6 +139,28 @@ Proof.
   reflexivity.
 Qed.
 
+Instance Complete_eval_config : CompleteClass eval_config.
+Proof.
+  unfold CompleteClass, Complete.
+  intros l o.
+  cbn -[Deserialize_certicoq_config Deserialize_bool Deserialize_SemiIntegral].
+  simpl_bytes.
+  rewrite 3!complete_class.
+  destruct o; cbn.
+  reflexivity.
+Qed.
+
+Instance Complete_eval_config' : CompleteClass eval_config'.
+Proof.
+  unfold CompleteClass, Complete.
+  intros l o.
+  cbn -[Deserialize_certicoq_config' Deserialize_bool Deserialize_SemiIntegral].
+  simpl_bytes.
+  rewrite 3!complete_class.
+  destruct o; cbn.
+  reflexivity.
+Qed.
+
 Instance Complete_backend_config : CompleteClass backend_config.
 Proof.
   unfold CompleteClass, Complete.
@@ -146,27 +168,31 @@ Proof.
   destruct b.
   - cbn -[Deserialize_rust_config].
     simpl_bytes.
-    rewrite !complete_class.
+    rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_elm_config].
     simpl_bytes.
-    rewrite !complete_class.
+    rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_certicoq_config].
     simpl_bytes.
-    rewrite !complete_class.
+    rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_certicoq_config].
     simpl_bytes.
-    rewrite !complete_class.
+    rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_ocaml_config].
     simpl_bytes.
-    rewrite !complete_class.
+    rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_cakeml_config'].
     simpl_bytes.
-    rewrite !complete_class.
+    rewrite complete_class.
+    reflexivity.
+  - cbn -[Deserialize_eval_config].
+    simpl_bytes.
+    rewrite complete_class.
     reflexivity.
 Qed.
 
@@ -177,27 +203,31 @@ Proof.
   destruct b.
   - cbn -[Deserialize_rust_config'].
     simpl_bytes.
-    rewrite !complete_class.
+    rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_elm_config'].
     simpl_bytes.
-    rewrite !complete_class.
+    rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_certicoq_config'].
     simpl_bytes.
-    rewrite !complete_class.
+    rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_certicoq_config'].
     simpl_bytes.
-    rewrite !complete_class.
+    rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_ocaml_config'].
     simpl_bytes.
-    rewrite !complete_class.
+    rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_cakeml_config'].
     simpl_bytes.
-    rewrite !complete_class.
+    rewrite complete_class.
+    reflexivity.
+  - cbn -[Deserialize_eval_config'].
+    simpl_bytes.
+    rewrite complete_class.
     reflexivity.
 Qed.
 

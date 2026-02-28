@@ -230,6 +230,29 @@ let wasm_cmd =
   let info = Cmd.info "wasm" ~doc ~sdocs ~man in
   Cmd.v info Term.(const compile_wasm $ copts_t $ certicoq_opts_t $ erasure_opts_t $ program_file)
 
+let eval_cmd =
+  let program_file =
+    let doc = "lambda box program" in
+    Arg.(required & pos 0 (some file) None & info []
+           ~docv:"FILE" ~doc)
+  in
+  let fuel_arg =
+    let doc = "evaluator fuel" in
+    Arg.(value & opt int 10000 & info ["fuel"] ~doc)
+  in
+  let anf_arg =
+    let doc = "evaluator type" in
+    Arg.(value & opt bool true & info ["anf"] ~doc)
+  in
+  let doc = "Evaluate lambda box program" in
+  let man = [
+    `S Manpage.s_description;
+    `P "";
+    `Blocks help_secs; ]
+  in
+  let info = Cmd.info "eval" ~doc ~sdocs ~man in
+  Cmd.v info Term.(const compile_eval $ copts_t $ certicoq_opts_t $ erasure_opts_t $ fuel_arg $ anf_arg $ program_file)
+
 let validate_cmd =
   let program_file =
     let doc = "lambda box program" in
@@ -254,6 +277,6 @@ let main_cmd =
   let man = help_secs in
   let info = Cmd.info "peregrine" ~version ~doc ~sdocs ~man ~exits in
   let default = Term.(ret (const (fun _ -> `Help (`Pager, None)) $ copts_t)) in
-  Cmd.group info ~default [compile_cmd; rust_cmd; elm_cmd; ocaml_cmd; cakeml_cmd; c_cmd; wasm_cmd; validate_cmd; help_cmd]
+  Cmd.group info ~default [compile_cmd; rust_cmd; elm_cmd; ocaml_cmd; cakeml_cmd; c_cmd; wasm_cmd; eval_cmd; validate_cmd; help_cmd]
 
 let () = exit (Cmd.eval main_cmd)

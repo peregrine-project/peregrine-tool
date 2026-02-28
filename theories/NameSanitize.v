@@ -522,6 +522,9 @@ Definition rust_sanitizer_aux (s : utf8_string) : utf8_string :=
 Definition rust_sanitizer (s : utf8_string) : string :=
   to_string (rust_sanitizer_aux s).
 
+Definition skip_sanitize (s : utf8_string) : string :=
+  to_string s.
+
 Definition get_sanitizer (o : Config.config) : utf8_string -> string :=
   match o.(Config.backend_opts) with
   | Config.Rust _ => rust_sanitizer
@@ -530,6 +533,8 @@ Definition get_sanitizer (o : Config.config) : utf8_string -> string :=
   | Config.CakeML _ => cakeml_sanitizer
   | Config.C _ => c_sanitizer
   | Config.Wasm _ => wasm_sanitizer
+  (* Name sanitizing not necessary here *)
+  | Config.Eval _ => skip_sanitize
   end.
 
 

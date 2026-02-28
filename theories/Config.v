@@ -51,13 +51,20 @@ Section BackendConfig.
 
   Definition cakeml_config : Type := unit.
 
+  Record eval_config := {
+    copts    : certicoq_config;
+    fuel     : nat;
+    eval_anf : bool;
+  }.
+
   Inductive backend_config :=
   | Rust   : rust_config -> backend_config
   | Elm    : elm_config -> backend_config
   | C      : c_config -> backend_config
   | Wasm   : wasm_config -> backend_config
   | OCaml  : ocaml_config -> backend_config
-  | CakeML : cakeml_config -> backend_config.
+  | CakeML : cakeml_config -> backend_config
+  | Eval   : eval_config -> backend_config.
 
 End BackendConfig.
 

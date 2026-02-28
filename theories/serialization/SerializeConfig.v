@@ -114,6 +114,22 @@ Instance Serialize_cakeml_config' : Serialize cakeml_config' :=
   fun o =>
     @to_sexp _ Serialize_unit o.
 
+Instance Serialize_eval_config : Serialize eval_config :=
+  fun o =>
+    [Atom "eval_config";
+     to_sexp (copts o);
+     to_sexp (fuel o);
+     to_sexp (eval_anf o)
+    ]%sexp.
+
+Instance Serialize_eval_config' : Serialize eval_config' :=
+  fun o =>
+    [Atom "eval_config";
+     to_sexp (copts' o);
+     to_sexp (fuel' o);
+     to_sexp (eval_anf' o)
+    ]%sexp.
+
 Instance Serialize_backend_config : Serialize backend_config :=
   fun b =>
     match b with
@@ -123,6 +139,7 @@ Instance Serialize_backend_config : Serialize backend_config :=
     | Wasm o => [Atom "Wasm"; to_sexp o ]
     | OCaml o => [Atom "OCaml"; to_sexp o ]
     | CakeML o => [Atom "CakeML"; to_sexp o ]
+    | Eval o => [Atom "Eval"; to_sexp o ]
     end%sexp.
 
 Instance Serialize_backend_config' : Serialize backend_config' :=
@@ -134,6 +151,7 @@ Instance Serialize_backend_config' : Serialize backend_config' :=
     | Wasm' o => [Atom "Wasm"; to_sexp o ]
     | OCaml' o => [Atom "OCaml"; to_sexp o ]
     | CakeML' o => [Atom "CakeML"; to_sexp o ]
+    | Eval' o => [Atom "Eval"; to_sexp o ]
     end%sexp.
 
 
@@ -297,6 +315,12 @@ Definition string_of_cakeml_config (x : cakeml_config) : string :=
 
 Definition string_of_cakeml_config' (x : cakeml_config') : string :=
   @to_string cakeml_config' Serialize_cakeml_config' x.
+
+Definition string_of_eval_config (x : eval_config) : string :=
+  @to_string eval_config Serialize_eval_config x.
+
+Definition string_of_eval_config' (x : eval_config') : string :=
+  @to_string eval_config' Serialize_eval_config' x.
 
 Definition string_of_backend_config (x : backend_config) : string :=
   @to_string backend_config Serialize_backend_config x.
