@@ -12,6 +12,8 @@ From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Erasure Require Import EAst.
 From Stdlib Require Import List.
 
+Import StrongSound.
+
 
 
 Instance Sound_def {T : Set} `{SoundClass T} : SoundClass (def T).
