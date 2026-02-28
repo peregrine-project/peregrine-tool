@@ -27,11 +27,11 @@ Instance Deserialize_box_type : Deserialize box_type :=
       [ ("TBox", TBox)
       ; ("TAny", TAny)
       ]
-      [ ("TArr", con2 TArr ds ds)
-      ; ("TApp", con2 TApp ds ds)
-      ; ("TVar", con1_ TVar)
-      ; ("TInd", con1_ TInd)
-      ; ("TConst", con1_ TConst )
+      [ ("TArr", Deser.con2 TArr ds ds)
+      ; ("TApp", Deser.con2 TApp ds ds)
+      ; ("TVar", Deser.con1_ TVar)
+      ; ("TInd", Deser.con1_ TInd)
+      ; ("TConst", Deser.con1_ TConst )
       ] l e.
 
 (* Record type_var_info :=
@@ -42,7 +42,7 @@ Instance Deserialize_box_type : Deserialize box_type :=
 Instance Deserialize_type_var_info : Deserialize type_var_info :=
   fun l e =>
     Deser.match_con "type_var_info" []
-      [ ("type_var_info", con4_ Build_type_var_info) ]
+      [ ("type_var_info", Deser.con4_ Build_type_var_info) ]
       l e.
 
 (* Record constant_body :=
@@ -51,7 +51,7 @@ Instance Deserialize_type_var_info : Deserialize type_var_info :=
 Instance Deserialize_constant_body : Deserialize constant_body :=
   fun l e =>
     Deser.match_con "constant_body" []
-      [ ("constant_body", con2_ Build_constant_body) ]
+      [ ("constant_body", Deser.con2_ Build_constant_body) ]
       l e.
 
 (* Record one_inductive_body :=
@@ -67,7 +67,7 @@ Instance Deserialize_constant_body : Deserialize constant_body :=
 Instance Deserialize_one_inductive_body : Deserialize one_inductive_body :=
   fun l e =>
     Deser.match_con "one_inductive_body" []
-      [ ("one_inductive_body", con6_ Build_one_inductive_body) ]
+      [ ("one_inductive_body", Deser.con6_ Build_one_inductive_body) ]
       l e.
 
 (* Record mutual_inductive_body :=
@@ -77,7 +77,7 @@ Instance Deserialize_one_inductive_body : Deserialize one_inductive_body :=
 Instance Deserialize_mutual_inductive_body : Deserialize mutual_inductive_body :=
   fun l e =>
     Deser.match_con "mutual_inductive_body" []
-      [ ("mutual_inductive_body", con3_ Build_mutual_inductive_body) ]
+      [ ("mutual_inductive_body", Deser.con3_ Build_mutual_inductive_body) ]
       l e.
 
 (* Inductive global_decl :=
@@ -88,9 +88,9 @@ Instance Deserialize_global_decl : Deserialize global_decl :=
   fun l e =>
     Deser.match_con "global_decl"
       []
-      [ ("ConstantDecl", con1_ ConstantDecl)
-      ; ("InductiveDecl", con1_ InductiveDecl)
-      ; ("TypeAliasDecl", con1_ TypeAliasDecl)
+      [ ("ConstantDecl", Deser.con1_ ConstantDecl)
+      ; ("InductiveDecl", Deser.con1_ InductiveDecl)
+      ; ("TypeAliasDecl", Deser.con1_ TypeAliasDecl)
       ]
       l e.
 

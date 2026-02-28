@@ -28,9 +28,9 @@ Instance Deserialize_dirpath : Deserialize dirpath :=
 Instance Deserialize_modpath : Deserialize modpath :=
   fix ds (l : loc) (e : sexp) : error + modpath :=
     Deser.match_con "modpath" []
-      [ ("MPfile", con1_ MPfile)
-      ; ("MPbound", con3_ MPbound)
-      ; ("MPdot", con2 MPdot ds _from_sexp )
+      [ ("MPfile", Deser.con1_ MPfile)
+      ; ("MPbound", Deser.con3_ MPbound)
+      ; ("MPdot", Deser.con2 MPdot ds _from_sexp )
       ] l e.
 
 Instance Deserialize_kername : Deserialize kername :=
@@ -40,13 +40,13 @@ Instance Deserialize_kername : Deserialize kername :=
 Instance Deserialize_inductive : Deserialize inductive :=
   fun l e =>
     Deser.match_con "inductive" []
-      [ ("inductive", con2_ mkInd) ]
+      [ ("inductive", Deser.con2_ mkInd) ]
       l e.
 
 Instance Deserialize_projection : Deserialize projection :=
   fun l e =>
     Deser.match_con "projection" []
-      [ ("projection", con3_ mkProjection) ]
+      [ ("projection", Deser.con3_ mkProjection) ]
       l e.
 
 (** ** BasicAst *)
@@ -54,7 +54,7 @@ Instance Deserialize_name : Deserialize name :=
   fun l e =>
     Deser.match_con "name"
       [ ("nAnon", nAnon) ]
-      [ ("nNamed", con1_ nNamed) ]
+      [ ("nNamed", Deser.con1_ nNamed) ]
       l e.
 
 Instance Deserialize_recursivity_kind : Deserialize recursivity_kind :=

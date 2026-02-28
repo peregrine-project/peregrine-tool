@@ -25,8 +25,8 @@ Instance Deserialize_PAst : Deserialize PAst :=
   fun l e =>
     Deser.match_con "PAst"
       []
-      [ ("Untyped", con2_ Untyped)
-      ; ("Typed", con2_ Typed)
+      [ ("Untyped", Deser.con2_ Untyped)
+      ; ("Typed", Deser.con2_ Typed)
       ]
       l e.
 

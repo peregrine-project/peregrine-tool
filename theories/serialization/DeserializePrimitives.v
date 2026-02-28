@@ -58,7 +58,7 @@ Instance Deserialize_prim_string : Deserialize PrimString.string :=
 Instance Deserialize_array_model {T : Set} `{Deserialize T} : Deserialize (array_model T) :=
   fun l e =>
     Deser.match_con "array_model" []
-      [ ("array_model", con2_ Build_array_model) ]
+      [ ("array_model", Deser.con2_ Build_array_model) ]
       l e.
 
 Instance Deserialize_prim_val {T : Set} `{Deserialize T} : Deserialize (prim_val T) :=

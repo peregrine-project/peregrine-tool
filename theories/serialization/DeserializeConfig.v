@@ -21,56 +21,56 @@ Local Open Scope bs_scope.
 Instance Deserialize_rust_config : Deserialize rust_config :=
   fun l e =>
     Deser.match_con "rust_config" []
-      [ ("rust_config", con7_ Build_rust_config) ]
+      [ ("rust_config", Deser.con7_ Build_rust_config) ]
       l e.
 
 Instance Deserialize_rust_config' : Deserialize rust_config' :=
   fun l e =>
     Deser.match_con "rust_config" []
-      [ ("rust_config", con7_ Build_rust_config') ]
+      [ ("rust_config", Deser.con7_ Build_rust_config') ]
       l e.
 
 Instance Deserialize_elm_config : Deserialize elm_config :=
   fun l e =>
     Deser.match_con "elm_config" []
-      [ ("elm_config", con7_ Build_elm_config) ]
+      [ ("elm_config", Deser.con7_ Build_elm_config) ]
       l e.
 
 Instance Deserialize_elm_config' : Deserialize elm_config' :=
   fun l e =>
     Deser.match_con "elm_config" []
-      [ ("elm_config", con7_ Build_elm_config') ]
+      [ ("elm_config", Deser.con7_ Build_elm_config') ]
       l e.
 
 Instance Deserialize_certicoq_config : Deserialize certicoq_config :=
   fun l e =>
     Deser.match_con "certicoq_config" []
-      [ ("certicoq_config", con5_ Build_certicoq_config) ]
+      [ ("certicoq_config", Deser.con5_ Build_certicoq_config) ]
       l e.
 
 Instance Deserialize_certicoq_config' : Deserialize certicoq_config' :=
   fun l e =>
     Deser.match_con "certicoq_config" []
-      [ ("certicoq_config", con5_ Build_certicoq_config') ]
+      [ ("certicoq_config", Deser.con5_ Build_certicoq_config') ]
       l e.
 
 Instance Deserialize_program_type : Deserialize Serialize.program_type :=
   fun l e =>
     Deser.match_con "program_type"
       [ ("Standalone", Serialize.Standalone) ]
-      [ ("Shared_lib", con2_ Serialize.Shared_lib) ]
+      [ ("Shared_lib", Deser.con2_ Serialize.Shared_lib) ]
       l e.
 
 Instance Deserialize_ocaml_config : Deserialize ocaml_config :=
   fun l e =>
     Deser.match_con "ocaml_config" []
-      [ ("ocaml_config", con1_ Build_ocaml_config) ]
+      [ ("ocaml_config", Deser.con1_ Build_ocaml_config) ]
       l e.
 
 Instance Deserialize_ocaml_config' : Deserialize ocaml_config' :=
   fun l e =>
     Deser.match_con "ocaml_config" []
-      [ ("ocaml_config", con1_ Build_ocaml_config') ]
+      [ ("ocaml_config", Deser.con1_ Build_ocaml_config') ]
       l e.
 
 Instance Deserialize_cakeml_config : Deserialize cakeml_config :=
@@ -112,32 +112,32 @@ Instance Deserialize_backend_config' : Deserialize backend_config' :=
 Instance Deserialize_remapped_inductive : Deserialize remapped_inductive :=
   fun l e =>
     Deser.match_con "remapped_inductive" []
-      [ ("remapped_inductive", con3_ build_remapped_inductive) ]
+      [ ("remapped_inductive", Deser.con3_ build_remapped_inductive) ]
       l e.
 
 Instance Deserialize_inductive_mapping : Deserialize EProgram.inductive_mapping :=
   fun l e =>
     Deser.match_con "inductive_mapping" []
-      [ ("inductive_mapping", con3_ (fun kn s n => (kn, (s, n)))) ]
+      [ ("inductive_mapping", Deser.con3_ (fun kn s n => (kn, (s, n)))) ]
       l e.
 
 Instance Deserialize_remapped_constant : Deserialize remapped_constant :=
   fun l e =>
     Deser.match_con "remapped_constant" []
-      [ ("remapped_constant", con5_ Build_remapped_constant) ]
+      [ ("remapped_constant", Deser.con5_ Build_remapped_constant) ]
       l e.
 
 Instance Deserialize_extract_inductive : Deserialize extract_inductive :=
   fun l e =>
     Deser.match_con "extract_inductive" []
-      [ ("extract_inductive", con2_ Build_extract_inductive) ]
+      [ ("extract_inductive", Deser.con2_ Build_extract_inductive) ]
       l e.
 
 Instance Deserialize_remap_inductive : Deserialize remap_inductive :=
   fun l e =>
     Deser.match_con "remap_inductive" []
-      [ ("KnIndRemap", con2_ KnIndRemap);
-        ("StringIndRemap", con2_ StringIndRemap)
+      [ ("KnIndRemap", Deser.con2_ KnIndRemap);
+        ("StringIndRemap", Deser.con2_ StringIndRemap)
       ]
       l e.
 
@@ -164,31 +164,31 @@ Instance Deserialize_custom_attributes : Deserialize custom_attributes :=
 Instance Deserialize_erasure_phases : Deserialize erasure_phases :=
   fun l e =>
     Deser.match_con "erasure_phases" []
-      [ ("erasure_phases", con7_ Build_erasure_phases) ]
+      [ ("erasure_phases", Deser.con7_ Build_erasure_phases) ]
       l e.
 
 Instance Deserialize_erasure_phases' : Deserialize erasure_phases' :=
   fun l e =>
     Deser.match_con "erasure_phases" []
-      [ ("erasure_phases", con7_ Build_erasure_phases') ]
+      [ ("erasure_phases", Deser.con7_ Build_erasure_phases') ]
       l e.
 
 Instance Deserialize_config : Deserialize config :=
   fun l e =>
     Deser.match_con "config" []
-      [ ("config", con7_ Build_config) ]
+      [ ("config", Deser.con7_ Build_config) ]
       l e.
 
 Instance Deserialize_config' : Deserialize config' :=
   fun l e =>
     Deser.match_con "config" []
-      [ ("config", con7_ Build_config') ]
+      [ ("config", Deser.con7_ Build_config') ]
       l e.
 
 Instance Deserialize_attributes_config : Deserialize attributes_config :=
   fun l e =>
     Deser.match_con "attributes_config" []
-      [ ("attributes_config", con5_ Build_attributes_config) ]
+      [ ("attributes_config", Deser.con5_ Build_attributes_config) ]
       l e.
 
 

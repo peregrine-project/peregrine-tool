@@ -18,7 +18,7 @@ Local Open Scope bs_scope.
 Instance Deserialize_def {T : Set} `{Deserialize T} : Deserialize (def T) :=
   fun l e =>
     Deser.match_con "def" []
-      [ ("def", con3_ (@Build_def T)) ]
+      [ ("def", Deser.con3_ (@Build_def T)) ]
       l e.
 
 Instance Deserialize_mfixpoint {T : Set} `{Deserialize T} : Deserialize (mfixpoint T) :=
@@ -35,21 +35,21 @@ Fixpoint deserialize_term (l : loc) (e : sexp) {struct e} : error + term :=
     let ds_prim : FromSexp (EPrimitive.prim_val term) := @_from_sexp (EPrimitive.prim_val term) (@Deserialize_prim_val term ds) in
     Deser.match_con "term"
       [ ("tBox", tBox) ]
-      [ ("tRel", con1_ tRel)
-      ; ("tVar", con1_ tVar)
-      ; ("tEvar", con2 tEvar _from_sexp ds_term_list)
-      ; ("tLambda", con2 tLambda _from_sexp ds)
-      ; ("tLetIn", con3 tLetIn _from_sexp ds ds)
-      ; ("tApp", con2 tApp ds ds)
-      ; ("tConst", con1_ tConst)
-      ; ("tConstruct", con3 tConstruct _from_sexp _from_sexp ds_term_list)
-      ; ("tCase", con3 tCase _from_sexp ds ds_cases)
-      ; ("tProj", con2 tProj _from_sexp ds)
-      ; ("tFix", con2 tFix ds_mfixpoint _from_sexp)
-      ; ("tCoFix", con2 tCoFix ds_mfixpoint _from_sexp)
-      ; ("tPrim", con1 tPrim ds_prim)
-      ; ("tLazy", con1 tLazy ds)
-      ; ("tForce", con1 tForce ds)
+      [ ("tRel", Deser.con1_ tRel)
+      ; ("tVar", Deser.con1_ tVar)
+      ; ("tEvar", Deser.con2 tEvar _from_sexp ds_term_list)
+      ; ("tLambda", Deser.con2 tLambda _from_sexp ds)
+      ; ("tLetIn", Deser.con3 tLetIn _from_sexp ds ds)
+      ; ("tApp", Deser.con2 tApp ds ds)
+      ; ("tConst", Deser.con1_ tConst)
+      ; ("tConstruct", Deser.con3 tConstruct _from_sexp _from_sexp ds_term_list)
+      ; ("tCase", Deser.con3 tCase _from_sexp ds ds_cases)
+      ; ("tProj", Deser.con2 tProj _from_sexp ds)
+      ; ("tFix", Deser.con2 tFix ds_mfixpoint _from_sexp)
+      ; ("tCoFix", Deser.con2 tCoFix ds_mfixpoint _from_sexp)
+      ; ("tPrim", Deser.con1 tPrim ds_prim)
+      ; ("tLazy", Deser.con1 tLazy ds)
+      ; ("tForce", Deser.con1 tForce ds)
       ]
       l e.
 
@@ -63,39 +63,39 @@ Instance Deserialize_term : Deserialize term :=
 Instance Deserialize_constructor_body : Deserialize constructor_body :=
   fun l e =>
     Deser.match_con "constructor_body" []
-      [ ("constructor_body", con2_ mkConstructor) ]
+      [ ("constructor_body", Deser.con2_ mkConstructor) ]
       l e.
 
 Instance Deserialize_projection_body : Deserialize projection_body :=
   fun l e =>
     Deser.match_con "projection_body" []
-      [ ("projection_body", con1_ mkProjection) ]
+      [ ("projection_body", Deser.con1_ mkProjection) ]
       l e.
 
 Instance Deserialize_one_inductive_body : Deserialize one_inductive_body :=
   fun l e =>
     Deser.match_con "one_inductive_body" []
-      [ ("one_inductive_body", con5_ Build_one_inductive_body) ]
+      [ ("one_inductive_body", Deser.con5_ Build_one_inductive_body) ]
       l e.
 
 Instance Deserialize_mutual_inductive_body : Deserialize mutual_inductive_body :=
   fun l e =>
     Deser.match_con "mutual_inductive_body" []
-      [ ("mutual_inductive_body", con3_ Build_mutual_inductive_body) ]
+      [ ("mutual_inductive_body", Deser.con3_ Build_mutual_inductive_body) ]
       l e.
 
 Instance Deserialize_constant_body : Deserialize constant_body :=
   fun l e =>
     Deser.match_con "constant_body" []
-      [ ("constant_body", con1_ Build_constant_body) ]
+      [ ("constant_body", Deser.con1_ Build_constant_body) ]
       l e.
 
 Instance Deserialize_global_decl : Deserialize global_decl :=
   fun l e =>
     Deser.match_con "global_decl"
       []
-      [ ("ConstantDecl", con1_ ConstantDecl)
-      ; ("InductiveDecl", con1_ InductiveDecl)
+      [ ("ConstantDecl", Deser.con1_ ConstantDecl)
+      ; ("InductiveDecl", Deser.con1_ InductiveDecl)
       ]
       l e.
 
