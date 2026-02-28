@@ -130,6 +130,40 @@ Instance Serialize_eval_config' : Serialize eval_config' :=
      to_sexp (eval_anf' o)
     ]%sexp.
 
+Instance Serialize_ASTType : Serialize ASTType :=
+  fun o =>
+    match o with
+    | LambdaBox => Atom "LambdaBox"
+    | LambdaBoxTyped => Atom "LambdaBoxTyped"
+    | LambdaBoxMut c => [Atom "LambdaBoxMut"; to_sexp c]
+    | LambdaBoxLocal c => [Atom "LambdaBoxLocal"; to_sexp c]
+    | LambdaANF c => [Atom "LambdaANF"; to_sexp c]
+    | LambdaANFC c => [Atom "LambdaANFC"; to_sexp c]
+    end%sexp.
+
+Instance Serialize_ASTType' : Serialize ASTType' :=
+  fun o =>
+    match o with
+    | LambdaBox' => Atom "LambdaBox"
+    | LambdaBoxTyped' => Atom "LambdaBoxTyped"
+    | LambdaBoxMut' c => [Atom "LambdaBoxMut"; to_sexp c]
+    | LambdaBoxLocal' c => [Atom "LambdaBoxLocal"; to_sexp c]
+    | LambdaANF' c => [Atom "LambdaANF"; to_sexp c]
+    | LambdaANFC' c => [Atom "LambdaANFC"; to_sexp c]
+    end%sexp.
+
+Instance Serialize_ast_config : Serialize ast_config :=
+  fun o =>
+    [Atom "ast_config";
+     to_sexp (ast_type o)
+    ]%sexp.
+
+Instance Serialize_ast_config' : Serialize ast_config' :=
+  fun o =>
+    [Atom "ast_config";
+     to_sexp (ast_type' o)
+    ]%sexp.
+
 Instance Serialize_backend_config : Serialize backend_config :=
   fun b =>
     match b with
@@ -140,6 +174,7 @@ Instance Serialize_backend_config : Serialize backend_config :=
     | OCaml o => [Atom "OCaml"; to_sexp o ]
     | CakeML o => [Atom "CakeML"; to_sexp o ]
     | Eval o => [Atom "Eval"; to_sexp o ]
+    | AST o => [Atom "AST"; to_sexp o ]
     end%sexp.
 
 Instance Serialize_backend_config' : Serialize backend_config' :=
@@ -152,6 +187,7 @@ Instance Serialize_backend_config' : Serialize backend_config' :=
     | OCaml' o => [Atom "OCaml"; to_sexp o ]
     | CakeML' o => [Atom "CakeML"; to_sexp o ]
     | Eval' o => [Atom "Eval"; to_sexp o ]
+    | AST' o => [Atom "AST"; to_sexp o ]
     end%sexp.
 
 
@@ -321,6 +357,18 @@ Definition string_of_eval_config (x : eval_config) : string :=
 
 Definition string_of_eval_config' (x : eval_config') : string :=
   @to_string eval_config' Serialize_eval_config' x.
+
+Definition string_of_ASTType (x : ASTType) : string :=
+  @to_string ASTType Serialize_ASTType x.
+
+Definition string_of_ASTType' (x : ASTType') : string :=
+  @to_string ASTType' Serialize_ASTType' x.
+
+Definition string_of_ast_config (x : ast_config) : string :=
+  @to_string ast_config Serialize_ast_config x.
+
+Definition string_of_ast_config' (x : ast_config') : string :=
+  @to_string ast_config' Serialize_ast_config' x.
 
 Definition string_of_backend_config (x : backend_config) : string :=
   @to_string backend_config Serialize_backend_config x.

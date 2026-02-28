@@ -36,6 +36,7 @@ theories/backends/CBackend.v
 theories/backends/WasmBackend.v
 theories/backends/CertiCoqBackend.v
 theories/backends/EvalBackend.v
+theories/backends/ASTBackend.v
 
 theories/serialization/Deserialize.v
 theories/serialization/Serialize.v

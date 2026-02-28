@@ -535,6 +535,7 @@ Definition get_sanitizer (o : Config.config) : utf8_string -> string :=
   | Config.Wasm _ => wasm_sanitizer
   (* Name sanitizing not necessary here *)
   | Config.Eval _ => skip_sanitize
+  | Config.AST _ => skip_sanitize
   end.
 
 

@@ -11,6 +11,7 @@ From Peregrine Require OCamlBackend.
 From Peregrine Require CBackend.
 From Peregrine Require WasmBackend.
 From Peregrine Require EvalBackend.
+From Peregrine Require ASTBackend.
 From Peregrine Require TypedTransforms.
 From Peregrine Require NameSanitize.
 From MetaRocq.Utils Require Import utils.
@@ -79,12 +80,22 @@ Definition validate_ast_type (c : config) (p : PAst) : result unit string :=
   | Rust _ => assert (is_typed_ast p) "Rust extraction requires typed lambda box input"
   | Elm _ => assert (is_typed_ast p) "Elm extraction requires typed lambda box input"
   | C _ | Wasm _ | OCaml _ | CakeML _ | Eval _ => Ok tt
+  | AST c =>
+    match c.(ast_type) with
+    | LambdaBoxTyped => assert (is_typed_ast p) "Extraction requires typed lambda box input"
+    | _ => Ok tt
+    end
   end.
 
 Definition needs_typed (c : config) : bool :=
   match c.(backend_opts) with
   | Rust _ | Elm _ => true
   | C _ | Wasm _ | OCaml _ | CakeML _ | Eval _ => false
+  | AST c =>
+    match c.(ast_type) with
+    | LambdaBoxTyped => true
+    | _ => false
+    end
   end.
 
 Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result PAst string :=
@@ -123,7 +134,8 @@ Inductive extracted_program :=
 | WasmProgram : string -> extracted_program
 | OCamlProgram : (list string * string) -> extracted_program
 | CakeMLProgram : (list string * string) -> extracted_program
-| EvalProgram : string -> extracted_program.
+| EvalProgram : string -> extracted_program
+| ASTProgram : string -> extracted_program.
 
 Definition extraction_result : Type := result extracted_program string.
 
@@ -202,6 +214,15 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       f
       p';;
     Ok (EvalProgram res)
+
+  | AST opts =>
+    res <- ASTBackend.extract_ast
+      const_remaps
+      custom_attr
+      opts
+      f
+      p;;
+    Ok (ASTProgram res)
   end.
 
 

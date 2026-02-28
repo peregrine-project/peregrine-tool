@@ -61,6 +61,11 @@ let write_cakeml_res opts f p =
   write_res f (fun f ->
     output_string f (caml_string_of_bytestring (snd p)))
 
+let write_ast_res opts f p =
+  let f = get_out_file opts f "ast" in
+  let p = caml_string_of_bytestring p in
+  write_res f (fun f -> output_string f p)
+
 let printCProg prog names (dest : string) (imports : import list) =
   let imports' = List.map (fun i -> match i with
     | FromRelativePath s -> "#include \"" ^ s ^ "\""
@@ -88,6 +93,7 @@ let write_program opts f p =
   | Pipeline.CProgram p -> write_c_res opts f p
   | Pipeline.WasmProgram p -> write_wasm_res opts f p
   | Pipeline.EvalProgram p -> cprint_endline p
+  | Pipeline.ASTProgram p -> write_ast_res opts f p
 
 
 
@@ -127,6 +133,14 @@ let mk_config b eopts = {
   ConfigUtils.custom_attributes_opts' = []
 }
 
+let mk_ast_config t copts : ConfigUtils.ast_config' =
+    match t with
+    | Box -> ConfigUtils.LambdaBox'
+    | BoxTyped -> ConfigUtils.LambdaBoxTyped'
+    | BoxMut -> ConfigUtils.LambdaBoxMut' (Some (mk_certicoq_config copts))
+    | BoxLocal -> ConfigUtils.LambdaBoxLocal' (Some (mk_certicoq_config copts))
+    | ANF -> ConfigUtils.LambdaANF' (Some (mk_certicoq_config copts))
+    | ANFC -> ConfigUtils.LambdaANFC' (Some (mk_certicoq_config copts))
 
 (* Validate function *)
 let validate opts f_prog f_config =
@@ -195,6 +209,10 @@ let compile_c opts copts eopts f_prog =
 
 let compile_wasm opts copts eopts f_prog =
   let b_opts = ConfigUtils.Wasm' (mk_certicoq_config copts) in
+  compile_backend b_opts opts eopts f_prog
+
+let compile_ast opts copts eopts t f_prog =
+  let b_opts = ConfigUtils.AST' (mk_ast_config t copts) in
   compile_backend b_opts opts eopts f_prog
 
 let compile_eval opts copts eopts fuel anf f_prog =

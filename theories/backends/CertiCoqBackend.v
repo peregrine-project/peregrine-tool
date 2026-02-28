@@ -115,6 +115,34 @@ Definition compile_LambdaBoxMut
 
 Definition next_id := 100%positive.
 
+Definition mut_pipeline (p : EAst.program) prs :=
+  o <- get_options;;
+  (* Translate lambda_box -> lambda_boxmut *)
+  p_mut <- compile_LambdaBoxMut p;;
+  check_axioms prs p_mut;;
+  ret p_mut.
+
+Definition local_pipeline (p : EAst.program) prs :=
+  o <- get_options;;
+  (* Translate lambda_box -> lambda_boxmut *)
+  p_mut <- compile_LambdaBoxMut p;;
+  check_axioms prs p_mut;;
+  (* Translate lambda_boxmut -> lambda_boxlocal *)
+  p_local <- compile_LambdaBoxLocal prs p_mut;;
+  ret p_local.
+
+Definition anf_pipeline' (p : EAst.program) prs next_id :=
+  o <- get_options;;
+  (* Translate lambda_box -> lambda_boxmut *)
+  p_mut <- compile_LambdaBoxMut p;;
+  check_axioms prs p_mut;;
+  (* Translate lambda_boxmut -> lambda_boxlocal *)
+  p_local <- compile_LambdaBoxLocal prs p_mut;;
+  (* Translate lambda_boxlocal -> lambda_anf *)
+  let local_to_anf_trans := if o.(direct) then compile_LambdaANF_ANF else compile_LambdaANF_CPS in
+  p_anf <- local_to_anf_trans next_id prs p_local;;
+  ret p_anf.
+
 Definition anf_pipeline (p : EAst.program) prs next_id :=
   o <- get_options;;
   (* Translate lambda_box -> lambda_boxmut *)
@@ -132,10 +160,3 @@ Definition anf_pipeline (p : EAst.program) prs next_id :=
     else compile_LambdaANF in
   p_anf <- anf_trans next_id p_anf;;
   ret p_anf.
-
-Definition mut_pipeline (p : EAst.program) prs :=
-  o <- get_options;;
-  (* Translate lambda_box -> lambda_boxmut *)
-  p_mut <- compile_LambdaBoxMut p;;
-  check_axioms prs p_mut;;
-  ret p_mut.

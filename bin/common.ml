@@ -45,6 +45,13 @@ let mk_certicoq_opts cps c_args o_level anf_conf prefix body_name = {
   body_name;
 }
 
+type astType =
+    Box
+  | BoxTyped
+  | BoxMut
+  | BoxLocal
+  | ANF
+  | ANFC
 
 type import =
     FromRelativePath of string

@@ -92,6 +92,44 @@ Instance Deserialize_eval_config' : Deserialize eval_config' :=
       [ ("eval_config", Deser.con3_ Build_eval_config') ]
       l e.
 
+Instance Deserialize_ASTType : Deserialize ASTType :=
+  fun l e =>
+    Deser.match_con "ASTType"
+      [ ("LambdaBox", LambdaBox);
+        ("LambdaBoxTyped", LambdaBoxTyped)
+      ]
+      [ ("LambdaBoxMut", Deser.con1_ LambdaBoxMut);
+        ("LambdaBoxLocal", Deser.con1_ LambdaBoxLocal);
+        ("LambdaANF", Deser.con1_ LambdaANF);
+        ("LambdaANFC", Deser.con1_ LambdaANFC)
+      ]
+      l e.
+
+Instance Deserialize_ASTType' : Deserialize ASTType' :=
+  fun l e =>
+    Deser.match_con "ASTType"
+      [ ("LambdaBox", LambdaBox');
+        ("LambdaBoxTyped", LambdaBoxTyped')
+      ]
+      [ ("LambdaBoxMut", Deser.con1_ LambdaBoxMut');
+        ("LambdaBoxLocal", Deser.con1_ LambdaBoxLocal');
+        ("LambdaANF", Deser.con1_ LambdaANF');
+        ("LambdaANFC", Deser.con1_ LambdaANFC')
+      ]
+      l e.
+
+Instance Deserialize_ast_config : Deserialize ast_config :=
+  fun l e =>
+    Deser.match_con "ast_config" []
+      [ ("ast_config", Deser.con1_ Build_ast_config) ]
+      l e.
+
+Instance Deserialize_ast_config' : Deserialize ast_config' :=
+  fun l e =>
+    Deser.match_con "ast_config" []
+      [ ("ast_config", Deser.con1_ Build_ast_config') ]
+      l e.
+
 Instance Deserialize_backend_config : Deserialize backend_config :=
   fun l e =>
     Deser.match_con "backend_config" []
@@ -101,7 +139,8 @@ Instance Deserialize_backend_config : Deserialize backend_config :=
         ("Wasm", Deser.con_ Wasm);
         ("OCaml", Deser.con_ OCaml);
         ("CakeML", Deser.con_ CakeML);
-        ("Eval", Deser.con_ Eval)
+        ("Eval", Deser.con_ Eval);
+        ("AST", Deser.con_ AST)
       ]
       l e.
 
@@ -114,7 +153,8 @@ Instance Deserialize_backend_config' : Deserialize backend_config' :=
         ("Wasm", Deser.con_ Wasm');
         ("OCaml", Deser.con_ OCaml');
         ("CakeML", Deser.con_ CakeML');
-        ("Eval", Deser.con_ Eval')
+        ("Eval", Deser.con_ Eval');
+        ("AST", Deser.con_ AST')
       ]
       l e.
 
@@ -248,6 +288,18 @@ Definition eval_config_of_string (s : string) : error + eval_config :=
 
 Definition eval_config'_of_string (s : string) : error + eval_config' :=
   @from_string eval_config' Deserialize_eval_config' s.
+
+Definition ASTType_of_string (s : string) : error + ASTType :=
+  @from_string ASTType Deserialize_ASTType s.
+
+Definition ASTType'_of_string (s : string) : error + ASTType' :=
+  @from_string ASTType' Deserialize_ASTType' s.
+
+Definition ast_config_of_string (s : string) : error + ast_config :=
+  @from_string ast_config Deserialize_ast_config s.
+
+Definition ast_config'_of_string (s : string) : error + ast_config' :=
+  @from_string ast_config' Deserialize_ast_config' s.
 
 Definition backend_config_of_string (s : string) : error + backend_config :=
   @from_string backend_config Deserialize_backend_config s.
