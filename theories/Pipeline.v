@@ -13,7 +13,6 @@ From Peregrine Require CBackend.
 From Peregrine Require WasmBackend.
 From Peregrine Require EvalBackend.
 From Peregrine Require ASTBackend.
-From Peregrine Require TypedTransforms.
 From Peregrine Require NameSanitize.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Erasure.Typed Require Import ResultMonad.

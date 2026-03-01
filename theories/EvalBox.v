@@ -12,7 +12,6 @@ From CertiCoq.LambdaBoxMut Require Import wcbvEval.
 From CertiCoq.LambdaANF Require Import toplevel.
 From CertiCoq.LambdaANF Require Import eval.
 From CertiCoq.LambdaANF Require Import cps.
-From Peregrine Require Import CertiCoqPipeline.
 From ExtLib.Structures Require Import Monad.
 
 Import MonadNotation.
