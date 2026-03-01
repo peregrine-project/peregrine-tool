@@ -59,13 +59,3 @@ theories/serialization/SerializeConfigSound.v
 theories/serialization/SerializeLambdaBoxMut.v
 theories/serialization/SerializeLambdaBoxLocal.v
 theories/serialization/SerializeLambdaANF.v
-
-theories/deprecated/CertiCoqPipeline.v
-theories/deprecated/ErasurePipeline.v
-theories/deprecated/LambdaBoxToC.v
-theories/deprecated/LambdaBoxToElm.v
-theories/deprecated/LambdaBoxToOCaml.v
-theories/deprecated/LambdaBoxToRust.v
-theories/deprecated/LambdaBoxToWasm.v
-theories/deprecated/Translations.v
-theories/deprecated/TypedTransforms.v
