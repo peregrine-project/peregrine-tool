@@ -13,6 +13,7 @@ let
     in
     lib.switch coq.coq-version [
       (case "9.0" "9.0.0")
+      (case "9.1" "9.0.0")
     ] null;
   location = {
     domain = "github.com";
