@@ -17,7 +17,7 @@ with lib; mkCoqDerivation {
   ] null;
 
   propagatedBuildInputs = [
-    coq.ocamlPackages.cmdliner
+    coq.ocamlPackages.cmdliner_1
     coq.ocamlPackages.findlib
     coq.ocamlPackages.dune_3
     metarocq

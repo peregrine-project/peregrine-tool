@@ -8,20 +8,22 @@
 
   no-rocq-yet = true;
 
-  default-bundle = "9.0";
+  default-bundle = "9.1";
 
-  bundles."9.0" = {
-    coqPackages.coq.override.version = "9.0";
-    rocqPacakges.rocq-core.override.version = "9.0";
-    coqPackages.metarocq.override.version = "1.4-9.0";
-    coqPackages.TypedExtraction.override.version = "rocq-9.0";
-    coqPackages.CertiCoq.override.version = "coq-9.0";
-    coqPackages.verified-extraction.override.version = "ceres-bs";
-    coqPackages.ceres-bs.override.version = "master";
-    coqPackages.CakeMLExtraction.override.version = "ceres-bs";
+  bundles."9.1" = { coqPackages = {
+      coq.override.version = "9.1";
+      metarocq.override.version = "1.4.1-9.1";
+      TypedExtraction.override.version = "0.2.0";
+      CertiCoq.override.version = "coq-9.1";
+      verified-extraction.override.version = "rocq-9.1-bs";
+      ceres-bs.override.version = "master";
+      CakeMLExtraction.override.version = "ceres-bs";
+    }; rocqPackages = {
+      rocq-core.override.version = "9.1";
+    };
   };
 
-  bundles."9.0".push-branches = ["master"];
+  bundles."9.1".push-branches = ["master"];
 
   cachix.coq = {};
   cachix.math-comp = {};

@@ -13,38 +13,33 @@ dev-repo: "git+https://github.com/peregrine-project/peregrine-tool.git"
 bug-reports: "https://github.com/peregrine-project/peregrine-tool/issues"
 
 depends: [
-  "rocq-core" {>= "9.0" & < "9.1~"}
-  "rocq-stdlib" {>= "9.0" & < "9.1~"}
-  "rocq-metarocq-utils" {= "1.4+9.0"}
-  "rocq-metarocq-common" {= "1.4+9.0"}
-  "rocq-metarocq-template" {= "1.4+9.0"}
-  "rocq-metarocq-template-pcuic" {= "1.4+9.0"}
-  "rocq-metarocq-pcuic" {= "1.4+9.0"}
-  "rocq-metarocq-safechecker" {= "1.4+9.0"}
-  "rocq-metarocq-safechecker-plugin" {= "1.4+9.0"}
-  "rocq-metarocq-erasure" {= "1.4+9.0"}
-  "rocq-metarocq-erasure-plugin" {= "1.4+9.0"}
-  "rocq-typed-extraction-common" {= "9.0.dev"}
-  "rocq-rust-extraction" {= "9.0.dev"}
-  "rocq-elm-extraction" {= "9.0.dev"}
-  "rocq-cakeml-extraction" {= "9.0.dev"}
-  "rocq-verified-extraction" {= "9.0.dev"}
+  "rocq-core" {>= "9.1" & < "9.2~"}
+  "rocq-stdlib" {>= "9.0" & < "9.2~"}
+  "rocq-metarocq-utils" {>= "1.4" & < "1.4.2"}
+  "rocq-metarocq-common" {>= "1.4" & < "1.4.2"}
+  "rocq-metarocq-template" {>= "1.4" & < "1.4.2"}
+  "rocq-metarocq-template-pcuic" {>= "1.4" & < "1.4.2"}
+  "rocq-metarocq-pcuic" {>= "1.4" & < "1.4.2"}
+  "rocq-metarocq-safechecker" {>= "1.4" & < "1.4.2"}
+  "rocq-metarocq-safechecker-plugin" {>= "1.4" & < "1.4.2"}
+  "rocq-metarocq-erasure" {>= "1.4" & < "1.4.2"}
+  "rocq-metarocq-erasure-plugin" {>= "1.4" & < "1.4.2"}
+  "rocq-typed-extraction-common" {= "0.2.0"}
+  "rocq-rust-extraction" {= "0.2.0"}
+  "rocq-elm-extraction" {= "0.2.0"}
+  "rocq-cakeml-extraction" {= "9.1.dev"}
+  "rocq-verified-extraction" {= "9.1.dev"}
   "rocq-primitive" {= "9.0.0"}
   "rocq-ceres-bytestring" {= "dev"}
-  "coq-certicoq" {= "dev"}
-  "coq-compcert" {= "3.16"}
+  "coq-certicoq" {= "9.1.dev"}
   "cmdliner" {< "2.0.0"}
 ]
 
 pin-depends: [
   ["rocq-ceres-bytestring.dev" "git+https://github.com/peregrine-project/rocq-ceres-bytestring.git#fecdacecaae3f0001d89da2b71cdfb01af447c7b"]
-  ["coq-compcert.3.16" "git+https://github.com/4ever2/CompCert.git#6ca6ac1858b3444a266c60970102e8ca533e7827"]
-  ["coq-certicoq.dev" "git+https://github.com/4ever2/certicoq.git#476ba6f262b8180600853c304e873fd9f7f20b8d"]
-  ["rocq-verified-extraction.9.0.dev" "git+https://github.com/4ever2/rocq-verified-extraction.git#b7ea064275764d1c5e6533d40f7cbeba529b07b6"]
-  ["rocq-typed-extraction-common.9.0.dev" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#5b9de3c5eaf47177e46cc8177bf44cf6f89291a1"]
-  ["rocq-rust-extraction.9.0.dev" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#5b9de3c5eaf47177e46cc8177bf44cf6f89291a1"]
-  ["rocq-elm-extraction.9.0.dev" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#5b9de3c5eaf47177e46cc8177bf44cf6f89291a1"]
-  ["rocq-cakeml-extraction.9.0.dev" "git+https://github.com/peregrine-project/cakeml-backend.git#c17e1074e875d506e3791267f096444a77f41bfb"]
+  ["coq-certicoq.9.1.dev" "git+https://github.com/CertiCoq/certicoq.git#c5f8e820af135d3d1adac0427fc52e0937d799b6"]
+  ["rocq-verified-extraction.9.1.dev" "git+https://github.com/4ever2/rocq-verified-extraction.git#ded4adc317a0d5878209395affe23ef19d9eb725"]
+  ["rocq-cakeml-extraction.9.1.dev" "git+https://github.com/peregrine-project/cakeml-backend.git#fb0d169492233cd53e86972bd44230009b024e01"]
 ]
 
 build: [ make "build" ]
