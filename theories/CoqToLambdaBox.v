@@ -11,7 +11,7 @@ From Peregrine Require Erasure.
 From Peregrine Require ErasureTyped.
 From Peregrine Require Import PAst.
 
-Import MRMonadNotation.
+Import MonadNotation.
 Import ListNotations.
 
 

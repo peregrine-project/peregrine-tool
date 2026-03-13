@@ -2,7 +2,7 @@ From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import Transform.
-From MetaRocq.Erasure.Typed Require Import ResultMonad.
+From MetaRocq.Utils Require Import ResultMonad.
 From MetaRocq.ErasurePlugin Require Import Erasure.
 From MetaRocq.ErasurePlugin Require Import ETransform.
 From Peregrine Require Import Config.
@@ -14,7 +14,7 @@ From Stdlib Require Import List.
 From CeresBS Require Import CeresSerialize.
 
 Import ListNotations.
-Import MRMonadNotation.
+Import MonadNotation.
 Import Common.Transform.Transform.
 
 Local Open Scope bs_scope.
@@ -79,7 +79,7 @@ Definition extract_ocaml (remaps : constant_remappings)
                          (opts : ocaml_config)
                          (file_name : string)
                          (p : EAst.program)
-                         : result (list string * string) string :=
+                         : result' (list string * string) :=
   let nms := extract_names (snd p) in
   let remaps := mk_remaps remaps in
   let p := run malfunction_pipeline p (trust_coq_kernel p) in

@@ -1,21 +1,19 @@
 From ExtLib.Structures Require Import Monad.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
-From CertiCoq Require Import Compiler.pipeline.
-From CertiCoq Require Import Common.Pipeline_utils.
+From CertiRocq Require Import Compiler.pipeline.
+From CertiRocq Require Import Common.Pipeline_utils.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
 From Peregrine Require Import PAst.
-From Peregrine Require Import CertiCoqBackend.
+From Peregrine Require Import CertiRocqBackend.
 From Peregrine Require SerializePAst.
 From Peregrine Require SerializeLambdaBoxMut.
 From Peregrine Require SerializeLambdaBoxLocal.
 From Peregrine Require SerializeLambdaANF.
-From MetaRocq.Erasure.Typed Require Import ResultMonad.
+From MetaRocq.Utils Require Import ResultMonad.
 
 Import MonadNotation.
-#[local]
-Existing Instance Monad_result.
 
 Local Open Scope bs_scope.
 
@@ -45,17 +43,17 @@ Definition ast_phases := {|
 |}.
 
 Definition extract_untyped_ast (p : EAst.program)
-                               : result string string :=
+                               : result' string :=
   Ok (SerializePAst.string_of_PAst (Untyped p.1 (Some p.2))).
 
 Definition extract_typed_ast (p : ExAst.global_env)
-                             : result string string :=
+                             : result' string :=
   Ok (SerializePAst.string_of_PAst (Typed p None)).
 
 Definition extract_mut_ast (remaps : constant_remappings)
-                           (opts : certicoq_config)
+                           (opts : certirocq_config)
                            (p : EAst.program)
-                           : result string string :=
+                           : result' string :=
   let config := mk_opts opts in
   let prs := mk_prims remaps in
   let (res, _) :=
@@ -67,9 +65,9 @@ Definition extract_mut_ast (remaps : constant_remappings)
   end.
 
 Definition extract_local_ast (remaps : constant_remappings)
-                             (opts : certicoq_config)
+                             (opts : certirocq_config)
                              (p : EAst.program)
-                            : result string string :=
+                            : result' string :=
   let config := mk_opts opts in
   let prs := mk_prims remaps in
   let (res, _) :=
@@ -82,9 +80,9 @@ Definition extract_local_ast (remaps : constant_remappings)
 
 
 Definition extract_anf_ast (remaps : constant_remappings)
-                           (opts : certicoq_config)
+                           (opts : certirocq_config)
                            (p : EAst.program)
-                           : result string string :=
+                           : result' string :=
   let config := mk_opts opts in
   let prs := mk_prims remaps in
   let (res, _) :=
@@ -97,9 +95,9 @@ Definition extract_anf_ast (remaps : constant_remappings)
 
 
 Definition extract_anfc_ast (remaps : constant_remappings)
-                            (opts : certicoq_config)
+                            (opts : certirocq_config)
                             (p : EAst.program)
-                            : result string string :=
+                            : result' string :=
   let config := mk_opts opts in
   let prs := mk_prims remaps in
   let (res, _) :=
@@ -115,7 +113,7 @@ Definition extract_ast (remaps : constant_remappings)
                        (opts : ast_config)
                        (file_name : string)
                        (p : PAst.PAst)
-                       : result string string :=
+                       : result' string :=
   match opts.(ast_type) with
   | LambdaBox =>
     (* Cannot use monad notation due to extlib/metarocq clash *)

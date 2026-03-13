@@ -1,7 +1,6 @@
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Erasure Require Import EProgram.
 From Malfunction Require Serialize.
-From Peregrine Require Import ERemapInductives.
 From Peregrine Require Import Config.
 From Peregrine Require Import ConfigUtils.
 From Peregrine Require Import DeserializeCommon.
@@ -41,16 +40,16 @@ Instance Deserialize_elm_config' : Deserialize elm_config' :=
       [ ("elm_config", Deser.con7_ Build_elm_config') ]
       l e.
 
-Instance Deserialize_certicoq_config : Deserialize certicoq_config :=
+Instance Deserialize_certirocq_config : Deserialize certirocq_config :=
   fun l e =>
-    Deser.match_con "certicoq_config" []
-      [ ("certicoq_config", Deser.con6_ Build_certicoq_config) ]
+    Deser.match_con "certirocq_config" []
+      [ ("certirocq_config", Deser.con6_ Build_certirocq_config) ]
       l e.
 
-Instance Deserialize_certicoq_config' : Deserialize certicoq_config' :=
+Instance Deserialize_certirocq_config' : Deserialize certirocq_config' :=
   fun l e =>
-    Deser.match_con "certicoq_config" []
-      [ ("certicoq_config", Deser.con6_ Build_certicoq_config') ]
+    Deser.match_con "certirocq_config" []
+      [ ("certirocq_config", Deser.con6_ Build_certirocq_config') ]
       l e.
 
 Instance Deserialize_program_type : Deserialize Serialize.program_type :=
@@ -262,11 +261,11 @@ Definition elm_config_of_string (s : string) : error + elm_config :=
 Definition elm_config'_of_string (s : string) : error + elm_config' :=
   @from_string elm_config' Deserialize_elm_config' s.
 
-Definition certicoq_config_of_string (s : string) : error + certicoq_config :=
-  @from_string certicoq_config Deserialize_certicoq_config s.
+Definition certirocq_config_of_string (s : string) : error + certirocq_config :=
+  @from_string certirocq_config Deserialize_certirocq_config s.
 
-Definition certicoq_config'_of_string (s : string) : error + certicoq_config' :=
-  @from_string certicoq_config' Deserialize_certicoq_config' s.
+Definition certirocq_config'_of_string (s : string) : error + certirocq_config' :=
+  @from_string certirocq_config' Deserialize_certirocq_config' s.
 
 Definition program_type_of_string (s : string) : error + Serialize.program_type :=
   @from_string Serialize.program_type Deserialize_program_type s.

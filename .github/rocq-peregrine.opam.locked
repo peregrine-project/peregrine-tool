@@ -13,24 +13,15 @@ depends: [
   "rocq-core" {= "9.1.1"}
   "rocq-runtime" {= "9.1.1"}
   "rocq-stdlib" {= "9.0.0"}
-  "coq-certicoq" {= "9.1.dev"}
-  "coq-compcert" {= "3.17"}
-  "rocq-ceres-bytestring" {= "dev"}
-  "rocq-metarocq-common" {= "1.4.1+9.1"}
-  "rocq-metarocq-erasure" {= "1.4.1+9.1"}
-  "rocq-metarocq-erasure-plugin" {= "1.4.1+9.1"}
-  "rocq-metarocq-pcuic" {= "1.4.1+9.1"}
-  "rocq-metarocq-safechecker" {= "1.4.1+9.1"}
-  "rocq-metarocq-safechecker-plugin" {= "1.4.1+9.1"}
-  "rocq-metarocq-template" {= "1.4.1+9.1"}
-  "rocq-metarocq-template-pcuic" {= "1.4.1+9.1"}
-  "rocq-metarocq-utils" {= "1.4.1+9.1"}
+  "rocq-certirocq" {= "9.1.dev"}
+  "rocq-ceres-bytestring" {= "1.0.0"}
+  "rocq-metarocq-erasure-plugin" {= "1.5.1+9.1"}
   "rocq-primitive" {= "9.0.0"}
-  "rocq-typed-extraction-common" {= "0.2.0"}
-  "rocq-elm-extraction" {= "0.2.0"}
-  "rocq-rust-extraction" {= "0.2.0"}
-  "rocq-cakeml-extraction" {= "9.1.dev"}
-  "rocq-verified-extraction" {= "9.1.dev"}
+  "rocq-typed-extraction-common" {= "0.2.1"}
+  "rocq-elm-extraction" {= "0.2.1"}
+  "rocq-rust-extraction" {= "0.2.1"}
+  "rocq-cakeml-extraction" {= "0.1.0"}
+  "rocq-verified-extraction" {= "1.0.0+9.1"}
   "cmdliner" {= "2.1.0"}
 ]
 build: [make "build"]
@@ -38,23 +29,7 @@ install: [make "install"]
 dev-repo: "git+https://github.com/peregrine-project/peregrine-tool.git"
 pin-depends: [
   [
-    "rocq-ceres-bytestring.dev"
-    "git+https://github.com/peregrine-project/rocq-ceres-bytestring.git#fecdacecaae3f0001d89da2b71cdfb01af447c7b"
-  ]
-  [
-    "coq-compcert.3.17"
-    "git+https://github.com/4ever2/CompCert.git#0d1179ee06c4cd38b419696c17d49dad3a4a2521"
-  ]
-  [
-    "coq-certicoq.9.1.dev"
-    "git+https://github.com/CertiCoq/certicoq.git#c5f8e820af135d3d1adac0427fc52e0937d799b6"
-  ]
-  [
-    "rocq-verified-extraction.9.1.dev"
-    "git+https://github.com/4ever2/rocq-verified-extraction.git#ded4adc317a0d5878209395affe23ef19d9eb725"
-  ]
-  [
-    "rocq-cakeml-extraction.9.1.dev"
-    "git+https://github.com/peregrine-project/cakeml-backend.git#fb0d169492233cd53e86972bd44230009b024e01"
+    "rocq-certirocq.9.1.dev"
+    "git+https://github.com/CertiRocq/certirocq.git#5e2f0d26bc95e5b8c0b3dd5918463fffb877d23a"
   ]
 ]

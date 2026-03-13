@@ -1,11 +1,11 @@
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
-From MetaRocq.Erasure.Typed Require Import ResultMonad.
-From CertiCoq Require Import Compiler.pipeline.
-From CertiCoq Require Import Common.Pipeline_utils.
+From MetaRocq.Utils Require Import ResultMonad.
+From CertiRocq Require Import Compiler.pipeline.
+From CertiRocq Require Import Common.Pipeline_utils.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
-From Peregrine Require Import CertiCoqBackend.
+From Peregrine Require Import CertiRocqBackend.
 From ExtLib.Structures Require Import Monad.
 
 Import MonadNotation.
@@ -43,7 +43,7 @@ Definition extract_c (remaps : constant_remappings)
                      (opts : c_config)
                      (file_name : string)
                      (p : EAst.program)
-                     : result (Cprogram * list string) string :=
+                     : result' (Cprogram * list string) :=
   let config := mk_opts opts in
   let prs := mk_prims remaps in
   let gc_lib := if opts.(direct) then "gc_stack.h" else "gc.h" in

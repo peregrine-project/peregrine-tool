@@ -3,19 +3,21 @@ From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Utils Require ByteCompare ByteCompareSpec.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import BasicAst.
-From MetaRocq.Erasure.Typed Require Import ResultMonad.
+From MetaRocq.Utils Require Import ResultMonad.
 From MetaRocq.Erasure Require EAst.
 From MetaRocq.Erasure Require ExAst.
+From MetaRocq.Erasure Require EProgram.
 From Peregrine Require Import Unicode.
 From Peregrine Require Import UnicodeXID.
+From Peregrine Require Import Utils.
 From Peregrine Require PAst.
 From Peregrine Require Config.
-From Peregrine Require ERemapInductives.
 
 From Stdlib Require Import Strings.Byte.
 
-Import MRMonadNotation.
+Import MonadNotation.
 Local Open Scope bs_scope.
+
 
 
 Definition eqb_byte (a b : byte) : bool :=
@@ -507,8 +509,7 @@ Definition get_sanitizer (o : Config.config) : utf8_string -> string :=
 
 
 
-
-Definition sanitize_name (f : utf8_string -> string) (n : name) : result name string :=
+Definition sanitize_name (f : utf8_string -> string) (n : name) : result' name :=
   match n with
   | nAnon => Ok nAnon
   | nNamed id =>
@@ -516,10 +517,10 @@ Definition sanitize_name (f : utf8_string -> string) (n : name) : result name st
     Ok (nNamed (f id))
   end.
 
-Definition sanitize_dirpath (f : utf8_string -> string) (dp : dirpath) : result dirpath string :=
+Definition sanitize_dirpath (f : utf8_string -> string) (dp : dirpath) : result' dirpath :=
   monad_map (fun id => id <- of_string id;; Ok (f id)) dp.
 
-Fixpoint sanitize_modpath (f : utf8_string -> string) (mp : modpath) : result modpath string :=
+Fixpoint sanitize_modpath (f : utf8_string -> string) (mp : modpath) : result' modpath :=
   match mp with
   | MPfile dp =>
     dp <- sanitize_dirpath f dp;;
@@ -534,20 +535,20 @@ Fixpoint sanitize_modpath (f : utf8_string -> string) (mp : modpath) : result mo
     Ok (MPdot mp (f id))
   end.
 
-Definition sanitize_kername (f : utf8_string -> string) (k : kername) : result kername string :=
+Definition sanitize_kername (f : utf8_string -> string) (k : kername) : result' kername :=
   let '(mp, id) := k in
   mp <- sanitize_modpath f mp;;
   id <- of_string id;;
   Ok (mp, f id).
 
-Definition sanitize_inductive (f : utf8_string -> string) (i : inductive) : result inductive string :=
+Definition sanitize_inductive (f : utf8_string -> string) (i : inductive) : result' inductive :=
   kn <- sanitize_kername f i.(inductive_mind);;
   Ok {|
     inductive_mind := kn;
     inductive_ind := i.(inductive_ind);
   |}.
 
-Definition sanitize_projection (f : utf8_string -> string) (p : projection) : result projection string :=
+Definition sanitize_projection (f : utf8_string -> string) (p : projection) : result' projection :=
   ind <- sanitize_inductive f p.(proj_ind);;
   Ok {|
     proj_ind := ind;
@@ -555,7 +556,7 @@ Definition sanitize_projection (f : utf8_string -> string) (p : projection) : re
     proj_arg := p.(proj_arg);
   |}.
 
-Fixpoint sanitize_term (f : utf8_string -> string) (t : EAst.term) : result EAst.term string :=
+Fixpoint sanitize_term (f : utf8_string -> string) (t : EAst.term) : result' EAst.term :=
   match t with
   | EAst.tBox | EAst.tRel _ | EAst.tVar _ => Ok t
   | EAst.tEvar n l =>
@@ -626,9 +627,9 @@ Fixpoint sanitize_term (f : utf8_string -> string) (t : EAst.term) : result EAst
   end.
 
 Definition sanitize_option {A : Type} (f : utf8_string -> string)
-                          (fa : (utf8_string -> string) -> A -> result A string)
+                          (fa : (utf8_string -> string) -> A -> result' A)
                           (o : option A)
-                          : result (option A) string :=
+                          : result' (option A) :=
   match o with
   | None => Ok None
   | Some a =>
@@ -636,19 +637,19 @@ Definition sanitize_option {A : Type} (f : utf8_string -> string)
     Ok (Some r)
   end.
 
-Definition sanitize_constant_body (f : utf8_string -> string) (cb : EAst.constant_body) : result EAst.constant_body string :=
+Definition sanitize_constant_body (f : utf8_string -> string) (cb : EAst.constant_body) : result' EAst.constant_body :=
   b <- sanitize_option f sanitize_term cb.(EAst.cst_body);;
   Ok {| EAst.cst_body := b |}.
 
-Definition sanitize_constructor_body (f : utf8_string -> string) (cb : EAst.constructor_body) : result EAst.constructor_body string :=
+Definition sanitize_constructor_body (f : utf8_string -> string) (cb : EAst.constructor_body) : result' EAst.constructor_body :=
   id <- of_string cb.(EAst.cstr_name);;
   Ok {| EAst.cstr_name := (f id); EAst.cstr_nargs := cb.(EAst.cstr_nargs) |}.
 
-Definition sanitize_projection_body (f : utf8_string -> string) (pb : EAst.projection_body) : result EAst.projection_body string :=
+Definition sanitize_projection_body (f : utf8_string -> string) (pb : EAst.projection_body) : result' EAst.projection_body :=
   id <- of_string pb.(EAst.proj_name);;
   Ok {| EAst.proj_name := (f id) |}.
 
-Definition sanitize_one_inductive_body (f : utf8_string -> string) (oib : EAst.one_inductive_body) : result EAst.one_inductive_body string :=
+Definition sanitize_one_inductive_body (f : utf8_string -> string) (oib : EAst.one_inductive_body) : result' EAst.one_inductive_body :=
   ind_name <- of_string oib.(EAst.ind_name);;
   ctors <- monad_map (sanitize_constructor_body f) oib.(EAst.ind_ctors);;
   projs <- monad_map (sanitize_projection_body f) oib.(EAst.ind_projs);;
@@ -660,7 +661,7 @@ Definition sanitize_one_inductive_body (f : utf8_string -> string) (oib : EAst.o
     EAst.ind_projs := projs;
   |}.
 
-Definition sanitize_mutual_inductive_body (f : utf8_string -> string) (mib : EAst.mutual_inductive_body) : result EAst.mutual_inductive_body string :=
+Definition sanitize_mutual_inductive_body (f : utf8_string -> string) (mib : EAst.mutual_inductive_body) : result' EAst.mutual_inductive_body :=
   bodies <- monad_map (sanitize_one_inductive_body f) mib.(EAst.ind_bodies);;
   Ok {|
     EAst.ind_finite := mib.(EAst.ind_finite);
@@ -668,7 +669,7 @@ Definition sanitize_mutual_inductive_body (f : utf8_string -> string) (mib : EAs
     EAst.ind_bodies := bodies;
   |}.
 
-Definition sanitize_global_decl (f : utf8_string -> string) (gd : EAst.global_decl) : result EAst.global_decl string :=
+Definition sanitize_global_decl (f : utf8_string -> string) (gd : EAst.global_decl) : result' EAst.global_decl :=
   match gd with
   | EAst.ConstantDecl cb =>
     cb <- sanitize_constant_body f cb;;
@@ -678,14 +679,14 @@ Definition sanitize_global_decl (f : utf8_string -> string) (gd : EAst.global_de
     Ok (EAst.InductiveDecl mib)
   end.
 
-Definition sanitize_untyped_env (f : utf8_string -> string) (env : PAst.untyped_env) : result PAst.untyped_env string :=
+Definition sanitize_untyped_env (f : utf8_string -> string) (env : PAst.untyped_env) : result' PAst.untyped_env :=
   monad_map (fun '(kn, gd) =>
     kn <- sanitize_kername f kn;;
     gd <- sanitize_global_decl f gd;;
     Ok (kn, gd)
   ) env.
 
-Fixpoint sanitize_box_type (f : utf8_string -> string) (t : ExAst.box_type) : result ExAst.box_type string :=
+Fixpoint sanitize_box_type (f : utf8_string -> string) (t : ExAst.box_type) : result' ExAst.box_type :=
   match t with
   | ExAst.TBox | ExAst.TAny | ExAst.TVar _ => Ok t
   | ExAst.TArr dom codom =>
@@ -704,7 +705,7 @@ Fixpoint sanitize_box_type (f : utf8_string -> string) (t : ExAst.box_type) : re
     Ok (ExAst.TConst kn)
   end.
 
-Definition sanitize_type_var_info (f : utf8_string -> string) (t : ExAst.type_var_info) : result ExAst.type_var_info string :=
+Definition sanitize_type_var_info (f : utf8_string -> string) (t : ExAst.type_var_info) : result' ExAst.type_var_info :=
   name <- sanitize_name f t.(ExAst.tvar_name);;
   Ok {|
     ExAst.tvar_name := name;
@@ -713,7 +714,7 @@ Definition sanitize_type_var_info (f : utf8_string -> string) (t : ExAst.type_va
     ExAst.tvar_is_sort := t.(ExAst.tvar_is_sort);
   |}.
 
-Definition sanitize_constant_body_t (f : utf8_string -> string) (cb : ExAst.constant_body) : result ExAst.constant_body string :=
+Definition sanitize_constant_body_t (f : utf8_string -> string) (cb : ExAst.constant_body) : result' ExAst.constant_body :=
   ns <- monad_map (sanitize_name f) (fst cb.(ExAst.cst_type));;
   type <- sanitize_box_type f (snd cb.(ExAst.cst_type));;
   body <- sanitize_option f sanitize_term cb.(ExAst.cst_body);;
@@ -722,7 +723,7 @@ Definition sanitize_constant_body_t (f : utf8_string -> string) (cb : ExAst.cons
     ExAst.cst_body := body;
   |}.
 
-Definition sanitize_one_inductive_body_t (f : utf8_string -> string) (oib : ExAst.one_inductive_body) : result ExAst.one_inductive_body string :=
+Definition sanitize_one_inductive_body_t (f : utf8_string -> string) (oib : ExAst.one_inductive_body) : result' ExAst.one_inductive_body :=
   ind_name <- of_string oib.(ExAst.ind_name);;
   tvars <- monad_map (sanitize_type_var_info f) oib.(ExAst.ind_type_vars);;
   ctors <- monad_map (fun '(id, ctor, n) =>
@@ -748,7 +749,7 @@ Definition sanitize_one_inductive_body_t (f : utf8_string -> string) (oib : ExAs
     ExAst.ind_projs := projs;
   |}.
 
-Definition sanitize_mutual_inductive_body_t (f : utf8_string -> string) (mib : ExAst.mutual_inductive_body) : result ExAst.mutual_inductive_body string :=
+Definition sanitize_mutual_inductive_body_t (f : utf8_string -> string) (mib : ExAst.mutual_inductive_body) : result' ExAst.mutual_inductive_body :=
   oib <- monad_map (sanitize_one_inductive_body_t f) mib.(ExAst.ind_bodies);;
   Ok {|
     ExAst.ind_finite := mib.(ExAst.ind_finite);
@@ -756,7 +757,7 @@ Definition sanitize_mutual_inductive_body_t (f : utf8_string -> string) (mib : E
     ExAst.ind_bodies := oib;
   |}.
 
-Definition sanitize_global_decl_t (f : utf8_string -> string) (gd : ExAst.global_decl) : result ExAst.global_decl string :=
+Definition sanitize_global_decl_t (f : utf8_string -> string) (gd : ExAst.global_decl) : result' ExAst.global_decl :=
   match gd with
   | ExAst.ConstantDecl cb =>
     cb <- sanitize_constant_body_t f cb;;
@@ -772,14 +773,14 @@ Definition sanitize_global_decl_t (f : utf8_string -> string) (gd : ExAst.global
     Ok (ExAst.TypeAliasDecl o)
   end.
 
-Definition sanitize_typed_env (f : utf8_string -> string) (env : PAst.typed_env) : result PAst.typed_env string :=
+Definition sanitize_typed_env (f : utf8_string -> string) (env : PAst.typed_env) : result' PAst.typed_env :=
   monad_map (fun '(kn, b, gd) =>
     kn <- sanitize_kername f kn;;
     gd <- sanitize_global_decl_t f gd;;
     Ok (kn, b, gd)
   ) env.
 
-Definition sanitize_PAst (f : utf8_string -> string) (p : PAst.PAst) : result PAst.PAst string :=
+Definition sanitize_PAst (f : utf8_string -> string) (p : PAst.PAst) : result' PAst.PAst :=
   match p with
   | PAst.Untyped env t =>
     env <- sanitize_untyped_env f env;;
@@ -791,15 +792,15 @@ Definition sanitize_PAst (f : utf8_string -> string) (p : PAst.PAst) : result PA
     Ok (PAst.Typed env t)
   end.
 
-Definition sanitize_extract_inductive (f : utf8_string -> string) (r : ERemapInductives.extract_inductive) : result ERemapInductives.extract_inductive string :=
-  cstrs <- monad_map (sanitize_kername f) r.(ERemapInductives.cstrs);;
-  elim <- sanitize_kername f r.(ERemapInductives.elim);;
+Definition sanitize_extract_inductive (f : utf8_string -> string) (r : EProgram.extract_inductive) : result' EProgram.extract_inductive :=
+  cstrs <- monad_map (sanitize_kername f) r.(EProgram.cstrs);;
+  elim <- sanitize_kername f r.(EProgram.elim);;
   Ok {|
-    ERemapInductives.cstrs := cstrs;
-    ERemapInductives.elim := elim;
+    EProgram.cstrs := cstrs;
+    EProgram.elim := elim;
   |}.
 
-Definition sanitize_remap_inductive (f : utf8_string -> string) (r : Config.remap_inductive) : result Config.remap_inductive string :=
+Definition sanitize_remap_inductive (f : utf8_string -> string) (r : Config.remap_inductive) : result' Config.remap_inductive :=
   match r with
   | Config.KnIndRemap kn r =>
     kn <- sanitize_kername f kn;;
@@ -810,7 +811,7 @@ Definition sanitize_remap_inductive (f : utf8_string -> string) (r : Config.rema
     Ok (Config.StringIndRemap ind r)
   end.
 
-Definition sanitize_config (f : utf8_string -> string) (c : Config.config) : result Config.config string :=
+Definition sanitize_config (f : utf8_string -> string) (c : Config.config) : result' Config.config :=
   inls <- monad_map (sanitize_kername f) c.(Config.inlinings_opts);;
   const_rmps <- monad_map (fun '(kn, r) =>
     kn <- sanitize_kername f kn;;

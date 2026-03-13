@@ -1,7 +1,8 @@
 From MetaRocq.Erasure Require EAst.
 From MetaRocq.Erasure Require ExAst.
-From MetaRocq.Erasure.Typed Require Import ResultMonad.
+From MetaRocq.Utils Require Import ResultMonad.
 From MetaRocq.Utils Require Import bytestring.
+From Peregrine Require Import Utils.
 
 
 
@@ -14,7 +15,7 @@ Inductive PAst :=
 
 
 
-Definition PAst_to_EAst (ast : PAst) : result EAst.program string :=
+Definition PAst_to_EAst (ast : PAst) : result' EAst.program :=
   match ast with
   | Untyped env (Some t) => Ok (env, t)
   | Untyped env None => Ok (env, EAst.tBox) (* TODO: what should we in this case? *)
@@ -22,7 +23,7 @@ Definition PAst_to_EAst (ast : PAst) : result EAst.program string :=
   | Typed env None => Ok (ExAst.trans_env env, EAst.tBox)
   end.
 
-Definition PAst_to_ExAst (ast : PAst) : result ExAst.global_env string :=
+Definition PAst_to_ExAst (ast : PAst) : result' ExAst.global_env :=
   match ast with
   (* TODO: fix once we have type inference *)
   | Untyped env _ => Err "Cannot convert untyped program to a typed program"%bs

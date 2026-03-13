@@ -15,31 +15,20 @@ bug-reports: "https://github.com/peregrine-project/peregrine-tool/issues"
 depends: [
   "rocq-core" {>= "9.1" & < "9.2~"}
   "rocq-stdlib" {>= "9.0" & < "9.2~"}
-  "rocq-metarocq-utils" {>= "1.4" & < "1.4.2"}
-  "rocq-metarocq-common" {>= "1.4" & < "1.4.2"}
-  "rocq-metarocq-template" {>= "1.4" & < "1.4.2"}
-  "rocq-metarocq-template-pcuic" {>= "1.4" & < "1.4.2"}
-  "rocq-metarocq-pcuic" {>= "1.4" & < "1.4.2"}
-  "rocq-metarocq-safechecker" {>= "1.4" & < "1.4.2"}
-  "rocq-metarocq-safechecker-plugin" {>= "1.4" & < "1.4.2"}
-  "rocq-metarocq-erasure" {>= "1.4" & < "1.4.2"}
-  "rocq-metarocq-erasure-plugin" {>= "1.4" & < "1.4.2"}
-  "rocq-typed-extraction-common" {= "0.2.0"}
-  "rocq-rust-extraction" {= "0.2.0"}
-  "rocq-elm-extraction" {= "0.2.0"}
-  "rocq-cakeml-extraction" {= "9.1.dev"}
-  "rocq-verified-extraction" {= "9.1.dev"}
+  "rocq-metarocq-erasure-plugin" {>= "1.5.1" & < "1.5.2"}
+  "rocq-typed-extraction-common" {= "0.2.1"}
+  "rocq-rust-extraction" {= "0.2.1"}
+  "rocq-elm-extraction" {= "0.2.1"}
+  "rocq-cakeml-extraction" {= "0.1.0"}
+  "rocq-verified-extraction" {= "1.0.0+9.1"}
   "rocq-primitive" {= "9.0.0"}
-  "rocq-ceres-bytestring" {= "dev"}
-  "coq-certicoq" {= "9.1.dev"}
+  "rocq-ceres-bytestring" {= "1.0.0"}
+  "rocq-certirocq" {= "9.1.dev"}
   "cmdliner" {>= "2.0.0"}
 ]
 
 pin-depends: [
-  ["rocq-ceres-bytestring.dev" "git+https://github.com/peregrine-project/rocq-ceres-bytestring.git#fecdacecaae3f0001d89da2b71cdfb01af447c7b"]
-  ["coq-certicoq.9.1.dev" "git+https://github.com/CertiCoq/certicoq.git#c5f8e820af135d3d1adac0427fc52e0937d799b6"]
-  ["rocq-verified-extraction.9.1.dev" "git+https://github.com/4ever2/rocq-verified-extraction.git#ded4adc317a0d5878209395affe23ef19d9eb725"]
-  ["rocq-cakeml-extraction.9.1.dev" "git+https://github.com/peregrine-project/cakeml-backend.git#fb0d169492233cd53e86972bd44230009b024e01"]
+  ["rocq-certirocq.9.1.dev" "git+https://github.com/CertiRocq/certirocq.git#5e2f0d26bc95e5b8c0b3dd5918463fffb877d23a"]
 ]
 
 build: [ make "build" ]

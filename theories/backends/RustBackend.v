@@ -1,13 +1,13 @@
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
-From MetaRocq.Erasure.Typed Require Import ResultMonad.
+From MetaRocq.Utils Require Import ResultMonad.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
 From TypedExtraction Require Import PrettyPrinterMonad.
 From TypedExtraction Require Import Printing.
 From TypedExtraction Require Import RustExtract.
 
-Import MRMonadNotation.
+Import MonadNotation.
 
 Local Open Scope bs_scope.
 
@@ -136,7 +136,7 @@ Definition extract_rust (const_remaps : constant_remappings)
                         (opts : rust_config)
                         (file_name : string)
                         (p : ExAst.global_env)
-                        : result (list string) string :=
+                        : result' (list string) :=
   let remaps := mk_remaps const_remaps ind_remaps in
   let attrs := mk_attributes custom_attr opts in
   let config := mk_config opts in

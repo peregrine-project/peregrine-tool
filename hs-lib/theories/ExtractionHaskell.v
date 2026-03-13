@@ -26,7 +26,7 @@ Extraction Inline Equations.Prop.DepElim.solution_left.
 
 Extraction Inline Equations.Init.pr1 Equations.Init.pr2.
 
-Extraction Blacklist config List String Nat Int Ast Universes UnivSubst Typing Retyping
+Extraction Blacklist config List String Monad Nat Int Ast Universes UnivSubst Typing Retyping
            OrderedType Logic Common Equality Char char uGraph
            Instances Classes Term Monad Coqlib Errors Compile Checker Eq Classes0 Numeral
            Uint63 Number Values Bytes ws_cumul_pb.

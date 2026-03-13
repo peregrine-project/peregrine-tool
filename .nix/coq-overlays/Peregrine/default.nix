@@ -1,7 +1,7 @@
 
 { lib, mkCoqDerivation, which, coq
-  , metarocq, TypedExtraction
-  , ceres-bs, CertiCoq, verified-extraction
+  , metarocq-erasure-plugin, TypedExtraction
+  , ceres-bs, CertiRocq, verified-extraction
   , rocq-primitive, CakeMLExtraction
   , version ? null }:
 
@@ -20,10 +20,10 @@ with lib; mkCoqDerivation {
     coq.ocamlPackages.cmdliner
     coq.ocamlPackages.findlib
     coq.ocamlPackages.dune_3
-    metarocq
+    metarocq-erasure-plugin
     TypedExtraction
     ceres-bs
-    CertiCoq
+    CertiRocq
     verified-extraction
     CakeMLExtraction
     rocq-primitive

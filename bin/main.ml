@@ -27,7 +27,7 @@ let copts_t =
   in
   Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg)
 
-let certicoq_opts_t =
+let certirocq_opts_t =
   let cps_arg =
     let doc = "Use CPS translation pipeline." in
     Arg.(value & flag & info ["cps"] ~doc)
@@ -52,7 +52,7 @@ let certicoq_opts_t =
     let doc = "Name of the toplevel function." in
     Arg.(value & opt (some string) None & info ["body-name"] ~doc)
   in
-  Term.(const mk_certicoq_opts $ cps_arg $ c_args_arg $ o_level_arg $ anf_conf_arg $ prefix_arg $ body_name_arg)
+  Term.(const mk_certirocq_opts $ cps_arg $ c_args_arg $ o_level_arg $ anf_conf_arg $ prefix_arg $ body_name_arg)
 
 let erasure_opts_t =
   let betared_arg =
@@ -214,7 +214,7 @@ let c_cmd =
     `Blocks help_secs; ]
   in
   let info = Cmd.info "c" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_c $ copts_t $ certicoq_opts_t $ erasure_opts_t $ program_file)
+  Cmd.v info Term.(const compile_c $ copts_t $ certirocq_opts_t $ erasure_opts_t $ program_file)
 
 let wasm_cmd =
   let program_file =
@@ -229,7 +229,7 @@ let wasm_cmd =
     `Blocks help_secs; ]
   in
   let info = Cmd.info "wasm" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_wasm $ copts_t $ certicoq_opts_t $ erasure_opts_t $ program_file)
+  Cmd.v info Term.(const compile_wasm $ copts_t $ certirocq_opts_t $ erasure_opts_t $ program_file)
 
 let eval_cmd =
   let program_file =
@@ -252,7 +252,7 @@ let eval_cmd =
     `Blocks help_secs; ]
   in
   let info = Cmd.info "eval" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_eval $ copts_t $ certicoq_opts_t $ erasure_opts_t $ fuel_arg $ anf_arg $ program_file)
+  Cmd.v info Term.(const compile_eval $ copts_t $ certirocq_opts_t $ erasure_opts_t $ fuel_arg $ anf_arg $ program_file)
 
 let ast_cmd =
   let ast_type =
@@ -272,7 +272,7 @@ let ast_cmd =
     `Blocks help_secs; ]
   in
   let info = Cmd.info "ast" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_ast $ copts_t $ certicoq_opts_t $ erasure_opts_t $ ast_type $ program_file)
+  Cmd.v info Term.(const compile_ast $ copts_t $ certirocq_opts_t $ erasure_opts_t $ ast_type $ program_file)
 
 let validate_cmd =
   let program_file =

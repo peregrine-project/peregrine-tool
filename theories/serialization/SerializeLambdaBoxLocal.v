@@ -1,7 +1,7 @@
-From CertiCoq Require Import AstCommon.
-From CertiCoq.LambdaBoxLocal Require Import LambdaBoxMut_to_LambdaBoxLocal.
-From CertiCoq.LambdaBoxLocal Require Import expression.
-From CertiCoq.LambdaBoxLocal Require toplevel.
+From CertiRocq Require Import AstCommon.
+From CertiRocq.LambdaBoxLocal Require Import LambdaBoxMut_to_LambdaBoxLocal.
+From CertiRocq.LambdaBoxLocal Require Import expression.
+From CertiRocq.LambdaBoxLocal Require toplevel.
 From MetaRocq.Utils Require Import bytestring.
 From Stdlib Require Import List.
 From Stdlib Require Import NArith.

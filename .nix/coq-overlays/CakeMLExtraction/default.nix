@@ -4,7 +4,7 @@
   coq,
   ceres-bs,
   equations,
-  metarocq,
+  metarocq-erasure-plugin,
   version ? null,
 }:
 
@@ -13,18 +13,41 @@
   owner = "peregrine-project";
   repo = "cakeml-backend";
   opam-name = "rocq-cakeml-extraction";
+
   inherit version;
-  defaultVersion = null;
+  defaultVersion =
+    let
+      case = coq: mr: out: {
+        cases = [
+          coq
+          mr
+        ];
+        inherit out;
+      };
+    in
+    lib.switch
+      [
+        coq.coq-version
+        metarocq-erasure-plugin.version
+      ]
+      [
+        (case "9.1" "1.5.1-9.1" "0.1.0")
+      ]
+      null;
+  release = {
+    "0.1.0".sha256 = "sha256-diDUTj0l4vliov9+Lg8lNRdkLE7JAfJn8OU7J/HgmDE=";
+  };
+  releaseRev = v: "v${v}";
 
   mlPlugin = false;
   useDune = false;
 
-  buildInputs = [ equations metarocq ceres-bs ];
+  buildInputs = [ equations metarocq-erasure-plugin ceres-bs ];
   propagatedBuildInputs = [ coq.ocamlPackages.findlib ];
 
   meta = with lib; {
     homepage = "https://peregrine-project.github.io/";
     description = "CakeML backend for Peregrine";
-    maintainers = with maintainers; [ mattam82 ];
+    maintainers = with maintainers; [ _4ever2 ];
   };
 })

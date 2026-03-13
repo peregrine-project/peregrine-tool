@@ -3,20 +3,20 @@
 From Stdlib Require Import Nat.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Erasure Require Import EAst.
-From CertiCoq.Common Require Import Common.
-From CertiCoq.Common Require Import Pipeline_utils.
-From CertiCoq.LambdaBoxMut Require Import compile.
-From CertiCoq.LambdaBoxMut Require Import term.
-From CertiCoq.LambdaBoxMut Require Import program.
-From CertiCoq.LambdaBoxMut Require Import wcbvEval.
-From CertiCoq.LambdaANF Require Import toplevel.
-From CertiCoq.LambdaANF Require Import eval.
-From CertiCoq.LambdaANF Require Import cps.
+From CertiRocq.Common Require Import Common.
+From CertiRocq.Common Require Import Pipeline_utils.
+From CertiRocq.LambdaBoxMut Require Import compile.
+From CertiRocq.LambdaBoxMut Require Import term.
+From CertiRocq.LambdaBoxMut Require Import program.
+From CertiRocq.LambdaBoxMut Require Import wcbvEval.
+From CertiRocq.LambdaANF Require Import toplevel.
+From CertiRocq.LambdaANF Require Import eval.
+From CertiRocq.LambdaANF Require Import cps.
 From ExtLib.Structures Require Import Monad.
 
 Import MonadNotation.
 
-From CertiCoq.LambdaANF Require cps_show.
+From CertiRocq.LambdaANF Require cps_show.
 
 
 
@@ -61,7 +61,7 @@ Section Evaluator.
           (match (M.get y rho) with
            | Some (Vconstr t' vs) =>
              if Pos.eqb t t' then
-               do v <- l_opt (CertiCoq.LambdaANF.List_util.nthN vs m) ("Eproj: projection failed");
+               do v <- l_opt (CertiRocq.LambdaANF.List_util.nthN vs m) ("Eproj: projection failed");
                let rho' := M.set x v rho in
                bstep_f rho' e' n'
              else (exceptionMonad.Exc ("Proj: tag check failed " ^ (show_tags t t')))
@@ -79,7 +79,7 @@ Section Evaluator.
           match M.get y rho with
           | Some (Vconstr t vs) =>
             do e <- l_opt (findtag cl t) ("Case: " ^ (show_tag t) ^ " branch not found");
-            if CertiCoq.LambdaANF.cps_util.caseConsistent_f cenv cl t then
+            if CertiRocq.LambdaANF.cps_util.caseConsistent_f cenv cl t then
               bstep_f rho e n'
             else (exceptionMonad.Exc "Case: consistency failure")
           | _ => (exceptionMonad.Exc ("Case: " ^ (show_var y) ^ " branch not found"))

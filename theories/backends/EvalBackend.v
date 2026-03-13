@@ -1,11 +1,11 @@
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
-From MetaRocq.Erasure.Typed Require Import ResultMonad.
-From CertiCoq Require Import Compiler.pipeline.
-From CertiCoq Require Import Common.Pipeline_utils.
+From MetaRocq.Utils Require Import ResultMonad.
+From CertiRocq Require Import Compiler.pipeline.
+From CertiRocq Require Import Common.Pipeline_utils.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
-From Peregrine Require Import CertiCoqBackend.
+From Peregrine Require Import CertiRocqBackend.
 From Peregrine Require Import EvalBox.
 From ExtLib.Structures Require Import Monad.
 
@@ -54,7 +54,7 @@ Definition eval (remaps : constant_remappings)
                 (opts : eval_config)
                 (file_name : string)
                 (p : EAst.program)
-                : result string string :=
+                : result' string :=
   let config := mk_opts opts.(Config.copts) in
   let prs := mk_prims remaps in
   let evaluator := if opts.(Config.eval_anf) then eval_anf_pipeline else eval_mut_pipeline in

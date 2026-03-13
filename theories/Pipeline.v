@@ -5,7 +5,6 @@ From Peregrine Require Import ConfigUtils.
 From Peregrine Require Import Transforms.
 From Peregrine Require Import Erasure.
 From Peregrine Require Import CheckWf.
-From Peregrine Require Import Utils.
 From Peregrine Require RustBackend.
 From Peregrine Require ElmBackend.
 From Peregrine Require OCamlBackend.
@@ -15,41 +14,40 @@ From Peregrine Require EvalBackend.
 From Peregrine Require ASTBackend.
 From Peregrine Require NameSanitize.
 From MetaRocq.Utils Require Import utils.
-From MetaRocq.Erasure.Typed Require Import ResultMonad.
+From MetaRocq.Utils Require Import ResultMonad.
 From MetaRocq.Erasure.Typed Require Import ExAst.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
+From Peregrine Require Import Utils.
 
-Import MRMonadNotation.
-#[local]
-Existing Instance Monad_result.
+Import MonadNotation.
 
 Local Open Scope bs_scope.
 
 
 
-Definition parse_ast (s : string) : result PAst string :=
+Definition parse_ast (s : string) : result' PAst :=
   match PAst_of_string s with
   | inr p => Ok p
   | inl e => Err ("Failed parsing input program\n" ++ string_of_error true true e)
   end.
 
-Definition parse_config (s : string) : result config string :=
+Definition parse_config (s : string) : result' config :=
   match config_of_string s with
   | inr p => Ok (mk_config p)
   | inl e => Err ("Failed parsing configuration file\n" ++ string_of_error true true e)
   end.
 
-Definition parse_attribute (s : string) : result attributes_config string :=
+Definition parse_attribute (s : string) : result' attributes_config :=
   match attributes_config_of_string s with
   | inr p => Ok p
   | inl e => Err ("Failed parsing configuration file\n" ++ string_of_error true true e)
   end.
 
-Definition parse_attributes (attrs : list string) : result (list attributes_config) string :=
+Definition parse_attributes (attrs : list string) : result' (list attributes_config) :=
   monad_map parse_attribute attrs.
 
-Definition get_config (c : string + config') (attrs : list string) : result config string :=
+Definition get_config (c : string + config') (attrs : list string) : result' config :=
   c <- match c with
       | inl s => parse_config s
       | inr c' => Ok (mk_config c')
@@ -57,7 +55,7 @@ Definition get_config (c : string + config') (attrs : list string) : result conf
   attrs <- parse_attributes attrs;;
   if 0 <? length attrs then Ok (merge_attributes_config c attrs) else Ok c.
 
-Definition check_wf (p : PAst) : result unit string :=
+Definition check_wf (p : PAst) : result' unit :=
   map_error (fun e => "Program not wellformed\n" ++ e)
   match p with
   | Untyped env (Some t) =>
@@ -71,7 +69,7 @@ Definition check_wf (p : PAst) : result unit string :=
       @CheckWfExAst.check_wf_typed_program EWellformed.all_env_flags env
   end.
 
-Definition validate_ast_type (c : config) (p : PAst) : result unit string :=
+Definition validate_ast_type (c : config) (p : PAst) : result' unit :=
   match c.(backend_opts) with
   | Rust _ => assert (is_typed_ast p) "Rust extraction requires typed lambda box input"
   | Elm _ => assert (is_typed_ast p) "Elm extraction requires typed lambda box input"
@@ -94,30 +92,29 @@ Definition needs_typed (c : config) : bool :=
     end
   end.
 
-Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result PAst string :=
+Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAst :=
   let econf := mk_opts c typed in
   let cstr_reorder := mk_cstr_reorders c in
   let impl_box := c.(erasure_opts).(implement_box) in
   let impl_lazy := c.(erasure_opts).(implement_lazy) in
-  let ind_remaps := mk_ind_remaps c in
   match p, typed with
   | Untyped env (Some t), _ =>
-      let (env', t') := run_untyped_transforms econf cstr_reorder impl_box impl_lazy ind_remaps (env, t) in
+      let (env', t') := run_untyped_transforms econf cstr_reorder impl_box impl_lazy (env, t) in
       Ok (Untyped env' (Some t'))
   | Untyped env None, _ =>
-      let (env', _) := run_untyped_transforms econf cstr_reorder impl_box impl_lazy ind_remaps (env, EAst.tBox) in
+      let (env', _) := run_untyped_transforms econf cstr_reorder impl_box impl_lazy (env, EAst.tBox) in
       Ok (Untyped env' None)
   | Typed env (Some t), true =>
       let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (env, t) in
       Ok (Typed env' (Some t'))
   | Typed env (Some t), false =>
-      let (env', t') := run_typed_to_untyped_transforms econf cstr_reorder impl_box impl_lazy ind_remaps (env, t) in
+      let (env', t') := run_typed_to_untyped_transforms econf cstr_reorder impl_box impl_lazy (env, t) in
       (Ok (Untyped env' (Some t')))
   | Typed env None, true =>
       let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (env, EAst.tBox) in
       Ok (Typed env' None)
   | Typed env None, false =>
-      let (env', _) := run_typed_to_untyped_transforms econf cstr_reorder impl_box impl_lazy ind_remaps (env, EAst.tBox) in
+      let (env', _) := run_typed_to_untyped_transforms econf cstr_reorder impl_box impl_lazy (env, EAst.tBox) in
       (Ok (Untyped env' None))
   end.
 
@@ -126,14 +123,14 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result PAst
 Inductive extracted_program :=
 | RustProgram : list string -> extracted_program
 | ElmProgram : string -> extracted_program
-| CProgram : (CertiCoq.Codegen.toplevel.Cprogram * list string) -> extracted_program
+| CProgram : (CertiRocq.Codegen.toplevel.Cprogram * list string) -> extracted_program
 | WasmProgram : string -> extracted_program
 | OCamlProgram : (list string * string) -> extracted_program
 | CakeMLProgram : (list string * string) -> extracted_program
 | EvalProgram : string -> extracted_program
 | ASTProgram : string -> extracted_program.
 
-Definition extraction_result : Type := result extracted_program string.
+Definition extraction_result : Type := result' extracted_program.
 
 Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result :=
   let const_remaps := c.(const_remappings_opts) in
@@ -233,7 +230,7 @@ Definition peregrine_pipeline (c : string + config') (attrs : list string) (p : 
   p <- apply_transforms c p (needs_typed c);; (* Apply program transformation *)
   run_backend c f p. (* Run extraction backend *)
 
-Definition peregrine_validate (c : string + config') (attrs : list string) (p : string) : result unit string :=
+Definition peregrine_validate (c : string + config') (attrs : list string) (p : string) : result' unit :=
   p <- parse_ast p;; (* Parse input string into AST *)
   c <- get_config c attrs;; (* Parse or construct config *)
   check_wf p. (* Check that AST is wellformed *)

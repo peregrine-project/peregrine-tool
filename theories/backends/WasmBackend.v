@@ -1,11 +1,11 @@
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
-From MetaRocq.Erasure.Typed Require Import ResultMonad.
-From CertiCoq Require Import CodegenWasm.toplevel.
-From CertiCoq Require Import Common.Pipeline_utils.
+From MetaRocq.Utils Require Import ResultMonad.
+From CertiRocq Require Import CodegenWasm.toplevel.
+From CertiRocq Require Import Common.Pipeline_utils.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
-From Peregrine Require Import CertiCoqBackend.
+From Peregrine Require Import CertiRocqBackend.
 From Wasm Require Import binary_format_printer.
 From ExtLib.Structures Require Import Monad.
 
@@ -47,7 +47,7 @@ Definition extract_wasm (remaps : constant_remappings)
                         (opts : wasm_config)
                         (file_name : string)
                         (p : EAst.program)
-                        : result string string :=
+                        : result' string :=
   let config := mk_opts opts in
   let prs := mk_prims remaps in
   let (res, _) := run_pipeline EAst.program _ config p (wasm_pipeline prs) in

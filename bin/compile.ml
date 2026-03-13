@@ -104,7 +104,7 @@ let read_file f =
   s
 
 
-let mk_certicoq_config copts = {
+let mk_certirocq_config copts = {
   ConfigUtils.direct'    = Some (not copts.cps);
   ConfigUtils.c_args'    = Option.map Peregrine.Caml_nat.nat_of_caml_int copts.c_args;
   ConfigUtils.o_level'   = Option.map Peregrine.Caml_nat.nat_of_caml_int copts.o_level;
@@ -137,10 +137,10 @@ let mk_ast_config t copts : ConfigUtils.ast_config' =
     match t with
     | Box -> ConfigUtils.LambdaBox'
     | BoxTyped -> ConfigUtils.LambdaBoxTyped'
-    | BoxMut -> ConfigUtils.LambdaBoxMut' (Some (mk_certicoq_config copts))
-    | BoxLocal -> ConfigUtils.LambdaBoxLocal' (Some (mk_certicoq_config copts))
-    | ANF -> ConfigUtils.LambdaANF' (Some (mk_certicoq_config copts))
-    | ANFC -> ConfigUtils.LambdaANFC' (Some (mk_certicoq_config copts))
+    | BoxMut -> ConfigUtils.LambdaBoxMut' (Some (mk_certirocq_config copts))
+    | BoxLocal -> ConfigUtils.LambdaBoxLocal' (Some (mk_certirocq_config copts))
+    | ANF -> ConfigUtils.LambdaANF' (Some (mk_certirocq_config copts))
+    | ANFC -> ConfigUtils.LambdaANFC' (Some (mk_certirocq_config copts))
 
 (* Validate function *)
 let validate opts f_prog f_config =
@@ -204,11 +204,11 @@ let compile_cakeml opts eopts f_prog =
   compile_backend b_opts opts eopts f_prog
 
 let compile_c opts copts eopts f_prog =
-  let b_opts = ConfigUtils.C' (mk_certicoq_config copts) in
+  let b_opts = ConfigUtils.C' (mk_certirocq_config copts) in
   compile_backend b_opts opts eopts f_prog
 
 let compile_wasm opts copts eopts f_prog =
-  let b_opts = ConfigUtils.Wasm' (mk_certicoq_config copts) in
+  let b_opts = ConfigUtils.Wasm' (mk_certirocq_config copts) in
   compile_backend b_opts opts eopts f_prog
 
 let compile_ast opts copts eopts t f_prog =
@@ -216,7 +216,7 @@ let compile_ast opts copts eopts t f_prog =
   compile_backend b_opts opts eopts f_prog
 
 let compile_eval opts copts eopts fuel anf f_prog =
-  let copts = (mk_certicoq_config copts) in
+  let copts = (mk_certirocq_config copts) in
   let b_opts = ConfigUtils.Eval' {
       ConfigUtils.copts'    = Some copts;
       ConfigUtils.fuel'     = Peregrine.Caml_nat.nat_of_caml_int fuel;

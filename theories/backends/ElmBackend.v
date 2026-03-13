@@ -1,13 +1,13 @@
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
-From MetaRocq.Erasure.Typed Require Import ResultMonad.
+From MetaRocq.Utils Require Import ResultMonad.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
 From TypedExtraction Require Import PrettyPrinterMonad.
 From TypedExtraction Require Import ElmExtract.
 From TypedExtraction Require Import Common.
 
-Import MRMonadNotation.
+Import MonadNotation.
 
 Local Open Scope bs_scope.
 
@@ -67,15 +67,12 @@ Definition mk_remaps (rs : constant_remappings) : Kernames.kername -> option str
 
 
 
-#[local]
-Existing Instance Monad_result.
-
 Definition extract_elm (remaps : constant_remappings)
                        (custom_attr : custom_attributes)
                        (opts : elm_config)
                        (file_name : string)
                        (p : ExAst.global_env)
-                       : result string string :=
+                       : result' string :=
   let remaps    := mk_remaps remaps in
   let config    := mk_config opts in
   let preamble  := mk_preamble opts file_name in

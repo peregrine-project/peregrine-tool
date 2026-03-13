@@ -1,6 +1,6 @@
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
-From MetaRocq.Erasure.Typed Require Import ResultMonad.
+From MetaRocq.Utils Require Import ResultMonad.
 From Stdlib Require Import Strings.Byte.
 From Stdlib Require Import NArith.BinNat.
 From Peregrine Require Import Unicode.

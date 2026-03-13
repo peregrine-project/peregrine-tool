@@ -1,7 +1,6 @@
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Erasure Require Import EProgram.
 From Malfunction Require Serialize.
-From Peregrine Require Import ERemapInductives.
 From Peregrine Require Import Config.
 From Peregrine Require Import ConfigUtils.
 From Peregrine Require Import SerializeCommon.
@@ -65,9 +64,9 @@ Instance Serialize_elm_config' : Serialize elm_config' :=
      to_sexp (elm_print_full_names' o)
     ]%sexp.
 
-Instance Serialize_certicoq_config : Serialize certicoq_config :=
+Instance Serialize_certirocq_config : Serialize certirocq_config :=
   fun o =>
-    [Atom "certicoq_config";
+    [Atom "certirocq_config";
      to_sexp (direct o);
      to_sexp (c_args o);
      to_sexp (o_level o);
@@ -76,9 +75,9 @@ Instance Serialize_certicoq_config : Serialize certicoq_config :=
      to_sexp (body_name o)
     ]%sexp.
 
-Instance Serialize_certicoq_config' : Serialize certicoq_config' :=
+Instance Serialize_certirocq_config' : Serialize certirocq_config' :=
   fun o =>
-    [Atom "certicoq_config";
+    [Atom "certirocq_config";
      to_sexp (direct' o);
      to_sexp (c_args' o);
      to_sexp (o_level' o);
@@ -331,11 +330,11 @@ Definition string_of_elm_config (x : elm_config) : string :=
 Definition string_of_elm_config' (x : elm_config') : string :=
   @to_string elm_config' Serialize_elm_config' x.
 
-Definition string_of_certicoq_config (x : certicoq_config) : string :=
-  @to_string certicoq_config Serialize_certicoq_config x.
+Definition string_of_certirocq_config (x : certirocq_config) : string :=
+  @to_string certirocq_config Serialize_certirocq_config x.
 
-Definition string_of_certicoq_config' (x : certicoq_config') : string :=
-  @to_string certicoq_config' Serialize_certicoq_config' x.
+Definition string_of_certirocq_config' (x : certirocq_config') : string :=
+  @to_string certirocq_config' Serialize_certirocq_config' x.
 
 Definition string_of_program_type (x : Serialize.program_type) : string :=
   @to_string Serialize.program_type Serialize_program_type x.

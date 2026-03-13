@@ -2,7 +2,7 @@
 * [theories/](/theories/) Coq sources defining the extraction pipeline
 * [theories/serialization](/theories/serialization/) Verified s-expression serialization of $\lambda_\square$ programs
 * [src/extraction/](/src/extraction/) Extracted OCaml code
-* [src/printC/](/src/printC/) OCaml library for printing Clight, from [CertiCoq](https://github.com/CertiCoq/certicoq/tree/master/plugin/static)
+* [src/printC/](/src/printC/) OCaml library for printing Clight, from [CertiRocq](https://github.com/CertiRocq/certirocq/tree/master/plugin/static)
 * [bin/](/bin/) OCaml source files defining command line interface
 * [test/](/test/) Test suite and test runner
 * [test/agda](/test/agda/) Tests from the agda2lambox tool
@@ -37,8 +37,8 @@ Running the dev executable with `dune exec peregrine`.
   * Translation: https://github.com/MetaCoq/metacoq/blob/coq-8.20/erasure/theories/Typed/Erasure.v#L1505
   * $\lambda_{\square}^T$ definition: https://github.com/MetaCoq/metacoq/blob/coq-8.20/erasure/theories/Typed/ExAst.v
 * $\lambda_{\square}$ -> $\lambda_{ANF}$
-  * https://github.com/CertiCoq/certicoq/wiki/The-CertiCoq-pipeline
-  * AST: https://github.com/CertiCoq/certicoq/blob/master/theories/LambdaANF/cps.v
+  * https://github.com/CertiRocq/certirocq/wiki/The-CertiRocq-pipeline
+  * AST: https://github.com/CertiRocq/certirocq/blob/master/theories/LambdaANF/cps.v
 * $\lambda_{\square}^T$ -> Rust
   * Printing: https://github.com/peregrine-project/rocq-typed-extraction/blob/master/elm/theories/RustExtract.v
 * $\lambda_{\square}^T$ -> Elm
@@ -55,4 +55,4 @@ Running the dev executable with `dune exec peregrine`.
 * WASM
   * https://github.com/womeier/certicoqwasm-testing
 * C (Clight)
-  * https://github.com/CertiCoq/certicoq/blob/master/benchmarks/tests.v
+  * https://github.com/CertiRocq/certirocq/blob/master/benchmarks/tests.v

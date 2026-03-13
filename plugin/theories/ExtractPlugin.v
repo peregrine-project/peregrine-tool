@@ -27,7 +27,7 @@ Extract Constant Equations.Init.pr2 => "snd".
 Extraction Inline Equations.Init.pr1 Equations.Init.pr2.
 
 Extraction Blacklist
-           Classes config uGraph Universes Ast String List Nat Int Init
+           Classes config uGraph Universes Ast String List Monad Nat Int Init
            UnivSubst Typing Checker Retyping OrderedType Logic Common Equality Classes
            Uint63
            Extraction.
