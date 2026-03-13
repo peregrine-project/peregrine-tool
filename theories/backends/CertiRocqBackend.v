@@ -3,13 +3,13 @@ From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Erasure.Typed Require Import ResultMonad.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
-From CertiCoq Require Import LambdaBoxMut.compile.
-From CertiCoq Require Import LambdaBoxLocal.toplevel.
-From CertiCoq Require Import LambdaANF.toplevel.
-From CertiCoq Require Import Compiler.pipeline.
-From CertiCoq Require Import Common.Common.
-From CertiCoq Require Import Common.compM.
-From CertiCoq Require Import Common.Pipeline_utils.
+From CertiRocq Require Import LambdaBoxMut.compile.
+From CertiRocq Require Import LambdaBoxLocal.toplevel.
+From CertiRocq Require Import LambdaANF.toplevel.
+From CertiRocq Require Import Compiler.pipeline.
+From CertiRocq Require Import Common.Common.
+From CertiRocq Require Import Common.compM.
+From CertiRocq Require Import Common.Pipeline_utils.
 
 From ExtLib Require Import Monads.
 Import MonadNotation.
@@ -17,7 +17,7 @@ Local Open Scope bs_scope.
 
 
 
-Definition mk_opts (o : certicoq_config) : Options := {|
+Definition mk_opts (o : certirocq_config) : Options := {|
   erasure_config := Erasure.default_erasure_config; (* Not used *)
   inductives_mapping := []; (* Not used *)
   direct := o.(Config.direct);
@@ -106,10 +106,10 @@ Definition compile_program (p : EAst.program) : Program Term := {|
 |}.
 
 Definition compile_LambdaBoxMut
-  : CertiCoqTrans (EAst.program) (Program LambdaBoxMut.compile.Term) :=
+  : CertiRocqTrans (EAst.program) (Program LambdaBoxMut.compile.Term) :=
   fun src =>
     debug_msg "Translating from L1g to L1k" ;;
-    (LiftCertiCoqTrans "LambdaBoxMut" compile_program src).
+    (LiftCertiRocqTrans "LambdaBoxMut" compile_program src).
 
 
 
@@ -149,11 +149,11 @@ Definition anf_pipeline' prs (p : EAst.program) :=
   p_anf <- local_to_anf_trans next_id prs p_local;;
   ret p_anf.
 
-Definition id_trans {A : Type} : CertiCoqTrans A A :=
+Definition id_trans {A : Type} : CertiRocqTrans A A :=
   fun p => ret p.
 
 Definition anf_pipeline {A : Type}
-      (f : list ((((Kernames.kername * string) * bool) * nat) * positive) -> CertiCoqTrans toplevel.LambdaANF_FullTerm A)
+      (f : list ((((Kernames.kername * string) * bool) * nat) * positive) -> CertiRocqTrans toplevel.LambdaANF_FullTerm A)
       prs
       (p : EAst.program) :=
   let env := p.1 in

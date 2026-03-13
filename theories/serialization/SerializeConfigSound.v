@@ -104,7 +104,7 @@ Proof.
   reflexivity.
 Qed.
 
-Instance Sound_certicoq_config : SoundClass certicoq_config.
+Instance Sound_certirocq_config : SoundClass certirocq_config.
 Proof.
   unfold SoundClass, Sound.
   intros l e a He.
@@ -118,13 +118,13 @@ Proof.
   apply sound_class in Ea3.
   apply sound_class in Ea4.
   apply sound_class in Ea5.
-  unfold to_sexp, Serialize_certicoq_config.
+  unfold to_sexp, Serialize_certirocq_config.
   cbn.
   rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, Ea5.
   reflexivity.
 Qed.
 
-Instance Sound_certicoq_config' : SoundClass certicoq_config'.
+Instance Sound_certirocq_config' : SoundClass certirocq_config'.
 Proof.
   unfold SoundClass, Sound.
   intros l e a He.
@@ -138,7 +138,7 @@ Proof.
   apply sound_class in Ea3.
   apply sound_class in Ea4.
   apply sound_class in Ea5.
-  unfold to_sexp, Serialize_certicoq_config'.
+  unfold to_sexp, Serialize_certirocq_config'.
   cbn.
   rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5.
   reflexivity.

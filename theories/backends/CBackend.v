@@ -1,11 +1,11 @@
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Erasure.Typed Require Import ResultMonad.
-From CertiCoq Require Import Compiler.pipeline.
-From CertiCoq Require Import Common.Pipeline_utils.
+From CertiRocq Require Import Compiler.pipeline.
+From CertiRocq Require Import Common.Pipeline_utils.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
-From Peregrine Require Import CertiCoqBackend.
+From Peregrine Require Import CertiRocqBackend.
 From ExtLib.Structures Require Import Monad.
 
 Import MonadNotation.

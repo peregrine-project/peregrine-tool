@@ -125,7 +125,7 @@ Section BackendConfigOptional.
   |}.
 
   (* C and Wasm *)
-  Record certicoq_config' := {
+  Record certirocq_config' := {
     direct'    : option bool;
     c_args'    : option nat;
     o_level'   : option nat;
@@ -133,7 +133,7 @@ Section BackendConfigOptional.
     prefix'    : option string;
     body_name' : option string;
   }.
-  Definition empty_certicoq_config' : certicoq_config' := {|
+  Definition empty_certirocq_config' : certirocq_config' := {|
     direct'    := None;
     c_args'    := None;
     o_level'   := None;
@@ -142,18 +142,18 @@ Section BackendConfigOptional.
     body_name' := None;
   |}.
 
-  Definition mk_certicoq_config default_certicoq_config (o : certicoq_config') : certicoq_config := {|
-    direct    := get_optional o default_certicoq_config direct' direct;
-    c_args    := get_optional o default_certicoq_config c_args' c_args;
-    o_level   := get_optional o default_certicoq_config o_level' o_level;
-    anf_conf  := get_optional o default_certicoq_config anf_conf' anf_conf;
-    prefix    := get_optional o default_certicoq_config prefix' prefix;
-    body_name := get_optional o default_certicoq_config body_name' body_name;
+  Definition mk_certirocq_config default_certirocq_config (o : certirocq_config') : certirocq_config := {|
+    direct    := get_optional o default_certirocq_config direct' direct;
+    c_args    := get_optional o default_certirocq_config c_args' c_args;
+    o_level   := get_optional o default_certirocq_config o_level' o_level;
+    anf_conf  := get_optional o default_certirocq_config anf_conf' anf_conf;
+    prefix    := get_optional o default_certirocq_config prefix' prefix;
+    body_name := get_optional o default_certirocq_config body_name' body_name;
   |}.
 
-  Definition c_config' : Type := certicoq_config'.
+  Definition c_config' : Type := certirocq_config'.
 
-  Definition wasm_config' : Type := certicoq_config'.
+  Definition wasm_config' : Type := certirocq_config'.
 
   (* OCaml *)
   Record ocaml_config' := {
@@ -173,7 +173,7 @@ Section BackendConfigOptional.
   Definition mk_cakeml_config (o : cakeml_config') : cakeml_config := tt.
 
   Record eval_config' := {
-    copts'    : option certicoq_config';
+    copts'    : option certirocq_config';
     fuel'     : nat;
     eval_anf' : bool;
   }.
@@ -185,7 +185,7 @@ Section BackendConfigOptional.
 
   Definition mk_eval_config (o : eval_config') : eval_config := {|
     copts    := get_optional o default_eval_config
-      (fun c => option_map (mk_certicoq_config default_eval_config.(copts)) (copts' c)) copts;
+      (fun c => option_map (mk_certirocq_config default_eval_config.(copts)) (copts' c)) copts;
     fuel     := o.(fuel');
     eval_anf := o.(eval_anf');
   |}.
@@ -193,10 +193,10 @@ Section BackendConfigOptional.
   Variant ASTType' :=
   | LambdaBox'
   | LambdaBoxTyped'
-  | LambdaBoxMut'   : option certicoq_config' -> ASTType'
-  | LambdaBoxLocal' : option certicoq_config' -> ASTType'
-  | LambdaANF'      : option certicoq_config' -> ASTType'
-  | LambdaANFC'     : option certicoq_config' -> ASTType'.
+  | LambdaBoxMut'   : option certirocq_config' -> ASTType'
+  | LambdaBoxLocal' : option certirocq_config' -> ASTType'
+  | LambdaANF'      : option certirocq_config' -> ASTType'
+  | LambdaANFC'     : option certirocq_config' -> ASTType'.
 
   Record ast_config' := {
     ast_type' : ASTType';
@@ -206,7 +206,7 @@ Section BackendConfigOptional.
   |}.
 
   Definition mk_ast_config (o : ast_config') : ast_config :=
-    let mk c := match c with | Some c => mk_certicoq_config default_ast_c_config c | None => default_ast_c_config end in
+    let mk c := match c with | Some c => mk_certirocq_config default_ast_c_config c | None => default_ast_c_config end in
     {| ast_type :=
         match o.(ast_type') with
         | LambdaBox' => LambdaBox
@@ -231,8 +231,8 @@ Section BackendConfigOptional.
     match o with
     | Rust' o   => Rust (mk_rust_config o)
     | Elm' o    => Elm (mk_elm_config o)
-    | C' o      => C (mk_certicoq_config default_c_config o)
-    | Wasm' o   => Wasm (mk_certicoq_config default_wasm_config o)
+    | C' o      => C (mk_certirocq_config default_c_config o)
+    | Wasm' o   => Wasm (mk_certirocq_config default_wasm_config o)
     | OCaml' o  => OCaml (mk_ocaml_config o)
     | CakeML' o => CakeML (mk_cakeml_config o)
     | Eval' o   => Eval (mk_eval_config o)

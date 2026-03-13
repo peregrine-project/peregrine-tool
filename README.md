@@ -7,7 +7,7 @@ The Peregrine Project provides a unified middle-end for code generation from pro
 It puts a focus on correct code extraction: The middle end is verified in the Rocq proof assistant, and some of the frontends and backends are. It is based on an intermediate language called $\lambda_\square$ (LambdaBox).
 
 ## Setup
-The backend requires OCaml 4.13 or later to run. The development also depends on Rocq 9.0, and developer builds of CertiCoq.
+The backend requires OCaml 4.13 or later to run. The development also depends on Rocq 9.0.
 
 The backend can be installed using [Opam](https://opam.ocaml.org/doc/Install.html) with:
 ```bash
@@ -61,8 +61,8 @@ $\lambda_\square$ and $\lambda_\square^T$ are intermediate languages used in the
 The tool currently supports extracting $\lambda_\square$ to WebAssembly, C and OCaml, and $\lambda_\square^T$ to Rust and Elm.
 
 #### WebAssembly
-Verified extraction to WebAssembly is implemented in [CertiCoq-Wasm](https://github.com/womeier/certicoqwasm).
-It extends on the CertiCoq with an additional translation from $\lambda_{ANF}$ to WebAssembly.
+Verified extraction to WebAssembly is implemented in [CertiRocq-Wasm](https://github.com/womeier/certicoqwasm).
+It extends on the CertiRocq with an additional translation from $\lambda_{ANF}$ to WebAssembly.
 More information can be found in the [paper](https://womeier.de/files/certicoqwasm-cpp25-paper.pdf).
 ##### Running the extracted Wasm code
 Extracted Wasm code can be run using any WebAssembly engine supporting the [tail call extension](https://webassembly.org/features/) of WebAssembly.
@@ -76,10 +76,10 @@ The program main function will be exported as `main_function` in extracted Wasm 
 [Clight](https://link.springer.com/article/10.1007/s10817-009-9148-3) is a subset of C used by the verified [CompCert](https://compcert.org/) compiler.
 Clight includes pointer arithmetic, struct and union types, loops, and structured switch statements.
 
-A verified compiler to Clight is implemented in [CertiCoq](https://github.com/CertiCoq/certicoq).
+A verified compiler to Clight is implemented in [CertiRocq](https://github.com/CertiRocq/certirocq).
 ##### Compiling Clight
 Clight can be compiled using [CompCert](https://compcert.org/) or any ordinary C compiler (GCC, clang, ...).
-The generated C code must be linked with the garbage collector and glue code as described [here](https://github.com/CertiCoq/certicoq/wiki/The-CertiCoq-plugin#compiling-the-generated-c-code).
+The generated C code must be linked with the garbage collector and glue code as described [here](https://github.com/CertiRocq/certirocq/wiki/The-CertiRocq-plugin#compiling-the-generated-c-code).
 
 
 #### OCaml (malfunction)

@@ -1,5 +1,5 @@
-From CertiCoq Require Import AstCommon.
-From CertiCoq.LambdaBoxMut Require Import compile.
+From CertiRocq Require Import AstCommon.
+From CertiRocq.LambdaBoxMut Require Import compile.
 From MetaRocq.Utils Require Import bytestring.
 From Stdlib Require Import List.
 From CeresBS Require Import Ceres.

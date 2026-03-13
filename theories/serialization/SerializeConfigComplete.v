@@ -65,7 +65,7 @@ Proof.
   reflexivity.
 Qed.
 
-Instance Complete_certicoq_config : CompleteClass certicoq_config.
+Instance Complete_certirocq_config : CompleteClass certirocq_config.
 Proof.
   unfold CompleteClass, Complete.
   intros l o.
@@ -76,7 +76,7 @@ Proof.
   reflexivity.
 Qed.
 
-Instance Complete_certicoq_config' : CompleteClass certicoq_config'.
+Instance Complete_certirocq_config' : CompleteClass certirocq_config'.
 Proof.
   unfold CompleteClass, Complete.
   intros l o.
@@ -143,7 +143,7 @@ Instance Complete_eval_config : CompleteClass eval_config.
 Proof.
   unfold CompleteClass, Complete.
   intros l o.
-  cbn -[Deserialize_certicoq_config Deserialize_bool Deserialize_SemiIntegral].
+  cbn -[Deserialize_certirocq_config Deserialize_bool Deserialize_SemiIntegral].
   simpl_bytes.
   rewrite 3!complete_class.
   destruct o; cbn.
@@ -154,7 +154,7 @@ Instance Complete_eval_config' : CompleteClass eval_config'.
 Proof.
   unfold CompleteClass, Complete.
   intros l o.
-  cbn -[Deserialize_certicoq_config' Deserialize_bool Deserialize_SemiIntegral].
+  cbn -[Deserialize_certirocq_config' Deserialize_bool Deserialize_SemiIntegral].
   simpl_bytes.
   rewrite 3!complete_class.
   destruct o; cbn.
@@ -166,25 +166,25 @@ Proof.
   unfold CompleteClass, Complete.
   intros l o.
   destruct o.
-  - cbn -[Deserialize_certicoq_config].
+  - cbn -[Deserialize_certirocq_config].
     simpl_bytes.
     reflexivity.
-  - cbn -[Deserialize_certicoq_config].
+  - cbn -[Deserialize_certirocq_config].
     simpl_bytes.
     reflexivity.
-  - cbn -[Deserialize_certicoq_config].
-    simpl_bytes.
-    rewrite complete_class.
-    reflexivity.
-  - cbn -[Deserialize_certicoq_config].
+  - cbn -[Deserialize_certirocq_config].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
-  - cbn -[Deserialize_certicoq_config].
+  - cbn -[Deserialize_certirocq_config].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
-  - cbn -[Deserialize_certicoq_config].
+  - cbn -[Deserialize_certirocq_config].
+    simpl_bytes.
+    rewrite complete_class.
+    reflexivity.
+  - cbn -[Deserialize_certirocq_config].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
@@ -195,25 +195,25 @@ Proof.
   unfold CompleteClass, Complete.
   intros l o.
   destruct o.
-  - cbn -[Deserialize_certicoq_config' Deserialize_option].
+  - cbn -[Deserialize_certirocq_config' Deserialize_option].
     simpl_bytes.
     reflexivity.
-  - cbn -[Deserialize_certicoq_config' Deserialize_option].
+  - cbn -[Deserialize_certirocq_config' Deserialize_option].
     simpl_bytes.
     reflexivity.
-  - cbn -[Deserialize_certicoq_config' Deserialize_option].
-    simpl_bytes.
-    rewrite complete_class.
-    reflexivity.
-  - cbn -[Deserialize_certicoq_config' Deserialize_option].
+  - cbn -[Deserialize_certirocq_config' Deserialize_option].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
-  - cbn -[Deserialize_certicoq_config' Deserialize_option].
+  - cbn -[Deserialize_certirocq_config' Deserialize_option].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
-  - cbn -[Deserialize_certicoq_config' Deserialize_option].
+  - cbn -[Deserialize_certirocq_config' Deserialize_option].
+    simpl_bytes.
+    rewrite complete_class.
+    reflexivity.
+  - cbn -[Deserialize_certirocq_config' Deserialize_option].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
@@ -223,7 +223,7 @@ Instance Complete_ast_config : CompleteClass ast_config.
 Proof.
   unfold CompleteClass, Complete.
   intros l o.
-  cbn -[Deserialize_certicoq_config].
+  cbn -[Deserialize_certirocq_config].
   simpl_bytes.
   rewrite complete_class.
   destruct o; cbn.
@@ -234,7 +234,7 @@ Instance Complete_ast_config' : CompleteClass ast_config'.
 Proof.
   unfold CompleteClass, Complete.
   intros l o.
-  cbn -[Deserialize_certicoq_config' Deserialize_option].
+  cbn -[Deserialize_certirocq_config' Deserialize_option].
   simpl_bytes.
   rewrite complete_class.
   destruct o; cbn.
@@ -254,11 +254,11 @@ Proof.
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
-  - cbn -[Deserialize_certicoq_config].
+  - cbn -[Deserialize_certirocq_config].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
-  - cbn -[Deserialize_certicoq_config].
+  - cbn -[Deserialize_certirocq_config].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
@@ -293,11 +293,11 @@ Proof.
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
-  - cbn -[Deserialize_certicoq_config'].
+  - cbn -[Deserialize_certirocq_config'].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
-  - cbn -[Deserialize_certicoq_config'].
+  - cbn -[Deserialize_certirocq_config'].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.

@@ -27,7 +27,7 @@ let mk_erasure_opts betared unboxing dearg_ctors dearg_consts = {
   dearg_consts;
 }
 
-type certicoq_opts = {
+type certirocq_opts = {
   cps: bool;
   c_args: int option;
   o_level: int option;
@@ -36,7 +36,7 @@ type certicoq_opts = {
   body_name: string option;
 }
 
-let mk_certicoq_opts cps c_args o_level anf_conf prefix body_name = {
+let mk_certirocq_opts cps c_args o_level anf_conf prefix body_name = {
   cps;
   c_args;
   o_level;

@@ -16,8 +16,8 @@ value *get_args(value);
 value make_Coq_Init_Datatypes_list_nil(void);
 value make_Coq_Init_Datatypes_list_cons(value, value, value *);
 value alloc_make_Coq_Init_Datatypes_list_cons(struct thread_info *, value, value);
-value make_CertiCoq_bool_false(void);
-value make_CertiCoq_bool_true(void);
+value make_CertiRocq_bool_false(void);
+value make_CertiRocq_bool_true(void);
 value make_Coq_Init_Datatypes_nat_O(void);
 value make_Coq_Init_Datatypes_nat_S(value, value *);
 value alloc_make_Coq_Init_Datatypes_nat_S(struct thread_info *, value);
@@ -27,12 +27,12 @@ value make_Coq_Init_Datatypes_option_None(void);
 value make_Coq_Init_Datatypes_prod_pair(value, value, value *);
 value alloc_make_Coq_Init_Datatypes_prod_pair(struct thread_info *, value, value);
 unsigned long long get_Coq_Init_Datatypes_list_tag(value);
-unsigned long long get_CertiCoq_bool_tag(value);
+unsigned long long get_CertiRocq_bool_tag(value);
 unsigned long long get_Coq_Init_Datatypes_nat_tag(value);
 unsigned long long get_Coq_Init_Datatypes_option_tag(value);
 unsigned long long get_Coq_Init_Datatypes_prod_tag(value);
 void print_Coq_Init_Datatypes_list(value, void (*)(value));
-void print_CertiCoq_bool(value);
+void print_CertiRocq_bool(value);
 void print_Coq_Init_Datatypes_nat(value);
 void print_Coq_Init_Datatypes_option(value, void (*)(value));
 void print_Coq_Init_Datatypes_prod(value, void (*)(value), void (*)(value));
@@ -69,7 +69,7 @@ value *get_args(value $v)
 signed char const names_of_Coq_Init_Datatypes_list[2][5] = { 110, 105, 108,
   0, 0, 99, 111, 110, 115, 0, /* skip 0 */ };
 
-signed char const names_of_CertiCoq_bool[2][6] = { 102, 97, 108, 115, 101, 0,
+signed char const names_of_CertiRocq_bool[2][6] = { 102, 97, 108, 115, 101, 0,
   116, 114, 117, 101, 0, 0, /* skip 0 */ };
 
 signed char const names_of_Coq_Init_Datatypes_nat[2][2] = { 79, 0, 83, 0,
@@ -105,12 +105,12 @@ value alloc_make_Coq_Init_Datatypes_list_cons(struct thread_info *$tinfo, value 
   return $argv + 1LL;
 }
 
-value make_CertiCoq_bool_false(void)
+value make_CertiRocq_bool_false(void)
 {
   return (value) 1;
 }
 
-value make_CertiCoq_bool_true(void)
+value make_CertiRocq_bool_true(void)
 {
   return (value) 3;
 }
@@ -188,19 +188,19 @@ unsigned long long get_Coq_Init_Datatypes_list_tag(value $v)
     switch ($t) {
       case 0:
         return 1;
-      
+
     }
   } else {
     $t = get_unboxed_ordinal($v);
     switch ($t) {
       case 0:
         return 0;
-      
+
     }
   }
 }
 
-unsigned long long get_CertiCoq_bool_tag(value $v)
+unsigned long long get_CertiRocq_bool_tag(value $v)
 {
   register unsigned long long $t;
   $t = get_unboxed_ordinal($v);
@@ -217,14 +217,14 @@ unsigned long long get_Coq_Init_Datatypes_nat_tag(value $v)
     switch ($t) {
       case 0:
         return 1;
-      
+
     }
   } else {
     $t = get_unboxed_ordinal($v);
     switch ($t) {
       case 0:
         return 0;
-      
+
     }
   }
 }
@@ -239,14 +239,14 @@ unsigned long long get_Coq_Init_Datatypes_option_tag(value $v)
     switch ($t) {
       case 0:
         return 0;
-      
+
     }
   } else {
     $t = get_unboxed_ordinal($v);
     switch ($t) {
       case 0:
         return 1;
-      
+
     }
   }
 }
@@ -277,15 +277,15 @@ void print_Coq_Init_Datatypes_list(value $v, void $print_param_A(value))
       print_Coq_Init_Datatypes_list(*((value *) $args + 1), $print_param_A);
       printf(rparen_lit);
       break;
-    
+
   }
 }
 
-void print_CertiCoq_bool(value $v)
+void print_CertiRocq_bool(value $v)
 {
   register unsigned int $tag;
-  $tag = get_CertiCoq_bool_tag($v);
-  printf(*(names_of_CertiCoq_bool + $tag));
+  $tag = get_CertiRocq_bool_tag($v);
+  printf(*(names_of_CertiRocq_bool + $tag));
 }
 
 void print_Coq_Init_Datatypes_nat(value $v)
@@ -305,7 +305,7 @@ void print_Coq_Init_Datatypes_nat(value $v)
       print_Coq_Init_Datatypes_nat(*((value *) $args + 0));
       printf(rparen_lit);
       break;
-    
+
   }
 }
 
@@ -326,7 +326,7 @@ void print_Coq_Init_Datatypes_option(value $v, void $print_param_A(value))
     case 1:
       printf(*(names_of_Coq_Init_Datatypes_option + $tag));
       break;
-    
+
   }
 }
 
@@ -346,7 +346,7 @@ void print_Coq_Init_Datatypes_prod(value $v, void $print_param_A(value), void $p
       $print_param_B(*((value *) $args + 1));
       printf(rparen_lit);
       break;
-    
+
   }
 }
 

@@ -13,8 +13,8 @@ function get_pp_fun(type: ProgramType): [string[], string] {
     case SimpleType.Bool:
       counter += 1;
       return [
-        ["extern void print_CertiCoq_bool(value);",
-          `void pp_${counter}(value val) { print_CertiCoq_bool(val); }`
+        ["extern void print_CertiRocq_bool(value);",
+          `void pp_${counter}(value val) { print_CertiRocq_bool(val); }`
         ],
         `pp_${counter}`
       ];
@@ -134,7 +134,7 @@ export async function set_c_env(timeout) {
 
   try {
     const path = execSync(cmd, { stdio: "pipe", timeout: timeout, encoding: 'utf8' });
-    process.env.C_RUNTIME_PATH = path.trim() + "/user-contrib/CertiCoq/Plugin/runtime/";
+    process.env.C_RUNTIME_PATH = path.trim() + "/user-contrib/CertiRocq/Plugin/runtime/";
   } catch (e) {
     print_line("error: could not set environment");
     exit(1);

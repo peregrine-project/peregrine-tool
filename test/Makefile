@@ -1,4 +1,4 @@
-RUNTIME_PATH := $(shell `coqc -where`/user-contrib/CertiCoq/Plugin/runtime/)
+RUNTIME_PATH := $(shell `coqc -where`/user-contrib/CertiRocq/Plugin/runtime/)
 
 all:
 

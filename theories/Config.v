@@ -32,7 +32,7 @@ Section BackendConfig.
     elm_print_full_names : bool;
   }.
 
-  Record certicoq_config := {
+  Record certirocq_config := {
     direct    : bool;
     c_args    : nat;
     o_level   : nat;
@@ -41,9 +41,9 @@ Section BackendConfig.
     body_name : string;
   }.
 
-  Definition c_config : Type := certicoq_config.
+  Definition c_config : Type := certirocq_config.
 
-  Definition wasm_config : Type := certicoq_config.
+  Definition wasm_config : Type := certirocq_config.
 
   Record ocaml_config := {
     program_type : Malfunction.Serialize.program_type;
@@ -52,7 +52,7 @@ Section BackendConfig.
   Definition cakeml_config : Type := unit.
 
   Record eval_config := {
-    copts    : certicoq_config;
+    copts    : certirocq_config;
     fuel     : nat;
     eval_anf : bool;
   }.
@@ -60,10 +60,10 @@ Section BackendConfig.
   Variant ASTType :=
   | LambdaBox
   | LambdaBoxTyped
-  | LambdaBoxMut   : certicoq_config -> ASTType
-  | LambdaBoxLocal : certicoq_config -> ASTType
-  | LambdaANF      : certicoq_config -> ASTType
-  | LambdaANFC     : certicoq_config -> ASTType.
+  | LambdaBoxMut   : certirocq_config -> ASTType
+  | LambdaBoxLocal : certirocq_config -> ASTType
+  | LambdaANF      : certirocq_config -> ASTType
+  | LambdaANFC     : certirocq_config -> ASTType.
 
   Record ast_config := {
     ast_type : ASTType;

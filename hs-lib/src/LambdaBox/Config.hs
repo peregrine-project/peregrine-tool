@@ -29,8 +29,8 @@ data ElmConfig = ElmConfig
     elmPrintFullNames :: Maybe Bool
   }
 
--- CertiCoq (C & Webassembly) backend configuration
-data CertiCoqConfig = CertiCoqConfig
+-- CertiRocq (C & Webassembly) backend configuration
+data CertiRocqConfig = CertiRocqConfig
   { direct    :: Maybe Bool,
     cArgs     :: Maybe Int,
     oLevel    :: Maybe Int,
@@ -54,7 +54,7 @@ type CakeMLConfig = ()
 
 -- Eval backend configuration
 data EvalConfig = EvalConfig
-  { copts    :: Maybe CertiCoqConfig,
+  { copts    :: Maybe CertiRocqConfig,
     fuel     :: Int,
     evalAnf :: Bool
   }
@@ -63,10 +63,10 @@ data EvalConfig = EvalConfig
 data ASTType
   = LambdaBox
   | LambdaBoxTyped
-  | LambdaBoxMut (Maybe CertiCoqConfig)
-  | LambdaBoxLocal (Maybe CertiCoqConfig)
-  | LambdaANF (Maybe CertiCoqConfig)
-  | LambdaANFC (Maybe CertiCoqConfig)
+  | LambdaBoxMut (Maybe CertiRocqConfig)
+  | LambdaBoxLocal (Maybe CertiRocqConfig)
+  | LambdaANF (Maybe CertiRocqConfig)
+  | LambdaANFC (Maybe CertiRocqConfig)
 
 data ASTConfig = ASTConfig
   { astType :: ASTType
@@ -78,8 +78,8 @@ data ASTConfig = ASTConfig
 data BackendConfig
   = Rust RustConfig
   | Elm ElmConfig
-  | C CertiCoqConfig
-  | Wasm CertiCoqConfig
+  | C CertiRocqConfig
+  | Wasm CertiRocqConfig
   | OCaml OCamlConfig
   | CakeML CakeMLConfig
   | Eval EvalConfig
