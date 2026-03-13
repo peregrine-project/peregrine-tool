@@ -15,15 +15,7 @@ depends: [
   "rocq-stdlib" {= "9.0.0"}
   "rocq-certirocq" {= "9.1.dev"}
   "rocq-ceres-bytestring" {= "1.0.0"}
-  "rocq-metarocq-common" {= "1.5.1+9.1"}
-  "rocq-metarocq-erasure" {= "1.5.1+9.1"}
   "rocq-metarocq-erasure-plugin" {= "1.5.1+9.1"}
-  "rocq-metarocq-pcuic" {= "1.5.1+9.1"}
-  "rocq-metarocq-safechecker" {= "1.5.1+9.1"}
-  "rocq-metarocq-safechecker-plugin" {= "1.5.1+9.1"}
-  "rocq-metarocq-template" {= "1.5.1+9.1"}
-  "rocq-metarocq-template-pcuic" {= "1.5.1+9.1"}
-  "rocq-metarocq-utils" {= "1.5.1+9.1"}
   "rocq-primitive" {= "9.0.0"}
   "rocq-typed-extraction-common" {= "0.2.1"}
   "rocq-elm-extraction" {= "0.2.1"}
