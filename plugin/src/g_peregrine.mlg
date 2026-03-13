@@ -44,11 +44,11 @@ let extract_typed prog f =
   print_res res f
 
 
-let extract c f typed =
+let extract ~opaque_access c f typed =
   let env = Global.env () in
   let evm = Evd.from_env env in
   let (c, _) = Constrintern.interp_constr env evm c in
-  let prog = time "Quoting" (Ast_quoter.quote_term_rec ~bypass:false env evm) (EConstr.to_constr evm c) in
+  let prog = time "Quoting" (Ast_quoter.quote_term_rec ~bypass:false ~opaque_access env evm) (EConstr.to_constr evm c) in
   if typed
   then extract_typed prog f
   else extract_untyped prog f
@@ -56,7 +56,7 @@ let extract c f typed =
 }
 
 
-VERNAC COMMAND EXTEND PeregrineExtract CLASSIFIED AS QUERY
+VERNAC COMMAND EXTEND PeregrineExtract CLASSIFIED AS QUERY STATE opaque_access
 | [ "Peregrine" "Extract" constr(c) ] -> {
     extract c None false
   }

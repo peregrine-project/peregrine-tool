@@ -23,8 +23,6 @@ src/eEnvMap.ml
 src/eEnvMap.mli
 src/eGlobalEnv.ml
 src/eGlobalEnv.mli
-src/envMap.ml
-src/envMap.mli
 src/ePretty.ml
 src/ePretty.mli
 src/ePrimitive.ml
@@ -61,8 +59,6 @@ src/fin.ml
 src/fin.mli
 src/init0.ml
 src/init0.mli
-src/mRProd.ml
-src/mRProd.mli
 src/pAst.ml
 src/pAst.mli
 src/pCUICAst.ml
@@ -109,8 +105,6 @@ src/serializePAst.ml
 src/serializePAst.mli
 src/ssrbool.ml
 src/ssrbool.mli
-src/templateEnvMap.ml
-src/templateEnvMap.mli
 src/templateToPCUIC.ml
 src/templateToPCUIC.mli
 src/uGraph0.ml
