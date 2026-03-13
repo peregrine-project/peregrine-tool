@@ -14,7 +14,7 @@
       coq.override.version = "9.1";
       metarocq.override.version = "1.5.1-9.1";
       TypedExtraction.override.version = "0.2.1";
-      CertiCoq.override.version = "coq-9.1";
+      CertiRocq.override.version = "master";
       verified-extraction.override.version = "1.0.0-9.1";
       ceres-bs.override.version = "1.0.0";
       CakeMLExtraction.override.version = "0.1.0";

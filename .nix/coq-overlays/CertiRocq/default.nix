@@ -6,17 +6,18 @@
   coq,
   wasmcert,
   compcert,
-  metarocq,
+  metarocq-erasure-plugin,
+  metarocq-safechecker-plugin,
   ExtLib,
   version ? null,
 }:
 
 with lib;
 mkCoqDerivation {
-  pname = "CertiCoq";
-  owner = "4ever2";
-  repo = "certicoq";
-  opam-name = "coq-certicoq";
+  pname = "CertiRocq";
+  owner = "CertiRocq";
+  repo = "certirocq";
+  opam-name = "rocq-certirocq";
   mlPlugin = true;
 
   inherit version;
@@ -30,7 +31,8 @@ mkCoqDerivation {
     wasmcert
     compcert
     ExtLib
-    metarocq
+    metarocq-erasure-plugin
+    metarocq-safechecker-plugin
   ];
 
   patchPhase = ''
@@ -60,7 +62,7 @@ mkCoqDerivation {
 
     OUTDIR=$out/lib/coq/${coq.coq-version}/user-contrib
 
-    DST=$OUTDIR/CertiCoq/Plugin/runtime make -C runtime install
+    DST=$OUTDIR/CertiRocq/Plugin/runtime make -C runtime install
     COQLIBINSTALL=$OUTDIR make -C theories install
     COQLIBINSTALL=$OUTDIR make -C libraries install
 
@@ -68,7 +70,7 @@ mkCoqDerivation {
   '';
 
   meta = {
-    description = "CertiCoq";
+    description = "CertiRocq";
     maintainers = with maintainers; [ womeier ];
     license = licenses.mit;
   };

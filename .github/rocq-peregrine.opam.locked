@@ -13,7 +13,7 @@ depends: [
   "rocq-core" {= "9.1.1"}
   "rocq-runtime" {= "9.1.1"}
   "rocq-stdlib" {= "9.0.0"}
-  "coq-certicoq" {= "9.1.dev"}
+  "rocq-certirocq" {= "9.1.dev"}
   "coq-compcert" {= "3.17"}
   "rocq-ceres-bytestring" {= "1.0.0"}
   "rocq-metarocq-common" {= "1.5.1+9.1"}
@@ -42,7 +42,7 @@ pin-depends: [
     "git+https://github.com/4ever2/CompCert.git#0d1179ee06c4cd38b419696c17d49dad3a4a2521"
   ]
   [
-    "coq-certicoq.9.1.dev"
-    "git+https://github.com/CertiCoq/certicoq.git#c5f8e820af135d3d1adac0427fc52e0937d799b6"
+    "rocq-certirocq.9.1.dev"
+    "git+https://github.com/CertiRocq/certirocq.git#5e2f0d26bc95e5b8c0b3dd5918463fffb877d23a"
   ]
 ]

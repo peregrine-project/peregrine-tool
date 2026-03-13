@@ -31,12 +31,12 @@ depends: [
   "rocq-verified-extraction" {= "1.0.0+9.1"}
   "rocq-primitive" {= "9.0.0"}
   "rocq-ceres-bytestring" {= "1.0.0"}
-  "coq-certicoq" {= "9.1.dev"}
+  "rocq-certirocq" {= "9.1.dev"}
   "cmdliner" {>= "2.0.0"}
 ]
 
 pin-depends: [
-  ["coq-certicoq.9.1.dev" "git+https://github.com/CertiCoq/certicoq.git#c5f8e820af135d3d1adac0427fc52e0937d799b6"]
+  ["rocq-certirocq.9.1.dev" "git+https://github.com/CertiRocq/certirocq.git#5e2f0d26bc95e5b8c0b3dd5918463fffb877d23a"]
 ]
 
 build: [ make "build" ]
