@@ -39,7 +39,6 @@ library
                       EAst
                       EPrimitive
                       EProgram
-                      ERemapInductives
                       ExAst
                       FloatOps
                       IntDef

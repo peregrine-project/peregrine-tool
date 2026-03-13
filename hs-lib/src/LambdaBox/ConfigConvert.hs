@@ -5,7 +5,6 @@ import LambdaBox.Config
 import qualified Config0
 import qualified ConfigUtils
 import qualified EProgram
-import qualified ERemapInductives
 import qualified Serialize
 
 
@@ -99,9 +98,9 @@ remappedInductiveConv RemappedInductive {..} =
     (map stringConv indCtors)
     (fmap stringConv indMatch)
 
-extractInductiveConv :: ExtractInductive -> ERemapInductives.Coq_extract_inductive
+extractInductiveConv :: ExtractInductive -> EProgram.Coq_extract_inductive
 extractInductiveConv ExtractInductive {..} =
-  ERemapInductives.Build_extract_inductive
+  EProgram.Build_extract_inductive
     (map kerNameConv cstrs)
     (kerNameConv elim)
 
