@@ -16,7 +16,7 @@
       TypedExtraction.override.version = "0.2.0";
       CertiCoq.override.version = "coq-9.1";
       verified-extraction.override.version = "rocq-9.1-bs";
-      ceres-bs.override.version = "master";
+      ceres-bs.override.version = "1.0.0";
       CakeMLExtraction.override.version = "ceres-bs";
     }; rocqPackages = {
       rocq-core.override.version = "9.1";
