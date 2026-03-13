@@ -16,7 +16,6 @@ theories/erasure/Erasure.v
 theories/erasure/ErasureTyped.v
 theories/erasure/Transforms.v
 theories/erasure/EImplementLazyForce.v
-theories/erasure/ERemapInductives.v
 
 theories/backends/RustBackend.v
 theories/backends/ElmBackend.v

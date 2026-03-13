@@ -99,25 +99,24 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result PAst
   let cstr_reorder := mk_cstr_reorders c in
   let impl_box := c.(erasure_opts).(implement_box) in
   let impl_lazy := c.(erasure_opts).(implement_lazy) in
-  let ind_remaps := mk_ind_remaps c in
   match p, typed with
   | Untyped env (Some t), _ =>
-      let (env', t') := run_untyped_transforms econf cstr_reorder impl_box impl_lazy ind_remaps (env, t) in
+      let (env', t') := run_untyped_transforms econf cstr_reorder impl_box impl_lazy (env, t) in
       Ok (Untyped env' (Some t'))
   | Untyped env None, _ =>
-      let (env', _) := run_untyped_transforms econf cstr_reorder impl_box impl_lazy ind_remaps (env, EAst.tBox) in
+      let (env', _) := run_untyped_transforms econf cstr_reorder impl_box impl_lazy (env, EAst.tBox) in
       Ok (Untyped env' None)
   | Typed env (Some t), true =>
       let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (env, t) in
       Ok (Typed env' (Some t'))
   | Typed env (Some t), false =>
-      let (env', t') := run_typed_to_untyped_transforms econf cstr_reorder impl_box impl_lazy ind_remaps (env, t) in
+      let (env', t') := run_typed_to_untyped_transforms econf cstr_reorder impl_box impl_lazy (env, t) in
       (Ok (Untyped env' (Some t')))
   | Typed env None, true =>
       let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (env, EAst.tBox) in
       Ok (Typed env' None)
   | Typed env None, false =>
-      let (env', _) := run_typed_to_untyped_transforms econf cstr_reorder impl_box impl_lazy ind_remaps (env, EAst.tBox) in
+      let (env', _) := run_typed_to_untyped_transforms econf cstr_reorder impl_box impl_lazy (env, EAst.tBox) in
       (Ok (Untyped env' None))
   end.
 

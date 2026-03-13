@@ -4,7 +4,6 @@ From MetaRocq.Erasure Require EProgram.
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Common Require Kernames.
 From Malfunction Require Serialize.
-From Peregrine Require ERemapInductives.
 
 Local Open Scope bs_scope.
 
@@ -111,7 +110,7 @@ Section GeneralConfig.
   Inductive remap_inductive :=
   (* Remap inductives to defined constants *)
   (* Supported by untyped targets *)
-  | KnIndRemap : Kernames.kername -> list ERemapInductives.extract_inductive -> remap_inductive
+  | KnIndRemap : Kernames.kername -> list EProgram.extract_inductive -> remap_inductive
   (* Remap inductives to arbitrary strings *)
   (* Supported by typed targets *)
   | StringIndRemap : Kernames.inductive -> remapped_inductive -> remap_inductive.

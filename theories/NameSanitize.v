@@ -6,11 +6,11 @@ From MetaRocq.Common Require Import BasicAst.
 From MetaRocq.Erasure.Typed Require Import ResultMonad.
 From MetaRocq.Erasure Require EAst.
 From MetaRocq.Erasure Require ExAst.
+From MetaRocq.Erasure Require EProgram.
 From Peregrine Require Import Unicode.
 From Peregrine Require Import UnicodeXID.
 From Peregrine Require PAst.
 From Peregrine Require Config.
-From Peregrine Require ERemapInductives.
 
 From Stdlib Require Import Strings.Byte.
 
@@ -791,12 +791,12 @@ Definition sanitize_PAst (f : utf8_string -> string) (p : PAst.PAst) : result PA
     Ok (PAst.Typed env t)
   end.
 
-Definition sanitize_extract_inductive (f : utf8_string -> string) (r : ERemapInductives.extract_inductive) : result ERemapInductives.extract_inductive string :=
-  cstrs <- monad_map (sanitize_kername f) r.(ERemapInductives.cstrs);;
-  elim <- sanitize_kername f r.(ERemapInductives.elim);;
+Definition sanitize_extract_inductive (f : utf8_string -> string) (r : EProgram.extract_inductive) : result' EProgram.extract_inductive :=
+  cstrs <- monad_map (sanitize_kername f) r.(EProgram.cstrs);;
+  elim <- sanitize_kername f r.(EProgram.elim);;
   Ok {|
-    ERemapInductives.cstrs := cstrs;
-    ERemapInductives.elim := elim;
+    EProgram.cstrs := cstrs;
+    EProgram.elim := elim;
   |}.
 
 Definition sanitize_remap_inductive (f : utf8_string -> string) (r : Config.remap_inductive) : result Config.remap_inductive string :=

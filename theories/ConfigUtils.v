@@ -21,10 +21,21 @@ Local Open Scope bs_scope.
 
 Section ErasureConfig.
 
+  Definition mk_cstr_reorders (c : config) := c.(cstr_reorders_opts).
+
+  Definition mk_ind_remaps (c : config) : EProgram.extract_inductives :=
+    Utils.filter_map (fun r =>
+      match r with
+      | KnIndRemap kn r => Some (kn, r)
+      | _ => None
+      end
+    ) c.(ind_remappings_opts).
+
   Definition mk_opts (c : config) (typed : bool) : erasure_configuration := {|
       enable_unsafe := {|
         Erasure.cofix_to_lazy := c.(erasure_opts).(cofix_to_laxy);
         Erasure.inlining := true;
+        Erasure.inductives_extraction := true;
         Erasure.unboxing := c.(erasure_opts).(unboxing);
         Erasure.betared := c.(erasure_opts).(betared);
       |};
@@ -34,18 +45,9 @@ Section ErasureConfig.
         do_trim_ctor_masks := c.(erasure_opts).(dearg_ctors);
       |};
       enable_typed_erasure := typed;
-      inlined_constants := MetaRocq.Erasure.Typed.Utils.kername_set_of_list c.(inlinings_opts)
+      inlined_constants := MetaRocq.Erasure.Typed.Utils.kername_set_of_list c.(inlinings_opts);
+      extracted_inductives := mk_ind_remaps c;
     |}.
-
-  Definition mk_cstr_reorders (c : config) := c.(cstr_reorders_opts).
-
-  Definition mk_ind_remaps (c : config) : ERemapInductives.extract_inductives :=
-    Utils.filter_map (fun r =>
-      match r with
-      | KnIndRemap kn r => Some (kn, r)
-      | _ => None
-      end
-    ) c.(ind_remappings_opts).
 
 End ErasureConfig.
 

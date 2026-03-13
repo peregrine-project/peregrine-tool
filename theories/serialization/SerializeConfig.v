@@ -1,7 +1,6 @@
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Erasure Require Import EProgram.
 From Malfunction Require Serialize.
-From Peregrine Require Import ERemapInductives.
 From Peregrine Require Import Config.
 From Peregrine Require Import ConfigUtils.
 From Peregrine Require Import SerializeCommon.

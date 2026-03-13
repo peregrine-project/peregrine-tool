@@ -490,7 +490,7 @@ Proof.
   reflexivity.
 Qed.
 
-Instance Sound_extract_inductive : SoundClass ERemapInductives.extract_inductive.
+Instance Sound_extract_inductive : SoundClass EProgram.extract_inductive.
 Proof.
   unfold SoundClass, Sound.
   intros l e a He.

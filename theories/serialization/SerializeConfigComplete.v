@@ -356,7 +356,7 @@ Proof.
   reflexivity.
 Qed.
 
-Instance Complete_extract_inductive : CompleteClass ERemapInductives.extract_inductive.
+Instance Complete_extract_inductive : CompleteClass EProgram.extract_inductive.
 Proof.
   unfold CompleteClass, Complete.
   intros l o.
