@@ -23,12 +23,8 @@ depends: [
   "rocq-verified-extraction" {= "1.0.0+9.1"}
   "rocq-primitive" {= "9.0.0"}
   "rocq-ceres-bytestring" {= "1.0.0"}
-  "rocq-certirocq" {= "9.1.dev"}
+  "rocq-certirocq" {= "0.9.1+9.1"}
   "cmdliner" {>= "2.0.0"}
-]
-
-pin-depends: [
-  ["rocq-certirocq.9.1.dev" "git+https://github.com/CertiRocq/certirocq.git#5e2f0d26bc95e5b8c0b3dd5918463fffb877d23a"]
 ]
 
 build: [ make "build" ]
