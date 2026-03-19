@@ -25,7 +25,7 @@
       metarocq-erasure-plugin.override.version = "1.5.1-9.1";
 
       TypedExtraction.override.version = "0.2.1";
-      CertiRocq.override.version = "master";
+      CertiRocq.override.version = "0.9.1+9.1";
       verified-extraction.override.version = "1.0.0-9.1";
       ceres-bs.override.version = "1.0.0";
       CakeMLExtraction.override.version = "0.1.0";

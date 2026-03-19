@@ -13,7 +13,7 @@ depends: [
   "rocq-core" {= "9.1.1"}
   "rocq-runtime" {= "9.1.1"}
   "rocq-stdlib" {= "9.0.0"}
-  "rocq-certirocq" {= "9.1.dev"}
+  "rocq-certirocq" {= "0.9.1+9.1"}
   "rocq-ceres-bytestring" {= "1.0.0"}
   "rocq-metarocq-erasure-plugin" {= "1.5.1+9.1"}
   "rocq-primitive" {= "9.0.0"}
@@ -27,9 +27,3 @@ depends: [
 build: [make "build"]
 install: [make "install"]
 dev-repo: "git+https://github.com/peregrine-project/peregrine-tool.git"
-pin-depends: [
-  [
-    "rocq-certirocq.9.1.dev"
-    "git+https://github.com/CertiRocq/certirocq.git#5e2f0d26bc95e5b8c0b3dd5918463fffb877d23a"
-  ]
-]

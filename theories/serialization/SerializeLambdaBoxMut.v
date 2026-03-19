@@ -49,16 +49,18 @@ Instance Serialize_prim_tag : Serialize prim_tag :=
     match p with
     | primInt => Atom "primInt"
     | primFloat => Atom "primFloat"
+    | primString => Atom "primString"
     end.
 
-Instance Serialize_prim_value {p : primitive} : Serialize (prim_value (projT1 p)) :=
+Instance Serialize_prim_value {p : primitive_value} : Serialize (prim_value (projT1 p)) :=
   fun v => Atom "v". (* TODO *)
 
-Instance Serialize_primitive : Serialize primitive :=
+Instance Serialize_primitive_value : Serialize primitive_value :=
   fun p =>
     match projT1 p with
     | primInt => [Atom "primInt"; to_sexp (projT2 p)]
     | primFloat => [Atom "primFloat"; to_sexp (projT2 p)]
+    | primString => [Atom "primString"; to_sexp (projT2 p)]
     end%sexp.
 
 
@@ -161,8 +163,8 @@ Definition string_of_Program {T : Set} `{Serialize T} (x : Program T) : string :
 Definition string_of_prim_tag (x : prim_tag) : string :=
   @to_string prim_tag Serialize_prim_tag x.
 
-Definition string_of_primitive (x : primitive) : string :=
-  @to_string primitive Serialize_primitive x.
+Definition string_of_primitive_value (x : primitive_value) : string :=
+  @to_string primitive_value Serialize_primitive_value x.
 
 Definition string_of_Term (x : Term) : string :=
   @to_string Term Serialize_Term x.

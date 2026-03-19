@@ -34,9 +34,13 @@ Definition mk_opts (o : certirocq_config) : Options := {|
   prims := []; (* We pass prims directly to the pipeline *)
 |}.
 
-Definition mk_prims (rs : constant_remappings) : list (((kername × string) × nat) × bool) :=
+Definition mk_prims (rs : constant_remappings) : primitives :=
   map (fun '(kn, r) =>
-    (kn, r.(re_const_s), r.(re_const_arity), r.(re_const_gc))
+    {| prim_name   := kn;
+       prim_target := r.(re_const_s);
+       prim_arity  := r.(re_const_arity);
+       prim_alloc  := r.(re_const_gc);
+    |}
   ) rs.
 
 Definition get_libs (rs : constant_remappings) : IdentSet.t :=
@@ -47,56 +51,9 @@ Definition get_libs (rs : constant_remappings) : IdentSet.t :=
     end
   ) rs IdentSet.empty.
 
-
-
-Fixpoint find_arity (tau : EAst.term) : nat :=
-  match tau with
-  | EAst.tLambda _ body => 1 + find_arity body
-  | _ => 0
-  end.
-
-Definition find_global_decl_arity (gd : EAst.global_decl) : error nat :=
-  match gd with
-  | EAst.ConstantDecl bd =>
-    match (EAst.cst_body bd) with
-    | Some bd => Ret (find_arity bd)
-    | None => Err ("Found empty ConstantDecl body")
-    end
-  | EAst.InductiveDecl _ =>
-    Err ("Expected ConstantDecl but found InductiveDecl")
-  end.
-
-Fixpoint find_prim_arity (env : EAst.global_declarations) (pr : kername) : error nat :=
-  match env with
-  | [] => Err ("Constant " ++ string_of_kername pr ++ " not found in environment")
-  | (n, gd) :: env =>
-    if eq_kername pr n then find_global_decl_arity gd
-    else find_prim_arity env pr
-  end.
-
-Fixpoint find_prim_arities (env : EAst.global_declarations) (prs : list (kername * string * nat * bool)) : error (list (kername * string * bool * nat * positive)) :=
-  match prs with
-  | [] => Ret []
-  | (pr, s, a, b) :: prs =>
-    prs' <- find_prim_arities env prs ;;
-    Ret ((pr, s, b, a, 1%positive) :: prs')
-(*   | (pr, s, None, b) :: prs =>
-    match find_prim_arity env pr with
-    | Err _ => (* Be lenient, if a declared primitive is not part of the environment, just skip it *)
-      prs' <- find_prim_arities env prs ;;
-      Ret prs'
-    | Ret arity =>
-      prs' <- find_prim_arities env prs ;;
-      Ret ((pr, s, b, arity, 1%positive) :: prs')
-    end *)
-  end.
-
-Definition register_prims prs (id : positive) (env : EAst.global_declarations) : pipelineM (list (kername * string * bool * nat * positive) * positive) :=
-  match find_prim_arities env prs with
-  | Ret prs =>
-    ret (pick_prim_ident id prs)
-  | Err s => failwith s
-  end.
+Definition register_prims prs (id : positive) (env : EAst.global_declarations) : pipelineM (list (primitive * positive) * positive) :=
+  o <- get_options ;;
+  ret (pick_prim_ident id prs).
 
 
 
@@ -153,7 +110,7 @@ Definition id_trans {A : Type} : CertiRocqTrans A A :=
   fun p => ret p.
 
 Definition anf_pipeline {A : Type}
-      (f : list ((((Kernames.kername * string) * bool) * nat) * positive) -> CertiRocqTrans toplevel.LambdaANF_FullTerm A)
+      (f : list (primitive * positive) -> CertiRocqTrans toplevel.LambdaANF_FullTerm A)
       prs
       (p : EAst.program) :=
   let env := p.1 in
