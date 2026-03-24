@@ -8,7 +8,7 @@
   version ? null,
 }:
 
-(mkCoqDerivation {
+mkCoqDerivation {
   pname = "CakeMLExtraction";
   owner = "peregrine-project";
   repo = "cakeml-backend";
@@ -25,29 +25,31 @@
         inherit out;
       };
     in
+    with lib.versions;
     lib.switch
       [
         coq.coq-version
         metarocq-erasure-plugin.version
       ]
       [
-        (case "9.1" "1.5.1-9.1" "0.1.0")
+        (case (range "9.0" "9.1") (range "1.4" "1.5.1") "0.1.0")
       ]
       null;
   release = {
-    "0.1.0".sha256 = "sha256-diDUTj0l4vliov9+Lg8lNRdkLE7JAfJn8OU7J/HgmDE=";
+    "0.1.0".hash = "sha256-diDUTj0l4vliov9+Lg8lNRdkLE7JAfJn8OU7J/HgmDE=";
   };
   releaseRev = v: "v${v}";
 
-  mlPlugin = false;
-  useDune = false;
-
-  buildInputs = [ equations metarocq-erasure-plugin ceres-bs ];
-  propagatedBuildInputs = [ coq.ocamlPackages.findlib ];
+  propagatedBuildInputs = [
+    coq.ocamlPackages.findlib
+    equations
+    metarocq-erasure-plugin
+    ceres-bs
+  ];
 
   meta = with lib; {
     homepage = "https://peregrine-project.github.io/";
     description = "CakeML backend for Peregrine";
     maintainers = with maintainers; [ _4ever2 ];
   };
-})
+}

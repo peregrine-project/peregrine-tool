@@ -1,39 +1,36 @@
 {
   lib,
   fetchzip,
-  ocaml-ng,
-}@args:
+  buildDunePackage,
+  ocaml,
+  findlib,
+  zarith,
+  cppo,
+}:
 
-ocaml-ng.ocamlPackages_4_14.buildDunePackage {
+buildDunePackage (finalAttrs: {
   pname = "malfunction";
-  defaultVersion = "0.7.1";
   version = "0.7.1";
 
   src = fetchzip {
-    url = "https://github.com/stedolan/malfunction/archive/refs/tags/v0.7.1.tar.gz";
+    url = "https://github.com/stedolan/malfunction/archive/refs/tags/v${finalAttrs.version}.tar.gz";
     hash = "sha256-Cpe5rSBvsr3pqbucGZelutPoI+bcQPFCbdcKsE/HieY=";
   };
 
-  duneVersion = "3";
-
-  buildInputs = with ocaml-ng.ocamlPackages_4_14; [
-    ocaml
+  propagatedBuildInputs = [
     findlib
     zarith
-    ppx_optcomp
-    cppo
   ];
-  nativeBuildInputs = with ocaml-ng.ocamlPackages_4_14; [
-    ocaml
+  nativeBuildInputs = [
     cppo
-    findlib
   ];
 
-  meta = with lib; {
+  meta = {
     homepage = "http://github.com/stedolan/malfunction";
     description = "Malfunction is a high-performance, low-level untyped program representation, designed as a target for compilers of functional programming languages.";
-    license = licenses.lgpl21;
-    maintainers = [ ];
+    license = lib.licenses.lgpl21;
+    maintainers = with lib.maintainers; [ _4ever2 ];
     mainProgram = "malfunction";
+    broken = lib.versionAtLeast ocaml.version "5.4";
   };
-}
+})

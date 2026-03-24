@@ -2,15 +2,14 @@
   lib,
   mkCoqDerivation,
   coq,
-  dune_3,
+  dune,
   ceres-bs,
   equations,
   metarocq-erasure-plugin,
-  malfunction,
   version ? null,
 }:
 
-(mkCoqDerivation {
+mkCoqDerivation {
   pname = "verified-extraction";
   owner = "MetaRocq";
   repo = "rocq-verified-extraction";
@@ -37,25 +36,31 @@
       ]
       null;
   release = {
-    "1.0.0-9.1".sha256 = "sha256-0eKpchQtnPI12rcsb9+qN1pdNX9KY8VryZP0oqHuYeU=";
+    "1.0.0-9.1".hash = "sha256-0eKpchQtnPI12rcsb9+qN1pdNX9KY8VryZP0oqHuYeU=";
   };
   releaseRev = v: "v${v}";
 
-
-
   mlPlugin = true;
-  useDune = false;
 
-  buildInputs = [ dune_3 malfunction equations metarocq-erasure-plugin ceres-bs ];
-  propagatedBuildInputs = [ coq.ocamlPackages.ppx_optcomp coq.ocamlPackages.findlib malfunction ];
+  buildInputs = [ dune ];
+  propagatedBuildInputs = [
+    coq.ocamlPackages.findlib
+    coq.ocamlPackages.malfunction
+    equations
+    metarocq-erasure-plugin
+    ceres-bs
+  ];
 
-  patchPhase = ''
+  prePatch = ''
     patchShebangs plugin/plugin/clean_extraction.sh
   '';
 
   meta = with lib; {
     homepage = "https://metarocq.github.io/";
     description = "Verified Extraction from Rocq to OCaml. Including a bootstrapped extraction plugin";
-    maintainers = with maintainers; [ mattam82 _4ever2 ];
+    maintainers = with maintainers; [
+      mattam82
+      _4ever2
+    ];
   };
-})
+}
