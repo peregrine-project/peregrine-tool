@@ -1,9 +1,19 @@
 
-{ lib, mkCoqDerivation, which, coq
-  , metarocq-erasure-plugin, TypedExtraction
-  , ceres-bs, CertiRocq, verified-extraction
-  , rocq-primitive, CakeMLExtraction
-  , version ? null }:
+{
+  lib,
+  mkCoqDerivation,
+  which,
+  coq,
+  metarocq-erasure-plugin,
+  TypedExtraction,
+  ceres-bs,
+  CertiRocq,
+  verified-extraction,
+  rocq-primitive,
+  CakeMLExtraction,
+  dune,
+  version ? null
+}:
 
 with lib; mkCoqDerivation {
   pname = "Peregrine";
@@ -16,6 +26,7 @@ with lib; mkCoqDerivation {
   defaultVersion = with versions; switch coq.coq-version [
   ] null;
 
+  buildInputs = [ dune ];
   propagatedBuildInputs = [
     coq.ocamlPackages.cmdliner
     coq.ocamlPackages.findlib
@@ -30,20 +41,22 @@ with lib; mkCoqDerivation {
   ];
 
   mlPlugin = true;
-  useDune = true;
-
-  preBuild = ''
-    make theory
-  '';
+  useDune = false;
 
   installPhase = ''
     runHook preInstall
+
+    OUTDIR=$out/lib/coq/${coq.coq-version}/user-contrib
+
     dune install --prefix=$out --libdir $OCAMLFIND_DESTDIR  rocq-peregrine
+    COQLIBINSTALL=$OUTDIR make -f RocqMakefile install
+    COQLIBINSTALL=$OUTDIR COQPLUGININSTALL=$OCAMLFIND_DESTDIR make -C plugin install
+
     runHook postInstall
   '';
 
   meta = {
-    description = "A framework for extracting lambda box programs";
+    description = "The Peregrine Project provides a unified middle-end for code generation from proof assistants.";
     maintainers = with maintainers; [ _4ever2 ];
     license = licenses.mit;
   };
