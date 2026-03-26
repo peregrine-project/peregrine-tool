@@ -39,6 +39,10 @@ mkCoqDerivation {
   mlPlugin = true;
   useDune = false;
 
+  prePatch = ''
+    patchShebangs plugin/process_extraction.sh
+  '';
+
   installPhase = ''
     runHook preInstall
 
