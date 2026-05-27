@@ -10,6 +10,7 @@ From Peregrine Require ElmBackend.
 From Peregrine Require OCamlBackend.
 From Peregrine Require CBackend.
 From Peregrine Require WasmBackend.
+From Peregrine Require LeanBackend.
 From Peregrine Require EvalBackend.
 From Peregrine Require ASTBackend.
 From Peregrine Require NameSanitize.
@@ -73,7 +74,7 @@ Definition validate_ast_type (c : config) (p : PAst) : result' unit :=
   match c.(backend_opts) with
   | Rust _ => assert (is_typed_ast p) "Rust extraction requires typed lambda box input"
   | Elm _ => assert (is_typed_ast p) "Elm extraction requires typed lambda box input"
-  | C _ | Wasm _ | OCaml _ | CakeML _ | Eval _ => Ok tt
+  | C _ | Wasm _ | OCaml _ | CakeML _ | Lean _ | Eval _ => Ok tt
   | AST c =>
     match c.(ast_type) with
     | LambdaBoxTyped => assert (is_typed_ast p) "Extraction requires typed lambda box input"
@@ -84,7 +85,7 @@ Definition validate_ast_type (c : config) (p : PAst) : result' unit :=
 Definition needs_typed (c : config) : bool :=
   match c.(backend_opts) with
   | Rust _ | Elm _ => true
-  | C _ | Wasm _ | OCaml _ | CakeML _ | Eval _ => false
+  | C _ | Wasm _ | OCaml _ | CakeML _ | Lean _ | Eval _ => false
   | AST c =>
     match c.(ast_type) with
     | LambdaBoxTyped => true
@@ -127,6 +128,7 @@ Inductive extracted_program :=
 | WasmProgram : string -> extracted_program
 | OCamlProgram : (list string * string) -> extracted_program
 | CakeMLProgram : (list string * string) -> extracted_program
+| LeanProgram : string -> extracted_program
 | EvalProgram : string -> extracted_program
 | ASTProgram : string -> extracted_program.
 
@@ -197,6 +199,16 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       f
       p';;
     Ok (WasmProgram res)
+
+  | Lean opts =>
+    p' <- PAst_to_EAst p;;
+    res <- LeanBackend.extract_lean
+      const_remaps
+      custom_attr
+      opts
+      f
+      p';;
+    Ok (LeanProgram res)
 
   | Eval opts =>
     p' <- PAst_to_EAst p;;
