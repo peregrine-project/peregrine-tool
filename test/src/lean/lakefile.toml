@@ -4,4 +4,4 @@ defaultTargets = ["Peregrine"]
 
 [[lean_lib]]
 name = "Peregrine"
-roots = ["Peregrine.Runtime"]
+roots = ["Peregrine.Runtime", "Peregrine.TestPrinters"]

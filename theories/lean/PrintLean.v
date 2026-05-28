@@ -27,40 +27,21 @@ Definition concat_with (sep : string) (xs : list string) : string :=
    limitation, controlled by [lean_print_full_names]. *)
 Definition local_name (kn : kername) : string := snd kn.
 
-(* Module-qualified flat name, using [_] as the separator.  The
-   modpath dirpath is reversed (Coq stores dirpaths inner-most-first)
-   and joined.  For [MPfile []] (empty modpath, as produced by
-   lean-to-lambdabox today) this degenerates to just [snd kn], so it
-   is safe to make full names the default. *)
-Fixpoint modpath_to_lean (mp : modpath) : string :=
-  match mp with
-  | MPfile dp =>
-    String.concat "_" (List.rev dp)
-  | MPbound dp id _ =>
-    let prefix := String.concat "_" (List.rev dp) in
-    match prefix with
-    | "" => id
-    | _ => prefix ++ "_" ++ id
-    end
-  | MPdot mp id =>
-    let prefix := modpath_to_lean mp in
-    match prefix with
-    | "" => id
-    | _ => prefix ++ "_" ++ id
-    end
-  end.
-
-(* When the modpath is empty (as is currently the case for .ast files
-   produced by lean-to-lambdabox), fall back to [default_module] —
-   typically the source file basename — so that emitted names stay
-   stable across compilation units rather than colliding inside a
-   single [Generated] namespace. *)
+(* Flat full name: [default_module ++ "_" ++ snd kn].  [default_module]
+   is the source file basename, supplied by the CLI driver.  We
+   deliberately ignore the kernel modpath: across frontends the
+   modpath ranges from empty (lean-to-lambdabox) to deep
+   ([Peregrine.Tests.Demo] for rocq extractions), which would
+   yield inconsistent emitted names across otherwise-identical
+   programs.  Tests expect [<File>_<ident>], so we anchor on the
+   file name.  External-module references in the same program are
+   currently rare because erasure inlines library types into local
+   copies; if collisions ever arise, switch this to fold a
+   one-component summary of [fst kn]. *)
 Definition full_name (default_module : string) (kn : kername) : string :=
-  let mp := modpath_to_lean (fst kn) in
-  let prefix := match mp with "" => default_module | _ => mp end in
-  match prefix with
+  match default_module with
   | "" => snd kn
-  | _ => prefix ++ "_" ++ snd kn
+  | _ => default_module ++ "_" ++ snd kn
   end.
 
 Definition pick_fun_name (full : bool) (default_module : string) (kn : kername) : string :=
@@ -198,9 +179,18 @@ Fixpoint print_lterm (full_names : bool) (default_module : string) (env : ind_en
       | [] => []
       | b :: rest => print_br i b :: print_brs (S i) rest
       end in
-    reflect ("(match (Peregrine.cast " ++ print_lterm full_names default_module env discr ++ " : "
-      ++ ind_n ++ ") with" ++ nl
-      ++ concat_with nl (print_brs 0 brs) ++ nl ++ ")")
+    match brs with
+    | [] =>
+      (* Match on an empty inductive (e.g. an [Empty]/[False] left
+         over from erasure).  We still elaborate the discriminant for
+         its effects, then evaluate to the placeholder [()] — these
+         expressions are unreachable in well-typed programs. *)
+      reflect ("(let _ : Obj := " ++ print_lterm full_names default_module env discr ++ "; ())")
+    | _ =>
+      reflect ("(match (Peregrine.cast " ++ print_lterm full_names default_module env discr ++ " : "
+        ++ ind_n ++ ") with" ++ nl
+        ++ concat_with nl (print_brs 0 brs) ++ nl ++ ")")
+    end
   | LPanic _ =>
     (* Stand-in Obj for computationally irrelevant terms (tBox
        replacements, unsupported nested tFix).  A well-typed program
