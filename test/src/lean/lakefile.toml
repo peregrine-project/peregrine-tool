@@ -1,0 +1,7 @@
+name = "lean_tests"
+version = "0.1.0"
+defaultTargets = ["Peregrine"]
+
+[[lean_lib]]
+name = "Peregrine"
+roots = ["Peregrine.Runtime"]

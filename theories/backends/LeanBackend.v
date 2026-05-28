@@ -14,7 +14,7 @@ Local Open Scope bs_scope.
 
 Definition default_lean_config := {|
   lean_namespace        := "Generated";
-  lean_print_full_names := false;
+  lean_print_full_names := true;
 |}.
 
 Definition lean_phases := {|
@@ -36,7 +36,7 @@ Definition extract_lean (remaps : constant_remappings)
                         (p : EAst.program)
                         : result' string :=
   let ir := compile_program p in
-  Ok (print_program opts.(lean_namespace) ir).
+  Ok (print_program opts.(lean_print_full_names) file_name opts.(lean_namespace) ir).
 
 
 
