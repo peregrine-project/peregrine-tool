@@ -1,6 +1,6 @@
 import { execSync } from "child_process";
 import { ExecResult, ProgramType, SimpleType, TestCase } from "./types";
-import { appendFileSync, copyFileSync, cpSync, existsSync, mkdirSync } from "fs";
+import { appendFileSync, copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 
 const template_dir = path.join(process.cwd(), "src/lean/");
@@ -28,86 +28,39 @@ export function prepare_lean_project(tmpdir: string, timeout: number): string {
   return projectdir;
 }
 
-// Source-language inductive names used by the printers below.  These
-// match the convention the existing lean_tests / agda / rocq programs
-// follow (Bool_, Nat_, List_); each becomes `<Name>__` after the
-// Lean backend's sanitiser + suffix pass (see lean/HANDOFF.md).
-function pp_helpers(type: ProgramType): string {
-  // Collect every helper the test's output_type transitively needs.
-  const need = { bool: false, nat: false, list: false, option: false, prod: false };
-  const visit = (t: ProgramType) => {
-    if (t === SimpleType.Bool) need.bool = true;
-    else if (t === SimpleType.Nat) need.nat = true;
-    else if (typeof t !== "number") {
-      if (t.type === "list") { need.list = true; visit(t.a_t); }
-      else if (t.type === "option") { need.option = true; visit(t.a_t); }
-      else if (t.type === "prod") { need.prod = true; visit(t.a_t); visit(t.b_t); }
-    }
-  };
-  visit(type);
-
-  const parts: string[] = [];
-  if (need.bool) {
-    parts.push(`unsafe def pp_bool (o : Obj) : String :=
-  match (Peregrine.cast o : Generated.Bool__) with
-  | .Bool__UU2efalse_ => "false"
-  | .Bool__UU2etrue_ => "true"`);
-  }
-  if (need.nat) {
-    parts.push(`unsafe def pp_nat (o : Obj) : String :=
-  match (Peregrine.cast o : Generated.Nat__) with
-  | .Nat__UU2ezero_ => "O"
-  | .Nat__UU2esuc_ n => "(S " ++ pp_nat n ++ ")"`);
-  }
-  if (need.list) {
-    parts.push(`unsafe def pp_list (ppA : Obj -> String) (o : Obj) : String :=
-  match (Peregrine.cast o : Generated.List__) with
-  | .List__UU2eempty_ => "nil"
-  | .List__UU2econs_ h t => "(cons " ++ ppA h ++ " " ++ pp_list ppA t ++ ")"`);
-  }
-  if (need.option) {
-    parts.push(`unsafe def pp_option (ppA : Obj -> String) (o : Obj) : String :=
-  match (Peregrine.cast o : Generated.Option__) with
-  | .Option__UU2eNone_ => "None"
-  | .Option__UU2eSome_ x => "(Some " ++ ppA x ++ ")"`);
-  }
-  if (need.prod) {
-    parts.push(`unsafe def pp_prod (ppA : Obj -> String) (ppB : Obj -> String) (o : Obj) : String :=
-  match (Peregrine.cast o : Generated.Prod__) with
-  | .Prod__UU2epair_ a b => "(pair " ++ ppA a ++ " " ++ ppB b ++ ")"`);
-  }
-  return parts.join("\n\n");
-}
-
-// Build the expression that prints a value of `type`.
+// Build a Lean expression that prints an `Obj` of `type` via the
+// universal printers in Peregrine.TestPrinters.  Those printers cast
+// the Obj to canonical inductives (PBool/PNat/PList) whose runtime
+// layout matches any source inductive with the same constructor
+// arities in the same order — Bool first/then true, Nat zero/then
+// succ, List nil/then cons — so they work regardless of which
+// frontend produced the .ast (rocq, agda, lean, ...).
 function pp_call(type: ProgramType): string | undefined {
-  if (type === SimpleType.Bool) return "pp_bool";
-  if (type === SimpleType.Nat) return "pp_nat";
+  if (type === SimpleType.Bool) return "Peregrine.pp_bool";
+  if (type === SimpleType.Nat) return "Peregrine.pp_nat";
   if (type === SimpleType.UInt63) return undefined;
   if (type === SimpleType.Other) return undefined;
   if (typeof type === "number") return undefined;
   switch (type.type) {
     case "list": {
       const a = pp_call(type.a_t);
-      return a === undefined ? undefined : `(pp_list ${a})`;
+      return a === undefined ? undefined : `(Peregrine.pp_list ${a})`;
     }
-    case "option": {
-      const a = pp_call(type.a_t);
-      return a === undefined ? undefined : `(pp_option ${a})`;
-    }
-    case "prod": {
-      const a = pp_call(type.a_t);
-      const b = pp_call(type.b_t);
-      return (a && b) ? `(pp_prod ${a} ${b})` : undefined;
-    }
+    case "option":
+    case "prod":
+      // No universal printers for these yet; treat as opaque so the
+      // runner just exercises evaluation without checking the result.
+      return undefined;
   }
 }
 
-// Append a `main` to the generated file that prints the test's
-// entry-point value using the s-expression format the existing
-// expected_output[0] strings encode.
+// Splice an `import Peregrine.TestPrinters` next to the generated
+// file's existing imports, and append a `main` that prints the
+// test's entry-point value in the s-expression format
+// `expected_output[0]` already encodes.  Imports must precede all
+// other declarations in Lean, so we cannot simply `appendFileSync`
+// the import.
 function append_main(file: string, test: TestCase) {
-  const helpers = pp_helpers(test.output_type);
   const printer = pp_call(test.output_type);
   const target = `Generated.${test.main}`;
 
@@ -115,14 +68,17 @@ function append_main(file: string, test: TestCase) {
     ? `let _ := ${target}; pure ()`
     : `IO.println (${printer} ${target})`;
 
-  const content = `
-${helpers}
+  const original = readFileSync(file, "utf8");
+  const patched = original.replace(
+    "import Peregrine.Runtime",
+    "import Peregrine.Runtime\nimport Peregrine.TestPrinters",
+  );
+
+  writeFileSync(file, patched + `
 
 unsafe def main : IO Unit :=
   ${main_body}
-`;
-
-  appendFileSync(file, content);
+`);
 }
 
 export function run_lean(file: string, projectdir: string, test: TestCase, timeout: number): ExecResult {

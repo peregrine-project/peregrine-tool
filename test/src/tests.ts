@@ -50,14 +50,14 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Exports.ast",
-            main: "Exports_main",
+            main: "Exports_test",
             output_type: SimpleType.Other,
             expected_output: ["", ""],
             parameters: []
         },
         {
             src: "agda/Hello.ast",
-            main: "Hello_hello",
+            main: "Hello_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))) nil))))))",
@@ -68,7 +68,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Imports.ast",
-            main: "Imports_test2",
+            main: "Imports_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S (S (S (S (S O)))))) nil)",
@@ -79,21 +79,21 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Input.ast",
-            main: "Input_main",
+            main: "Input_test",
             output_type: SimpleType.Other,
             expected_output: ["", ""],
             parameters: []
         },
         {
             src: "agda/Irr.ast",
-            main: "Irr_ys",
+            main: "Irr_test",
             output_type: SimpleType.Other,
             expected_output: undefined,
             parameters: []
         },
         {
             src: "agda/K.ast",
-            main: "K_K",
+            main: "K_test",
             output_type: SimpleType.Other,
             expected_output: undefined,
             parameters: []
@@ -111,7 +111,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Map.ast",
-            main: "Map_ys",
+            main: "Map_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S O)) (cons (S (S (S (S (S (S O)))))) (cons (S (S (S (S (S (S (S (S (S (S O)))))))))) nil)))",
@@ -129,7 +129,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Nat.ast",
-            main: "Nat_thing",
+            main: "Nat_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S O)))", "", ""],
             parameters: []
@@ -150,7 +150,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Proj.ast",
-            main: "Proj_second",
+            main: "Proj_test",
             output_type: SimpleType.Bool,
             expected_output: ["false", "", ""],
             parameters: []
@@ -164,7 +164,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/scheme.ast",
-            main: "scheme_demo",
+            main: "scheme_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S (S (S (S O))))))", ""],
             parameters: []
@@ -199,14 +199,14 @@ var agda_tests: TestCase[] =
             }, */ // No main to test
         {
             src: "agda/Unicode.ast",
-            main: "Unicode_main",
+            main: "Unicode_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: ["(cons (S O) nil)", "", ""],
             parameters: []
         },
         {
             src: "agda/With.ast",
-            main: "With_ys",
+            main: "With_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: ["(cons true nil)", "", ""],
             parameters: []
