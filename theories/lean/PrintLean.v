@@ -24,15 +24,52 @@ Definition concat_with (sep : string) (xs : list string) : string :=
 (* Use just the last component of a kername.  All emitted definitions
    live inside a single Lean namespace, so collisions only matter
    across modules that happen to share a local name — accepted v1
-   limitation. *)
+   limitation, controlled by [lean_print_full_names]. *)
 Definition local_name (kn : kername) : string := snd kn.
+
+(* Module-qualified flat name, using [_] as the separator.  The
+   modpath dirpath is reversed (Coq stores dirpaths inner-most-first)
+   and joined.  For [MPfile []] (empty modpath, as produced by
+   lean-to-lambdabox today) this degenerates to just [snd kn], so it
+   is safe to make full names the default. *)
+Fixpoint modpath_to_lean (mp : modpath) : string :=
+  match mp with
+  | MPfile dp =>
+    String.concat "_" (List.rev dp)
+  | MPbound dp id _ =>
+    let prefix := String.concat "_" (List.rev dp) in
+    match prefix with
+    | "" => id
+    | _ => prefix ++ "_" ++ id
+    end
+  | MPdot mp id =>
+    let prefix := modpath_to_lean mp in
+    match prefix with
+    | "" => id
+    | _ => prefix ++ "_" ++ id
+    end
+  end.
+
+(* When the modpath is empty (as is currently the case for .ast files
+   produced by lean-to-lambdabox), fall back to [default_module] —
+   typically the source file basename — so that emitted names stay
+   stable across compilation units rather than colliding inside a
+   single [Generated] namespace. *)
+Definition full_name (default_module : string) (kn : kername) : string :=
+  let mp := modpath_to_lean (fst kn) in
+  let prefix := match mp with "" => default_module | _ => mp end in
+  match prefix with
+  | "" => snd kn
+  | _ => prefix ++ "_" ++ snd kn
+  end.
+
+Definition pick_fun_name (full : bool) (default_module : string) (kn : kername) : string :=
+  if full then full_name default_module kn else local_name kn.
 
 (* Suffix inductive / constructor names with [_] so we never collide
    with Lean keywords (e.g. [true], [false], [Nat]). *)
 Definition ind_name (s : ident) : string := s ++ "_".
 Definition ctor_name (s : ident) : string := s ++ "_".
-
-Definition fun_name (kn : kername) : string := local_name kn.
 
 Fixpoint mk_arg_idents (n : nat) : list string :=
   match n with
@@ -99,11 +136,11 @@ Definition lookup_ind_name (env : ind_env) (ind : inductive) : string :=
    Lean expression.  We achieve this by wrapping each emitted term
    in [Peregrine.reflect] (idempotent at runtime).  This eliminates
    the bookkeeping of where conversions are required. *)
-Fixpoint print_lterm (env : ind_env) (t : lterm) : string :=
+Fixpoint print_lterm (full_names : bool) (default_module : string) (env : ind_env) (t : lterm) : string :=
   let reflect s := "(Peregrine.reflect " ++ s ++ ")" in
   match t with
   | LVar id => reflect id
-  | LConst kn => reflect (fun_name kn)
+  | LConst kn => reflect (pick_fun_name full_names default_module kn)
   | LCtor ind idx args =>
     let cn := lookup_ctor_name env ind idx in
     let ind_n := lookup_ind_name env ind in
@@ -112,7 +149,7 @@ Fixpoint print_lterm (env : ind_env) (t : lterm) : string :=
       | [] => "(." ++ cn ++ " : " ++ ind_n ++ ")"
       | _ =>
         "((" ++ ind_n ++ "." ++ cn ++ ") "
-          ++ concat_with " " (List.map (print_lterm env) args) ++ ")"
+          ++ concat_with " " (List.map (print_lterm full_names default_module env) args) ++ ")"
       end in
     reflect body
   | LProj p discr =>
@@ -137,17 +174,17 @@ Fixpoint print_lterm (env : ind_env) (t : lterm) : string :=
         | S k => mk_pat (nargs - i) :: aux k
         end in
       aux nargs in
-    reflect ("(match (Peregrine.cast " ++ print_lterm env discr
+    reflect ("(match (Peregrine.cast " ++ print_lterm full_names default_module env discr
       ++ " : " ++ lookup_ind_name env ind ++ ") with | ." ++ cn ++ " "
       ++ concat_with " " pat_args ++ " => x)")
   | LApp f x =>
-    reflect ("(Peregrine.apply " ++ print_lterm env f
-      ++ " " ++ print_lterm env x ++ ")")
+    reflect ("(Peregrine.apply " ++ print_lterm full_names default_module env f
+      ++ " " ++ print_lterm full_names default_module env x ++ ")")
   | LLam id body =>
-    reflect ("(fun (" ++ id ++ " : Obj) => " ++ print_lterm env body ++ ")")
+    reflect ("(fun (" ++ id ++ " : Obj) => " ++ print_lterm full_names default_module env body ++ ")")
   | LLet id b body =>
-    reflect ("(let " ++ id ++ " : Obj := " ++ print_lterm env b ++ "; "
-      ++ print_lterm env body ++ ")")
+    reflect ("(let " ++ id ++ " : Obj := " ++ print_lterm full_names default_module env b ++ "; "
+      ++ print_lterm full_names default_module env body ++ ")")
   | LCase discr ind brs =>
     let ind_n := lookup_ind_name env ind in
     let print_br (i : nat) (br : list ident * lterm) : string :=
@@ -155,13 +192,13 @@ Fixpoint print_lterm (env : ind_env) (t : lterm) : string :=
       let cn := lookup_ctor_name env ind i in
       "  | ." ++ cn
         ++ (match ids with [] => "" | _ => " " ++ concat_with " " ids end)
-        ++ " => " ++ print_lterm env body in
+        ++ " => " ++ print_lterm full_names default_module env body in
     let fix print_brs (i : nat) (bs : list (list ident * lterm)) : list string :=
       match bs with
       | [] => []
       | b :: rest => print_br i b :: print_brs (S i) rest
       end in
-    reflect ("(match (Peregrine.cast " ++ print_lterm env discr ++ " : "
+    reflect ("(match (Peregrine.cast " ++ print_lterm full_names default_module env discr ++ " : "
       ++ ind_n ++ ") with" ++ nl
       ++ concat_with nl (print_brs 0 brs) ++ nl ++ ")")
   | LPanic _ =>
@@ -192,19 +229,20 @@ Definition print_inductive (mib : EAst.mutual_inductive_body) : string :=
       ++ "end"
   end.
 
-Definition print_lfun (env : ind_env) (name : string) (f : lfun) : string :=
+Definition print_lfun (full_names : bool) (default_module : string) (env : ind_env) (name : string) (f : lfun) : string :=
   "unsafe def " ++ name ++ " "
     ++ concat_with " " (List.map (fun id => "(" ++ id ++ " : Obj)") f.(lfun_params))
     ++ " : Obj :=" ++ nl
-    ++ "  " ++ print_lterm env f.(lfun_body).
+    ++ "  " ++ print_lterm full_names default_module env f.(lfun_body).
 
-Definition print_decl (env : ind_env) (kn : kername) (d : ldecl) : string :=
+Definition print_decl (full_names : bool) (default_module : string) (env : ind_env) (kn : kername) (d : ldecl) : string :=
   match d with
   | LInductive mib => print_inductive mib
-  | LDef f => print_lfun env (fun_name kn) f
+  | LDef f => print_lfun full_names default_module env (pick_fun_name full_names default_module kn) f
   | LRecGroup fs =>
     "mutual" ++ nl
-      ++ concat_with nl (List.map (fun '(kn', f) => print_lfun env (fun_name kn') f) fs) ++ nl
+      ++ concat_with nl (List.map (fun '(kn', f) =>
+           print_lfun full_names default_module env (pick_fun_name full_names default_module kn') f) fs) ++ nl
       ++ "end"
   end.
 
@@ -218,8 +256,9 @@ Definition preamble (ns : string) : string :=
 Definition postamble (ns : string) : string :=
   nl ++ "end " ++ ns ++ nl.
 
-Definition print_program (ns : string) (p : lprogram) : string :=
+Definition print_program (full_names : bool) (default_module : string) (ns : string) (p : lprogram) : string :=
   let env := build_ind_env p.(ldecls) in
   preamble ns
-    ++ concat_with (nl ++ nl) (List.map (fun '(kn, d) => print_decl env kn d) p.(ldecls))
+    ++ concat_with (nl ++ nl)
+         (List.map (fun '(kn, d) => print_decl full_names default_module env kn d) p.(ldecls))
     ++ postamble ns.
