@@ -34,7 +34,7 @@ jobs:
         ocaml_version: ["4.14.2"] #, "5.3.0"]
     steps:
       - name: Checkout branch ${{ github.ref_name }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - run: sudo apt-get update
       - name: Restore opam cache
@@ -98,7 +98,7 @@ jobs:
           cabal-version: ${{env.CABAL_VERSION}}
 
       - name: Checkout agda2lambox
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: 4ever2/agda2lambox
           ref: 20120b78af01b7bec1c8d46ba8dceef140d65fb6
