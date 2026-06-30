@@ -39,7 +39,7 @@ jobs:
       - run: sudo apt-get update
       - name: Restore opam cache
         id: opam-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: "~/.opam"
           key: opam-${{matrix.ocaml_version}}-${{hashFiles('.github/rocq-peregrine.opam.locked')}}
@@ -110,7 +110,7 @@ jobs:
           cabal configure --disable-documentation && \
           cabal build all --dry-run
       - name: Restore cached Haskell dependencies
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         id: haskell-cache
         env:
           key: ${{ runner.os }}-${{ env.GHC_VERSION }}-${{ env.CABAL_VERSION }}
@@ -123,7 +123,7 @@ jobs:
         if: steps.haskell-cache.outputs.cache-hit != 'true'
         run: cd agda && cabal build all --only-dependencies
       - name: Save cached dependencies
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         if: steps.haskell-cache.outputs.cache-hit != 'true'
         with:
           path: ${{ steps.haskell-setup.outputs.cabal-store }}
