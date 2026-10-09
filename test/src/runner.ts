@@ -40,10 +40,13 @@ function get_exec(local: boolean): string {
 // `file` input program
 // `lang` language that we compile to
 // `opts` compiler options
+// `config` optional pipeline configuration file; when given the program is
+// compiled with `peregrine compile`, the configuration selects the backend
 // returns a string containing the location of the compiled code or an ExecFailure object
-function compile_box(file: string, outdir: string, lang: Lang, opts: string): string | ExecFailure {
+function compile_box(file: string, outdir: string, lang: Lang, opts: string, config?: string): string | ExecFailure {
   const out_f = path.join(outdir, path.basename(replace_ext(file, lang_to_ext(lang))));
-  const cmd = `${get_exec(use_local_binary)} ${lang_to_peregrine_arg(lang)} ${file} -o ${out_f} ${opts}`;
+  const verb = config === undefined ? `${lang_to_peregrine_arg(lang)} ${file}` : `compile ${file} ${config}`;
+  const cmd = `${get_exec(use_local_binary)} ${verb} -o ${out_f} ${opts}`;
 
   try {
     execSync(cmd, { stdio: "pipe", timeout: compile_timeout });
@@ -236,7 +239,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         process.stdout.write(`  ${test.tsrc}: `);
 
         // Compile peregrine
-        const f_rs = compile_box(test.tsrc, otudir, Lang.Rust, opts);
+        const f_rs = compile_box(test.tsrc, otudir, Lang.Rust, opts, "src/rust/config.sexp");
         if (typeof f_rs !== "string") {
           print_result(f_rs, test.tsrc);
           continue;
@@ -265,7 +268,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         process.stdout.write(`  ${test.tsrc}: `);
 
         // Compile peregrine
-        const f_elm = compile_box(test.tsrc, otudir, Lang.Elm, opts);
+        const f_elm = compile_box(test.tsrc, otudir, Lang.Elm, opts, "src/elm/config.sexp");
         if (typeof f_elm !== "string") {
           print_result(f_elm, test.tsrc);
           continue;
