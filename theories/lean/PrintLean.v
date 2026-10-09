@@ -338,26 +338,24 @@ Definition preamble (ns : string) : string :=
 Definition postamble (ns : string) : string :=
   nl ++ "end " ++ ns ++ nl.
 
-(* Knames of nullary [LDef]s — the constants emitted as [Thunk Obj]
-   and therefore referenced via [.get]. *)
-Definition thunk_knames (decls : list (kername * ldecl)) : list kername :=
-  Utils.filter_map (fun (x : kername * ldecl) =>
-    let '(kn, d) := x in
-    match d with
-    | LDef f => match f.(lfun_params) with [] => Some kn | _ => None end
-    | _ => None
-    end
-  ) decls.
-
-(* Kernames of every printed definition (mutual-group members included). *)
-Definition printed_knames (decls : list (kername * ldecl)) : list kername :=
+(* Every printed definition (mutual-group members included). *)
+Definition printed_funs (decls : list (kername * ldecl)) : list (kername * lfun) :=
   List.concat (List.map (fun (x : kername * ldecl) =>
     let '(kn, d) := x in
     match d with
-    | LRecGroup fs => List.map fst fs
+    | LRecGroup fs => fs
     | LInductive _ => []
-    | _ => [kn]
+    | LDef f => [(kn, f)]
     end) decls).
+
+Definition printed_knames (decls : list (kername * ldecl)) : list kername :=
+  List.map fst (printed_funs decls).
+
+(* Knames of the nullary definitions — the constants [print_lfun] emits
+   as [Thunk Obj], which are therefore referenced via [.get]. *)
+Definition thunk_knames (decls : list (kername * ldecl)) : list kername :=
+  List.map fst (List.filter (fun '(_, f) =>
+    match f.(lfun_params) with [] => true | _ => false end) (printed_funs decls)).
 
 (* Base names occurring more than once — these get the file-root
    disambiguator in [full_name]. *)
