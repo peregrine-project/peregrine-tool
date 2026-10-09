@@ -40,4 +40,3 @@ unsafe inductive Obj : Type
 @[inline] unsafe def apply (f x : Obj) : Obj := (unsafeCast f : Obj → Obj) x
 
 end Peregrine
-
