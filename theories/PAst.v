@@ -5,6 +5,8 @@ From MetaRocq.Utils Require Import bytestring.
 From Peregrine Require Import Utils.
 From Peregrine Require Import EHindleyMilner.
 
+Local Open Scope bs_scope.
+
 
 
 Definition typed_env := ExAst.global_env.
@@ -24,15 +26,21 @@ Definition PAst_to_EAst (ast : PAst) : result' EAst.program :=
   | Typed env None => Ok (ExAst.trans_env env, EAst.tBox)
   end.
 
+(** Untyped (lambda-box) input for a typed target: annotate it by the
+    Hindley-Milner inference [EHindleyMilner.infer], or fail with the
+    inference's message.  Only [infer env = Ok env' -> trans_env env' = env]
+    is proved ([EHindleyMilner.infer_section]): erasure recovers the original
+    program.  The inferred [box_type] annotations are unverified. *)
+Definition infer_for_backend (env : untyped_env) : result' typed_env :=
+  map_error (fun e => "Could not infer types for the untyped input: " ++ e
+                      ++ ". Provide a typed (lambda-box-typed) program.")
+            (infer env).
+
 Definition PAst_to_ExAst (ast : PAst) : result' ExAst.global_env :=
   match ast with
-  (* Untyped (lambda-box) input is bridged to typed (lambda-box-typed) by the
-     Hindley-Milner inference [infer].  Only [trans_env (infer empty_sigs env)
-     = env] is proved (EHindleyMilner.infer_section): erasure recovers the
-     original program.  The inferred [box_type] annotations are unverified.
-     [peregrine_pipeline] does not reach this case: for a typed target
-     [Pipeline.apply_transforms] has already run [infer numeric_sigs]. *)
-  | Untyped env _ => Ok (infer empty_sigs env)
+  (* [peregrine_pipeline] does not reach this case: for a typed target
+     [Pipeline.apply_transforms] has already run [infer_for_backend]. *)
+  | Untyped env _ => infer_for_backend env
   | Typed env (Some t) => Ok env (* TODO: add t to env, with a fresh name or hardcoded main? *)
   | Typed env None => Ok env
   end.

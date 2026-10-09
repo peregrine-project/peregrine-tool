@@ -3,8 +3,6 @@ From Peregrine Require Import PAst.
 From Peregrine Require Import Config.
 From Peregrine Require Import ConfigUtils.
 From Peregrine Require Import Transforms.
-From Peregrine Require Import EHindleyMilner.
-From Peregrine Require Import EHMNumericSigs.
 From Peregrine Require Import Erasure.
 From Peregrine Require Import CheckWf.
 From Peregrine Require RustBackend.
@@ -72,21 +70,6 @@ Definition check_wf (p : PAst) : result' unit :=
       @CheckWfExAst.check_wf_typed_program EWellformed.all_env_flags env
   end.
 
-Definition validate_ast_type (c : config) (p : PAst) : result' unit :=
-  match c.(backend_opts) with
-  (* Untyped (lambda-box) input is accepted for the typed backends:
-     [apply_transforms] bridges it to lambda-box-typed with the HM inference
-     [infer], whose [box_type] annotations are unverified. *)
-  | Rust _ => Ok tt
-  | Elm _ => Ok tt
-  | C _ | Wasm _ | OCaml _ | CakeML _ | Lean _ | Eval _ => Ok tt
-  | AST c =>
-    match c.(ast_type) with
-    | LambdaBoxTyped => Ok tt
-    | _ => Ok tt
-    end
-  end.
-
 Definition needs_typed (c : config) : bool :=
   match c.(backend_opts) with
   | Rust _ | Elm _ => true
@@ -106,15 +89,18 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAs
   match p, typed with
   | Untyped env (Some t), true =>
       (* Typed backend on untyped (lambda-box) input: bridge to typed via the
-         HM inference [infer] on the *raw* env (before the untyped
-         pipeline turns constructors into blocks, which the typed backends do
-         not consume), then run the typed pipeline, which preserves applied
-         constructors.  [infer_section] gives [trans_env (infer env) = env];
+         HM inference [infer_for_backend] on the *raw* env (before the
+         untyped pipeline turns constructors into blocks, which the typed
+         backends do not consume), then run the typed pipeline, which
+         preserves applied constructors.  Inference failure is a pipeline
+         error.  [EHindleyMilner.infer_section] gives [trans_env env0 = env];
          nothing is proved about the inferred types. *)
-      let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (infer numeric_sigs env, t) in
+      env0 <- infer_for_backend env;;
+      let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (env0, t) in
       Ok (Typed env' (Some t'))
   | Untyped env None, true =>
-      let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (infer numeric_sigs env, EAst.tBox) in
+      env0 <- infer_for_backend env;;
+      let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (env0, EAst.tBox) in
       Ok (Typed env' None)
   | Untyped env (Some t), false =>
       let (env', t') := run_untyped_transforms econf cstr_reorder impl_box impl_lazy (env, t) in
@@ -255,7 +241,6 @@ Definition peregrine_pipeline (c : string + config') (attrs : list string) (p : 
   p <- parse_ast p;; (* Parse input string into AST *)
   c <- get_config c attrs;; (* Parse or construct config *)
   check_wf p;; (* Check that AST is wellformed *)
-  validate_ast_type c p;; (* Check that the provided AST is compatible with the chosen backend *)
   p <- NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c) p;; (* Sanitize names in AST *)
   c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;; (* Sanitize names in config *)
   p <- apply_transforms c p (needs_typed c);; (* Apply program transformation *)
