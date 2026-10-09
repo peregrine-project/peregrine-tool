@@ -3,6 +3,7 @@ From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import BasicAst.
 From MetaRocq.Erasure Require EAst.
+From MetaRocq.Erasure Require ELiftSubst.
 From Peregrine Require Import LeanIR.
 From Stdlib Require Import List.
 From Stdlib Require Import PeanoNat.
@@ -260,17 +261,28 @@ Definition compile_constant_body (kn : kername) (t : EAst.term) : lfun :=
   end.
 
 (* Generate one [(sibling_kn, lfun)] entry per def in a mutual fix
-   block.  Each sibling's body is the synthetic [tFix defs i],
-   compiled via [compile_constant_body] which already wires the
-   sibling self-references through [sibling_kname]. *)
-Definition emit_siblings (kn : kername) (defs : list (EAst.def EAst.term))
-    : list (kername * lfun) :=
+   block.  Each sibling's body is the synthetic [λ closure. tFix defs i],
+   compiled via [compile_constant_body], which already wires the
+   sibling self-references through [sibling_kname] and re-passes the
+   closure variables.
+
+   [closure] are the lambdas left of the η chunk in the emitting
+   constant [λ closure. λ eta. (tFix defs _) eta] (section variables,
+   typically); every member takes them, as its callers pass them.  The
+   [n_eta] η binders sit between [closure] and the fix, so the fix
+   bodies count them in their de Bruijn indices without referring to
+   them: substitute them away before re-wrapping. *)
+Definition emit_siblings (kn : kername) (closure : list name) (n_eta : nat)
+    (defs : list (EAst.def EAst.term)) : list (kername * lfun) :=
+  let defs := List.map (EAst.map_def
+    (ELiftSubst.subst (List.repeat EAst.tBox n_eta) (List.length defs))) defs in
   let fix aux (i : nat) (ds : list (EAst.def EAst.term)) : list (kername * lfun) :=
     match ds with
     | [] => []
     | d :: rest =>
       let sib_kn := sibling_kname kn d in
-      (sib_kn, compile_constant_body sib_kn (EAst.tFix defs i))
+      (sib_kn, compile_constant_body sib_kn
+                 (List.fold_right EAst.tLambda (EAst.tFix defs i) closure))
       :: aux (S i) rest
     end in
   aux 0 defs.
@@ -281,9 +293,9 @@ Definition compile_decl (kn : kername) (gd : EAst.global_decl) : list (kername *
     match cb.(EAst.cst_body) with
     | None => []  (* axiom; skip *)
     | Some t =>
-      let (_, body1) := peel_lambdas t in
-      let n_outer := List.length (fst (peel_lambdas t)) in
-      let '(_, body1') := eta_strip_max n_outer 0 body1 in
+      let (outer_params, body1) := peel_lambdas t in
+      let n_outer := List.length outer_params in
+      let '(n_eta, body1') := eta_strip_max n_outer 0 body1 in
       match body1' with
       | EAst.tFix defs _ =>
         match defs with
@@ -295,7 +307,8 @@ Definition compile_decl (kn : kername) (gd : EAst.global_decl) : list (kername *
              others are silently dropped to avoid Lean's "already
              declared" error. *)
           if eq_kername kn (sibling_kname kn d0) then
-            [(kn, LRecGroup (emit_siblings kn defs))]
+            [(kn, LRecGroup (emit_siblings kn
+               (List.firstn (n_outer - n_eta) outer_params) n_eta defs))]
           else
             []
         | _ =>
