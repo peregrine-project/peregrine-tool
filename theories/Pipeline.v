@@ -74,8 +74,9 @@ Definition check_wf (p : PAst) : result' unit :=
 
 Definition validate_ast_type (c : config) (p : PAst) : result' unit :=
   match c.(backend_opts) with
-  (* Untyped (lambda-box) input is accepted for the typed backends: [PAst_to_ExAst]
-     bridges it to lambda-box-typed via the verified HM section [infer]. *)
+  (* Untyped (lambda-box) input is accepted for the typed backends:
+     [apply_transforms] bridges it to lambda-box-typed with the HM inference
+     [infer], whose [box_type] annotations are unverified. *)
   | Rust _ => Ok tt
   | Elm _ => Ok tt
   | C _ | Wasm _ | OCaml _ | CakeML _ | Lean _ | Eval _ => Ok tt
@@ -105,10 +106,11 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAs
   match p, typed with
   | Untyped env (Some t), true =>
       (* Typed backend on untyped (lambda-box) input: bridge to typed via the
-         verified HM section [infer] on the *raw* env (before the untyped
+         HM inference [infer] on the *raw* env (before the untyped
          pipeline turns constructors into blocks, which the typed backends do
          not consume), then run the typed pipeline, which preserves applied
-         constructors.  [infer_section] gives [trans_env (infer env) = env]. *)
+         constructors.  [infer_section] gives [trans_env (infer env) = env];
+         nothing is proved about the inferred types. *)
       let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (infer numeric_sigs env, t) in
       Ok (Typed env' (Some t'))
   | Untyped env None, true =>

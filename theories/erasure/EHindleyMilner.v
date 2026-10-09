@@ -1,5 +1,5 @@
-(** * EHindleyMilner: a type-inference forward map λ□ → λ□ᵀ, verified as a
-      section of type erasure.
+(** * EHindleyMilner: a type-inference forward map λ□ → λ□ᵀ, proved to be a
+      section of type erasure.  The inferred types themselves are unverified.
 
     ------------------------------------------------------------------------
     OVERVIEW
@@ -27,36 +27,46 @@
 
       trans_env (infer D Σ) = Σ.                      (* [infer_section] *)
 
-    That is the verified deliverable and it is proved by [Qed] below (see
-    [Print Assumptions infer_section] at the bottom of the file — closed under
-    the empty context).
+    That is the only correctness property proved here.  It is proved by [Qed]
+    below; [Print Assumptions infer_section] at the bottom of the file reports
+    no logical axioms, only the primitive types [PrimString.string],
+    [PrimInt63.int] and [PrimFloat.float] that [EAst.term] mentions.
 
     ------------------------------------------------------------------------
     VERIFICATION STATUS
 
-    - VERIFIED (Qed, no admits, no added axioms):
+    - PROVED (Qed, no admits, no added axioms):
         [infer_section : forall D Σ, trans_env (infer D Σ) = Σ].
       This holds *by construction*: [infer] only fills in type fields that
       [trans_env] discards, and reproduces every skeleton field exactly.  The
-      proof is robust to ANY choice of inferred types and ANY signatures [D],
-      and to the dependency-ordered scheme threading (the scheme table only
-      affects discarded type fields).  Supporting structural facts
-      [infer_kernames] and [infer_has_deps] are also [Qed].
+      proof does not inspect the inferred types: it holds for ANY choice of
+      them and ANY signatures [D], so it says nothing about whether they are
+      right.  The structural facts [infer_kernames] and [infer_has_deps] are
+      also [Qed]; nothing in the pipeline uses them.
 
-    - EVALUATION PRESERVATION is not re-proved here, and need not be: given
-      [trans_env (infer D Σ) = Σ], observational/evaluation equivalence of the
-      typed program with its untyped image is exactly the statement already
-      established for [trans_env] in the verified pipeline
-      ([Transforms.trans_env_transform], whose [obseq] is [v' = v]).  Composing
-      that transform after [infer] transports evaluation with no fresh proof.
-      [Lemma eval_preserved_via_section] packages that transport as a rewrite
-      along [infer_section].
+    - EVALUATION.  Because [trans_env (infer D Σ) = Σ], any statement about
+      the untyped image of the inferred environment is a statement about [Σ];
+      [eval_preserved_via_section] is that rewrite, for an arbitrary predicate.
+      It is a consequence of the equality, not an evaluation-preservation
+      theorem, and it does not cover the typed backends, whose printers read
+      the [box_type] annotations.
 
-    - The inference ALGORITHM itself (the [box_type]s it assigns) does not
-      claim principality or completeness; these do not hold on all of λ□ (□
-      residue, polymorphic recursion, unrepresentable types).  Wherever HM
-      cannot assign a principal ML type, inference falls back to [TAny] (⊤ /
-      success-typing style), keeping [infer] TOTAL.
+    - NOT PROVED: anything about the [box_type]s [infer] assigns.  There is no
+      typing judgement for λ□ᵀ here, so neither soundness (the annotations
+      describe the terms), principality nor completeness is stated, and
+      soundness does not hold for the current algorithm:
+        * [infer_oib] gives every constructor field and projection the type
+          [TAny] and every inductive an empty [ind_type_vars], so the emitted
+          datatype declarations do not match their uses;
+        * [tCase] does not unify the scrutinee with the inductive, so a
+          function that only matches on its argument gets a polymorphic
+          argument type;
+        * a constructor without a signature in [D] has type [TAny], and
+          applying it yields an unconstrained fresh variable, so such a
+          constant is generalized to [forall a, a].
+      Rust and Elm printed from an inferred environment therefore do not, in
+      general, compile.  Where inference cannot proceed it falls back to
+      [TAny], keeping [infer] TOTAL; it never reports an error.
 
     ------------------------------------------------------------------------
     INFERENCE ALGORITHM
@@ -99,15 +109,15 @@
        binders are [TAny] (the [tCase] result and [tFix] variables remain fresh
        unification variables, which do not consult [D]).
 
-    4. TOWARD λ□ᵀ WELL-FORMEDNESS.  The imported MetaRocq install exposes no
-       [check_wf_typed_program] predicate, so a full "output is a well-typed
-       λ□ᵀ program" lemma is not available here.  What IS proved structurally:
+    4. TOWARD λ□ᵀ WELL-FORMEDNESS.  There is no predicate stating that a λ□ᵀ
+       environment is well typed: [CheckWf.CheckWfExAst.check_wf_typed_program]
+       only checks the erased image [trans_env p], and the pipeline runs it on
+       the input, before [infer].  So no "output is a well-typed λ□ᵀ program"
+       lemma can be stated here.  What IS proved structurally:
        [infer_kernames] (kernames + order preserved) and [infer_has_deps] (every
-       emitted declaration carries [has_deps=true]).  Together with
-       [infer_section] these are the structural well-formedness facts the
-       pipeline gate consumes; the remaining ExAst-only typing content
-       (coherence of the [box_type] annotations) is exactly what [trans_env]
-       discards and hence cannot be transported by the section law.
+       emitted declaration carries [has_deps=true]).  The ExAst-only typing
+       content (coherence of the [box_type] annotations) is exactly what
+       [trans_env] discards and hence cannot be transported by the section law.
 
     INDUCTIVE-BODY DECORATION: [infer_oib] records [TAny] for the
     constructor-argument and projection type fields OF THE INDUCTIVE BODY.
@@ -122,16 +132,16 @@
     PIPELINE INTEGRATION.  [PAst.v] [PAst_to_ExAst] promotes untyped
     (lambda-box) input into the typed world with [infer empty_sigs env], and
     [Pipeline.v] runs [infer numeric_sigs env] on the raw environment before the
-    typed pipeline for the typed backends (Rust, Elm).  The section lemma
-    licenses this: it guarantees the promoted environment erases back to the
-    original untyped one, so the untyped correctness results transfer.
+    typed pipeline for the typed targets (Rust, Elm, [AST LambdaBoxTyped]).
+    The section lemma guarantees only that the promoted environment erases back
+    to the original untyped one.
 
     What the section law does NOT transport is the ExAst-only content: that the
     inferred [box_type] annotations are coherent (well-scoped type variables,
-    matching arities, instantiable schemes).  A [check_wf_typed_program]-style
-    predicate would state this, but none is present in the imported MetaRocq,
-    and [infer_oib] would first need to consult [D] for datatype bodies rather
-    than emitting [TAny] (see the decoration note above). *)
+    matching arities, instantiable schemes).  Stating this needs a typing
+    predicate for λ□ᵀ, which does not exist yet, and [infer_oib] would first
+    need to consult [D] for datatype bodies rather than emitting [TAny] (see
+    the decoration note above). *)
 
 From Stdlib Require Import List Arith.
 From MetaRocq.Utils Require Import utils.
@@ -472,8 +482,8 @@ Fixpoint infer_tm (fuel : nat) (D : dt_sigs) (E : sch_env)
   end.
 
 (** Fuel for [infer_tm]: any bound exceeding the term's syntactic depth suffices;
-    running short only makes the result [TAny] more often (never unsound — the
-    section law does not depend on the inferred types). *)
+    running short only makes the result [TAny] more often (the section law does
+    not depend on the inferred types). *)
 Definition infer_fuel : nat := 1000.
 
 (** ** Damas–Milner generalization at the top level of a constant *)
@@ -624,14 +634,12 @@ Proof.
   - rewrite trans_infer_mib. rewrite Henv. reflexivity.
 Qed.
 
-(** *** Evaluation preservation, schematically.
+(** *** Transport along the section law.
 
-    Any property [P] of the untyped environment that the verified pipeline
-    establishes for [trans_env (infer D Σ)] is a property of [Σ] itself, and
-    vice versa, because the two are equal.  In particular, whatever
-    evaluation/observational equivalence [trans_env_transform] proves for
-    [trans_env (infer D Σ)] holds verbatim for [Σ]; no fresh evaluation proof
-    is needed.  [eval_preserved_via_section] packages that transport. *)
+    Any property [P] of [trans_env (infer D Σ)] is a property of [Σ] itself,
+    and vice versa, because the two are equal.  This is a rewrite, not an
+    evaluation-preservation theorem: it concerns the erased image only and
+    says nothing about code printed from the [box_type] annotations. *)
 Lemma eval_preserved_via_section
       (P : EAst.global_context -> Prop) (D : dt_sigs) (Σ : EAst.global_context) :
   P (ExAst.trans_env (infer D Σ)) <-> P Σ.
@@ -645,9 +653,9 @@ Proof. exact (infer_section D Σ). Qed.
 
 (** ** Structural well-formedness facts (toward λ□ᵀ well-typedness)
 
-    A full [check_wf_typed_program]-style lemma is out of reach here (that
-    predicate is absent from the imported MetaRocq; see the header).  These are
-    the structural well-formedness facts the pipeline gate relies on. *)
+    A lemma that the output is well typed cannot be stated here (there is no
+    typing predicate for λ□ᵀ; see the header).  These two structural facts are
+    proved but not used elsewhere. *)
 
 (** Kernames and their order are preserved exactly. *)
 Lemma infer_kernames (D : dt_sigs) (Σ : EAst.global_context) :

@@ -27,11 +27,11 @@ Definition PAst_to_EAst (ast : PAst) : result' EAst.program :=
 Definition PAst_to_ExAst (ast : PAst) : result' ExAst.global_env :=
   match ast with
   (* Untyped (lambda-box) input is bridged to typed (lambda-box-typed) by the
-     verified Hindley-Milner section [infer]: [trans_env (infer empty_sigs env)
-     = env] (EHindleyMilner.infer_section), so erasure recovers the original
-     program.  [empty_sigs] supplies no datatype signatures; inference falls
-     back to [TAny] where a type is undetermined, which the section law tolerates
-     since the [box_type] annotations are erased away. *)
+     Hindley-Milner inference [infer].  Only [trans_env (infer empty_sigs env)
+     = env] is proved (EHindleyMilner.infer_section): erasure recovers the
+     original program.  The inferred [box_type] annotations are unverified.
+     [peregrine_pipeline] does not reach this case: for a typed target
+     [Pipeline.apply_transforms] has already run [infer numeric_sigs]. *)
   | Untyped env _ => Ok (infer empty_sigs env)
   | Typed env (Some t) => Ok env (* TODO: add t to env, with a fresh name or hardcoded main? *)
   | Typed env None => Ok env
