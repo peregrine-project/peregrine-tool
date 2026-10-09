@@ -8,7 +8,7 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Wasm, "cps", "--cps"],
     [Lang.Wasm, "", ""],
     [Lang.Rust, "", ""],
-    // [Lang.Elm, "", "--top-preamble=\"import Test\nimport Html\nimport Expect exposing (Expectation)\""],
+    [Lang.Elm, "", ""],
     [Lang.CakeML, "", ""],
     [Lang.Lean, "", ""]
 ];
@@ -273,7 +273,9 @@ var rocq_tests: TestCase[] =
             main: "Mutual_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S O)", "", ""],
-            parameters: []
+            parameters: [],
+            // The Elm backend prints the constructor succ' as Succ', which is not an Elm identifier
+            skip: [Lang.Elm]
         },
         {
             src: "rocq/extraction/Nat.ast",

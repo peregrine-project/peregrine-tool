@@ -127,6 +127,11 @@ function print_result(res: ExecResult, test: string): boolean {
 // Compile and run all `tests` test programs with the `lang` backend and `opts` compiler options
 async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[]) {
   print_line(`Running ${lang}${n.length > 0 ? "-"+n : ""} tests:`);
+  tests = tests.filter((t) => {
+    if (!t.skip?.includes(lang)) return true;
+    print_line(`  ${t.tsrc ?? t.src}: skipped (known failure)`);
+    return false;
+  });
   switch (lang) {
     case Lang.OCaml:
       compile_types(compile_timeout);

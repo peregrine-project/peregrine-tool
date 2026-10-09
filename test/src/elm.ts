@@ -20,13 +20,16 @@ export function prepare_elm_project(tmpdir: string): string {
 // compares the return value to the expected output
 function append_main(file: string, test: TestCase) {
   const main = find_entry_point(readFileSync(file, "utf8"), test.main);
-  const content = (test.output_type == SimpleType.Other) ?
+  // Without an output recorded for Elm (missing or empty entry) the test only
+  // forces the value
+  const expected = test.output_type == SimpleType.Other ? undefined : test.expected_output?.[2];
+  const content = !expected ?
     `
 main = Html.text (Debug.toString ${main})
-test = let x = ${main} in Test.test "${main} test" (\ _ -> Expect.equal 1 1)
+test = let x = ${main} in Test.test "${main} test" (\\ _ -> Expect.equal 1 1)
 ` : `
 main = Html.text (Debug.toString ${main})
-test = Test.test "${main} test" (\\ _ -> Expect.equal (Debug.toString ${main}) ("${test.expected_output[2]}"))
+test = Test.test "${main} test" (\\ _ -> Expect.equal (Debug.toString ${main}) ("${expected}"))
 `;
 
   appendFileSync(file, content);
@@ -34,7 +37,10 @@ test = Test.test "${main} test" (\\ _ -> Expect.equal (Debug.toString ${main}) (
 
 export function run_elm(file: string, tmpdir: string, test: TestCase, timeout: number): ExecResult {
   // TODO use "--report json" arg
-  const cmd = `npx elm-test ${path.relative(tmpdir, file)}`;
+  // Use the elm-test pinned in package.json: the project lives in the
+  // temporary directory, where npx would not find it and would fetch the
+  // latest release instead
+  const cmd = `${path.join(process.cwd(), "node_modules/.bin/elm-test")} ${path.relative(tmpdir, file)}`;
 
   try {
     // Add main function to file
@@ -53,7 +59,7 @@ export function run_elm(file: string, tmpdir: string, test: TestCase, timeout: n
     }
     if (e.status == 2) {
       // TODO parse stdout to retreive reason
-      return { type: "error", reason: "incorrect result", actual: "TODO", expected: test.expected_output[2] }
+      return { type: "error", reason: "incorrect result", actual: "TODO", expected: test.expected_output?.[2] }
     }
 
     return { type: "error", reason: "runtime error", error: e }; // TODO
