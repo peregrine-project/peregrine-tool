@@ -18,6 +18,7 @@ theories/erasure/Transforms.v
 theories/erasure/EImplementLazyForce.v
 theories/erasure/EHindleyMilner.v
 theories/erasure/EHMNumericSigs.v
+theories/erasure/EHindleyMilnerSound.v
 
 theories/lean/LeanIR.v
 theories/lean/LeanCompile.v
