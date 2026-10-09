@@ -1,5 +1,5 @@
 import { exit } from "process";
-import { Lang, TestCase, ExecResult, SimpleType, ExecFailure } from "./types";
+import { Lang, TestCase, TestConfiguration, ExecResult, SimpleType, ExecFailure } from "./types";
 import { run_wasm } from "./wasm";
 import { execSync } from "child_process";
 import path from "path";
@@ -342,10 +342,17 @@ async function main() {
 
   // For each test configuration run all test programs
   // or only the configurations named on the command line, e.g. `Rust` or `WebAssembly-cps`
+  // (exact, case-sensitive match on the name the runner prints)
+  const config_name = (c: TestConfiguration) => c[0] + (c[1].length > 0 ? "-" + c[1] : "");
+  const names = test_configurations.map(config_name);
   const selected = process.argv.slice(2);
+  const unknown = selected.filter((n) => !names.includes(n));
+  if (unknown.length > 0) {
+    print_line(`error: unknown test configuration ${unknown.join(", ")}; the configurations are ${names.join(", ")}`);
+    exit(2);
+  }
   for (var backend of test_configurations) {
-    const name = backend[0] + (backend[1].length > 0 ? "-" + backend[1] : "");
-    if (selected.length > 0 && !selected.includes(name)) continue;
+    if (selected.length > 0 && !selected.includes(config_name(backend))) continue;
     await run_tests(backend[0], backend[1], backend[2], tests);
   }
 

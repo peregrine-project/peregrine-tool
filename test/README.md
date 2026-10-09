@@ -6,6 +6,7 @@ To run only some of the test configurations listed in `test_configurations` ([sr
 ```bash
 npm run test -- Rust Elm WebAssembly-cps
 ```
+The names are the ones the runner prints (`Running Rust tests:`), matched exactly; an unknown name is an error.
 
 The test suite depends on the following:
 * Node.js v22 or later
