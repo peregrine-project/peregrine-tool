@@ -223,6 +223,14 @@ var agda_tests: TestCase[] =
 var rocq_tests: TestCase[] =
     [
         {
+            src: "rocq/extraction/Closure.ast",
+            tsrc: "rocq/extraction/Closure_typed.ast",
+            main: "Closure_test",
+            output_type: SimpleType.Nat,
+            expected_output: ["(S (S (S (S (S O)))))", "", ""],
+            parameters: []
+        },
+        {
             src: "rocq/extraction/Demo.ast",
             tsrc: "rocq/extraction/Demo_typed.ast",
             main: "Demo_test",
