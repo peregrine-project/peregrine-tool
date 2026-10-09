@@ -83,7 +83,7 @@ jobs:
           sudo chmod +x elm
           sudo mv elm /usr/local/bin/
       - name: Set up elm-test
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Set up elm-test
@@ -91,7 +91,7 @@ jobs:
           npm install -g elm-test@0.19.1-revision9
 
       - name: Set up GHC
-        uses: haskell-actions/setup@v2
+        uses: haskell-actions/setup@v2.12.1
         id: haskell-setup
         with:
           ghc-version: ${{env.GHC_VERSION}}

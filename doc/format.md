@@ -266,6 +266,7 @@ The `attributes_config` payload accepted via `--attributes` is the 5-element sub
 (Wasm   <wasm_config>)
 (OCaml  <ocaml_config>)
 (CakeML <cakeml_config>)
+(Lean   <lean_config>)
 (Eval   <eval_config>)
 (AST    <ast_config>)
 ```
@@ -327,6 +328,15 @@ and is forwarded to the Malfunction printer. Default: `Standalone`.
 
 #### CakeML (`cakeml_config`)
 `cakeml_config` is `unit`, serialized as the empty list `()`. CakeML extraction has no user-tunable fields at present.
+
+#### Lean (`lean_config`)
+```
+(lean_config
+  <lean_namespace>          ; "Generated"
+  <lean_print_full_names>)  ; true
+```
+* `lean_namespace` is the Lean namespace wrapped around the generated declarations.
+* `lean_print_full_names` toggles printing of names qualified by the input file's basename and the module path.
 
 #### Eval (`eval_config`)
 ```
