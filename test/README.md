@@ -9,11 +9,14 @@ npm run test -- Rust Elm WebAssembly-cps
 
 The test suite depends on the following:
 * Node.js v22 or later
-* cargo and rust compiler
-* [elm compiler](https://elm-lang.org/)
-* elm-test (can be installed with npm)
+* cargo and rust compiler (the Rust tests fetch their crates from crates.io)
+* [elm compiler](https://elm-lang.org/) 0.19.1, as `elm` on the `PATH` (the Elm tests fetch their packages from package.elm-lang.org)
+* elm-test (installed by `npm install`)
 * gcc
 * [Lean](https://lean-lang.org/install/) (`lake`, installed with elan)
+
+The Rust and Elm backends take typed programs, so their configurations only run the tests that have a `tsrc`, currently the Rocq ones.
+They compile with `peregrine compile` and the pipeline configurations [src/rust/config.sexp](src/rust/config.sexp) and [src/elm/config.sexp](src/elm/config.sexp).
 
 
 ## Agda frontend tests
