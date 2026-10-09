@@ -5,4 +5,4 @@ defaultTargets = ["Peregrine"]
 [[lean_lib]]
 name = "Peregrine"
 srcDir = "lean"
-roots = ["Main", "Peregrine.Basic", "Peregrine.Runtime"]
+roots = ["Peregrine.Runtime"]
