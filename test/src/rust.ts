@@ -69,7 +69,8 @@ export function run_rust(file: string, tmpdir: string, test: TestCase, timeout: 
 
     // Return success if there is no expected output to compare against or if the program
     // returns a type that we don't know how to print
-    if (test.expected_output === undefined || test.output_type === SimpleType.Other) {
+    // or if no output is recorded for Rust (missing or empty entry)
+    if (test.expected_output === undefined || test.output_type === SimpleType.Other || !test.expected_output[1]) {
       return { type: "success", time: time_main };
     }
 

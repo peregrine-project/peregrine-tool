@@ -7,7 +7,7 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.C, "", ""],
     [Lang.Wasm, "cps", "--cps"],
     [Lang.Wasm, "", ""],
-    // [Lang.Rust, "", "--attr=\"#[derive(Debug, Clone, Serialize)]\" --top-preamble=\"use lexpr::{to_string}; use serde_derive::{Serialize}; use serde_lexpr::{to_value};\n\""],
+    [Lang.Rust, "", ""],
     // [Lang.Elm, "", "--top-preamble=\"import Test\nimport Html\nimport Expect exposing (Expectation)\""],
     [Lang.CakeML, "", ""],
     [Lang.Lean, "", ""]
@@ -237,7 +237,8 @@ var rocq_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
                 "(cons true (cons false (cons true (cons false nil))))",
-                "(Cons () (True) (Cons () (False) (Cons () (True) (Cons () (False) (Empty)))))",
+                // The Rust backend keeps the names of the constructors, which are lower case in Demo.v
+                "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
                 "Cons True (Cons False (Cons True (Cons False Empty)))"
             ],
             parameters: []
