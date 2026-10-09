@@ -1,7 +1,8 @@
 import path from "path";
 import { ExecFailure, ExecResult, SimpleType, TestCase } from "./types";
-import { appendFileSync, copyFileSync, existsSync, mkdirSync } from "fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import { execSync } from "child_process";
+import { find_entry_point } from "./utils";
 
 // Create a cargo.toml file and set up src/bin directory
 export function prepare_cargo(tmpdir: string): string {
@@ -19,12 +20,13 @@ export function prepare_cargo(tmpdir: string): string {
 // Add main function to `file` that calls `main_fn` and
 // prints the return value using s-expression printer
 function append_main(file: string, test: TestCase) {
+  const main = find_entry_point(readFileSync(file, "utf8"), test.main);
   const content = (test.output_type == SimpleType.Other) ?
     `fn main() {
-  Program::new().${test.main}();
+  Program::new().${main}();
 }
 ` : `fn main() {
-  let y = to_value(Program::new().${test.main}());
+  let y = to_value(Program::new().${main}());
   println!("{}", to_string(&y.unwrap()).unwrap())
 }
 `;

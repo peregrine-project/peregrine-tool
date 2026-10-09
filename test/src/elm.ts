@@ -1,7 +1,8 @@
 import path from "path";
 import { ExecResult, SimpleType, TestCase } from "./types";
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, stat } from "fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import { execSync } from "child_process";
+import { find_entry_point } from "./utils";
 
 // Create a cargo.toml file and set up src/bin directory
 export function prepare_elm_project(tmpdir: string): string {
@@ -15,14 +16,10 @@ export function prepare_elm_project(tmpdir: string): string {
   return testdir;
 }
 
-function uncapitalize(s) {
-  return s.charAt(0).toLowerCase() + s.slice(1);
-}
-
 // Add main and test functions to `file` that calls `main_fn` and
 // compares the return value to the expected output
 function append_main(file: string, test: TestCase) {
-  const main = uncapitalize(test.main);
+  const main = find_entry_point(readFileSync(file, "utf8"), test.main);
   const content = (test.output_type == SimpleType.Other) ?
     `
 main = Html.text (Debug.toString ${main})
