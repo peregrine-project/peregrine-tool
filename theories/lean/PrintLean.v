@@ -24,8 +24,10 @@ Definition concat_with (sep : string) (xs : list string) : string :=
 (* Use just the last component of a kername.  All emitted definitions
    live inside a single Lean namespace, so collisions only matter
    across modules that happen to share a local name — accepted v1
-   limitation, controlled by [lean_print_full_names]. *)
-Definition local_name (kn : kername) : string := snd kn.
+   limitation, controlled by [lean_print_full_names].  The bare name
+   can be a Lean keyword ([match], [end], [at], ...), so it is quoted;
+   Lean reads [«f»] and [f] as the same name. *)
+Definition local_name (kn : kername) : string := "«" ++ snd kn ++ "»".
 
 (* Inner-module qualifiers of a modpath: everything below the file root.
    [MPfile] contributes nothing (its dirpath is the compilation-unit name,

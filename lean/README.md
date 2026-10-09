@@ -81,7 +81,7 @@ The `lakefile.toml` at the repository root builds the runtime alone (`lake build
 `lean_config` has two fields; see [format.md](/doc/format.md).
 
 * `lean_namespace` — the namespace wrapped around the generated code. Default `"Generated"`.
-* `lean_print_full_names` — prefix names with the file name and module path. Default `true`. When `false`, only the last component of each name is printed, and same-named definitions from different modules collide.
+* `lean_print_full_names` — prefix names with the file name and module path. Default `true`. When `false`, only the last component of each name is printed, quoted as `«f»` so that it cannot clash with a Lean keyword, and same-named definitions from different modules collide.
 
 ## Limitations
 
