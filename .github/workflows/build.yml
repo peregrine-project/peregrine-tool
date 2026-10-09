@@ -1,6 +1,13 @@
 name: Build
 on:
   workflow_dispatch:
+  # GitHub evicts a cache that nothing has read for 7 days, and a cache saved
+  # by a pull request is invisible to every other branch. This run on master
+  # reads the opam and cabal caches often enough to keep them alive, and
+  # rebuilds them when they are gone (about 100 minutes), so that pull
+  # requests do not have to.
+  schedule:
+    - cron: '17 4 */3 * *'
   push:
     branches:
     - 'master'
@@ -14,7 +21,9 @@ on:
     - '**.opam'
     - 'LICENSE'
 concurrency:
-  group: "${{ github.workflow }}-${{ github.event.pull_request.number || github.head_ref || github.ref }}"
+  # Scheduled runs get their own group, so that they never cancel, and are
+  # never cancelled by, a run for a push to master.
+  group: "${{ github.workflow }}-${{ github.event_name == 'schedule' && 'schedule' || github.event.pull_request.number || github.head_ref || github.ref }}"
   cancel-in-progress: true
 permissions:
   contents: read
@@ -39,7 +48,7 @@ jobs:
       - run: sudo apt-get update
       - name: Restore opam cache
         id: opam-cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: "~/.opam"
           key: opam-${{matrix.ocaml_version}}-${{hashFiles('.github/rocq-peregrine.opam.locked')}}
@@ -57,6 +66,16 @@ jobs:
           opam repo add rocq-released https://rocq-prover.org/opam/released
           opam install --deps-only -j${{ env.JOBS }} .github/rocq-peregrine.opam.locked
           opam clean -a -c -s --logs
+
+      # Save here, not at the end of the job: the switch holds the
+      # dependencies only (rocq-peregrine is not installed yet), and a run
+      # that later fails or is cancelled still leaves the cache behind.
+      - name: Save opam cache
+        if: steps.opam-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: "~/.opam"
+          key: ${{ steps.opam-cache.outputs.cache-primary-key }}
 
       - name: Set up environment
         run: |
@@ -148,10 +167,3 @@ jobs:
           echo "::group::Running tests"
           eval $(opam env) && cd test && npm install && npm run test
           echo "::endgroup::"
-
-      - name: Cache clean up
-        run: |
-          opam remove rocq-peregrine
-          opam pin remove rocq-peregrine
-          eval $(opam env)
-          opam clean -a -c -s --logs
