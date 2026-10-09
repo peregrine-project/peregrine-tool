@@ -202,11 +202,13 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
 
   | Lean opts =>
     p' <- PAst_to_EAst p;;
+    (* The file name is spliced into every emitted identifier. *)
+    f <- Unicode.of_string f;;
     res <- LeanBackend.extract_lean
       const_remaps
       custom_attr
       opts
-      f
+      (NameSanitize.lean_sanitizer f)
       p';;
     Ok (LeanProgram res)
 
