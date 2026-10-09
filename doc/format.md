@@ -59,7 +59,7 @@ Both ASTs consist of an environment of constant- and inductive-declarations, and
 (Typed   (...env...) None)
 ```
 
-Backends that need a typed AST (Rust, Elm, `LambdaBoxTyped`) also accept an `Untyped` one; the middle-end then infers the type annotations, which are unverified (see [backends.md](backends.md#rust)).
+Backends that need a typed AST (Rust, Elm, `LambdaBoxTyped`) also accept an `Untyped` one; the middle-end then infers the type annotations (unverified) or fails if the program cannot be typed (see [backends.md](backends.md#rust)).
 
 The serializers/deserializers for `PAst` live in [SerializePAst.v](/theories/serialization/SerializePAst.v) and [DeserializePAst.v](/theories/serialization/DeserializePAst.v). They delegate to [SerializeEAst.v](/theories/serialization/SerializeEAst.v) and [SerializeExAst.v](/theories/serialization/SerializeExAst.v) for the underlying environments, to [SerializeCommon.v](/theories/serialization/SerializeCommon.v) for shared names/idents/kernames, and to [SerializePrimitives.v](/theories/serialization/SerializePrimitives.v) for `tPrim` payloads.
 

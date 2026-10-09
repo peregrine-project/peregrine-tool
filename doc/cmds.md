@@ -27,7 +27,7 @@ Valid values for `BACKEND` are:
 * `ast`
 * `eval`
 
-The `rust`, `elm` and `ast typed` commands work on typed lambda box. Given untyped input they infer type annotations first; these are unverified and the resulting code generally does not compile, see [backends.md](backends.md#rust).
+The `rust`, `elm` and `ast typed` commands work on typed lambda box. Given untyped input they infer the type annotations first (the same inference for all three), and fail with an error naming the offending constant when the program cannot be typed; see [backends.md](backends.md#rust).
 
 ## `validate` command
 ```
