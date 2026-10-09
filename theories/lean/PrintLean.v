@@ -143,11 +143,17 @@ Definition lookup_ctor_name (env : ind_env) (ind : inductive) (n : nat) : string
 
 (* Inductive type names get the same inner-module qualification as
    definitions: e.g. FMap [M.t] and FSet [S.t] would otherwise both
-   print as [t_]. *)
-Definition lookup_ind_name (env : ind_env) (ind : inductive) : string :=
+   print as [t_].  Names that still collide (those in [idups], e.g. a
+   program's own [nat] next to [Corelib.Init.Datatypes.nat]) get the
+   file root as well, as in [full_name]. *)
+Definition pick_ind_name (idups : list string) (mp : modpath) (s : ident) : string :=
+  let base := base_name (mp, s) in
+  ind_name (if List.existsb (String.eqb base) idups then disamb_name (mp, s) else base).
+
+Definition lookup_ind_name (idups : list string) (env : ind_env) (ind : inductive) : string :=
   match lookup_oib env ind with
   | Some oib =>
-    ind_name (qualify_mp (fst ind.(inductive_mind)) (oib.(EAst.ind_name)))
+    pick_ind_name idups (fst ind.(inductive_mind)) (oib.(EAst.ind_name))
   | None => "MissingInd"
   end.
 
@@ -159,16 +165,16 @@ Definition print_ctor (cb : EAst.constructor_body) : string :=
   "  | " ++ ctor_name (cb.(EAst.cstr_name))
     ++ (match ids with [] => "" | _ => " " ++ params_group ids end).
 
-Definition print_one_inductive (mp : modpath) (oib : EAst.one_inductive_body) : string :=
-  "unsafe inductive " ++ ind_name (qualify_mp mp (oib.(EAst.ind_name))) ++ " where" ++ nl
+Definition print_one_inductive (idups : list string) (mp : modpath) (oib : EAst.one_inductive_body) : string :=
+  "unsafe inductive " ++ pick_ind_name idups mp (oib.(EAst.ind_name)) ++ " where" ++ nl
     ++ concat_with nl (List.map print_ctor (oib.(EAst.ind_ctors))).
 
-Definition print_inductive (kn : kername) (mib : EAst.mutual_inductive_body) : string :=
+Definition print_inductive (idups : list string) (kn : kername) (mib : EAst.mutual_inductive_body) : string :=
   match mib.(EAst.ind_bodies) with
-  | [oib] => print_one_inductive (fst kn) oib
+  | [oib] => print_one_inductive idups (fst kn) oib
   | bodies =>
     "mutual" ++ nl
-      ++ concat_with nl (List.map (print_one_inductive (fst kn)) bodies) ++ nl
+      ++ concat_with nl (List.map (print_one_inductive idups (fst kn)) bodies) ++ nl
       ++ "end"
   end.
 
@@ -176,8 +182,9 @@ Definition print_inductive (kn : kername) (mib : EAst.mutual_inductive_body) : s
 
 Section Printer.
   (* Invariant context, shared by every printer below.  [dups] is the set
-     of base names that collide in this program (see [full_name]). *)
-  Context (dups : list string) (full_names : bool) (default_module : string)
+     of base names that collide in this program (see [full_name]), [idups]
+     the same for inductive types (see [pick_ind_name]). *)
+  Context (dups idups : list string) (full_names : bool) (default_module : string)
           (env : ind_env) (thunks : list kername).
 
   (* Nullary top-level constants are emitted as memoized [Thunk Obj]
@@ -197,7 +204,7 @@ Section Printer.
       if is_thunk kn then reflect (nm ++ ".get") else reflect nm
     | LCtor ind idx args =>
       let cn := lookup_ctor_name env ind idx in
-      let ind_n := lookup_ind_name env ind in
+      let ind_n := lookup_ind_name idups env ind in
       let body :=
         match args with
         | [] => "(." ++ cn ++ " : " ++ ind_n ++ ")"
@@ -229,7 +236,7 @@ Section Printer.
           end in
         aux nargs in
       reflect ("(match (Peregrine.cast " ++ print_lterm discr
-        ++ " : " ++ lookup_ind_name env ind ++ ") with | ." ++ cn ++ " "
+        ++ " : " ++ lookup_ind_name idups env ind ++ ") with | ." ++ cn ++ " "
         ++ concat_with " " pat_args ++ " => x)")
     | LApp f x =>
       reflect ("(Peregrine.apply " ++ print_lterm f ++ " " ++ print_lterm x ++ ")")
@@ -239,7 +246,7 @@ Section Printer.
       reflect ("(let " ++ id ++ " : Obj := " ++ print_lterm b ++ "; "
         ++ print_lterm body ++ ")")
     | LCase discr ind brs =>
-      let ind_n := lookup_ind_name env ind in
+      let ind_n := lookup_ind_name idups env ind in
       let print_br (i : nat) (br : list ident * lterm) : string :=
         let '(ids, body) := br in
         let cn := lookup_ctor_name env ind i in
@@ -305,7 +312,7 @@ Section Printer.
 
   Definition print_decl (kn : kername) (d : ldecl) : string :=
     match d with
-    | LInductive mib => print_inductive kn mib
+    | LInductive mib => print_inductive idups kn mib
     | LDef f => print_lfun (pick_fun_name dups full_names default_module kn) f
     | LRecGroup fs =>
       "mutual" ++ nl
@@ -352,16 +359,24 @@ Definition printed_knames (decls : list (kername * ldecl)) : list kername :=
 
 (* Base names occurring more than once — these get the file-root
    disambiguator in [full_name]. *)
-Definition dup_base_names (decls : list (kername * ldecl)) : list string :=
-  let names := List.map base_name (printed_knames decls) in
+Definition dup_names (names : list string) : list string :=
   List.filter (fun n =>
     Nat.ltb 1 (List.length (List.filter (String.eqb n) names))) names.
+
+Definition dup_base_names (decls : list (kername * ldecl)) : list string :=
+  dup_names (List.map base_name (printed_knames decls)).
+
+(* Same for inductive types, see [pick_ind_name]. *)
+Definition dup_ind_names (env : ind_env) : list string :=
+  dup_names (List.concat (List.map (fun '(kn, mib) =>
+    List.map (fun oib => base_name (fst kn, oib.(EAst.ind_name))) mib.(EAst.ind_bodies)) env)).
 
 Definition print_program (full_names : bool) (default_module : string) (ns : string) (p : lprogram) : string :=
   let env := build_ind_env p.(ldecls) in
   let thunks := thunk_knames p.(ldecls) in
   let dups := dup_base_names p.(ldecls) in
+  let idups := dup_ind_names env in
   preamble ns
     ++ concat_with (nl ++ nl)
-         (List.map (fun '(kn, d) => print_decl dups full_names default_module env thunks kn d) p.(ldecls))
+         (List.map (fun '(kn, d) => print_decl dups idups full_names default_module env thunks kn d) p.(ldecls))
     ++ postamble ns.
