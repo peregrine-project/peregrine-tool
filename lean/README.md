@@ -31,7 +31,7 @@ $\lambda_\square$ is untyped, so every value has the single type `Peregrine.Obj`
 * A top-level fixpoint becomes a recursive `unsafe def`. A top-level mutual fixpoint becomes a `mutual` block. A nested fixpoint becomes a term-mode `let rec`.
 * Application goes through `Peregrine.apply`, and matching through `Peregrine.cast`. Both are `unsafeCast`s.
 * All declarations live in one namespace, `Generated` by default.
-* A definition `f` in the input file `Prog.ast` is named `Prog_f`. Definitions inside inner modules keep the module path (`Prog_M_f`). Names that still collide also get their source file name.
+* A definition `f` in the input file `Prog.ast` is named `Prog_f`. Definitions inside inner modules keep the module path (`Prog_M_f`). Definitions and inductive types whose names still collide also get their source file name (`Datatypes_nat_`).
 * The term in the program's `main` position is not emitted. Call the entry point by its name.
 
 ## Usage
@@ -85,12 +85,13 @@ The `lakefile.toml` at the repository root builds the runtime alone (`lake build
 
 ## Limitations
 
-* `tPrim` (primitive integers, floats, strings, arrays), `tCoFix`, and `tEvar` are not supported. They compile to the placeholder `()` without a compile-time error, so a program that uses them misbehaves at run time.
+* `tPrim` (primitive integers, floats, strings, arrays) and `tEvar` are not supported. They compile to the placeholder `()` without a compile-time error, so a program that uses them misbehaves at run time. Cofixpoints are supported: the required *cofix to lazy* pass turns them into fixpoints before the backend runs.
+* A top-level mutual fixpoint is emitted together with the constant named after its first member. If the program only reaches another member, the group is missing and the output does not compile in Lean.
 * A mutual fixpoint nested inside a term compiles to a run-time `panic!`.
 * Axioms (constants without a body) are skipped. A program that references one does not compile in Lean.
 * Constant remappings (`remaps`) and custom attributes (`custom_attr`) are ignored.
 * Erased terms are represented by `()`. A program that inspects one at run time has undefined behaviour.
-* Names are sanitized with the OCaml sanitizer, so they can contain escapes such as `_UU2e`.
+* Names, and the file name used as a prefix, are sanitized with the OCaml sanitizer, so they can contain escapes such as `_UU2e` (`my-file.ast` gives `my_UU2dfile_f`).
 * Numerals are unary constructor towers. The generated file sets `maxRecDepth 1000000` so that Lean can elaborate them.
 
 ## Verification status
