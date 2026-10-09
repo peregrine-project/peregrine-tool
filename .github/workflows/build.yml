@@ -162,6 +162,12 @@ jobs:
           lint: false
           lake-package-directory: "test/lean/"
 
+      # The Lean backend tests use the toolchain pinned at the repository
+      # root, not the one of test/lean. Fetch it here, so that the download
+      # does not count against the compile timeout of the first Lean test.
+      - name: Install the Lean backend toolchain
+        run: elan toolchain install "$(cat lean-toolchain)"
+
       - name: Test extraction
         run: |
           echo "::group::Running tests"
