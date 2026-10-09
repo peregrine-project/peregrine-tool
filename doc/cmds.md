@@ -27,6 +27,8 @@ Valid values for `BACKEND` are:
 * `ast`
 * `eval`
 
+The `rust`, `elm` and `ast typed` commands work on typed lambda box. Given untyped input they infer type annotations first; these are unverified and the resulting code generally does not compile, see [backends.md](backends.md#rust).
+
 ## `validate` command
 ```
 peregrine validate [--config=PATH] [OPTION]… FILE

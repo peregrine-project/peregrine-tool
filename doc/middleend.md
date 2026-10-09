@@ -42,7 +42,7 @@ By default, all option fields are optional in the configuration file format. Any
 Validation does the following:
 1) Fill undeclared option with default values
 2) Check that options are compatible with the backend
-3) Check that AST type and backend are compatible
+3) Check that AST type and backend are compatible (currently every combination is accepted: untyped input for a typed backend is annotated by type inference, see below)
 4) Determine which transformations to apply based on configurations, and whether a transformations is required or incompatible with the chosen backend.
 5) Validate configuration values 
 
@@ -110,6 +110,8 @@ The transformations that will be applied will depend on both the AST type, backe
 | annotate names             | optional, default off | optional, default off | required | required | optional, default off | optional, default off |
 
 ### Transformation support (Typed target AST)
+
+If the input is untyped, it is first annotated with types by Hindley-Milner inference ([EHindleyMilner.v](/theories/erasure/EHindleyMilner.v)). Erasing the annotations gives back the input program (proved), but the annotations themselves are unverified and code generated from them generally does not compile.
 
 | Pass                       | Rust                 | Elm                  | AST                   |
 |----------------------------|----------------------|----------------------|-----------------------|

@@ -8,11 +8,11 @@ The table below summarises supported the backends
 | Backend      | Source  | Verified | Verified printer | Target format       | Readability | Memory handling |
 |--------------|---------|----------|------------------|---------------------|-------------|-----------------|
 | C            | untyped | ✓ | ✗ | C-light                    | ✗ | Verified GC |
-| WebAssembly  | untpyed | ✓ | ✓ | Binary format              | ✗ | Bump allocator, no GC |
+| WebAssembly  | untyped | ✓ | ✓ | Binary format              | ✗ | Bump allocator, no GC |
 | OCaml        | untyped | ✓ | ✗ | Malfunction Serialized AST | ✗ | GC |
 | CakeML       | untyped | ✓ | ✓ | Serialized AST             | ✗ | GC |
-| Rust         | typed   | ✗ | ✗ | Source language            | ✓ | Bump allocator, no GC |
-| Elm          | typed   | ✗ | ✗ | Source language            | ✓ | - |
+| Rust         | typed (untyped: experimental) | ✗ | ✗ | Source language            | ✓ | Bump allocator, no GC |
+| Elm          | typed (untyped: experimental) | ✗ | ✗ | Source language            | ✓ | - |
 | Lean         | untyped | ✗ | ✗ | Source language            | ✗ | Reference counting (Lean runtime) |
 | AST (debug)  | either  | ✓ | ✓ | Serialized AST             | ✗ | - |
 | Eval (debug) | either  | ✓ | ✗ | -                          | ✗ | -  |
@@ -49,7 +49,8 @@ The `.cml` file can be compiled using the [CakeML compiler](https://cakeml.org/)
 
 ## Rust
 
-Rust backend extracting to surface level Rust code. The backend requires typed AST.
+Rust backend extracting to surface level Rust code. The backend works on typed AST.
+Untyped input is accepted as well: the middle-end annotates it with types using Hindley-Milner inference ([EHindleyMilner.v](/theories/erasure/EHindleyMilner.v)). The inferred annotations are unverified and still imprecise (for instance, constructor fields of inductive types are left untyped), so the code generated from untyped input generally does not compile; prefer typed input.
 The backend is located in [`peregrine-project/rocq-typed-extraction`](https://github.com/peregrine-project/rocq-typed-extraction).
 
 Output
@@ -59,7 +60,8 @@ Output
 
 ## Elm
 
-ELm backend extracting to surface level Elm code. The backend requires typed AST.
+Elm backend extracting to surface level Elm code. The backend works on typed AST.
+Untyped input is accepted with the same caveat as for [Rust](#rust).
 The backend is located in [`peregrine-project/rocq-typed-extraction`](https://github.com/peregrine-project/rocq-typed-extraction).
 
 Output
