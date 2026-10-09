@@ -1,13 +1,6 @@
 name: Build
 on:
   workflow_dispatch:
-  # GitHub evicts a cache that nothing has read for 7 days, and a cache saved
-  # by a pull request is invisible to every other branch. This run on master
-  # reads the opam and cabal caches often enough to keep them alive, and
-  # rebuilds them when they are gone (about 100 minutes), so that pull
-  # requests do not have to.
-  schedule:
-    - cron: '17 4 */3 * *'
   push:
     branches:
     - 'master'
@@ -21,9 +14,7 @@ on:
     - '**.opam'
     - 'LICENSE'
 concurrency:
-  # Scheduled runs get their own group, so that they never cancel, and are
-  # never cancelled by, a run for a push to master.
-  group: "${{ github.workflow }}-${{ github.event_name == 'schedule' && 'schedule' || github.event.pull_request.number || github.head_ref || github.ref }}"
+  group: "${{ github.workflow }}-${{ github.event.pull_request.number || github.head_ref || github.ref }}"
   cancel-in-progress: true
 permissions:
   contents: read
