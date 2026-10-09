@@ -39,7 +39,7 @@ jobs:
       - run: sudo apt-get update
       - name: Restore opam cache
         id: opam-cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: "~/.opam"
           key: opam-${{matrix.ocaml_version}}-${{hashFiles('.github/rocq-peregrine.opam.locked')}}
@@ -57,6 +57,16 @@ jobs:
           opam repo add rocq-released https://rocq-prover.org/opam/released
           opam install --deps-only -j${{ env.JOBS }} .github/rocq-peregrine.opam.locked
           opam clean -a -c -s --logs
+
+      # Save here, not at the end of the job: the switch holds the
+      # dependencies only (rocq-peregrine is not installed yet), and a run
+      # that later fails or is cancelled still leaves the cache behind.
+      - name: Save opam cache
+        if: steps.opam-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: "~/.opam"
+          key: ${{ steps.opam-cache.outputs.cache-primary-key }}
 
       - name: Set up environment
         run: |
@@ -143,15 +153,14 @@ jobs:
           lint: false
           lake-package-directory: "test/lean/"
 
+      # The Lean backend tests use the toolchain pinned at the repository
+      # root, not the one of test/lean. Fetch it here, so that the download
+      # does not count against the compile timeout of the first Lean test.
+      - name: Install the Lean backend toolchain
+        run: elan toolchain install "$(cat lean-toolchain)"
+
       - name: Test extraction
         run: |
           echo "::group::Running tests"
           eval $(opam env) && cd test && npm install && npm run test
           echo "::endgroup::"
-
-      - name: Cache clean up
-        run: |
-          opam remove rocq-peregrine
-          opam pin remove rocq-peregrine
-          eval $(opam env)
-          opam clean -a -c -s --logs
