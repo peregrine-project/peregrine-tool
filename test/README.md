@@ -1,6 +1,11 @@
 # Peregrine tests
 
-To run the tests suite run `npm run test`.
+To run the tests suite run `npm install` once and then `npm run test`.
+
+To run only some of the test configurations listed in `test_configurations` ([src/tests.ts](src/tests.ts)), name them on the command line:
+```bash
+npm run test -- Rust Elm WebAssembly-cps
+```
 
 The test suite depends on the following:
 * Node.js v22 or later

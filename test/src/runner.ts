@@ -336,7 +336,11 @@ async function main() {
   check_peregrine();
 
   // For each test configuration run all test programs
+  // or only the configurations named on the command line, e.g. `Rust` or `WebAssembly-cps`
+  const selected = process.argv.slice(2);
   for (var backend of test_configurations) {
+    const name = backend[0] + (backend[1].length > 0 ? "-" + backend[1] : "");
+    if (selected.length > 0 && !selected.includes(name)) continue;
     await run_tests(backend[0], backend[1], backend[2], tests);
   }
 
