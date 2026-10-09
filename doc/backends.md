@@ -13,6 +13,7 @@ The table below summarises supported the backends
 | CakeML       | untyped | ✓ | ✓ | Serialized AST             | ✗ | GC |
 | Rust         | typed   | ✗ | ✗ | Source language            | ✓ | Bump allocator, no GC |
 | Elm          | typed   | ✗ | ✗ | Source language            | ✓ | - |
+| Lean         | untyped | ✗ | ✗ | Source language            | ✗ | Reference counting (Lean runtime) |
 | AST (debug)  | either  | ✓ | ✓ | Serialized AST             | ✗ | - |
 | Eval (debug) | either  | ✓ | ✗ | -                          | ✗ | -  |
 
@@ -64,6 +65,16 @@ The backend is located in [`peregrine-project/rocq-typed-extraction`](https://gi
 Output
 * A single file; written to `<file>.elm` by the CLI.
 * The result has no external dependencies and is compiled with the [Elm compiler](https://guide.elm-lang.org/install/elm).
+
+## Lean
+
+Lean backend extracting to surface level Lean 4 code. It accepts both typed and untyped ASTs as input.
+The backend is unverified. It is implemented in [`theories/lean/`](/theories/lean/) and [`theories/backends/LeanBackend.v`](/theories/backends/LeanBackend.v).
+
+Output
+* A single file; written to `<file>.lean` by the CLI.
+* The generated Lean depends on the runtime library [`lean/Peregrine/Runtime.lean`](/lean/Peregrine/Runtime.lean).
+* Is compiled with [Lake](https://lean-lang.org/install/), see [`lean/README.md`](/lean/README.md).
 
 ## Debug backends
 
