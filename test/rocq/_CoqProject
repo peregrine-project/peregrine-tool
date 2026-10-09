@@ -3,6 +3,7 @@
 
 -Q theories Peregrine.Tests
 theories/Extraction.v
+theories/Closure.v
 theories/Demo.v
 theories/Hello.v
 theories/Map.v

@@ -1,10 +1,15 @@
 From Peregrine.Plugin Require Import Loader.
+From Peregrine.Tests Require Closure.
 From Peregrine.Tests Require Demo.
 From Peregrine.Tests Require Hello.
 From Peregrine.Tests Require Map.
 From Peregrine.Tests Require Mutual.
 From Peregrine.Tests Require Nat.
 From Peregrine.Tests Require OddEven.
+
+(* Closure.v *)
+Peregrine Extract "extraction/Closure.ast" Closure.test.
+Peregrine Extract Typed "extraction/Closure_typed.ast" Closure.test.
 
 (* Demo.v *)
 Peregrine Extract "extraction/Demo.ast" Demo.test.

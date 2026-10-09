@@ -8,6 +8,7 @@ The test suite depends on the following:
 * [elm compiler](https://elm-lang.org/)
 * elm-test (can be installed with npm)
 * gcc
+* [Lean](https://lean-lang.org/install/) (`lake`, installed with elan)
 
 
 ## Agda frontend tests
