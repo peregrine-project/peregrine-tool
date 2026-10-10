@@ -9,6 +9,11 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Wasm, "", ""],
     [Lang.Rust, "", ""],
     [Lang.Elm, "", ""],
+    // The typed backends on the untyped sources, whose types are inferred.
+    // The expected outputs are those of the typed sources. A test marked as
+    // `rejected` must fail with "Could not infer types".
+    [Lang.Rust, "untyped", "", true],
+    [Lang.Elm, "untyped", "", true],
     [Lang.CakeML, "", ""],
     [Lang.Lean, "", ""]
 ];
@@ -31,6 +36,9 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Equality.ast",
+            // The Elm backend prints an identifier that starts with an underscore
+            // for a name that is an operator (`_≡_`), which Elm rejects
+            skip: [Lang.Elm],
             main: "Equality_test",
             output_type: SimpleType.Nat,
             expected_output: [
@@ -41,6 +49,9 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/EtaCon.ast",
+            // The Elm backend prints an identifier that starts with an underscore
+            // for a name that is an operator (`[]`), which Elm rejects
+            skip: [Lang.Elm],
             main: "EtaCon_example",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -52,6 +63,9 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Exports.ast",
+            // The Rust test configuration derives Debug and Serialize for every
+            // type, which fails on the function-typed fields of the record
+            skip: [Lang.Rust],
             main: "Exports_main",
             output_type: SimpleType.Other,
             expected_output: ["", ""],
@@ -59,6 +73,9 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Hello.ast",
+            // The Elm backend prints an identifier that starts with an underscore
+            // for a name that is an operator (`[]`), which Elm rejects
+            skip: [Lang.Elm],
             main: "Hello_hello",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -70,6 +87,10 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Imports.ast",
+            // Typable with a polymorphic List, but agda2lambox declares List without
+            // parameters, so inference gives it one element type and the program
+            // uses it at Bool and at Nat
+            rejected: true,
             main: "Imports_test2",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -81,6 +102,9 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Input.ast",
+            // The Rust test configuration derives Debug and Serialize for every
+            // type, which fails on the function-typed fields of the record
+            skip: [Lang.Rust],
             main: "Input_main",
             output_type: SimpleType.Other,
             expected_output: ["", ""],
@@ -88,6 +112,9 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Irr.ast",
+            // The Elm backend prints an identifier that starts with an underscore
+            // for a name that is an operator (`[]`), which Elm rejects
+            skip: [Lang.Elm],
             main: "Irr_ys",
             output_type: SimpleType.Other,
             expected_output: undefined,
@@ -95,6 +122,8 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/K.ast",
+            // The entry point is a function, which the Rust driver cannot call
+            skip: [Lang.Rust],
             main: "K_K",
             output_type: SimpleType.Other,
             expected_output: undefined,
@@ -102,6 +131,10 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Levels.ast",
+            // Rust: the backend prints the axiom lsuc as a unit and then applies it
+            // Elm: the backend prints an identifier that starts with an underscore
+            // for the local definition toNat
+            skip: [Lang.Rust, Lang.Elm],
             main: "Levels_testMkLevel",
             // OCaml/Wasm/CakeML call this program's malfunction
             // [main], which CertiRocq's Malfunction extraction
@@ -119,6 +152,9 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Map.ast",
+            // The Elm backend prints an identifier that starts with an underscore
+            // for a name that is an operator (`[]`), which Elm rejects
+            skip: [Lang.Elm],
             main: "Map_ys",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -130,6 +166,9 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Mutual.ast",
+            // The Elm backend prints the constructors of Nat and Odd under the same
+            // names, Zero and Succ
+            skip: [Lang.Elm],
             main: "Mutual_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S O)", "", ""],
@@ -144,6 +183,9 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/OddEven.ast",
+            // The Elm backend prints an identifier that starts with an underscore
+            // for a name that is an operator (`_,_`), which Elm rejects
+            skip: [Lang.Elm],
             main: "OddEven_test",
             output_type: SimpleType.Bool,
             expected_output: ["false", "", ""],
@@ -158,6 +200,9 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Proj.ast",
+            // The Elm backend prints an identifier that starts with an underscore
+            // for a name that is an operator (`_,_`), which Elm rejects
+            skip: [Lang.Elm],
             main: "Proj_second",
             output_type: SimpleType.Bool,
             expected_output: ["false", "", ""],
@@ -165,6 +210,9 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/rust.ast",
+            // The Elm driver names the module after the file, and rust is not a
+            // module name
+            skip: [Lang.Elm],
             main: "rust_testIdd",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: ["(cons (S (S (S O))) nil)", ""],
@@ -172,6 +220,8 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/scheme.ast",
+            // f returns a Bool or a Nat depending on its first argument
+            rejected: true,
             main: "scheme_demo",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S (S (S (S O))))))", ""],
@@ -186,6 +236,8 @@ var agda_tests: TestCase[] =
             }, */ // No main to test
         {
             src: "agda/STLC.ast",
+            // The type of the result of eval depends on the type of the term
+            rejected: true,
             main: "STLC_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S O))", "", ""],
@@ -207,6 +259,9 @@ var agda_tests: TestCase[] =
             }, */ // No main to test
         {
             src: "agda/Unicode.ast",
+            // The Elm backend prints an identifier that starts with an underscore
+            // for a name that is an operator (`[]`), which Elm rejects
+            skip: [Lang.Elm],
             main: "Unicode_main",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: ["(cons (S O) nil)", "", ""],
@@ -214,6 +269,9 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/With.ast",
+            // The Elm backend prints an identifier that starts with an underscore
+            // for a name that is an operator (`[]`), which Elm rejects
+            skip: [Lang.Elm],
             main: "With_ys",
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: ["(cons true nil)", "", ""],
@@ -301,6 +359,9 @@ var lean_tests: TestCase[] =
     [
         {
             src: "lean/extraction/Demo.ast",
+            // The names have an empty module path, so the Elm backend prints
+            // identifiers that start with an underscore, which Elm rejects
+            skip: [Lang.Elm],
             main: "Demo_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
@@ -312,6 +373,9 @@ var lean_tests: TestCase[] =
         },
         {
             src: "lean/extraction/Map.ast",
+            // The names have an empty module path, so the Elm backend prints
+            // identifiers that start with an underscore, which Elm rejects
+            skip: [Lang.Elm],
             main: "Map_ys",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [

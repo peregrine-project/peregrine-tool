@@ -56,7 +56,20 @@ function compile_box(file: string, outdir: string, lang: Lang, opts: string, con
       return { type: "error", reason: "timeout" };
     }
 
-    return { type: "error", reason: "compile error", compiler: "peregrine", code: e.status, error: e.stdout.toString('utf8') };
+    return { type: "error", reason: "compile error", compiler: "peregrine", code: e.status, error: e.stdout.toString('utf8') + e.stderr.toString('utf8') };
+  }
+}
+
+// Report the result of compiling, with a typed backend, an untyped program
+// marked as `rejected`: peregrine must fail and say that it could not infer
+// the types
+function print_rejected(res: string | ExecFailure, test: string) {
+  if (typeof res === "string") {
+    print_result({ type: "error", reason: "incorrect result", expected: "a rejection by type inference", actual: "a compiled program" }, test);
+  } else if (res.reason === "compile error" && res.error.includes("Could not infer types")) {
+    print_line("rejected by type inference, as expected");
+  } else {
+    print_result(res, test);
   }
 }
 
@@ -125,11 +138,14 @@ function print_result(res: ExecResult, test: string): boolean {
 }
 
 // Compile and run all `tests` test programs with the `lang` backend and `opts` compiler options
-async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[]) {
+// `untyped` gives the typed backends the untyped source of each test
+async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[], untyped: boolean) {
+  // Source that the typed backends compile
+  const typed_src = (t: TestCase) => untyped ? t.src : t.tsrc;
   print_line(`Running ${lang}${n.length > 0 ? "-"+n : ""} tests:`);
   tests = tests.filter((t) => {
     if (!t.skip?.includes(lang)) return true;
-    print_line(`  ${t.tsrc ?? t.src}: skipped (known failure)`);
+    print_line(`  ${typed_src(t) ?? t.src ?? t.tsrc}: skipped (known failure)`);
     return false;
   });
   switch (lang) {
@@ -240,20 +256,25 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
       let cargodir = path.join(tmpdir, "rust/");
 
       for (var test of tests) {
-        if (test.tsrc === undefined) continue;
-        process.stdout.write(`  ${test.tsrc}: `);
+        const src = typed_src(test);
+        if (src === undefined) continue;
+        process.stdout.write(`  ${src}: `);
 
         // Compile peregrine
-        const f_rs = compile_box(test.tsrc, otudir, Lang.Rust, opts, "src/rust/config.sexp");
+        const f_rs = compile_box(src, otudir, Lang.Rust, opts, "src/rust/config.sexp");
+        if (untyped && test.rejected) {
+          print_rejected(f_rs, src);
+          continue;
+        }
         if (typeof f_rs !== "string") {
-          print_result(f_rs, test.tsrc);
+          print_result(f_rs, src);
           continue;
         }
 
         // Compile Rust
         const err = compile_rust(f_rs, cargodir, test, compile_timeout);
         if (err !== undefined) {
-          print_result(err, test.tsrc);
+          print_result(err, src);
           continue;
         }
 
@@ -261,7 +282,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         const res = run_rust(f_rs, cargodir, test, exec_timeout);
 
         // Report result
-        print_result(res, test.tsrc);
+        print_result(res, src);
       }
       break;
     case Lang.Elm:
@@ -269,13 +290,18 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
       let elmdir = path.join(tmpdir, "elm/");
 
       for (var test of tests) {
-        if (test.tsrc === undefined) continue;
-        process.stdout.write(`  ${test.tsrc}: `);
+        const src = typed_src(test);
+        if (src === undefined) continue;
+        process.stdout.write(`  ${src}: `);
 
         // Compile peregrine
-        const f_elm = compile_box(test.tsrc, otudir, Lang.Elm, opts, "src/elm/config.sexp");
+        const f_elm = compile_box(src, otudir, Lang.Elm, opts, "src/elm/config.sexp");
+        if (untyped && test.rejected) {
+          print_rejected(f_elm, src);
+          continue;
+        }
         if (typeof f_elm !== "string") {
-          print_result(f_elm, test.tsrc);
+          print_result(f_elm, src);
           continue;
         }
 
@@ -283,7 +309,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         const res = run_elm(f_elm, elmdir, test, exec_timeout);
 
         // Report result
-        print_result(res, test.tsrc);
+        print_result(res, src);
       }
       break;
 
@@ -353,7 +379,7 @@ async function main() {
   }
   for (var backend of test_configurations) {
     if (selected.length > 0 && !selected.includes(config_name(backend))) continue;
-    await run_tests(backend[0], backend[1], backend[2], tests);
+    await run_tests(backend[0], backend[1], backend[2], tests, backend[3] ?? false);
   }
 
   // Report test suite result
