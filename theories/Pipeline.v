@@ -70,18 +70,6 @@ Definition check_wf (p : PAst) : result' unit :=
       @CheckWfExAst.check_wf_typed_program EWellformed.all_env_flags env
   end.
 
-Definition validate_ast_type (c : config) (p : PAst) : result' unit :=
-  match c.(backend_opts) with
-  | Rust _ => assert (is_typed_ast p) "Rust extraction requires typed lambda box input"
-  | Elm _ => assert (is_typed_ast p) "Elm extraction requires typed lambda box input"
-  | C _ | Wasm _ | OCaml _ | CakeML _ | Lean _ | Eval _ => Ok tt
-  | AST c =>
-    match c.(ast_type) with
-    | LambdaBoxTyped => assert (is_typed_ast p) "Extraction requires typed lambda box input"
-    | _ => Ok tt
-    end
-  end.
-
 Definition needs_typed (c : config) : bool :=
   match c.(backend_opts) with
   | Rust _ | Elm _ => true
@@ -99,10 +87,25 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAs
   let impl_box := c.(erasure_opts).(implement_box) in
   let impl_lazy := c.(erasure_opts).(implement_lazy) in
   match p, typed with
-  | Untyped env (Some t), _ =>
+  | Untyped env (Some t), true =>
+      (* Typed backend on untyped (lambda-box) input: bridge to typed via the
+         HM inference [infer_for_backend] on the *raw* env (before the
+         untyped pipeline turns constructors into blocks, which the typed
+         backends do not consume), then run the typed pipeline, which
+         preserves applied constructors.  Inference failure is a pipeline
+         error.  [EHindleyMilner.infer_section] gives [trans_env env0 = env];
+         nothing is proved about the inferred types. *)
+      env0 <- infer_for_backend env;;
+      let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (env0, t) in
+      Ok (Typed env' (Some t'))
+  | Untyped env None, true =>
+      env0 <- infer_for_backend env;;
+      let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (env0, EAst.tBox) in
+      Ok (Typed env' None)
+  | Untyped env (Some t), false =>
       let (env', t') := run_untyped_transforms econf cstr_reorder impl_box impl_lazy (env, t) in
       Ok (Untyped env' (Some t'))
-  | Untyped env None, _ =>
+  | Untyped env None, false =>
       let (env', _) := run_untyped_transforms econf cstr_reorder impl_box impl_lazy (env, EAst.tBox) in
       Ok (Untyped env' None)
   | Typed env (Some t), true =>
@@ -238,7 +241,6 @@ Definition peregrine_pipeline (c : string + config') (attrs : list string) (p : 
   p <- parse_ast p;; (* Parse input string into AST *)
   c <- get_config c attrs;; (* Parse or construct config *)
   check_wf p;; (* Check that AST is wellformed *)
-  validate_ast_type c p;; (* Check that the provided AST is compatible with the chosen backend *)
   p <- NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c) p;; (* Sanitize names in AST *)
   c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;; (* Sanitize names in config *)
   p <- apply_transforms c p (needs_typed c);; (* Apply program transformation *)

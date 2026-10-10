@@ -8,11 +8,11 @@ The table below summarises supported the backends
 | Backend      | Source  | Verified | Verified printer | Target format       | Readability | Memory handling |
 |--------------|---------|----------|------------------|---------------------|-------------|-----------------|
 | C            | untyped | ✓ | ✗ | C-light                    | ✗ | Verified GC |
-| WebAssembly  | untpyed | ✓ | ✓ | Binary format              | ✗ | Bump allocator, no GC |
+| WebAssembly  | untyped | ✓ | ✓ | Binary format              | ✗ | Bump allocator, no GC |
 | OCaml        | untyped | ✓ | ✗ | Malfunction Serialized AST | ✗ | GC |
 | CakeML       | untyped | ✓ | ✓ | Serialized AST             | ✗ | GC |
-| Rust         | typed   | ✗ | ✗ | Source language            | ✓ | Bump allocator, no GC |
-| Elm          | typed   | ✗ | ✗ | Source language            | ✓ | - |
+| Rust         | typed (untyped: experimental) | ✗ | ✗ | Source language            | ✓ | Bump allocator, no GC |
+| Elm          | typed (untyped: experimental) | ✗ | ✗ | Source language            | ✓ | - |
 | Lean         | untyped | ✗ | ✗ | Source language            | ✗ | Reference counting (Lean runtime) |
 | AST (debug)  | either  | ✓ | ✓ | Serialized AST             | ✗ | - |
 | Eval (debug) | either  | ✓ | ✗ | -                          | ✗ | -  |
@@ -49,7 +49,8 @@ The `.cml` file can be compiled using the [CakeML compiler](https://cakeml.org/)
 
 ## Rust
 
-Rust backend extracting to surface level Rust code. The backend requires typed AST.
+Rust backend extracting to surface level Rust code. The backend works on typed AST.
+Untyped input is accepted as well: the middle-end first annotates it with types by Hindley-Milner inference ([EHindleyMilner.v](/theories/erasure/EHindleyMilner.v)), reconstructing the datatype signatures (type parameters, constructor field types) from how the constructors are used in the program. It is proved that erasing the annotations gives back the input and that the annotations are well scoped; the annotations themselves are unverified. When the program is not typable this way (dependent elimination, type-level computation, an inductive used at two incompatible field types, a constant used before its declaration, unsupported term forms such as primitives) peregrine fails with a message naming the constant and the types that did not unify; provide a typed program in that case. The reconstructed signature is the most general one consistent with the uses seen, so it can be more polymorphic than the source declaration (a record field may become a type parameter), and the body of an erased type parameter is typed `()`.
 The backend is located in [`peregrine-project/rocq-typed-extraction`](https://github.com/peregrine-project/rocq-typed-extraction).
 
 Output
@@ -59,7 +60,8 @@ Output
 
 ## Elm
 
-ELm backend extracting to surface level Elm code. The backend requires typed AST.
+Elm backend extracting to surface level Elm code. The backend works on typed AST.
+Untyped input is accepted and annotated as for [Rust](#rust).
 The backend is located in [`peregrine-project/rocq-typed-extraction`](https://github.com/peregrine-project/rocq-typed-extraction).
 
 Output
