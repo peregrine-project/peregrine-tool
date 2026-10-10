@@ -145,6 +145,8 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
   print_line(`Running ${lang}${n.length > 0 ? "-"+n : ""} tests:`);
   tests = tests.filter((t) => {
     if (!t.skip?.includes(lang)) return true;
+    // The typed backends would not run a test without a source for them
+    if ((lang === Lang.Rust || lang === Lang.Elm) && typed_src(t) === undefined) return false;
     print_line(`  ${typed_src(t) ?? t.src ?? t.tsrc}: skipped (known failure)`);
     return false;
   });
