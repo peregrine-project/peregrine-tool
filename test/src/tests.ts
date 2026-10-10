@@ -22,8 +22,10 @@ var agda_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
                 "(cons true (cons false (cons true (cons false nil))))",
-                "(Cons () (True) (Cons () (False) (Cons () (True) (Cons () (False) (Empty)))))",
-                "Cons True (Cons False (Cons True (Cons False Empty)))"
+                // The typed backends keep the names of the constructors, which
+                // agda2lambox emits as r#true and r#false
+                "(cons () (rՖhshtrue) (cons () (rՖhshfalse) (cons () (rՖhshtrue) (cons () (rՖhshfalse) (empty)))))",
+                "Cons R_UU23true (Cons R_UU23false (Cons R_UU23true (Cons R_UU23false Empty)))"
             ],
             parameters: []
         },
@@ -43,7 +45,7 @@ var agda_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S O) nil)",
-                "(Cons () (S O) (Empty)",
+                "(Ֆ_Ֆcons_ () (suc () (zero)) (Ֆ5bՖՖ5dՖ))",
                 "Cons (S O) Empty"
             ],
             parameters: []
@@ -303,7 +305,7 @@ var lean_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
                 "(cons true (cons false (cons true (cons false nil))))",
-                "(Cons () (True) (Cons () (False) (Cons () (True) (Cons () (False) (Empty)))))",
+                "(List_Ֆdotcons () (Bool_Ֆdottrue) (List_Ֆdotcons () (Bool_Ֆdotfalse) (List_Ֆdotcons () (Bool_Ֆdottrue) (List_Ֆdotcons () (Bool_Ֆdotfalse) (List_Ֆdotempty)))))",
                 "Cons True (Cons False (Cons True (Cons False Empty)))"
             ],
             parameters: []
