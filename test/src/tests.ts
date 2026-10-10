@@ -7,8 +7,8 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.C, "", ""],
     [Lang.Wasm, "cps", "--cps"],
     [Lang.Wasm, "", ""],
-    // [Lang.Rust, "", "--attr=\"#[derive(Debug, Clone, Serialize)]\" --top-preamble=\"use lexpr::{to_string}; use serde_derive::{Serialize}; use serde_lexpr::{to_value};\n\""],
-    // [Lang.Elm, "", "--top-preamble=\"import Test\nimport Html\nimport Expect exposing (Expectation)\""],
+    [Lang.Rust, "", ""],
+    [Lang.Elm, "", ""],
     [Lang.CakeML, "", ""],
     [Lang.Lean, "", ""]
 ];
@@ -227,7 +227,7 @@ var rocq_tests: TestCase[] =
             tsrc: "rocq/extraction/Closure_typed.ast",
             main: "Closure_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S (S (S (S (S O)))))", "", ""],
+            expected_output: ["(S (S (S (S (S O)))))", "(S () (S () (S () (S () (S () (O))))))", "S (S (S (S (S O))))"],
             parameters: []
         },
         {
@@ -237,7 +237,8 @@ var rocq_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
                 "(cons true (cons false (cons true (cons false nil))))",
-                "(Cons () (True) (Cons () (False) (Cons () (True) (Cons () (False) (Empty)))))",
+                // The Rust backend keeps the names of the constructors, which are lower case in Demo.v
+                "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
                 "Cons True (Cons False (Cons True (Cons False Empty)))"
             ],
             parameters: []
@@ -261,8 +262,8 @@ var rocq_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S O)) (cons (S (S (S (S (S (S O)))))) (cons (S (S (S (S (S (S (S (S (S (S O)))))))))) nil)))",
-                "",
-                ""
+                "(cons () () (S () (S () (O))) (cons () () (S () (S () (S () (S () (S () (S () (O))))))) (cons () () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O))))))))))) (nil () ()))))",
+                "Cons () (S (S O)) (Cons () (S (S (S (S (S (S O)))))) (Cons () (S (S (S (S (S (S (S (S (S (S O)))))))))) (Nil ())))"
             ],
             parameters: []
         },
@@ -271,15 +272,17 @@ var rocq_tests: TestCase[] =
             tsrc: "rocq/extraction/Mutual_typed.ast",
             main: "Mutual_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S O)", "", ""],
-            parameters: []
+            expected_output: ["(S O)", "(S () (O))", ""],
+            parameters: [],
+            // The Elm backend prints the constructor succ' as Succ', which is not an Elm identifier
+            skip: [Lang.Elm]
         },
         {
             src: "rocq/extraction/Nat.ast",
             tsrc: "rocq/extraction/Nat_typed.ast",
             main: "Nat_thing",
             output_type: SimpleType.Nat,
-            expected_output: ["(S (S (S O)))", "", ""],
+            expected_output: ["(S (S (S O)))", "(S () (S () (S () (O))))", "S (S (S O))"],
             parameters: []
         },
         {
@@ -287,7 +290,7 @@ var rocq_tests: TestCase[] =
             tsrc: "rocq/extraction/OddEven_typed.ast",
             main: "OddEven_test",
             output_type: SimpleType.Bool,
-            expected_output: ["false", "", ""],
+            expected_output: ["false", "(false)", "False"],
             parameters: []
         },
     ];

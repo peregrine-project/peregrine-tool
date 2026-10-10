@@ -1,5 +1,5 @@
 import { exit } from "process";
-import { Lang, TestCase, ExecResult, SimpleType, ExecFailure } from "./types";
+import { Lang, TestCase, TestConfiguration, ExecResult, SimpleType, ExecFailure } from "./types";
 import { run_wasm } from "./wasm";
 import { execSync } from "child_process";
 import path from "path";
@@ -40,10 +40,13 @@ function get_exec(local: boolean): string {
 // `file` input program
 // `lang` language that we compile to
 // `opts` compiler options
+// `config` optional pipeline configuration file; when given the program is
+// compiled with `peregrine compile`, the configuration selects the backend
 // returns a string containing the location of the compiled code or an ExecFailure object
-function compile_box(file: string, outdir: string, lang: Lang, opts: string): string | ExecFailure {
+function compile_box(file: string, outdir: string, lang: Lang, opts: string, config?: string): string | ExecFailure {
   const out_f = path.join(outdir, path.basename(replace_ext(file, lang_to_ext(lang))));
-  const cmd = `${get_exec(use_local_binary)} ${lang_to_peregrine_arg(lang)} ${file} -o ${out_f} ${opts}`;
+  const verb = config === undefined ? `${lang_to_peregrine_arg(lang)} ${file}` : `compile ${file} ${config}`;
+  const cmd = `${get_exec(use_local_binary)} ${verb} -o ${out_f} ${opts}`;
 
   try {
     execSync(cmd, { stdio: "pipe", timeout: compile_timeout });
@@ -124,6 +127,11 @@ function print_result(res: ExecResult, test: string): boolean {
 // Compile and run all `tests` test programs with the `lang` backend and `opts` compiler options
 async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[]) {
   print_line(`Running ${lang}${n.length > 0 ? "-"+n : ""} tests:`);
+  tests = tests.filter((t) => {
+    if (!t.skip?.includes(lang)) return true;
+    print_line(`  ${t.tsrc ?? t.src}: skipped (known failure)`);
+    return false;
+  });
   switch (lang) {
     case Lang.OCaml:
       compile_types(compile_timeout);
@@ -236,7 +244,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         process.stdout.write(`  ${test.tsrc}: `);
 
         // Compile peregrine
-        const f_rs = compile_box(test.tsrc, otudir, Lang.Rust, opts);
+        const f_rs = compile_box(test.tsrc, otudir, Lang.Rust, opts, "src/rust/config.sexp");
         if (typeof f_rs !== "string") {
           print_result(f_rs, test.tsrc);
           continue;
@@ -265,7 +273,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         process.stdout.write(`  ${test.tsrc}: `);
 
         // Compile peregrine
-        const f_elm = compile_box(test.tsrc, otudir, Lang.Elm, opts);
+        const f_elm = compile_box(test.tsrc, otudir, Lang.Elm, opts, "src/elm/config.sexp");
         if (typeof f_elm !== "string") {
           print_result(f_elm, test.tsrc);
           continue;
@@ -333,7 +341,18 @@ async function main() {
   check_peregrine();
 
   // For each test configuration run all test programs
+  // or only the configurations named on the command line, e.g. `Rust` or `WebAssembly-cps`
+  // (exact, case-sensitive match on the name the runner prints)
+  const config_name = (c: TestConfiguration) => c[0] + (c[1].length > 0 ? "-" + c[1] : "");
+  const names = test_configurations.map(config_name);
+  const selected = process.argv.slice(2);
+  const unknown = selected.filter((n) => !names.includes(n));
+  if (unknown.length > 0) {
+    print_line(`error: unknown test configuration ${unknown.join(", ")}; the configurations are ${names.join(", ")}`);
+    exit(2);
+  }
   for (var backend of test_configurations) {
+    if (selected.length > 0 && !selected.includes(config_name(backend))) continue;
     await run_tests(backend[0], backend[1], backend[2], tests);
   }
 

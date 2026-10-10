@@ -58,6 +58,8 @@ export type TestCase = {
   arguments?: string[],
   // Extra flags and args for compiling the test program
   compiler_args?: string,
+  // Backends on which the test is known to fail and is not run
+  skip?: Lang[],
 }
 
 // Test configuration consisting of a target language, testset name, and a set of options
