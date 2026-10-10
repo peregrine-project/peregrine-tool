@@ -10,6 +10,17 @@ export function print_line(s: string) {
   process.stdout.write(s + "\n");
 }
 
+// Find the identifier a typed backend printed for the entry point `main`.
+// These backends print names fully qualified and adapted to the target
+// language (`Demo_test` becomes `Peregrine_Tests_Demo_test` in Rust and
+// `peregrine_Tests_Demo_test` in Elm), so look for the last identifier in
+// `source` that is `main`, possibly after a prefix ending in `_`, ignoring
+// case.
+export function find_entry_point(source: string, main: string): string {
+  const ids = source.match(new RegExp(`\\b(?:\\w+_)?${main}\\b`, "gi"));
+  return ids === null ? main : ids[ids.length - 1];
+}
+
 // Convert Lang to target language argument for peregrine compiler
 export function lang_to_peregrine_arg(lang: Lang): string {
   switch (lang) {

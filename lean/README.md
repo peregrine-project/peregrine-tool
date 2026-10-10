@@ -40,7 +40,7 @@ The output is meant to be compiled natively with Lake, in a package that contain
 
 ```
 lakefile.toml
-lean-toolchain            # leanprover/lean4:v4.30.0
+lean-toolchain            # leanprover/lean4:v4.34.1
 Peregrine/Runtime.lean    # copy of lean/Peregrine/Runtime.lean
 Main.lean                 # peregrine output, plus a main function
 ```
@@ -74,7 +74,7 @@ Then run `lake build prog` and `./.lake/build/bin/prog`.
 
 The result is an `Obj`. To print it, cast it to an inductive with the same constructor order and arities, as [`test/src/lean/Peregrine/TestPrinters.lean`](/test/src/lean/Peregrine/TestPrinters.lean) does for booleans, naturals, and lists.
 
-The `lakefile.toml` at the repository root builds the runtime alone (`lake build`). The runtime is tested with Lean 4.30.0.
+The `lakefile.toml` at the repository root builds the runtime alone (`lake build`). The runtime is tested with Lean 4.34.1.
 
 ## Configuration
 
