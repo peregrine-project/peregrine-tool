@@ -16,8 +16,10 @@ The test suite depends on the following:
 * gcc
 * [Lean](https://lean-lang.org/install/) (`lake`, installed with elan)
 
-The Rust and Elm backends take typed programs, so their configurations only run the tests that have a `tsrc`, currently the Rocq ones.
-They compile with `peregrine compile` and the pipeline configurations [src/rust/config.sexp](src/rust/config.sexp) and [src/elm/config.sexp](src/elm/config.sexp).
+The Rust and Elm backends take typed programs, so the `Rust` and `Elm` configurations only run the tests that have a `tsrc`, currently the Rocq ones.
+The `Rust-untyped` and `Elm-untyped` configurations give the same backends the untyped `src` of every test, whose types peregrine then infers, and expect the outputs of the typed sources.
+A test marked as `rejected` is a program whose types cannot be inferred: there peregrine must fail with `Could not infer types`.
+All four compile with `peregrine compile` and the pipeline configurations [src/rust/config.sexp](src/rust/config.sexp) and [src/elm/config.sexp](src/elm/config.sexp).
 
 
 ## Agda frontend tests
