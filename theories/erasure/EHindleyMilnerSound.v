@@ -81,9 +81,9 @@ Definition oib_scoped (oib : ExAst.one_inductive_body) : Prop :=
   Forall (fun '(_, args, _) => Forall (fun '(_, ty) => tvars_lt k ty) args) oib.(ExAst.ind_ctors)
   /\ Forall (fun '(_, ty) => tvars_lt k ty) oib.(ExAst.ind_projs).
 
-Lemma emit_oib_aux_scoped params ctors oib : oib_scoped (emit_oib_aux params ctors oib).
+Lemma emit_oib_aux_scoped params keep ctors oib : oib_scoped (emit_oib_aux params keep ctors oib).
 Proof.
-  unfold oib_scoped, emit_oib_aux, mapi; cbn. rewrite length_map. split.
+  unfold oib_scoped, emit_oib_aux, mapi; cbn. rewrite length_map, length_seq. split.
   - generalize 0 as k. induction (EAst.ind_ctors oib) as [|c cs IH]; intros k; cbn; constructor; [|apply IH].
     unfold emit_ctor. apply (proj2 (List.Forall_app _ _ _)). split.
     + apply Forall_forall. intros [na ty] Hin. apply repeat_spec in Hin.
@@ -119,8 +119,7 @@ Qed.
 Theorem infer_scoped (Σ : EAst.global_context) (Σ' : ExAst.global_env) :
   infer Σ = Ok Σ' -> Forall (fun '(_, _, d) => decl_scoped d) Σ'.
 Proof.
-  unfold infer. destruct (init_sigs Σ 0) as [T cnt].
-  destruct (infer_go Σ T _) as [[[T1 E1] S1]|e]; cbn; intros H; [|discriminate].
+  unfold infer. destruct (infer_sigs Σ) as [[T1 E1]|e]; cbn; intros H; [|discriminate].
   injection H as <-. apply Forall_map, Forall_forall.
   intros d _. pose proof (emit_decl_scoped T1 E1 d) as Hd.
   destruct (emit_decl T1 E1 d) as [[kn b] d']. exact Hd.

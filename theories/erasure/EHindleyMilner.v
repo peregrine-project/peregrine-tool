@@ -83,10 +83,23 @@
        [tProj]) freshens the parameters into INSTANCE variables θ; a known
        field type is instantiated at θ; an unknown field yields a fresh
        variable [v] and a PENDING constraint "field = v at θ".  The type of a
-       constructor is  [□ -> … -> □ -> f₁ -> … -> fₙ -> I θ]  with one [□]
-       per parameter, matching the erased calling convention (parameters are
-       passed as boxes) and the shape typed erasure gives inductive bodies
-       (parameter entries typed [TBox] followed by the [cstr_nargs] fields).
+       constructor is  [p₁ -> … -> pₘ -> f₁ -> … -> fₙ -> I θ]  with one
+       argument per parameter, matching the erased calling convention: a type
+       or proof parameter is passed as [□] ([pᵢ = □]), a value parameter as
+       the value ([pᵢ] a fresh variable).  The emitted inductive bodies have
+       the shape typed erasure gives them (parameter entries typed [TBox]
+       followed by the [cstr_nargs] fields).
+
+       Only TYPE parameters become type variables of the output, as in typed
+       erasure, whose [keep_tvar] drops the others.  λ□ does not say which
+       parameters are types, so [infer] runs twice.  The first run drops the
+       value parameters, found syntactically ([value_params]: some
+       constructor application passes a non-[□] term).  The second run also
+       drops the parameters that no field type of the first run mentions (a
+       [Prop] or phantom parameter, which nothing can instantiate).  The
+       instance of a dropped parameter is [TBox] and its [type_var_info] has
+       [tvar_is_arity = false]; if the second run fails, the first run's
+       result stands.
 
        Pending constraints are RESOLVED at the end of each constant, before
        generalization, in this priority order (ties by creation order):
@@ -102,6 +115,10 @@
              (parameter preference: the most general choice), otherwise the
              field is the use type and its variables become GLOBAL;
          (3) GROUND: as (2) with no variables; [TBox] stays [TBox].
+       A use type that is a variable occurring nowhere else (not in the
+       constant's type, a known field or another constraint), such as the
+       type of an unused match binder, carries no information: the field
+       stays unknown, and a later use may determine it.
        Rule (b) misfires on a non-recursive inductive nested in itself
        (e.g. [pair x (pair y z)]); when resolution then fails, the constant
        is re-run with rule (b) disabled before the error is reported.
@@ -341,6 +358,7 @@ Definition fields : Type := list (option ExAst.box_type).
 Record ind_sig := mk_ind_sig {
   is_npars : nat;
   is_params : list nat;
+  is_keep : list bool;           (* per parameter: a type variable of the output *)
   is_ctors : list (list fields)  (* per inductive body, per constructor *)
 }.
 
@@ -380,14 +398,14 @@ Fixpoint sig_update (T : sig_table) (kn : kername) (f : ind_sig -> ind_sig) : si
 
 Definition sig_set_field (T : sig_table) (ind : inductive) (c j : nat) (ty : ExAst.box_type) : sig_table :=
   sig_update T ind.(inductive_mind)
-    (fun sg => {| is_npars := sg.(is_npars); is_params := sg.(is_params);
+    (fun sg => {| is_npars := sg.(is_npars); is_params := sg.(is_params); is_keep := sg.(is_keep);
                   is_ctors := set_nth sg.(is_ctors) ind.(inductive_ind)
                                 (fun ctors => set_nth ctors c
                                    (fun fs => set_nth fs j (fun _ => Some ty))) |}).
 
 Definition sig_map (f : ExAst.box_type -> ExAst.box_type) (T : sig_table) : sig_table :=
   map (fun '(kn, sg) =>
-         (kn, {| is_npars := sg.(is_npars); is_params := sg.(is_params);
+         (kn, {| is_npars := sg.(is_npars); is_params := sg.(is_params); is_keep := sg.(is_keep);
                  is_ctors := map (map (map (option_map f))) sg.(is_ctors) |})) T.
 
 (** Free variables of all known fields: the GLOBAL variables (parameters
@@ -398,20 +416,22 @@ Definition sig_ftv (T : sig_table) : list nat :=
                        sg.(is_ctors)) T.
 
 (** Allocate the parameter variables and unknown fields of every inductive
-    block of [Σ]; returns the table and the next fresh variable. *)
-Fixpoint init_sigs (Σ : EAst.global_context) (cnt : nat) : sig_table * nat :=
+    block of [Σ]; returns the table and the next fresh variable.  [drop kn k]:
+    parameter [k] of block [kn] is not a type variable. *)
+Fixpoint init_sigs (drop : kername -> nat -> bool) (Σ : EAst.global_context) (cnt : nat) : sig_table * nat :=
   match Σ with
   | [] => ([], cnt)
   | (kn, EAst.InductiveDecl mib) :: Σ' =>
-    let '(T, cnt1) := init_sigs Σ' cnt in
+    let '(T, cnt1) := init_sigs drop Σ' cnt in
     let np := mib.(EAst.ind_npars) in
     let sg := {| is_npars := np;
                  is_params := seq cnt1 np;
+                 is_keep := map (fun k => negb (drop kn k)) (seq 0 np);
                  is_ctors := map (fun oib => map (fun c => repeat None c.(EAst.cstr_nargs))
                                                  oib.(EAst.ind_ctors))
                                  mib.(EAst.ind_bodies) |} in
     ((kn, sg) :: T, cnt1 + np)
-  | (_, EAst.ConstantDecl _) :: Σ' => init_sigs Σ' cnt
+  | (_, EAst.ConstantDecl _) :: Σ' => init_sigs drop Σ' cnt
   end.
 
 (** ** Inference state *)
@@ -463,10 +483,15 @@ Definition unify_st (uf : nat) (ss : st) (a b : ExAst.box_type) : result' st :=
   | None => Err ("cannot unify " ++ string_of_bt (zonk_st ss a) ++ " with " ++ string_of_bt (zonk_st ss b))
   end.
 
-(** Freshen the parameters of the block of [ind]: the instance variables θ. *)
-Definition fresh_theta (ss : st) (ind : inductive) (np : nat) : list nat * st :=
+(** Freshen the parameters of the block of [ind]: the instance variables θ.
+    The instance of a dropped parameter ([is_keep]) is [TBox]; the variable
+    is fresh, so binding it keeps the substitution idempotent. *)
+Definition fresh_theta (ss : st) (ind : inductive) (sg : ind_sig) : list nat * st :=
+  let np := sg.(is_npars) in
   let theta := seq ss.(st_cnt) np in
-  let S1 := {| st_cnt := ss.(st_cnt) + np; st_s := ss.(st_s); st_pend := ss.(st_pend); st_inst := ss.(st_inst); st_glob := ss.(st_glob); st_taken := ss.(st_taken) |} in
+  let boxed := flat_map (fun '((th, keep) : nat * bool) => if keep then [] else [(th, ExAst.TBox)] : subst_t)
+                        (combine theta sg.(is_keep)) in
+  let S1 := {| st_cnt := ss.(st_cnt) + np; st_s := (boxed ++ ss.(st_s))%list; st_pend := ss.(st_pend); st_inst := ss.(st_inst); st_glob := ss.(st_glob); st_taken := ss.(st_taken) |} in
   (theta, add_insts S1 ind.(inductive_mind) theta).
 
 Definition param_subst (params theta : list nat) : subst_t :=
@@ -495,15 +520,20 @@ Definition ind_at (ind : inductive) (theta : list nat) : ExAst.box_type :=
 Definition err_ctor (ind : inductive) (c : nat) : string :=
   "constructor " ++ string_of_nat c ++ " of " ++ string_of_kername ind.(inductive_mind) ++ " is not declared".
 
-(** The type of a constructor at a fresh instance: one [TBox] per parameter,
-    the fields, then the inductive at the instance. *)
+(** The type of a constructor at a fresh instance: one argument per
+    parameter ([TBox] for a type parameter, a fresh variable for a dropped
+    one, which may be a value parameter), the fields, then the inductive at
+    the instance. *)
 Definition ctor_type (T : sig_table) (ss : st) (ind : inductive) (c : nat) : result' (ExAst.box_type * st) :=
   match sig_fields T ind c with
   | None => Err (err_ctor ind c)
   | Some (sg, fs) =>
-    let '(theta, S1) := fresh_theta ss ind sg.(is_npars) in
+    let '(theta, S1) := fresh_theta ss ind sg in
     let '(ftys, S2) := fields_at S1 ind c sg.(is_params) theta fs 0 in
-    Ok (mkArrows (repeat ExAst.TBox sg.(is_npars) ++ ftys)%list (ind_at ind theta), S2)
+    let slots := map (fun '((keep, v) : bool * nat) => if keep then ExAst.TBox else ExAst.TVar v)
+                     (combine sg.(is_keep) (seq S2.(st_cnt) sg.(is_npars))) in
+    let S3 := {| st_cnt := S2.(st_cnt) + sg.(is_npars); st_s := S2.(st_s); st_pend := S2.(st_pend); st_inst := S2.(st_inst); st_glob := S2.(st_glob); st_taken := S2.(st_taken) |} in
+    Ok (mkArrows (slots ++ ftys)%list (ind_at ind theta), S3)
   end.
 
 (** ** Algorithm-W-style term inference *)
@@ -639,11 +669,11 @@ Fixpoint infer_tm (fuel : nat) (T : sig_table) (E : sch_env)
     | EAst.tCase indn c brs =>
       let ind := fst indn in
       '(tc, S1) <- infer_tm fuel T E ctx ss c;;
-      np <- match sig_lookup T ind.(inductive_mind) with
-            | Some sg => Ok sg.(is_npars)
+      sg <- match sig_lookup T ind.(inductive_mind) with
+            | Some sg => Ok sg
             | None => Err ("inductive " ++ string_of_kername ind.(inductive_mind) ++ " is not declared")
             end;;
-      let '(theta, S2) := fresh_theta S1 ind np in
+      let '(theta, S2) := fresh_theta S1 ind sg in
       let erased := match zonk_st S2 tc with ExAst.TBox => true | _ => false end in
       S3 <- (if erased then Ok S2 else unify_st unify_fuel S2 tc (ind_at ind theta));;
       let '(r, S4) := fresh S3 in
@@ -656,7 +686,7 @@ Fixpoint infer_tm (fuel : nat) (T : sig_table) (E : sch_env)
       match sig_fields T ind 0 with
       | None => Err (err_ctor ind 0)
       | Some (sg, fs) =>
-        let '(theta, S2) := fresh_theta S1 ind sg.(is_npars) in
+        let '(theta, S2) := fresh_theta S1 ind sg in
         S3 <- unify_st unify_fuel S2 tc (ind_at ind theta);;
         let '(ftys, S4) := fields_at S3 ind 0 sg.(is_params) theta fs 0 in
         match nth_error ftys p.(proj_arg) with
@@ -764,8 +794,11 @@ Definition pick (T : sig_table) (ss : st) (ps : list pending) : option (pending 
     end
   end.
 
-Definition resolve_one (uf : nat) (rule_b : bool) (T : sig_table) (ss : st) (p : pending)
-           : result' (sig_table * st) :=
+(** [ty] is the type of the constant and [others] are the constraints not
+    yet resolved: a use type that is a variable occurring in neither, nor in
+    a known field, carries no information, and the field stays unknown. *)
+Definition resolve_one (uf : nat) (rule_b : bool) (T : sig_table) (ss : st) (ty : ExAst.box_type)
+           (others : list pending) (p : pending) : result' (sig_table * st) :=
   match sig_fields T p.(pd_ind) p.(pd_ctor) with
   | None => Err (err_ctor p.(pd_ind) p.(pd_ctor))
   | Some (sg, fs) =>
@@ -788,6 +821,15 @@ Definition resolve_one (uf : nat) (rule_b : bool) (T : sig_table) (ss : st) (p :
          two fields share one parameter) *)
       let avail := filter (fun '(k, _) => negb (mem_nat (nth k p.(pd_theta) 0) S1.(st_taken))) unsolved in
       let set ty S' := Ok (sig_set_field T p.(pd_ind) p.(pd_ctor) p.(pd_fld) ty, S') in
+      let live := (ftv (zonk_st S1 ty) ++ sig_ftv T ++ S1.(st_glob)
+                   ++ flat_map (fun q => ftv (zonk_st S1 (ExAst.TVar q.(pd_var)))) others)%list in
+      let uninformative :=
+        match sigma with
+        | ExAst.TVar x => negb (mem_nat x live) && negb (mem_nat x thv)
+                          && match inst_lookup S1.(st_inst) x with None => true | Some _ => false end
+        | _ => false
+        end in
+      if uninformative then Ok (T, S1) else
       match sigma with
       | ExAst.TBox => set ExAst.TBox S1
       | _ =>
@@ -805,16 +847,16 @@ Definition resolve_one (uf : nat) (rule_b : bool) (T : sig_table) (ss : st) (p :
     end
   end.
 
-Fixpoint resolve (fuel : nat) (uf : nat) (rule_b : bool) (T : sig_table) (ss : st) (ps : list pending)
-         : result' (sig_table * st) :=
+Fixpoint resolve (fuel : nat) (uf : nat) (rule_b : bool) (T : sig_table) (ss : st) (ty : ExAst.box_type)
+         (ps : list pending) : result' (sig_table * st) :=
   match fuel with
   | 0 => Ok (T, ss)
   | S fuel =>
     match pick T ss ps with
     | None => Ok (T, ss)
     | Some (p, rest) =>
-      '(T1, S1) <- resolve_one uf rule_b T ss p;;
-      resolve fuel uf rule_b T1 S1 rest
+      '(T1, S1) <- resolve_one uf rule_b T ss ty rest p;;
+      resolve fuel uf rule_b T1 S1 ty rest
     end
   end.
 
@@ -862,7 +904,7 @@ Fixpoint pin_unused (s : subst_t) (t : EAst.term) (ty : ExAst.box_type) : list n
 Definition infer_const_once (rule_b : bool) (T : sig_table) (E : sch_env) (ss : st) (t : EAst.term)
            : result' (scheme * sig_table * st) :=
   '(ty, S1) <- infer_tm infer_fuel T E [] (reset_local ss) t;;
-  '(T2, S2) <- resolve (length S1.(st_pend)) unify_fuel rule_b T S1 S1.(st_pend);;
+  '(T2, S2) <- resolve (length S1.(st_pend)) unify_fuel rule_b T S1 ty S1.(st_pend);;
   let T3 := sig_map (zonk S2.(st_s)) T2 in
   let ty' := zonk_st S2 ty in
   let pinned := pin_unused S2.(st_s) t ty' in
@@ -875,6 +917,7 @@ Definition sig_rename (ren : subst_t) (glob : list nat) (T : sig_table) : sig_ta
   map (fun '(kn, sg) =>
          (kn, {| is_npars := sg.(is_npars);
                  is_params := map (fun v => idx_nat v glob) sg.(is_params);
+                 is_keep := sg.(is_keep);
                  is_ctors := map (map (map (option_map (zonk ren)))) sg.(is_ctors) |})) T.
 
 (** After a constant: zonk every persistent structure, then RENUMBER.  The
@@ -962,8 +1005,11 @@ Definition emit_field (params : list nat) (f : option ExAst.box_type) : ExAst.bo
   | None => ExAst.TBox
   end.
 
-Definition tvar_info : ExAst.type_var_info :=
-  {| ExAst.tvar_name := nAnon; ExAst.tvar_is_logical := false; ExAst.tvar_is_arity := true; ExAst.tvar_is_sort := true |}.
+(** A kept parameter is a type variable; a dropped one is not, and the typed
+    pipeline's [debox_box_type] removes it, as for typed erasure's value and
+    [Prop] parameters. *)
+Definition tvar_info (keep : bool) : ExAst.type_var_info :=
+  {| ExAst.tvar_name := nAnon; ExAst.tvar_is_logical := false; ExAst.tvar_is_arity := keep; ExAst.tvar_is_sort := keep |}.
 
 (** The field list of a constructor: one [TBox] entry per parameter, then the
     [cstr_nargs] fields.  [cstr_nargs] itself is preserved so that
@@ -977,13 +1023,13 @@ Definition emit_ctor (params : list nat) (c : EAst.constructor_body) (fs : optio
 
 (** One inductive body given its block's parameters and (per constructor)
     field table.  Projection [j] is field [j] of constructor 0. *)
-Definition emit_oib_aux (params : list nat) (ctors : list fields)
+Definition emit_oib_aux (params : list nat) (keep : list bool) (ctors : list fields)
   (oib : EAst.one_inductive_body) : ExAst.one_inductive_body :=
   let fields0 := match nth_error ctors 0 with Some fs => fs | None => [] end in
   {| ExAst.ind_name := oib.(EAst.ind_name);
      ExAst.ind_propositional := oib.(EAst.ind_propositional);
      ExAst.ind_kelim := oib.(EAst.ind_kelim);
-     ExAst.ind_type_vars := map (fun _ => tvar_info) params;
+     ExAst.ind_type_vars := map (fun k => tvar_info (nth k keep true)) (seq 0 (length params));
      ExAst.ind_ctors := mapi (fun c cb => emit_ctor params cb (nth_error ctors c)) oib.(EAst.ind_ctors);
      ExAst.ind_projs := mapi (fun j p => (p.(EAst.proj_name),
                                            emit_field params (match nth_error fields0 j with
@@ -993,9 +1039,9 @@ Definition emit_oib_aux (params : list nat) (ctors : list fields)
 Definition emit_oib (T : sig_table) (kn : kername) (i : nat) (oib : EAst.one_inductive_body)
   : ExAst.one_inductive_body :=
   match sig_lookup T kn with
-  | Some sg => emit_oib_aux sg.(is_params)
+  | Some sg => emit_oib_aux sg.(is_params) sg.(is_keep)
                  (match nth_error sg.(is_ctors) i with Some cs => cs | None => [] end) oib
-  | None => emit_oib_aux [] [] oib
+  | None => emit_oib_aux [] [] [] oib
   end.
 
 Definition emit_mib (T : sig_table) (kn : kername) (mib : EAst.mutual_inductive_body)
@@ -1013,11 +1059,86 @@ Definition emit_decl (T : sig_table) (E : sch_env) (d : kername * EAst.global_de
    | EAst.InductiveDecl mib => ExAst.InductiveDecl (emit_mib T kn mib)
    end).
 
+(** ** Parameters that are not type variables (see the module header) *)
+
+Fixpoint is_box_head (t : EAst.term) : bool :=
+  match t with
+  | EAst.tBox => true
+  | EAst.tApp u _ => is_box_head u
+  | _ => false
+  end.
+
+(** The parameter positions of [ind] to which [args] pass a non-[□] term. *)
+Definition value_slots (T : sig_table) (ind : inductive) (args : list EAst.term) : list (kername * nat) :=
+  match sig_lookup T ind.(inductive_mind) with
+  | None => []
+  | Some sg =>
+    flat_map (fun '(k, a) => if Nat.ltb k sg.(is_npars) && negb (is_box_head a)
+                             then [(ind.(inductive_mind), k)] else [])
+             (combine (seq 0 (length args)) args)
+  end.
+
+(** The value parameters passed in [t]; [args] are the arguments the
+    enclosing application spine applies [t] to. *)
+Fixpoint value_params (T : sig_table) (args : list EAst.term) (t : EAst.term) : list (kername * nat) :=
+  match t with
+  | EAst.tApp u v => value_params T (v :: args) u ++ value_params T [] v
+  | EAst.tConstruct ind _ cargs =>
+    value_slots T ind (cargs ++ args) ++ flat_map (value_params T []) cargs
+  | EAst.tLambda _ b => value_params T [] b
+  | EAst.tLetIn _ b b' => value_params T [] b ++ value_params T [] b'
+  | EAst.tCase _ c brs => value_params T [] c ++ flat_map (fun '(_, b) => value_params T [] b) brs
+  | EAst.tProj _ c => value_params T [] c
+  | EAst.tFix mfix _ | EAst.tCoFix mfix _ => flat_map (fun d => value_params T [] d.(EAst.dbody)) mfix
+  | EAst.tEvar _ ts => flat_map (value_params T []) ts
+  | EAst.tLazy u | EAst.tForce u => value_params T [] u
+  | EAst.tBox | EAst.tRel _ | EAst.tVar _ | EAst.tConst _ | EAst.tPrim _ => []
+  end%list.
+
+Definition env_value_params (T : sig_table) (Σ : EAst.global_context) : list (kername * nat) :=
+  flat_map (fun '(_, d) =>
+              match d with
+              | EAst.ConstantDecl cb =>
+                match cb.(EAst.cst_body) with Some t => value_params T [] t | None => [] end
+              | EAst.InductiveDecl _ => []
+              end) Σ.
+
+Definition mem_param (l : list (kername * nat)) (kn : kername) (k : nat) : bool :=
+  existsb (fun '(kn', k') => eq_kername kn kn' && Nat.eqb k k') l.
+
+(** The kept parameters that no known field type mentions. *)
+Definition unused_params (T : sig_table) : list (kername * nat) :=
+  flat_map (fun '(kn, sg) =>
+              let fv := flat_map (flat_map (flat_map (fun f => match f with Some t => ftv t | None => [] end)))
+                                 sg.(is_ctors) in
+              flat_map (fun '(k, (p, keep)) => if keep && negb (mem_nat p fv) then [(kn, k)] else [])
+                       (combine (seq 0 (length sg.(is_params))) (combine sg.(is_params) sg.(is_keep)))) T.
+
+Definition infer_tables (drop : kername -> nat -> bool) (Σ : EAst.global_context)
+  : result' (sig_table * sch_env) :=
+  let '(T, cnt) := init_sigs drop Σ 0 in
+  '(T1, E1, _) <- infer_go Σ T {| st_cnt := cnt; st_s := []; st_pend := []; st_inst := []; st_glob := []; st_taken := [] |};;
+  Ok (T1, E1).
+
+(** The two runs: the first drops the value parameters, the second also the
+    parameters the first left unused.  If the second fails, the first
+    stands. *)
+Definition infer_sigs (Σ : EAst.global_context) : result' (sig_table * sch_env) :=
+  let vps := env_value_params (fst (init_sigs (fun _ _ => false) Σ 0)) Σ in
+  '(T1, E1) <- infer_tables (mem_param vps) Σ;;
+  match unused_params T1 with
+  | [] => Ok (T1, E1)
+  | unused =>
+    match infer_tables (fun kn k => mem_param vps kn k || mem_param unused kn k) Σ with
+    | Ok r => Ok r
+    | Err _ => Ok (T1, E1)
+    end
+  end.
+
 (** The forward map. *)
 Definition infer (Σ : EAst.global_context) : result' ExAst.global_env :=
-  let '(T, cnt) := init_sigs Σ 0 in
-  '(T1, E1, _) <- infer_go Σ T {| st_cnt := cnt; st_s := []; st_pend := []; st_inst := []; st_glob := []; st_taken := [] |};;
-  Ok (map (emit_decl T1 E1) Σ).
+  '(T, E) <- infer_sigs Σ;;
+  Ok (map (emit_decl T E) Σ).
 
 (** ** The section lemma and its supporting inversions *)
 
@@ -1041,8 +1162,8 @@ Proof.
   f_equal. apply IH.
 Qed.
 
-Lemma trans_emit_oib_aux params ctors (oib : EAst.one_inductive_body) :
-  ExAst.trans_oib (emit_oib_aux params ctors oib) = oib.
+Lemma trans_emit_oib_aux params keep ctors (oib : EAst.one_inductive_body) :
+  ExAst.trans_oib (emit_oib_aux params keep ctors oib) = oib.
 Proof.
   destruct oib as [nm prop kelim cs projs].
   unfold ExAst.trans_oib, emit_oib_aux, mapi; cbn.
@@ -1089,8 +1210,7 @@ Qed.
 Theorem infer_section (Σ : EAst.global_context) (Σ' : ExAst.global_env) :
   infer Σ = Ok Σ' -> ExAst.trans_env Σ' = Σ.
 Proof.
-  unfold infer. destruct (init_sigs Σ 0) as [T cnt].
-  destruct (infer_go Σ T _) as [[[T1 E1] S1]|e]; cbn; intros H; [|discriminate].
+  unfold infer. destruct (infer_sigs Σ) as [[T1 E1]|e]; cbn; intros H; [|discriminate].
   injection H as <-. apply trans_env_emit.
 Qed.
 
@@ -1100,8 +1220,7 @@ Qed.
 Lemma infer_kernames (Σ : EAst.global_context) (Σ' : ExAst.global_env) :
   infer Σ = Ok Σ' -> map (fun '(kn, _, _) => kn) Σ' = map fst Σ.
 Proof.
-  unfold infer. destruct (init_sigs Σ 0) as [T cnt].
-  destruct (infer_go Σ T _) as [[[T1 E1] S1]|e]; cbn; intros H; [|discriminate].
+  unfold infer. destruct (infer_sigs Σ) as [[T1 E1]|e]; cbn; intros H; [|discriminate].
   injection H as <-. rewrite map_map.
   apply map_ext. intros [kn [cb|mib]]; reflexivity.
 Qed.
@@ -1110,8 +1229,7 @@ Qed.
 Lemma infer_has_deps (Σ : EAst.global_context) (Σ' : ExAst.global_env) :
   infer Σ = Ok Σ' -> Forall (fun '(_, b, _) => b = true) Σ'.
 Proof.
-  unfold infer. destruct (init_sigs Σ 0) as [T cnt].
-  destruct (infer_go Σ T _) as [[[T1 E1] S1]|e]; cbn; intros H; [|discriminate].
+  unfold infer. destruct (infer_sigs Σ) as [[T1 E1]|e]; cbn; intros H; [|discriminate].
   injection H as <-. apply Forall_map, Forall_forall.
   intros [kn [cb|mib]] _; reflexivity.
 Qed.
