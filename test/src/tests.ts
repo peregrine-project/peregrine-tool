@@ -353,6 +353,24 @@ var rocq_tests: TestCase[] =
             expected_output: ["false", "(false)", "False"],
             parameters: []
         },
+        {
+            src: "rocq/extraction/Params.ast",
+            tsrc: "rocq/extraction/Params_typed.ast",
+            main: "Params_test",
+            output_type: SimpleType.Nat,
+            expected_output: ["(S (S (S (S O))))", "(S () (S () (S () (S () (O)))))", "S (S (S (S O)))"],
+            parameters: []
+        },
+        {
+            src: "rocq/extraction/PolyLet.ast",
+            // A let-bound polymorphic function used at two types: Rocq's
+            // extraction generalises the let, the type inference does not
+            rejected: true,
+            main: "PolyLet_test",
+            output_type: SimpleType.Nat,
+            expected_output: ["(S (S O))", "", ""],
+            parameters: []
+        },
     ];
 // Lean Tests
 var lean_tests: TestCase[] =

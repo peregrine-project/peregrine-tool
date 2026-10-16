@@ -10,3 +10,5 @@ theories/Map.v
 theories/Mutual.v
 theories/Nat.v
 theories/OddEven.v
+theories/Params.v
+theories/PolyLet.v
