@@ -87,6 +87,10 @@ The transformations that will be applied will depend on both the AST type, backe
   a pass replacing lazy/force 
 * **annotate names**:
   a pass replacing de Bruijn variables by names
+* **specialize instances**:
+  a pass that clones a function at call sites that pass a statically known dictionary (single-constructor record) value, and reduces the clone (beta, case of a known constructor); see [optional passes](#optional-passes)
+* **common subexpression elimination**:
+  a pass that binds a closed subterm occurring at least twice, always in evaluated positions, with a `let`; see [optional passes](#optional-passes)
 
 
 ### Transformation support (Untyped target AST)
@@ -108,6 +112,8 @@ The transformations that will be applied will depend on both the AST type, backe
 | implement $\square$        | required | required | required | required | required | optional, default off |
 | implement lazy             | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
 | annotate names             | optional, default off | optional, default off | required | required | optional, default off | optional, default off |
+| specialize instances       | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
+| common subexpression elimination | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
 
 ### Transformation support (Typed target AST)
 
@@ -117,3 +123,11 @@ If the input is untyped, it is first annotated with types by Hindley-Milner infe
 |----------------------------|----------------------|----------------------|-----------------------|
 | remove parameters          | required             | required             | required              |
 | dearging                   | optional, default on | optional, default on | optional, default off |
+
+### Optional passes
+Instance specialization ([EInstanceSpecialize.v](/theories/erasure/EInstanceSpecialize.v)) and common subexpression elimination ([ECommonSubexpr.v](/theories/erasure/ECommonSubexpr.v)) are off by default in every backend and are enabled with the `specialize_instances` and `cse` fields of the configuration ([format.md](format.md)) or the `--specialize-instances` and `--cse` flags. They run only in the untyped pipeline, after the other optional passes (`optional_unsafe_transforms`) and before implement $\square$ (`extra_unsafe_transforms` in [Transforms.v](/theories/erasure/Transforms.v)), so beta reduction and dearging do not see their output; the Rust and Elm backends never run them.
+
+Their correctness is axiomatized:
+
+* Instance specialization: well-formedness preservation and evaluation preservation are the axioms `trust_specialize_instances_wf` and `trust_specialize_instances_pres`, and its two `TransformExt` instances are the axioms `specialize_instances_transformation_ext` and `specialize_instances_transformation_ext'`. Nothing about the pass is proved.
+* Common subexpression elimination: well-formedness preservation (`cse_wf`) and the `TransformExt` instances are proved; evaluation preservation is the axiom `cse_pres_eval`.
