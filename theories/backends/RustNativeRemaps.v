@@ -38,6 +38,7 @@ Local Open Scope bs_scope.
 Definition native_ind_remaps : inductive_remappings := [
   ind_remap {| inductive_mind := <%% bool %%>; inductive_ind := 0 |}
     "bool" ["true"; "false"] (Some "__bool_elim!");
+  comparison_ind_remap;
   ind_remap {| inductive_mind := <%% nat %%>; inductive_ind := 0 |}
     "i64" ["self.__nat_zero()"; "self.__nat_succ"] (Some "__nat_elim!");
   ind_remap {| inductive_mind := <%% positive %%>; inductive_ind := 0 |}
@@ -118,6 +119,7 @@ Definition native_top_preamble : string :=
   "macro_rules! __andb { ($b1:expr, $b2:expr) => { $b1 && $b2 } }";
   "macro_rules! __orb { ($b1:expr, $b2:expr) => { $b1 || $b2 } }";
   "macro_rules! __bool_elim { ($tcase:expr, $fcase:expr, $val:expr) => { if $val { $tcase } else { $fcase } } }";
+  cmp_elim_macro;
   "";
   "macro_rules! __nat_elim {";
   "  ($zcase:expr, $pred:ident, $scase:expr, $val:expr) => {";

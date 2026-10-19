@@ -69,6 +69,18 @@ Definition ind_remap (i : inductive) (name : string) (ctors : list string)
                      (m : option string) : remap_inductive :=
   StringIndRemap i (mk_ind name ctors m).
 
+(** [comparison] -> [std::cmp::Ordering], the type the remapped [compare]
+    functions return.  Constructor order is [Eq], [Lt], [Gt]; a match becomes
+    [__cmp_elim!(eqcase, ltcase, gtcase, discr)] (see [cmp_elim_macro]). *)
+Definition comparison_ind_remap : remap_inductive :=
+  ind_remap {| inductive_mind := <%% comparison %%>; inductive_ind := 0 |}
+    "std::cmp::Ordering"
+    ["std::cmp::Ordering::Equal"; "std::cmp::Ordering::Less"; "std::cmp::Ordering::Greater"]
+    (Some "__cmp_elim!").
+
+Definition cmp_elim_macro : string :=
+  "macro_rules! __cmp_elim { ($eq:expr, $lt:expr, $gt:expr, $val:expr) => { match $val { std::cmp::Ordering::Equal => $eq, std::cmp::Ordering::Less => $lt, std::cmp::Ordering::Greater => $gt } } }".
+
 (** The numeric type name spliced wherever a [nat]/[N]/[Z]/[positive] appears as
     a Rust type ([RustExtract.print_type_aux], [TInd] branch).  [Int<'a>] keeps
     the arena lifetime in scope; it is a type alias for [&'a rug::Integer] (see
@@ -80,6 +92,7 @@ Definition gmp_ind_remaps : inductive_remappings := [
      [false] (1); a match becomes [__bool_elim!(tcase, fcase, discr)]. *)
   ind_remap {| inductive_mind := <%% bool %%>; inductive_ind := 0 |}
     "bool" ["true"; "false"] (Some "__bool_elim!");
+  comparison_ind_remap;
   ind_remap {| inductive_mind := <%% nat %%>; inductive_ind := 0 |}
     "Int<'a>" ["self.__nat_zero()"; "self.__nat_succ"] (Some "__nat_elim!");
   ind_remap {| inductive_mind := <%% positive %%>; inductive_ind := 0 |}
@@ -163,6 +176,7 @@ Definition gmp_top_preamble : string :=
   "macro_rules! __andb { ($b1:expr, $b2:expr) => { $b1 && $b2 } }";
   "macro_rules! __orb { ($b1:expr, $b2:expr) => { $b1 || $b2 } }";
   "macro_rules! __bool_elim { ($tcase:expr, $fcase:expr, $val:expr) => { if $val { $tcase } else { $fcase } } }";
+  cmp_elim_macro;
   "";
   "macro_rules! __nat_elim {";
   "  ($zcase:expr, $pred:ident, $scase:expr, $val:expr) => {";
