@@ -1,4 +1,5 @@
 From Peregrine.Plugin Require Import Loader.
+From Peregrine.Tests Require Classy.
 From Peregrine.Tests Require Closure.
 From Peregrine.Tests Require Demo.
 From Peregrine.Tests Require Hello.
@@ -9,6 +10,10 @@ From Peregrine.Tests Require OddEven.
 From Peregrine.Tests Require Params.
 From Peregrine.Tests Require Phantom.
 From Peregrine.Tests Require PolyLet.
+
+(* Classy.v *)
+Peregrine Extract "extraction/Classy.ast" Classy.test.
+Peregrine Extract Typed "extraction/Classy_typed.ast" Classy.test.
 
 (* Closure.v *)
 Peregrine Extract "extraction/Closure.ast" Closure.test.
