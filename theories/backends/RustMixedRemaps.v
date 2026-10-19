@@ -1,17 +1,18 @@
 (** Path C: MIXED-representation numeric backend.
 
-    Values live in path A (arbitrary-precision [&'a rug::Integer]) by default, so
-    the program is correct for all inputs.  A directive-selected PARTITION of
+    Values live in path A (arbitrary-precision [&'a rug::Integer]) by default.
+    A directive-selected PARTITION of
     operations is compiled in path B (native [i64]): those remap bodies coerce
     their [&'a rug::Integer] arguments down to [i64] at entry ([__to_i64]),
     compute natively, and coerce the result back up ([__from_i64]).  The two
     coercions are the A<->B boundary.
 
-    Correctness is INDEPENDENT of the partition: any operation whose B body
-    agrees with its A meaning on the coerced values is sound, so which ops are in
-    the B partition is purely a performance choice (the partition is an untrusted
-    oracle).  Here the partition is given explicitly ([b_partition]); a static
-    analysis or a Rocq attribute could populate it automatically.
+    An operation in the partition computes the same value as its path-A version
+    when its arguments and its result fit in [i64]; RustMixedCoherence.v proves
+    this for a ZArith model of the native expressions, not for the emitted Rust.
+    An argument outside [i64] makes [__to_i64] panic.  A result outside [i64] is
+    not checked: the native arithmetic panics in a debug build and wraps in a
+    release build.  Here the partition is given explicitly ([b_partition]).
 
     This is the minimal, per-operation realisation of the mixed backend: the two
     representations coexist in one generated crate, joined by coherent coercions.
@@ -49,13 +50,9 @@ Definition b2b (e : string) : remapped_constant :=
     just a list of (constant, native-body) remaps, and [mixed_const_remaps_of]
     builds the full remap table by putting the chosen partition BEFORE the
     path-A [gmp_const_remaps] (so B entries take precedence in remap lookup,
-    and every op not named by the partition falls through to path A).  Since
-    every [b2i]/[b2b] body is proved-at-the-boundary equivalent to the path-A
-    meaning of the same op (coerce in, compute, coerce out), swapping which
-    ops are named by the partition can never change the result -- only the
-    performance profile.  That is the "partition is a performance oracle"
-    principle: correctness comes from the coercion discipline, not from which
-    ops happen to be in [b_partition]. *)
+    and every op not named by the partition falls through to path A).  Which
+    ops are in the partition changes the result only where a B operation's
+    arguments or result leave [i64] (see the header). *)
 Definition mixed_const_remaps_of (partition : constant_remappings) : constant_remappings :=
   (partition ++ gmp_const_remaps)%list.
 
@@ -77,8 +74,7 @@ Definition b_partition : constant_remappings := [
     that are expensive to keep arbitrary-precision (div/mod/pow) run
     natively; add/mul/sub/eqb/leb/ltb stay in path A (GMP).  This is a
     DIFFERENT partition from [b_partition] -- fewer ops in B, more in A --
-    yet it is compiled and validated exactly the same way, demonstrating
-    that correctness does not depend on which partition is chosen. *)
+    built the same way. *)
 Definition narrow_b_partition : constant_remappings := [
   (<%% Nat.div %%>,    b2i "if b == 0 { 0 } else { a / b }");
   (<%% Nat.modulo %%>, b2i "if b == 0 { a } else { a % b }");

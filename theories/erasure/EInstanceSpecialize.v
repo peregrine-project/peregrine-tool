@@ -1,10 +1,8 @@
 (** * Instance / dictionary specialization for untyped lambda-box
 
     This module implements the instance-specialization pass on untyped
-    lambda-box terms ([EAst]); its sibling [EInstanceSpecializeTyped] provides
-    the typed ([ExAst]) variant.  Correctness and wellformedness preservation
-    are provided as trust axioms, matching the other [Compatible]-class
-    optional transforms in this toolchain.
+    lambda-box terms ([EAst]).  Correctness and wellformedness preservation
+    are axioms (see "Verification status" below).
 
     Motivation.  Typeclass-heavy frontends (notably Lean) erase to lambda-box
     in which even trivial arithmetic drags in dictionary values: [1 + 1] is
@@ -35,8 +33,7 @@
     [d] substituted in (via [spec_beta]; for a [tConst] whose body is a [tFix],
     the fixpoint is unfolded once first), so the beta/iota reductions above fire
     *inside* [f]'s body across the call boundary; the call site is redirected to
-    [f$specN x].  After this, existing dead-argument elimination ([Optimize]/
-    dearg) drops the unused [d] parameter.  A dictionary argument is
+    [f$specN x].  A dictionary argument is
     recognised by the heuristic "closed constructor whose inductive is a
     single-constructor record" ([dict_value]/[is_record_ind]), which excludes
     ordinary data (nat, list, bool, ...).  Specializations are memoised in a map
@@ -50,21 +47,23 @@
     definition to a call site.
 
     Composition with existing passes.
-      - It is meant to run just before [betared] (which the pipeline already
-        runs twice); [betared] mops up any cascading redexes this single
-        bottom-up pass leaves behind.
-      - It feeds dead-argument elimination: after specialization a dictionary
-        parameter becomes unused and [Optimize]'s mask analysis removes it.
+      - It runs in [Transforms.extra_unsafe_transforms], that is after
+        [betared] and dead-argument elimination, which run earlier in
+        [optional_unsafe_transforms].  Neither cleans up after it: redexes this
+        single bottom-up pass leaves behind stay, and so does a parameter that
+        specialization makes unused.  It runs only in the untyped pipeline.
       - It does NOT subsume any of them: dearg removes *dead* args (it cannot
         touch a dictionary that is still projected), betared does beta but not
         iota-on-constructor, and [EInlining] inlines *named constants* uniformly
         rather than specializing a shared function per call site.
 
-    Verification status.  Correctness and wellformedness preservation are
-    stated as trust axioms, following the pattern of the other optional
-    [Compatible]-class transforms in this toolchain (cf.
-    [EBeta.betared_transformation], justified by the [trust_betared_*]
-    axioms). *)
+    Verification status.  Nothing about the pass is proved: wellformedness
+    preservation and evaluation preservation are the axioms
+    [trust_specialize_instances_wf] and [trust_specialize_instances_pres], and
+    the two [TransformExt] instances are the axioms
+    [specialize_instances_transformation_ext] and
+    [specialize_instances_transformation_ext'] (cf. MetaRocq's
+    [EBeta.betared_transformation] and its [trust_betared_*] axioms). *)
 
 From Stdlib Require Import List.
 From MetaRocq.Utils Require Import utils ReflectEq.

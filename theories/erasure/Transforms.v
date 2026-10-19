@@ -135,12 +135,12 @@ Qed.
 Program Definition extra_unsafe_transforms (spec_inst cse impl_box impl_lazy_force : bool) :=
   let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
   (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params EWellformed.all_env_flags)) in
-  (* Instance/dictionary specialization runs first, in the same
-     constructors-as-blocks lambda-box regime as [implement_box], so that the
-     subsequent betared (in [optional_unsafe_transforms]) and dead-argument
-     elimination can clean up the exposed dictionary plumbing. Common-
-     subexpression elimination runs next, in the same regime, restoring the
-     sharing that erasure drops. *)
+  (* Instance/dictionary specialization, then common-subexpression
+     elimination, both in the constructors-as-blocks regime of [implement_box].
+     They run after [optional_unsafe_transforms], so betared and dead-argument
+     elimination do not see their output.  Both are off by default, and their
+     semantic obligations rest on axioms (EInstanceSpecialize.v,
+     ECommonSubexpr.v). *)
   ETransform.optional_self_transform spec_inst
     (specialize_instances_transformation efl EImplementBox.block_wcbv_flags) ▷
   ETransform.optional_self_transform cse

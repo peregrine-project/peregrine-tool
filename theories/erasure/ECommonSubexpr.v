@@ -65,12 +65,10 @@
 
     CSE is the inverse of inlining/beta, so ordering matters: it must run after
     [EInlining]/[EBeta]/dearg, near the end of the unsafe tail, otherwise a
-    later beta/inline pass would undo it.  The intended slot is inside
-    [extra_unsafe_transforms] in erasure/Transforms.v, after
-    [specialize_instances]/[betared]; [implement_box] creates no sharing
-    opportunities, so either side of it is fine, and placing CSE last keeps it
-    closest to code generation.  It is a [Compatible]-class, opt-in optional
-    phase, wired like [EInstanceSpecialize]/[EBeta].
+    later beta/inline pass would undo it.  It runs in [extra_unsafe_transforms]
+    in erasure/Transforms.v, after [specialize_instances] and before
+    [implement_box], which creates no sharing opportunities.  It runs only in
+    the untyped pipeline and is off by default in every backend.
 
     Verification status: wellformedness preservation and the algebraic core are
     proved; whole-program evaluation preservation rests on one axiom.
@@ -100,62 +98,11 @@
 
       - Evaluation preservation ([cse_pres]) uses the observational relation
         [v' = v]: a sharing pass returns the same value.  It reduces to one
-        axiom, [cse_pres_eval], the whole-program CBV simulation, which holds
-        for the strict-guarded selection.  Its algebraic backbone
+        axiom, [cse_pres_eval], the whole-program CBV simulation, which is
+        not proved.  Its algebraic backbone
         [abstract_subst] is proved; the remaining cross-environment induction
         over the [EWcbvEval] rules is the sole non-primitive axiom
-        [cse_transformation] depends on.
-
-    ---------------------------------------------------------------------------
-    PIPELINE INTEGRATION.  Enabling the pass requires the following wiring,
-    mirroring EInstanceSpecialize.v:
-
-      1. _CoqProject: add the line
-             theories/erasure/ECommonSubexpr.v
-         (after theories/erasure/EInstanceSpecialize.v).
-
-      2. theories/Config.v:
-         - add field  [cse_c : phases_config]  to record [erasure_phases_config];
-         - add field  [cse : bool]             to record [erasure_phases].
-
-      3. theories/ConfigUtils.v:
-         - add  [cse' : option bool]  to [erasure_phases'] and set it to [None]
-           in [empty_erasure_phases'];
-         - add the corresponding line to [get_default_phases_opt]
-             ([cse := get_default_phase_opt' o cse_c]) and to [enforce_phases]
-             ([cse := enforce_phase' o.(cse') d.(cse) o'.(cse_c)]).
-
-      4. The 8 backend default configs (theories/backends/*.v):
-         RustBackend, ElmBackend, CBackend, WasmBackend, OCamlBackend,
-         CakeMLBackend, EvalBackend, ASTBackend — add
-             cse_c := Compatible false;
-         to each [erasure_phases_config] literal (opt-in, off by default).
-
-      5. Serialization (theories/serialization/):
-         - SerializeConfig.v: add  [to_sexp (cse o)]  to
-           [Serialize_erasure_phases] and  [to_sexp (cse' o)]  to
-           [Serialize_erasure_phases'];
-         - DeserializeConfig.v: bump both [erasure_phases] deserializers from
-           [Deser.con8_ Build_erasure_phases(')] to [Deser.con9_ ...].
-
-      6. theories/erasure/Transforms.v:
-         - [From Peregrine Require Import ECommonSubexpr.];
-         - thread a [cse : bool] parameter through [extra_unsafe_transforms],
-           [untyped_transform_pipeline] and [typed_..._pipeline], adding
-             ETransform.optional_self_transform cse
-               (cse_transformation efl EImplementBox.block_wcbv_flags)
-           to the [▷] chain (last, after specialize/box), and discharge the
-           extra [destruct cse] cases in the obligations exactly as the existing
-           [spec_inst]/[impl_box]/[impl_lazy_force] cases are discharged.
-
-      7. theories/Pipeline.v:
-         - read  [let do_cse := c.(erasure_opts).(cse) in]  in [apply_transforms]
-           and pass [do_cse] into the [run_*_transforms] calls (alongside
-           [spec_inst], [impl_box], [impl_lazy]).
-
-      8. bin/ CLI (bin/*.ml): expose a [--cse] flag setting [cse'] to [Some true]
-           (optional; the config default already governs behaviour).
-    --------------------------------------------------------------------------- *)
+        [cse_transformation] depends on. *)
 
 From Stdlib Require Import List Arith.
 From MetaRocq.Utils Require Import utils.
