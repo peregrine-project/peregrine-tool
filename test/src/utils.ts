@@ -15,9 +15,12 @@ export function print_line(s: string) {
 // language (`Demo_test` becomes `Peregrine_Tests_Demo_test` in Rust and
 // `peregrine_Tests_Demo_test` in Elm), so look for the last identifier in
 // `source` that is `main`, possibly after a prefix ending in `_`, ignoring
-// case.
+// case. A program whose names have an empty module path, as the Lean frontend
+// emits them, has no module in the identifier (`Demo_test` is printed as
+// `_test`), so fall back to `main` without the part before its first `_`.
 export function find_entry_point(source: string, main: string): string {
-  const ids = source.match(new RegExp(`\\b(?:\\w+_)?${main}\\b`, "gi"));
+  const find = (name: string) => source.match(new RegExp(`\\b(?:\\w+_)?${name}\\b`, "gi"));
+  const ids = find(main) ?? find(main.slice(main.indexOf("_")));
   return ids === null ? main : ids[ids.length - 1];
 }
 
