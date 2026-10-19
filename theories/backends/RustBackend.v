@@ -132,6 +132,24 @@ Definition mk_config (o : rust_config) : RustPrintConfig := {|
 
 
 
+(** The printer prints a remapped constant from its remapping string, which
+    takes one parameter per arrow of the constant's type, but it applies the
+    constant, at every call site and in its [__curried] wrapper, to as many
+    arguments as the constant's body has leading lambdas
+    ([RustExtract.get_num_inline_args]).  A fixpoint such as [Nat.add] has
+    fewer leading lambdas than arrows, so the two disagree and rustc rejects
+    the program.  Give each remapped constant a body of one lambda per arrow;
+    the printer never prints the body of a remapped constant. *)
+Definition eta_remapped_bodies (remaps : remaps) (Σ : ExAst.global_env) : ExAst.global_env :=
+  map (fun '(kn, deps, d) =>
+    match d, remap_constant remaps kn with
+    | ExAst.ConstantDecl {| ExAst.cst_type := ty; ExAst.cst_body := Some _ |}, Some _ =>
+      let n := #|fst (ExAst.decompose_arr (snd ty))| in
+      let body := List.fold_right (fun _ t => EAst.tLambda BasicAst.nAnon t) EAst.tBox (repeat tt n) in
+      (kn, deps, ExAst.ConstantDecl {| ExAst.cst_type := ty; ExAst.cst_body := Some body |})
+    | _, _ => (kn, deps, d)
+    end) Σ.
+
 Definition extract_rust (const_remaps : constant_remappings)
                         (ind_remaps : inductive_remappings)
                         (custom_attr : custom_attributes)
@@ -143,6 +161,7 @@ Definition extract_rust (const_remaps : constant_remappings)
   let attrs := mk_attributes custom_attr opts in
   let config := mk_config opts in
   let preamble := mk_preamble opts in
+  let p := eta_remapped_bodies remaps p in
   let p := @print_program p remaps config attrs preamble in
   '(_, s) <- finish_print_lines p;;
   Ok s.
