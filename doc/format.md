@@ -59,6 +59,8 @@ Both ASTs consist of an environment of constant- and inductive-declarations, and
 (Typed   (...env...) None)
 ```
 
+Backends that need a typed AST (Rust, Elm, `LambdaBoxTyped`) also accept an `Untyped` one; the middle-end then infers the type annotations (unverified) or fails if the program cannot be typed (see [backends.md](backends.md#rust)).
+
 The serializers/deserializers for `PAst` live in [SerializePAst.v](/theories/serialization/SerializePAst.v) and [DeserializePAst.v](/theories/serialization/DeserializePAst.v). They delegate to [SerializeEAst.v](/theories/serialization/SerializeEAst.v) and [SerializeExAst.v](/theories/serialization/SerializeExAst.v) for the underlying environments, to [SerializeCommon.v](/theories/serialization/SerializeCommon.v) for shared names/idents/kernames, and to [SerializePrimitives.v](/theories/serialization/SerializePrimitives.v) for `tPrim` payloads.
 
 ### Shared building blocks
@@ -266,6 +268,7 @@ The `attributes_config` payload accepted via `--attributes` is the 5-element sub
 (Wasm   <wasm_config>)
 (OCaml  <ocaml_config>)
 (CakeML <cakeml_config>)
+(Lean   <lean_config>)
 (Eval   <eval_config>)
 (AST    <ast_config>)
 ```
@@ -327,6 +330,15 @@ and is forwarded to the Malfunction printer. Default: `Standalone`.
 
 #### CakeML (`cakeml_config`)
 `cakeml_config` is `unit`, serialized as the empty list `()`. CakeML extraction has no user-tunable fields at present.
+
+#### Lean (`lean_config`)
+```
+(lean_config
+  <lean_namespace>          ; "Generated"
+  <lean_print_full_names>)  ; true
+```
+* `lean_namespace` is the Lean namespace wrapped around the generated declarations.
+* `lean_print_full_names` toggles printing of names qualified by the input file's basename and the module path.
 
 #### Eval (`eval_config`)
 ```

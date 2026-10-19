@@ -8,11 +8,12 @@ The table below summarises supported the backends
 | Backend      | Source  | Verified | Verified printer | Target format       | Readability | Memory handling |
 |--------------|---------|----------|------------------|---------------------|-------------|-----------------|
 | C            | untyped | ✓ | ✗ | C-light                    | ✗ | Verified GC |
-| WebAssembly  | untpyed | ✓ | ✓ | Binary format              | ✗ | Bump allocator, no GC |
+| WebAssembly  | untyped | ✓ | ✓ | Binary format              | ✗ | Bump allocator, no GC |
 | OCaml        | untyped | ✓ | ✗ | Malfunction Serialized AST | ✗ | GC |
 | CakeML       | untyped | ✓ | ✓ | Serialized AST             | ✗ | GC |
-| Rust         | typed   | ✗ | ✗ | Source language            | ✓ | Bump allocator, no GC |
-| Elm          | typed   | ✗ | ✗ | Source language            | ✓ | - |
+| Rust         | typed (untyped: experimental) | ✗ | ✗ | Source language            | ✓ | Bump allocator, no GC |
+| Elm          | typed (untyped: experimental) | ✗ | ✗ | Source language            | ✓ | - |
+| Lean         | untyped | ✗ | ✗ | Source language            | ✗ | Reference counting (Lean runtime) |
 | AST (debug)  | either  | ✓ | ✓ | Serialized AST             | ✗ | - |
 | Eval (debug) | either  | ✓ | ✗ | -                          | ✗ | -  |
 
@@ -48,7 +49,8 @@ The `.cml` file can be compiled using the [CakeML compiler](https://cakeml.org/)
 
 ## Rust
 
-Rust backend extracting to surface level Rust code. The backend requires typed AST.
+Rust backend extracting to surface level Rust code. The backend works on typed AST.
+Untyped input is accepted as well: the middle-end first annotates it with types by Hindley-Milner inference ([EHindleyMilner.v](/theories/erasure/EHindleyMilner.v)), reconstructing the datatype signatures (type parameters, constructor field types) from how the constructors are used in the program. It is proved that erasing the annotations gives back the input and that the annotations are well scoped; the annotations themselves are unverified. When the program is not typable this way (dependent elimination, type-level computation, an inductive used at two incompatible field types, a constant used before its declaration, unsupported term forms such as primitives) peregrine fails with a message naming the constant and the types that did not unify; provide a typed program in that case. The reconstructed signature is the most general one consistent with the uses seen, so it can be more polymorphic than the source declaration (a record field may become a type parameter), and the body of an erased type parameter is typed `()`. Only type parameters become type parameters of the output: a parameter to which some constructor application passes a value (a syntactic criterion), or that no field type mentions (a `Prop` or phantom parameter), is dropped. Typed extraction drops value and `Prop` parameters too, but keeps phantom ones. `let`-bound and local fixpoint definitions are not generalised, so a `let`-bound function used at two types is rejected, and an axiom gets the type `forall a. a`. Postponed work, including a proof that the annotations type the terms, is tracked in [#79](https://github.com/peregrine-project/peregrine-tool/issues/79).
 The backend is located in [`peregrine-project/rocq-typed-extraction`](https://github.com/peregrine-project/rocq-typed-extraction).
 
 Output
@@ -58,12 +60,23 @@ Output
 
 ## Elm
 
-ELm backend extracting to surface level Elm code. The backend requires typed AST.
+Elm backend extracting to surface level Elm code. The backend works on typed AST.
+Untyped input is accepted and annotated as for [Rust](#rust).
 The backend is located in [`peregrine-project/rocq-typed-extraction`](https://github.com/peregrine-project/rocq-typed-extraction).
 
 Output
 * A single file; written to `<file>.elm` by the CLI.
 * The result has no external dependencies and is compiled with the [Elm compiler](https://guide.elm-lang.org/install/elm).
+
+## Lean
+
+Lean backend extracting to surface level Lean 4 code. It accepts both typed and untyped ASTs as input.
+The backend is unverified. It is implemented in [`theories/lean/`](/theories/lean/) and [`theories/backends/LeanBackend.v`](/theories/backends/LeanBackend.v).
+
+Output
+* A single file; written to `<file>.lean` by the CLI.
+* The generated Lean depends on the runtime library [`lean/Peregrine/Runtime.lean`](/lean/Peregrine/Runtime.lean).
+* Is compiled with [Lake](https://lean-lang.org/install/), see [`lean/README.md`](/lean/README.md).
 
 ## Debug backends
 

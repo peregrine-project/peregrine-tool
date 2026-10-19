@@ -1,5 +1,5 @@
 import { exit } from "process";
-import { Lang, TestCase, ExecResult, SimpleType, ExecFailure } from "./types";
+import { Lang, TestCase, TestConfiguration, ExecResult, SimpleType, ExecFailure } from "./types";
 import { run_wasm } from "./wasm";
 import { execSync } from "child_process";
 import path from "path";
@@ -10,6 +10,7 @@ import { compile_ocaml, compile_types } from "./ocaml";
 import { compile_cakeml, get_cake } from "./cakeml";
 import { compile_rust, prepare_cargo, run_rust } from "./rust";
 import { prepare_elm_project, run_elm } from "./elm";
+import { prepare_lean_project, run_lean } from "./lean";
 import { test_configurations, tests } from "./tests";
 
 
@@ -39,10 +40,13 @@ function get_exec(local: boolean): string {
 // `file` input program
 // `lang` language that we compile to
 // `opts` compiler options
+// `config` optional pipeline configuration file; when given the program is
+// compiled with `peregrine compile`, the configuration selects the backend
 // returns a string containing the location of the compiled code or an ExecFailure object
-function compile_box(file: string, outdir: string, lang: Lang, opts: string): string | ExecFailure {
+function compile_box(file: string, outdir: string, lang: Lang, opts: string, config?: string): string | ExecFailure {
   const out_f = path.join(outdir, path.basename(replace_ext(file, lang_to_ext(lang))));
-  const cmd = `${get_exec(use_local_binary)} ${lang_to_peregrine_arg(lang)} ${file} -o ${out_f} ${opts}`;
+  const verb = config === undefined ? `${lang_to_peregrine_arg(lang)} ${file}` : `compile ${file} ${config}`;
+  const cmd = `${get_exec(use_local_binary)} ${verb} -o ${out_f} ${opts}`;
 
   try {
     execSync(cmd, { stdio: "pipe", timeout: compile_timeout });
@@ -52,7 +56,20 @@ function compile_box(file: string, outdir: string, lang: Lang, opts: string): st
       return { type: "error", reason: "timeout" };
     }
 
-    return { type: "error", reason: "compile error", compiler: "peregrine", code: e.status, error: e.stdout.toString('utf8') };
+    return { type: "error", reason: "compile error", compiler: "peregrine", code: e.status, error: e.stdout.toString('utf8') + e.stderr.toString('utf8') };
+  }
+}
+
+// Report the result of compiling, with a typed backend, an untyped program
+// marked as `rejected`: peregrine must fail and say that it could not infer
+// the types
+function print_rejected(res: string | ExecFailure, test: string) {
+  if (typeof res === "string") {
+    print_result({ type: "error", reason: "incorrect result", expected: "a rejection by type inference", actual: "a compiled program" }, test);
+  } else if (res.reason === "compile error" && res.error.includes("Could not infer types")) {
+    print_line("rejected by type inference, as expected");
+  } else {
+    print_result(res, test);
   }
 }
 
@@ -121,8 +138,18 @@ function print_result(res: ExecResult, test: string): boolean {
 }
 
 // Compile and run all `tests` test programs with the `lang` backend and `opts` compiler options
-async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[]) {
+// `untyped` gives the typed backends the untyped source of each test
+async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[], untyped: boolean) {
+  // Source that the typed backends compile
+  const typed_src = (t: TestCase) => untyped ? t.src : t.tsrc;
   print_line(`Running ${lang}${n.length > 0 ? "-"+n : ""} tests:`);
+  tests = tests.filter((t) => {
+    if (!t.skip?.includes(lang)) return true;
+    // The typed backends would not run a test without a source for them
+    if ((lang === Lang.Rust || lang === Lang.Elm) && typed_src(t) === undefined) return false;
+    print_line(`  ${typed_src(t) ?? t.src ?? t.tsrc}: skipped (known failure)`);
+    return false;
+  });
   switch (lang) {
     case Lang.OCaml:
       compile_types(compile_timeout);
@@ -231,20 +258,25 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
       let cargodir = path.join(tmpdir, "rust/");
 
       for (var test of tests) {
-        if (test.tsrc === undefined) continue;
-        process.stdout.write(`  ${test.tsrc}: `);
+        const src = typed_src(test);
+        if (src === undefined) continue;
+        process.stdout.write(`  ${src}: `);
 
         // Compile peregrine
-        const f_rs = compile_box(test.tsrc, otudir, Lang.Rust, opts);
+        const f_rs = compile_box(src, otudir, Lang.Rust, opts, "src/rust/config.sexp");
+        if (untyped && test.rejected) {
+          print_rejected(f_rs, src);
+          continue;
+        }
         if (typeof f_rs !== "string") {
-          print_result(f_rs, test.tsrc);
+          print_result(f_rs, src);
           continue;
         }
 
         // Compile Rust
         const err = compile_rust(f_rs, cargodir, test, compile_timeout);
         if (err !== undefined) {
-          print_result(err, test.tsrc);
+          print_result(err, src);
           continue;
         }
 
@@ -252,7 +284,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         const res = run_rust(f_rs, cargodir, test, exec_timeout);
 
         // Report result
-        print_result(res, test.tsrc);
+        print_result(res, src);
       }
       break;
     case Lang.Elm:
@@ -260,13 +292,18 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
       let elmdir = path.join(tmpdir, "elm/");
 
       for (var test of tests) {
-        if (test.tsrc === undefined) continue;
-        process.stdout.write(`  ${test.tsrc}: `);
+        const src = typed_src(test);
+        if (src === undefined) continue;
+        process.stdout.write(`  ${src}: `);
 
         // Compile peregrine
-        const f_elm = compile_box(test.tsrc, otudir, Lang.Elm, opts);
+        const f_elm = compile_box(src, otudir, Lang.Elm, opts, "src/elm/config.sexp");
+        if (untyped && test.rejected) {
+          print_rejected(f_elm, src);
+          continue;
+        }
         if (typeof f_elm !== "string") {
-          print_result(f_elm, test.tsrc);
+          print_result(f_elm, src);
           continue;
         }
 
@@ -274,7 +311,29 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[])
         const res = run_elm(f_elm, elmdir, test, exec_timeout);
 
         // Report result
-        print_result(res, test.tsrc);
+        print_result(res, src);
+      }
+      break;
+
+    case Lang.Lean:
+      var leandir = prepare_lean_project(tmpdir, compile_timeout);
+
+      for (var test of tests) {
+        if (test.src === undefined) continue;
+        process.stdout.write(`  ${test.src}: `);
+
+        // Compile peregrine
+        const f_lean = compile_box(test.src, leandir, Lang.Lean, opts);
+        if (typeof f_lean !== "string") {
+          print_result(f_lean, test.src);
+          continue;
+        }
+
+        // Run Lean (compiles + runs in one shot)
+        const res = run_lean(f_lean, leandir, test, exec_timeout);
+
+        // Report result
+        print_result(res, test.src);
       }
       break;
 
@@ -310,8 +369,19 @@ async function main() {
   check_peregrine();
 
   // For each test configuration run all test programs
+  // or only the configurations named on the command line, e.g. `Rust` or `WebAssembly-cps`
+  // (exact, case-sensitive match on the name the runner prints)
+  const config_name = (c: TestConfiguration) => c[0] + (c[1].length > 0 ? "-" + c[1] : "");
+  const names = test_configurations.map(config_name);
+  const selected = process.argv.slice(2);
+  const unknown = selected.filter((n) => !names.includes(n));
+  if (unknown.length > 0) {
+    print_line(`error: unknown test configuration ${unknown.join(", ")}; the configurations are ${names.join(", ")}`);
+    exit(2);
+  }
   for (var backend of test_configurations) {
-    await run_tests(backend[0], backend[1], backend[2], tests);
+    if (selected.length > 0 && !selected.includes(config_name(backend))) continue;
+    await run_tests(backend[0], backend[1], backend[2], tests, backend[3] ?? false);
   }
 
   // Report test suite result

@@ -10,6 +10,20 @@ export function print_line(s: string) {
   process.stdout.write(s + "\n");
 }
 
+// Find the identifier a typed backend printed for the entry point `main`.
+// These backends print names fully qualified and adapted to the target
+// language (`Demo_test` becomes `Peregrine_Tests_Demo_test` in Rust and
+// `peregrine_Tests_Demo_test` in Elm), so look for the last identifier in
+// `source` that is `main`, possibly after a prefix ending in `_`, ignoring
+// case. A program whose names have an empty module path, as the Lean frontend
+// emits them, has no module in the identifier (`Demo_test` is printed as
+// `_test`), so fall back to `main` without the part before its first `_`.
+export function find_entry_point(source: string, main: string): string {
+  const find = (name: string) => source.match(new RegExp(`\\b(?:\\w+_)?${name}\\b`, "gi"));
+  const ids = find(main) ?? find(main.slice(main.indexOf("_")));
+  return ids === null ? main : ids[ids.length - 1];
+}
+
 // Convert Lang to target language argument for peregrine compiler
 export function lang_to_peregrine_arg(lang: Lang): string {
   switch (lang) {
@@ -25,6 +39,8 @@ export function lang_to_peregrine_arg(lang: Lang): string {
       return "elm";
     case Lang.CakeML:
       return "cakeml";
+    case Lang.Lean:
+      return "lean";
   }
 }
 
@@ -43,5 +59,7 @@ export function lang_to_ext(lang: Lang): string {
       return ".elm";
     case Lang.CakeML:
       return ".cml";
+    case Lang.Lean:
+      return ".lean";
   }
 }
