@@ -198,59 +198,49 @@ let compile_backend ?(const_remaps=[]) ?(ind_remaps=[]) backend_opts opts eopts 
   let config = mk_config ~const_remaps ~ind_remaps backend_opts eopts in
   compile_aux opts f_prog prog (Datatypes.Coq_inr config)
 
-let compile_rust_unremapped opts eopts f_prog =
-  (* No numeric remapping at all: nat/positive/N/Z are extracted as the
-     inductives they are, so [nat] becomes an arena-allocated successor chain.
-     Arithmetic is asymptotically the same as what the C, OCaml, Wasm, CakeML
-     and Lean backends run, which is precisely what makes this the column that
-     may be compared with them.  [rust] (GMP) and [rustb] (native i64) both
-     replace the *program*, not just its codegen, so their times answer a
-     different question. *)
-  let b_opts = ConfigUtils.Rust' ConfigUtils.empty_rust_config' in
-  compile_backend b_opts opts eopts f_prog
+(* The Rust verbs, one per representation of nat/positive/N/Z. This list is
+   the only place that names them: main.ml makes one subcommand per entry. *)
+type rust_verb = {
+  rust_verb_name : string;
+  rust_verb_doc : string;
+  rust_verb_config : ConfigUtils.rust_config';
+  rust_verb_const_remaps : Config.constant_remappings;
+  rust_verb_ind_remaps : Config.inductive_remappings;
+}
 
-let compile_rust opts eopts f_prog =
-  (* Wire in the GMP numeric backend: the [rug::Integer] preamble plus the
-     nat/positive/N/Z arithmetic remaps (config-path analogue of the plugin's
-     ExtrRustGMP.v).  Without these the Rust backend lowers nat/N/Z to unary
-     Peano / binary-inductive towers, giving catastrophic arithmetic. *)
-  let b_opts = ConfigUtils.Rust' RustGMPRemaps.gmp_rust_config' in
-  compile_backend
-    ~const_remaps:RustGMPRemaps.gmp_const_remaps
-    ~ind_remaps:RustGMPRemaps.gmp_ind_remaps
-    b_opts opts eopts f_prog
+let rust_verbs = [
+  { rust_verb_name = "rust";
+    rust_verb_doc = "Compile lambda box program to Rust, with nat/positive/N/Z as GMP integers (rug::Integer, needs the rug crate)";
+    rust_verb_config = RustGMPRemaps.gmp_rust_config';
+    rust_verb_const_remaps = RustGMPRemaps.gmp_const_remaps;
+    rust_verb_ind_remaps = RustGMPRemaps.gmp_ind_remaps };
+  { rust_verb_name = "rustu";
+    rust_verb_doc = "Compile lambda box program to Rust, without numeric remapping";
+    rust_verb_config = ConfigUtils.empty_rust_config';
+    rust_verb_const_remaps = [];
+    rust_verb_ind_remaps = [] };
+  { rust_verb_name = "rustb";
+    rust_verb_doc = "Compile lambda box program to Rust, with nat/positive/N/Z as i64 (overflow is not checked)";
+    rust_verb_config = RustNativeRemaps.native_rust_config';
+    rust_verb_const_remaps = RustNativeRemaps.native_const_remaps;
+    rust_verb_ind_remaps = RustNativeRemaps.native_ind_remaps };
+  { rust_verb_name = "rustm";
+    rust_verb_doc = "Compile lambda box program to Rust, with GMP integers and add/mul/sub/div/mod/pow/eqb/leb/ltb on nat computed in i64";
+    rust_verb_config = RustMixedRemaps.mixed_rust_config';
+    rust_verb_const_remaps = RustMixedRemaps.mixed_const_remaps;
+    rust_verb_ind_remaps = RustMixedRemaps.mixed_ind_remaps };
+  { rust_verb_name = "rustm2";
+    rust_verb_doc = "Compile lambda box program to Rust, with GMP integers and div/mod/pow on nat computed in i64";
+    rust_verb_config = RustMixedRemaps.mixed_rust_config';
+    rust_verb_const_remaps = RustMixedRemaps.mixed_const_remaps2;
+    rust_verb_ind_remaps = RustMixedRemaps.mixed_ind_remaps };
+]
 
-let compile_rust_native opts eopts f_prog =
-  (* Path B: the native-i64 numeric representation (no arena, no Box::leak).
-     Fast for values within i64 range; the mixed backend combines it with the
-     arbitrary-precision path A via coercions. *)
-  let b_opts = ConfigUtils.Rust' RustNativeRemaps.native_rust_config' in
+let compile_rust v opts eopts f_prog =
   compile_backend
-    ~const_remaps:RustNativeRemaps.native_const_remaps
-    ~ind_remaps:RustNativeRemaps.native_ind_remaps
-    b_opts opts eopts f_prog
-
-let compile_rust_mixed opts eopts f_prog =
-  (* Path C: mixed representation.  Default path A (rug::Integer), with a
-     directive-selected partition of ops compiled in path B (native i64) behind
-     A<->B coercions.  Partition 1 ([b_partition]): all nine core nat ops. *)
-  let b_opts = ConfigUtils.Rust' RustMixedRemaps.mixed_rust_config' in
-  compile_backend
-    ~const_remaps:RustMixedRemaps.mixed_const_remaps
-    ~ind_remaps:RustMixedRemaps.mixed_ind_remaps
-    b_opts opts eopts f_prog
-
-let compile_rust_mixed2 opts eopts f_prog =
-  (* Path C, alternative partition ([narrow_b_partition]): only div/mod/pow
-     run natively; add/mul/sub/eqb/leb/ltb stay arbitrary-precision.  Same
-     mixed backend machinery (coercions, preamble, ind_remaps) as [rustm] --
-     only WHICH ops are in the B partition differs, demonstrating that
-     correctness does not depend on the partition chosen. *)
-  let b_opts = ConfigUtils.Rust' RustMixedRemaps.mixed_rust_config' in
-  compile_backend
-    ~const_remaps:RustMixedRemaps.mixed_const_remaps2
-    ~ind_remaps:RustMixedRemaps.mixed_ind_remaps
-    b_opts opts eopts f_prog
+    ~const_remaps:v.rust_verb_const_remaps
+    ~ind_remaps:v.rust_verb_ind_remaps
+    (ConfigUtils.Rust' v.rust_verb_config) opts eopts f_prog
 
 let compile_elm opts eopts f_prog =
   let b_opts = ConfigUtils.Elm' ConfigUtils.empty_elm_config' in
