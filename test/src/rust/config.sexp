@@ -12,5 +12,5 @@
     (Some "use lexpr::{to_string}; use serde_derive::{Serialize}; use serde_lexpr::{to_value};")
     None None None None None
     (Some "#[derive(Debug, Clone, Serialize)]")))
-  (Some (erasure_phases None None None None None (Some false) (Some false)))
+  (Some (erasure_phases None None None None None (Some false) (Some false) None None))
   () () () () ())

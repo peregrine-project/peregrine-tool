@@ -164,6 +164,8 @@ erasurePhasesConv ErasurePhases {..} =
     unboxing
     deargCtor
     deargConst
+    specializeInstances
+    cse
 
 -- Configuration of Peregrine
 configConv :: Config -> ConfigUtils.Coq_config'

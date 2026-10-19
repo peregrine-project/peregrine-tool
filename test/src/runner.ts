@@ -8,7 +8,7 @@ import { lang_to_ext, lang_to_peregrine_arg, print_line, replace_ext } from "./u
 import { compile_c, set_c_env } from "./c";
 import { compile_ocaml, compile_types } from "./ocaml";
 import { compile_cakeml, get_cake } from "./cakeml";
-import { compile_rust, prepare_cargo, run_rust } from "./rust";
+import { compile_rust, make_printable, prepare_cargo, run_rust } from "./rust";
 import { prepare_elm_project, run_elm } from "./elm";
 import { prepare_lean_project, run_lean } from "./lean";
 import { test_configurations, tests } from "./tests";
@@ -42,11 +42,12 @@ function get_exec(local: boolean): string {
 // `opts` compiler options
 // `config` optional pipeline configuration file; when given the program is
 // compiled with `peregrine compile`, the configuration selects the backend
+// `verb` optional verb to use instead of the one of `lang`
 // returns a string containing the location of the compiled code or an ExecFailure object
-function compile_box(file: string, outdir: string, lang: Lang, opts: string, config?: string): string | ExecFailure {
+function compile_box(file: string, outdir: string, lang: Lang, opts: string, config?: string, verb?: string): string | ExecFailure {
   const out_f = path.join(outdir, path.basename(replace_ext(file, lang_to_ext(lang))));
-  const verb = config === undefined ? `${lang_to_peregrine_arg(lang)} ${file}` : `compile ${file} ${config}`;
-  const cmd = `${get_exec(use_local_binary)} ${verb} -o ${out_f} ${opts}`;
+  const verb_args = config === undefined ? `${verb ?? lang_to_peregrine_arg(lang)} ${file}` : `compile ${file} ${config}`;
+  const cmd = `${get_exec(use_local_binary)} ${verb_args} -o ${out_f} ${opts}`;
 
   try {
     execSync(cmd, { stdio: "pipe", timeout: compile_timeout });
@@ -139,7 +140,8 @@ function print_result(res: ExecResult, test: string): boolean {
 
 // Compile and run all `tests` test programs with the `lang` backend and `opts` compiler options
 // `untyped` gives the typed backends the untyped source of each test
-async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[], untyped: boolean) {
+// `rust_verb` makes the Rust backend compile with that verb, see TestConfiguration
+async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[], untyped: boolean, rust_verb?: string) {
   // Source that the typed backends compile
   const typed_src = (t: TestCase) => untyped ? t.src : t.tsrc;
   print_line(`Running ${lang}${n.length > 0 ? "-"+n : ""} tests:`);
@@ -260,10 +262,15 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       for (var test of tests) {
         const src = typed_src(test);
         if (src === undefined) continue;
+        // rust-i64 prints numbers and booleans natively, so it needs its own outputs
+        const expected = rust_verb === "rust-i64" ? test.rust_i64_output : test.expected_output?.[1];
+        if (rust_verb === "rust-i64" && expected === undefined) continue;
         process.stdout.write(`  ${src}: `);
 
         // Compile peregrine
-        const f_rs = compile_box(src, otudir, Lang.Rust, opts, "src/rust/config.sexp");
+        const f_rs = rust_verb === undefined
+          ? compile_box(src, otudir, Lang.Rust, opts, "src/rust/config.sexp")
+          : compile_box(src, otudir, Lang.Rust, opts, undefined, rust_verb);
         if (untyped && test.rejected) {
           print_rejected(f_rs, src);
           continue;
@@ -273,6 +280,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
           continue;
         }
 
+        // A verb prints the default preamble and attributes, without what
+        // the test driver needs to print the result
+        if (rust_verb !== undefined) make_printable(f_rs);
+
         // Compile Rust
         const err = compile_rust(f_rs, cargodir, test, compile_timeout);
         if (err !== undefined) {
@@ -281,7 +292,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // Run Rust
-        const res = run_rust(f_rs, cargodir, test, exec_timeout);
+        const res = run_rust(f_rs, cargodir, test, exec_timeout, expected);
 
         // Report result
         print_result(res, src);
@@ -381,7 +392,7 @@ async function main() {
   }
   for (var backend of test_configurations) {
     if (selected.length > 0 && !selected.includes(config_name(backend))) continue;
-    await run_tests(backend[0], backend[1], backend[2], tests, backend[3] ?? false);
+    await run_tests(backend[0], backend[1], backend[2], tests, backend[3] ?? false, backend[4]);
   }
 
   // Report test suite result
