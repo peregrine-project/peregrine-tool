@@ -84,7 +84,7 @@ Definition narrow_b_partition : constant_remappings := [
 Definition mixed_const_remaps : constant_remappings :=
   mixed_const_remaps_of b_partition.
 
-(** Same mixed backend, alternative (narrower) partition: [rustm2]. *)
+(** Same mixed backend, alternative (narrower) partition: [rust-mixed-narrow]. *)
 Definition mixed_const_remaps2 : constant_remappings :=
   mixed_const_remaps_of narrow_b_partition.
 

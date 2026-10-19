@@ -20,7 +20,7 @@ The Rust and Elm backends take typed programs, so the `Rust` and `Elm` configura
 The `Rust-untyped` and `Elm-untyped` configurations give the same backends the untyped `src` of every test, whose types peregrine then infers, and expect the outputs of the typed sources.
 A test marked as `rejected` is a program whose types cannot be inferred: there peregrine must fail with `Could not infer types`.
 All four compile with `peregrine compile` and the pipeline configurations [src/rust/config.sexp](src/rust/config.sexp) and [src/elm/config.sexp](src/elm/config.sexp).
-The `Rust-rustu` and `Rust-rustb` configurations compile the typed sources with the `rustu` and `rustb` commands instead; `rustb` represents numbers as `i64`, so its tests have their own expected outputs (`rustb_output`). The GMP `rust` command is not tested here: its `rug` crate builds GMP from source, which takes longer than the compile timeout.
+The `Rust-verb` and `Rust-i64` configurations compile the typed sources with the `rust` and `rust-i64` commands instead; `rust-i64` represents numbers as `i64`, so its tests have their own expected outputs (`rust_i64_output`). The `rust-gmp` command is not tested here: its `rug` crate builds GMP from source, which takes longer than the compile timeout.
 The `OCaml-passes` configuration runs the OCaml tests with the optional `--specialize-instances` and `--cse` passes enabled and expects the same outputs.
 
 

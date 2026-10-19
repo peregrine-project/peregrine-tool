@@ -15,9 +15,9 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Rust, "untyped", "", true],
     [Lang.Elm, "untyped", "", true],
     // The Rust verbs other than `peregrine compile`. The dearg flags match
-    // src/rust/config.sexp, so rustu expects the outputs of the Rust tests.
-    [Lang.Rust, "rustu", "--dearg-ctors false --dearg-consts false", false, "rustu"],
-    [Lang.Rust, "rustb", "--dearg-ctors false --dearg-consts false", false, "rustb"],
+    // src/rust/config.sexp, so the rust verb expects the outputs of the Rust tests.
+    [Lang.Rust, "verb", "--dearg-ctors false --dearg-consts false", false, "rust"],
+    [Lang.Rust, "i64", "--dearg-ctors false --dearg-consts false", false, "rust-i64"],
     [Lang.CakeML, "", ""],
     [Lang.Lean, "", ""],
     // The two optional middle-end passes, which only the untyped pipeline runs
@@ -306,7 +306,7 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Closure.ast",
             tsrc: "rocq/extraction/Closure_typed.ast",
-            rustb_output: "5",
+            rust_i64_output: "5",
             main: "Closure_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S (S (S O)))))", "(S () (S () (S () (S () (S () (O))))))", "S (S (S (S (S O))))"],
@@ -315,7 +315,7 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Demo.ast",
             tsrc: "rocq/extraction/Demo_typed.ast",
-            rustb_output: "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
+            rust_i64_output: "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
             main: "Demo_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
@@ -329,7 +329,7 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Hello.ast",
             tsrc: "rocq/extraction/Hello_typed.ast",
-            rustb_output: "(cons () 72 (cons () 101 (cons () 108 (cons () 108 (cons () 111 (cons () 33 (nil)))))))",
+            rust_i64_output: "(cons () 72 (cons () 101 (cons () 108 (cons () 108 (cons () 111 (cons () 33 (nil)))))))",
             main: "Hello_hello",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -342,7 +342,7 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Map.ast",
             tsrc: "rocq/extraction/Map_typed.ast",
-            rustb_output: "(cons () () 2 (cons () () 6 (cons () () 10 (nil () ()))))",
+            rust_i64_output: "(cons () () 2 (cons () () 6 (cons () () 10 (nil () ()))))",
             main: "Map_ys",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -355,7 +355,7 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Mutual.ast",
             tsrc: "rocq/extraction/Mutual_typed.ast",
-            rustb_output: "1",
+            rust_i64_output: "1",
             main: "Mutual_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S O)", "(S () (O))", ""],
@@ -366,7 +366,7 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Nat.ast",
             tsrc: "rocq/extraction/Nat_typed.ast",
-            rustb_output: "3",
+            rust_i64_output: "3",
             main: "Nat_thing",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S O)))", "(S () (S () (S () (O))))", "S (S (S O))"],
@@ -375,7 +375,7 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/OddEven.ast",
             tsrc: "rocq/extraction/OddEven_typed.ast",
-            rustb_output: "(false)",
+            rust_i64_output: "(false)",
             main: "OddEven_test",
             output_type: SimpleType.Bool,
             expected_output: ["false", "(false)", "False"],
@@ -384,7 +384,7 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Params.ast",
             tsrc: "rocq/extraction/Params_typed.ast",
-            rustb_output: "3",
+            rust_i64_output: "3",
             main: "Params_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S O)))", "(S () (S () (S () (O))))", "S (S (S O))"],

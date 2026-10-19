@@ -63,15 +63,15 @@ export type TestCase = {
   // The types of the untyped source cannot be inferred: the typed backends
   // (Rust, Elm) must reject `src` with "Could not infer types"
   rejected?: boolean,
-  // The expected output of the rustb test configuration, where nat is i64
+  // The expected output of the Rust-i64 test configuration, where nat is i64
   // and bool is the Rust bool; a test without one is not run there
-  rustb_output?: string,
+  rust_i64_output?: string,
 }
 
 // Test configuration consisting of a target language, testset name, and a set of options
 // for the peregrine compiler.
 // The optional flag makes the typed backends (Rust, Elm) compile the untyped
 // source `src` of each test, inferring its types, instead of `tsrc`.
-// For Rust, the optional verb (`rustu`, `rustb`) compiles with that verb
+// For Rust, the optional verb (`rust`, `rust-i64`) compiles with that verb
 // instead of `peregrine compile` and src/rust/config.sexp.
 export type TestConfiguration = [Lang, string, string, boolean?, string?]

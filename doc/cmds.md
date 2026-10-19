@@ -21,7 +21,7 @@ Valid values for `BACKEND` are:
 * `c`
 * `ocaml`
 * `cakeml`
-* `rust`, `rustu`, `rustb`, `rustm`, `rustm2`: Rust with different representations of `nat`, `positive`, `N` and `Z`; see [backends.md](backends.md#numeric-representations)
+* `rust`, `rust-gmp`, `rust-i64`, `rust-mixed`, `rust-mixed-narrow`: Rust with different representations of `nat`, `positive`, `N` and `Z`; see [backends.md](backends.md#numeric-representations)
 * `elm`
 * `lean`
 * `ast`

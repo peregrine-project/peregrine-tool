@@ -63,18 +63,18 @@ The CLI has one Rust verb per representation of `nat`, `positive`, `N` and `Z`. 
 
 | Verb     | `nat`/`positive`/`N`/`Z` | Operations | Remaps | Extra crate |
 |----------|--------------------------|------------|--------|-------------|
-| `rust`   | `&'a rug::Integer` (GMP) | GMP arithmetic | [RustGMPRemaps.v](/theories/backends/RustGMPRemaps.v) | [rug](https://docs.rs/rug/) 1 |
-| `rustu`  | the inductive types, as extracted | the extracted functions | none | - |
-| `rustb`  | `i64` | native `i64` arithmetic, overflow not checked | [RustNativeRemaps.v](/theories/backends/RustNativeRemaps.v) | - |
-| `rustm`  | `&'a rug::Integer` | GMP, except `Nat.add`/`mul`/`sub`/`div`/`modulo`/`pow`/`eqb`/`leb`/`ltb` in `i64` | [RustMixedRemaps.v](/theories/backends/RustMixedRemaps.v) | rug 1 |
-| `rustm2` | `&'a rug::Integer` | GMP, except `Nat.div`/`modulo`/`pow` in `i64` | [RustMixedRemaps.v](/theories/backends/RustMixedRemaps.v) | rug 1 |
+| `rust`   | the inductive types, as extracted | the extracted functions | none | - |
+| `rust-gmp` | `&'a rug::Integer` (GMP) | GMP arithmetic | [RustGMPRemaps.v](/theories/backends/RustGMPRemaps.v) | [rug](https://docs.rs/rug/) 1 |
+| `rust-i64` | `i64` | native `i64` arithmetic, overflow not checked | [RustNativeRemaps.v](/theories/backends/RustNativeRemaps.v) | - |
+| `rust-mixed` | `&'a rug::Integer` | GMP, except `Nat.add`/`mul`/`sub`/`div`/`modulo`/`pow`/`eqb`/`leb`/`ltb` in `i64` | [RustMixedRemaps.v](/theories/backends/RustMixedRemaps.v) | rug 1 |
+| `rust-mixed-narrow` | `&'a rug::Integer` | GMP, except `Nat.div`/`modulo`/`pow` in `i64` | [RustMixedRemaps.v](/theories/backends/RustMixedRemaps.v) | rug 1 |
 
-`rust`, `rustb`, `rustm` and `rustm2` also remap `bool` to the Rust `bool` and `comparison` to `std::cmp::Ordering`. `rustu` remaps nothing and produces what `peregrine compile` produces with an empty configuration.
+`rust-gmp`, `rust-i64`, `rust-mixed` and `rust-mixed-narrow` also remap `bool` to the Rust `bool` and `comparison` to `std::cmp::Ordering`. `rust` remaps nothing and produces what `peregrine compile` produces with an empty configuration.
 The remapped operations are hand-written Rust strings; nothing about them is verified.
 
-* `rustb` computes in `i64` and does not check overflow: a result outside the `i64` range panics in a debug build and wraps around in a release build. `Nat.pow` casts its exponent to `u32`. Use it only for programs whose numbers stay in `i64`.
-* `rustm` and `rustm2` convert the arguments of the operations they run in `i64` with `to_i64().unwrap()`, which panics on an argument outside `i64`; the result of the `i64` operation is not checked, as for `rustb`. [RustMixedCoherence.v](/theories/backends/RustMixedCoherence.v) proves, for a ZArith model of these operations, that they agree with the `nat` operations when arguments and result fit in `i64`; it says nothing about the emitted Rust.
-* The GMP eliminators of `rust`, `rustm` and `rustm2` leak (`Box::leak`) the predecessor they compute.
+* `rust-i64` computes in `i64` and does not check overflow: a result outside the `i64` range panics in a debug build and wraps around in a release build. `Nat.pow` casts its exponent to `u32`. Use it only for programs whose numbers stay in `i64`.
+* `rust-mixed` and `rust-mixed-narrow` convert the arguments of the operations they run in `i64` with `to_i64().unwrap()`, which panics on an argument outside `i64`; the result of the `i64` operation is not checked, as for `rust-i64`. [RustMixedCoherence.v](/theories/backends/RustMixedCoherence.v) proves, for a ZArith model of these operations, that they agree with the `nat` operations when arguments and result fit in `i64`; it says nothing about the emitted Rust.
+* The GMP eliminators of `rust-gmp`, `rust-mixed` and `rust-mixed-narrow` leak (`Box::leak`) the predecessor they compute.
 
 ## Elm
 

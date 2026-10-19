@@ -39,7 +39,7 @@ Valid values for `TARGETLANGUAGE` are:
 * `c`
 * `ocaml`
 * `cakeml`
-* `rust` (GMP integers), `rustu`, `rustb`, `rustm`, `rustm2`: see [backends.md](/doc/backends.md#numeric-representations)
+* `rust`, `rust-gmp`, `rust-i64`, `rust-mixed`, `rust-mixed-narrow`: see [backends.md](/doc/backends.md#numeric-representations)
 * `elm`
 * `lean`
 

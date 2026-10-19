@@ -262,9 +262,9 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       for (var test of tests) {
         const src = typed_src(test);
         if (src === undefined) continue;
-        // rustb prints numbers and booleans natively, so it needs its own outputs
-        const expected = rust_verb === "rustb" ? test.rustb_output : test.expected_output?.[1];
-        if (rust_verb === "rustb" && expected === undefined) continue;
+        // rust-i64 prints numbers and booleans natively, so it needs its own outputs
+        const expected = rust_verb === "rust-i64" ? test.rust_i64_output : test.expected_output?.[1];
+        if (rust_verb === "rust-i64" && expected === undefined) continue;
         process.stdout.write(`  ${src}: `);
 
         // Compile peregrine
