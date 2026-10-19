@@ -169,7 +169,7 @@ jobs:
             done
             return 1
           }
-          retry sh -c 'curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none --no-modify-path'
+          retry bash -o pipefail -c 'curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none --no-modify-path'
           for t in "$(cat test/lean/lean-toolchain)" "$(cat lean-toolchain)"; do
             retry "$HOME/.elan/bin/elan" toolchain install "$t"
           done
