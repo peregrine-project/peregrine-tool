@@ -177,13 +177,3 @@ Definition native_rust_config' : rust_config' := {|
   rust_print_full_names'   := None;
   rust_default_attributes' := None;
 |}.
-
-Definition native_rust_config_full : rust_config := {|
-  rust_preamble_top       := native_top_preamble;
-  rust_preamble_program   := native_program_preamble;
-  rust_term_box_symbol    := "()";
-  rust_type_box_symbol    := "()";
-  rust_any_type_symbol    := "()";
-  rust_print_full_names   := true;
-  rust_default_attributes := "#[derive(Debug, Clone)]";
-|}.

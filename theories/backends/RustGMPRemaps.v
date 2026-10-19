@@ -228,16 +228,3 @@ Definition gmp_rust_config' : rust_config' := {|
   rust_print_full_names'   := None;
   rust_default_attributes' := None;
 |}.
-
-(** Full (non-optional) Rust config for driving [extract_rust] directly (test
-    harness path).  Mirrors [gmp_rust_config] (RustBackend.v) but with the
-    reference-representation preambles. *)
-Definition gmp_rust_config_full : rust_config := {|
-  rust_preamble_top       := gmp_top_preamble;
-  rust_preamble_program   := gmp_program_preamble;
-  rust_term_box_symbol    := "()";
-  rust_type_box_symbol    := "()";
-  rust_any_type_symbol    := "()";
-  rust_print_full_names   := true;
-  rust_default_attributes := "#[derive(Debug, Clone)]";
-|}.
