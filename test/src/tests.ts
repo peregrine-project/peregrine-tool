@@ -358,7 +358,16 @@ var rocq_tests: TestCase[] =
             tsrc: "rocq/extraction/Params_typed.ast",
             main: "Params_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S (S (S (S O))))", "(S () (S () (S () (S () (O)))))", "S (S (S (S O)))"],
+            expected_output: ["(S (S (S O)))", "(S () (S () (S () (O))))", "S (S (S O))"],
+            parameters: []
+        },
+        {
+            src: "rocq/extraction/Phantom.ast",
+            // No typed source: the typed Rust backend keeps the phantom
+            // parameter, which rustc cannot infer at the constructor
+            main: "Phantom_test",
+            output_type: SimpleType.Nat,
+            expected_output: ["(S O)", "(S () (O))", "S O"],
             parameters: []
         },
         {

@@ -8,4 +8,5 @@ theories/Mutual.v
 theories/Nat.v
 theories/OddEven.v
 theories/Params.v
+theories/Phantom.v
 theories/PolyLet.v
