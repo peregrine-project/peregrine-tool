@@ -90,12 +90,14 @@
        the shape typed erasure gives them (parameter entries typed [TBox]
        followed by the [cstr_nargs] fields).
 
-       Only TYPE parameters become type variables of the output, as in typed
-       erasure, whose [keep_tvar] drops the others.  λ□ does not say which
-       parameters are types, so [infer] runs twice.  The first run drops the
-       value parameters, found syntactically ([value_params]: some
-       constructor application passes a non-[□] term).  The second run also
-       drops the parameters that no field type of the first run mentions (a
+       Only TYPE parameters become type variables of the output.  Value and
+       [Prop] parameters are dropped, as typed erasure's [keep_tvar] drops
+       them; phantom type parameters are dropped too, which typed erasure
+       does not do.  λ□ does not say which parameters are types, so [infer]
+       runs twice.  The first run drops the value parameters, found by a
+       syntactic criterion ([value_params]: some constructor application in
+       a constant body passes a non-[□] term).  The second run also drops
+       the parameters that no field type of the first run mentions (a
        [Prop] or phantom parameter, which nothing can instantiate).  The
        instance of a dropped parameter is [TBox] and its [type_var_info] has
        [tvar_is_arity = false]; if the second run fails, the first run's
