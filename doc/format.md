@@ -191,7 +191,7 @@ Field by field:
 
 * `backend_opts` (`backend_config`) — selects the backend and its options; see below.
 
-* `erasure_opts` (`erasure_phases`) — toggles the optional erasure passes. The seven fields are
+* `erasure_opts` (`erasure_phases`) — toggles the optional erasure passes. The nine fields are
   ```
   (erasure_phases
     <implement_box>
@@ -200,9 +200,12 @@ Field by field:
     <betared>
     <unboxing>
     <dearg_ctors>
-    <dearg_consts>)
+    <dearg_consts>
+    <specialize_instances>
+    <cse>)
   ```
-  All booleans. Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
+  All booleans. `specialize_instances` and `cse` select the two optional passes described in [middleend.md](middleend.md); every backend leaves them off by default.
+  Only the nine-field form parses. To migrate a configuration written for the earlier seven-field form, append `None None` to its `erasure_phases` entry (`false false` where the fields are not optional). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
 
 * `inlinings_opts` (`inlinings`) — a list of `kername`s; constants in this list are inlined by the typed-erasure pass.
 
