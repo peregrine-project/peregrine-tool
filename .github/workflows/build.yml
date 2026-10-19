@@ -144,6 +144,28 @@ jobs:
       - name: Generate Agda ASTs
         run: cd agda && make test && mv test/dist/ ../test/agda/
 
+      # Downloads from releases.lean-lang.org intermittently fail on the
+      # runners with "SSL connect error". Install elan and both pinned
+      # toolchains here, with retries, so that lean-action and the Lean
+      # backend tests find them already installed. test/lean (frontend
+      # fixtures) and the repository root (Lean backend) pin different
+      # toolchains.
+      - name: Install Lean toolchains
+        run: |
+          retry() {
+            for i in 1 2 3 4 5; do
+              "$@" && return 0
+              echo "Attempt $i failed: $*"
+              sleep $((i * 15))
+            done
+            return 1
+          }
+          retry sh -c 'curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none --no-modify-path'
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          for t in "$(cat test/lean/lean-toolchain)" "$(cat lean-toolchain)"; do
+            retry "$HOME/.elan/bin/elan" toolchain install "$t"
+          done
+
       - name: Set up lean and generate Lean ASTs
         uses: leanprover/lean-action@v1
         with:
@@ -152,12 +174,6 @@ jobs:
           test: false
           lint: false
           lake-package-directory: "test/lean/"
-
-      # The Lean backend tests use the toolchain pinned at the repository
-      # root, not the one of test/lean. Fetch it here, so that the download
-      # does not count against the compile timeout of the first Lean test.
-      - name: Install the Lean backend toolchain
-        run: elan toolchain install "$(cat lean-toolchain)"
 
       - name: Test extraction
         run: |
