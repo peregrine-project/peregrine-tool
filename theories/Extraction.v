@@ -72,8 +72,10 @@ Extract Constant Corelib.Lists.ListDef.map =>
   "(fun f l -> List.rev (List.rev_map f l))".
 Extract Constant Stdlib.Lists.List.concat =>
   "(fun ls -> List.rev (List.fold_left (fun acc l -> List.rev_append l acc) [] ls))".
-From mathcomp Require ssreflect.seq.
-Extract Constant mathcomp.ssreflect.seq.cat =>
+(* seq lives in mathcomp.ssreflect up to mathcomp 2.4 and in mathcomp.boot
+   from 2.5 on (the Nix CI), so name it by its short path *)
+From mathcomp Require seq.
+Extract Constant seq.cat =>
   "(fun s1 s2 -> List.rev_append (List.rev s1) s2)".
 Extract Constant Corelib.Init.Datatypes.length =>
   "(fun l -> let rec go n = function [] -> n | _ :: l -> go (S n) l in go O l)".
