@@ -150,6 +150,37 @@ Definition eta_remapped_bodies (remaps : remaps) (Σ : ExAst.global_env) : ExAst
     | _, _ => (kn, deps, d)
     end) Σ.
 
+(** Stopgap for benchmarks UPSTREAM_ISSUES entry 3.  Corelib declares
+    [id : ID] with [ID := forall A, A -> A].  Typed erasure does not unfold
+    the alias, so [id] gets no type parameter and its type erases to the
+    arrow-less [ID], printed as [Fn(()) -> Fn(()) -> ()], which rustc rejects
+    at uses of [id] at any other type.  In that case only (when types are
+    inferred, or once erasure unfolds the alias, [id]'s type has arrows and
+    is printed correctly), remap [id] to a generic Rust function; a remap of
+    [id] given by the user takes precedence.  The proper fix is in typed
+    erasure, which should unfold such an alias before computing the type
+    scheme and dearg mask of a constant. *)
+Definition id_kn : Kernames.kername := (Kernames.MPfile ["Datatypes"; "Init"; "Corelib"], "id").
+
+Definition id_remap : Kernames.kername * remapped_constant :=
+  (id_kn, {|
+    re_const_ext := None;
+    re_const_arity := 0;
+    re_const_gc := false;
+    re_const_inl := false;
+    re_const_s := "fn ##name##<T: Copy>(&'a self) -> &'a dyn Fn(()) -> &'a dyn Fn(T) -> T { self.closure(move |_A: ()| self.closure(move |x: T| x)) }";
+  |}).
+
+Definition default_const_remaps (Σ : ExAst.global_env) : constant_remappings :=
+  match ExAst.lookup_env Σ id_kn with
+  | Some (ExAst.ConstantDecl {| ExAst.cst_type := (_, ty) |}) =>
+    match ExAst.decompose_arr ty with
+    | ([], _) => [id_remap]
+    | _ => []
+    end
+  | _ => []
+  end.
+
 Definition extract_rust (const_remaps : constant_remappings)
                         (ind_remaps : inductive_remappings)
                         (custom_attr : custom_attributes)
@@ -157,7 +188,7 @@ Definition extract_rust (const_remaps : constant_remappings)
                         (file_name : string)
                         (p : ExAst.global_env)
                         : result' (list string) :=
-  let remaps := mk_remaps const_remaps ind_remaps in
+  let remaps := mk_remaps (const_remaps ++ default_const_remaps p)%list ind_remaps in
   let attrs := mk_attributes custom_attr opts in
   let config := mk_config opts in
   let preamble := mk_preamble opts in
