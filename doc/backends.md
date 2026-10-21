@@ -9,6 +9,7 @@ The table below summarises supported the backends
 |--------------|---------|----------|------------------|---------------------|-------------|-----------------|
 | C            | untyped | ✓ | ✗ | C-light                    | ✗ | Verified GC |
 | WebAssembly  | untyped | ✓ | ✓ | Binary format              | ✗ | Bump allocator, no GC |
+| LLVM (experimental) | untyped | partial, see below | ✗ | Textual LLVM IR (`.ll`) | ✗ | CertiRocq GC (`gc_stack.c`) |
 | OCaml        | untyped | ✓ | ✗ | Malfunction Serialized AST | ✗ | GC |
 | CakeML       | untyped | ✓ | ✓ | Serialized AST             | ✗ | GC |
 | Rust         | typed (untyped: experimental) | ✗ | ✗ | Source language            | ✓ | Bump allocator, no GC |
@@ -32,6 +33,15 @@ Implemented in [CertiRocq](https://github.com/CertiRocq/certirocq/).
 
 Output — a file the binary-encoded Wasm module. The CLI writes a `.wasm` file. The module exports the main function as `main_function`.
 The code can be executed by any Wasm 2.0 compatible runtime that supports the [tail-call extension](https://webassembly.org/features/) (e.g. recent Node.js, Wasmtime, modern browsers).
+
+## LLVM
+
+LLVM backend extracting to textual LLVM IR. It accepts both typed and untyped ASTs as input. Experimental.
+Implemented in `CertiRocq.CodegenLLVM`, which is in no CertiRocq release: Peregrine is built against a fork, [`spitters/certirocq`](https://github.com/spitters/certirocq/tree/vir-llvm-backend) (CertiRocq 0.9.1 plus the LLVM backend, pinned by commit in [rocq-peregrine.opam](/rocq-peregrine.opam)), which depends on an unreleased [Vellvm](https://github.com/vellvm/vellvm) commit.
+
+Output — a single `.ll` module that defines `i64 @certirocq_main(ptr %tinfo)` and declares `@garbage_collect`. It uses the value representation and runtime of the C backend: link it with CertiRocq's `gc_stack.c` (in `$(coqc -where)/user-contrib/CertiRocq/Plugin/runtime/`) and a C `main` that calls `make_tinfo()` and then `certirocq_main`, e.g. `clang prog.ll main.c gc_stack.c`. The C glue that prints values works on the result as well (see [test/src/c.ts](/test/src/c.ts)).
+
+What is proved ([`LLVM_sim_exp.v`](https://github.com/spitters/certirocq/blob/vir-llvm-backend/theories/CodegenLLVM/LLVM_sim_exp.v), theorem `LambdaANF_to_LLVM_correct`): when a LambdaANF program terminates with a value, the emitted module, run in Vellvm's semantics, either runs out of memory or returns a word that represents that value. The theorem assumes `runtime_correct`, a specification of `garbage_collect` and `make_tinfo` that is not proved for the real `gc_stack.c` (and that `gc_stack.c` violates for boxed constructor ordinals 251 to 255, see the fork's `tests/llvm-corpus/README.md`), and that the program is `llvm_restricted`: no primitive operations, no primitive values other than 63-bit integers, no nested function definitions. Programs outside these restrictions are still compiled; for them nothing is proved, and allocating primitives are known to be miscompiled (no GC roots are registered around them). Divergence is not covered, nor is the LambdaBox to LambdaANF part, which is the same as for the C backend. The printer from Vellvm's AST to `.ll` text, and clang, are outside the proof.
 
 ## OCaml
 
