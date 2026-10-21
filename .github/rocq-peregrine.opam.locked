@@ -13,7 +13,8 @@ depends: [
   "rocq-core" {= "9.1.1"}
   "rocq-runtime" {= "9.1.1"}
   "rocq-stdlib" {= "9.0.0"}
-  "rocq-certirocq" {= "0.9.1+9.1"}
+  "rocq-certirocq" {= "0.9.1+9.1+llvm"}
+  "rocq-vellvm" {= "dev"}
   "rocq-ceres-bytestring" {= "1.0.0"}
   "rocq-metarocq-erasure-plugin" {= "1.5.1+9.1"}
   "rocq-primitive" {= "9.0.0"}
@@ -23,6 +24,10 @@ depends: [
   "rocq-cakeml-extraction" {= "0.1.0"}
   "rocq-verified-extraction" {= "1.0.0+9.1"}
   "cmdliner" {= "2.1.0"}
+]
+pin-depends: [
+  ["rocq-certirocq.0.9.1+9.1+llvm" "git+https://github.com/spitters/certirocq.git#13e3f16fcfa79bd0b8246640bf6b71d29ff1cba9"]
+  ["rocq-vellvm.dev" "git+https://github.com/vellvm/vellvm.git#b63a28a0a36cbae73a454d99a97bb8171568343e"]
 ]
 build: [make "build"]
 install: [make "install"]

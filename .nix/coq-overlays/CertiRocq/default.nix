@@ -9,12 +9,15 @@
   metarocq-erasure-plugin,
   metarocq-safechecker-plugin,
   ExtLib,
+  vellvm,
   version ? null,
 }:
 
 mkCoqDerivation {
   pname = "CertiRocq";
-  owner = "CertiRocq";
+  # The LLVM backend is only in this fork: CertiRocq 0.9.1+9.1 plus
+  # CodegenLLVM, see rocq-peregrine.opam
+  owner = "spitters";
   repo = "certirocq";
   opam-name = "rocq-certirocq";
   mlPlugin = true;
@@ -36,13 +39,15 @@ mkCoqDerivation {
         metarocq-erasure-plugin.version
       ]
       [
-        (case "9.1" "1.5.1-9.1" "0.9.1+9.1")
+        (case "9.1" "1.5.1-9.1" "0.9.1+9.1+llvm")
       ]
       null;
   release = {
-    "0.9.1+9.1".hash = "sha256-YsweBaoq8+QG63e7Llp/4bHldAFnSQSyMumJkb+Bsp0=";
+    "0.9.1+9.1+llvm" = {
+      rev = "13e3f16fcfa79bd0b8246640bf6b71d29ff1cba9";
+      hash = "sha256-tOprWbR+w2YXfVKHnvLJQqo785PsSYOo/G/VhqVsmsA=";
+    };
   };
-  releaseRev = v: "v${v}";
 
   buildInputs = [
     pkgs.clang
@@ -52,6 +57,7 @@ mkCoqDerivation {
     wasmcert
     compcert
     ExtLib
+    vellvm
     metarocq-erasure-plugin
     metarocq-safechecker-plugin
   ];

@@ -23,8 +23,20 @@ depends: [
   "rocq-verified-extraction" {= "1.0.0+9.1"}
   "rocq-primitive" {= "9.0.0"}
   "rocq-ceres-bytestring" {= "1.0.0"}
-  "rocq-certirocq" {= "0.9.1+9.1"}
+  "rocq-certirocq" {= "0.9.1+9.1+llvm"}
+  "rocq-vellvm" {= "dev"}
   "cmdliner" {>= "2.0.0"}
+]
+
+# The LLVM backend needs CertiRocq.CodegenLLVM, which is in no CertiRocq
+# release: the fork below is CertiRocq 0.9.1+9.1 (v0.9.1+9.1) plus the LLVM
+# backend, at the last commit of its vir-llvm-backend branch before that branch
+# merged CertiRocq's main (which drops the LambdaBoxMut/LambdaBoxLocal pipeline
+# Peregrine uses). The fork needs a Vellvm commit that no release contains.
+# Keep both commits equal to the ones in .github/rocq-peregrine.opam.locked.
+pin-depends: [
+  ["rocq-certirocq.0.9.1+9.1+llvm" "git+https://github.com/spitters/certirocq.git#13e3f16fcfa79bd0b8246640bf6b71d29ff1cba9"]
+  ["rocq-vellvm.dev" "git+https://github.com/vellvm/vellvm.git#b63a28a0a36cbae73a454d99a97bb8171568343e"]
 ]
 
 build: [ make "build" ]
