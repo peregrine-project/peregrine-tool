@@ -3,7 +3,13 @@ From MetaRocq.Utils Require Import MRString.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import BasicAst.
 From MetaRocq.Erasure Require EAst.
-From Peregrine Require Import FSharpIR.
+From Peregrine Require Import LeanIR.
+(* The F# backend shares the Lean backend's IR ([LeanIR]), compiler
+   ([LeanCompile]) and the name-disambiguation and inductive-lookup
+   helpers of its printer; only the F# syntax below is specific. *)
+From Peregrine Require Import PrintLean(nl, concat_with, full_name,
+  ind_env, build_ind_env, lookup_oib, lookup_ind_name,
+  dup_base_names, dup_ind_names).
 From Peregrine Require Utils.
 From Stdlib Require Import List.
 From Stdlib Require Import PeanoNat.
@@ -14,7 +20,7 @@ Import ListNotations.
 Local Open Scope bs_scope.
 
 (* ------------------------------------------------------------------ *)
-(*  FSharpIR → F# source pretty-printer                               *)
+(*  LeanIR → F# source pretty-printer                                 *)
 (*                                                                    *)
 (*  Core invariant: every emitted expression has static type [obj],   *)
 (*  and every function value boxed into an [obj] is exactly a unary   *)
@@ -28,69 +34,11 @@ Local Open Scope bs_scope.
 (*  composite expression is parenthesized.                            *)
 (* ------------------------------------------------------------------ *)
 
-Definition nl : string := String.String "010"%byte String.EmptyString.
-
-Definition concat_with (sep : string) (xs : list string) : string :=
-  String.concat sep xs.
-
 (* Use just the last component of a kername.  All emitted definitions
    live inside a single F# module, so collisions only matter across
    modules that happen to share a local name — accepted v1 limitation,
    controlled by the full-names printing flag. *)
 Definition local_name (kn : kername) : string := snd kn.
-
-(* Inner-module qualifiers of a modpath: everything below the file root.
-   [MPfile] contributes nothing (its dirpath is the compilation-unit name,
-   already covered by [default_module]); [MPdot]/[MPbound] components are
-   folded in order.  Rationale: names anchored only on [snd kn] collide as
-   soon as a program uses same-named definitions from different modules
-   (e.g. FMap [M.add] vs FSet [S.add] vs [Nat.add] in VeriStar), which
-   previously emitted duplicate defs.  Top-level definitions keep their
-   historical [<File>_<ident>] names. *)
-Fixpoint mp_quals (mp : modpath) : list ident :=
-  match mp with
-  | MPfile _ => []
-  | MPbound _ id _ => [id]
-  | MPdot mp id => mp_quals mp ++ [id]
-  end.
-
-Definition qualify_mp (mp : modpath) (s : ident) : ident :=
-  match mp_quals mp with
-  | [] => s
-  | qs => concat_with "_" qs ++ "_" ++ s
-  end.
-
-(* File root of a modpath (innermost dirpath component = file name),
-   used as a last-resort disambiguator when [qualify_mp] alone still
-   collides (same-named top-level defs in different files, e.g.
-   [Corelib.Init.Nat.add] vs a program's own [add]). *)
-Fixpoint mp_root_file (mp : modpath) : list ident :=
-  match mp with
-  | MPfile dp | MPbound dp _ _ => match dp with f :: _ => [f] | [] => [] end
-  | MPdot mp _ => mp_root_file mp
-  end.
-
-Definition base_name (kn : kername) : string := qualify_mp (fst kn) (snd kn).
-
-Definition disamb_name (kn : kername) : string :=
-  concat_with "_" (mp_root_file (fst kn) ++ mp_quals (fst kn) ++ [snd kn]).
-
-(* Flat full name: [default_module ++ "_" ++ <quals> ++ snd kn], where
-   the file root is folded in only for names in [dups] (the base names
-   that appear more than once in this program — computed by
-   [print_program]).  [default_module] is the source file basename,
-   supplied by the CLI driver.  We deliberately ignore the [MPfile] root
-   otherwise: across frontends it ranges from empty (lean-to-lambdabox)
-   to deep ([Peregrine.Tests.Demo] for rocq extractions), which would
-   yield inconsistent emitted names across otherwise-identical programs.
-   Tests expect [<File>_<ident>], so we anchor on the file name. *)
-Definition full_name (dups : list string) (default_module : string) (kn : kername) : string :=
-  let base := base_name kn in
-  let base := if List.existsb (String.eqb base) dups then disamb_name kn else base in
-  match default_module with
-  | "" => base
-  | _ => default_module ++ "_" ++ base
-  end.
 
 Definition pick_fun_name (dups : list string) (full : bool) (default_module : string) (kn : kername) : string :=
   if full then full_name dups default_module kn else local_name kn.
@@ -185,11 +133,11 @@ Definition fs_module_name (s : string) : string :=
   | String.String b _ => if byte_is_digit b then "M" ++ s' else s'
   end.
 
-(* Suffix inductive type names with [_] so we never collide with F#
-   keywords or built-in types (e.g. [bool], [option], [unit]).  Type
-   names keep their source casing — F# accepts lowercase type names —
-   but union cases must be capitalized, hence [fs_cap] on ctors. *)
-Definition ind_name (s : ident) : string := s ++ "_".
+(* Inductive type names come from [PrintLean.pick_ind_name], which
+   suffixes them with [_], so they never collide with F# keywords or
+   built-in types (e.g. [bool], [option], [unit]).  Type names keep their
+   source casing — F# accepts lowercase type names — but union cases
+   must be capitalized, hence [fs_cap] on ctors. *)
 Definition ctor_name (s : ident) : string := fs_cap s ++ "_".
 
 (* [obj_tuple 3 = "obj * obj * obj"] — the payload type of an n-field
@@ -205,24 +153,7 @@ Fixpoint obj_tuple (n : nat) : string :=
 Definition fs_params (ids : list ident) : string :=
   concat_with " " (List.map (fun id => "(" ++ id ++ ": obj)") ids).
 
-(* ----- Inductive lookup environment ------------------------------- *)
-
-Definition ind_env := list (kername * EAst.mutual_inductive_body).
-
-Definition build_ind_env (decls : list (kername * fdecl)) : ind_env :=
-  Utils.filter_map (fun (x : kername * fdecl) =>
-    let '(kn, d) := x in
-    match d with
-    | FInductive mib => Some (kn, mib)
-    | _ => None
-    end
-  ) decls.
-
-Definition lookup_oib (env : ind_env) (ind : inductive) : option EAst.one_inductive_body :=
-  match List.find (fun '(kn, _) => eq_kername kn ind.(inductive_mind)) env with
-  | Some (_, mib) => nth_error mib.(EAst.ind_bodies) ind.(inductive_ind)
-  | None => None
-  end.
+(* ----- Constructor names ------------------------------------------ *)
 
 (* Constructor display names of one inductive, with positional
    disambiguation: [fs_cap] can identify source names differing only in
@@ -250,27 +181,6 @@ Definition lookup_ctor_name (env : ind_env) (ind : inductive) (n : nat) : string
   | None => "MissingInd_" ++ string_of_nat n
   end.
 
-(* Inductive type names get the same inner-module qualification as
-   definitions (e.g. FMap [M.t] and FSet [S.t] would otherwise both
-   print as [t_]), and — like function names — a file-root
-   disambiguator when the qualified name still collides across files
-   (e.g. Corelib's [list] next to a program's own [list]).
-   [ind_dups] is computed over the whole program by [print_program]. *)
-Definition ind_base (mp : modpath) (nm : ident) : string := qualify_mp mp nm.
-
-Definition ind_display_name (ind_dups : list string) (mp : modpath) (nm : ident) : string :=
-  let b := ind_base mp nm in
-  ind_name (if List.existsb (String.eqb b) ind_dups
-            then concat_with "_" (mp_root_file mp ++ mp_quals mp ++ [nm])
-            else b).
-
-Definition lookup_ind_name (ind_dups : list string) (env : ind_env) (ind : inductive) : string :=
-  match lookup_oib env ind with
-  | Some oib =>
-    ind_display_name ind_dups (fst ind.(inductive_mind)) (oib.(EAst.ind_name))
-  | None => "MissingInd"
-  end.
-
 (* ----- Inductive declaration printer (context-free) --------------- *)
 
 Definition print_ctor (nm : string) (nargs : nat) : string :=
@@ -285,7 +195,7 @@ Definition print_ctor (nm : string) (nargs : nat) : string :=
    (its only use sites are empty matches, printed without a cast). *)
 Definition print_one_inductive (ind_dups : list string) (mp : modpath)
                                (oib : EAst.one_inductive_body) : string :=
-  let nm := ind_display_name ind_dups mp (oib.(EAst.ind_name)) in
+  let nm := PrintLean.pick_ind_name ind_dups mp (oib.(EAst.ind_name)) in
   match oib.(EAst.ind_ctors) with
   | [] =>
     "// empty inductive " ++ nm ++ " elided (F# forbids empty unions; never referenced)"
@@ -307,16 +217,16 @@ Definition print_inductive (ind_dups : list string) (kn : kername)
 
 (* Arity of every top-level function — the printer needs it to decide
    between a direct (uncurried) call and a curried wrapper. *)
-Definition fun_arities (decls : list (kername * fdecl)) : list (kername * nat) :=
-  List.concat (List.map (fun (x : kername * fdecl) =>
+Definition fun_arities (decls : list (kername * ldecl)) : list (kername * nat) :=
+  List.concat (List.map (fun (x : kername * ldecl) =>
     let '(kn, d) := x in
     match d with
-    | FDef f => [(kn, List.length f.(ffun_params))]
-    | FRecGroup fs => List.map (fun '(kn', f) => (kn', List.length f.(ffun_params))) fs
-    | FInductive _ => []
+    | LDef f => [(kn, List.length f.(lfun_params))]
+    | LRecGroup fs => List.map (fun '(kn', f) => (kn', List.length f.(lfun_params))) fs
+    | LInductive _ => []
     end) decls).
 
-(* Locally bound function names (nested [let rec]s from [FFix]) and
+(* Locally bound function names (nested [let rec]s from [LFix]) and
    their arities.  Plain [obj]-typed locals are absent from the map. *)
 Definition lookup_local (id : ident) (locals : list (ident * nat)) : option nat :=
   match List.find (fun '(id', _) => String.eqb id' id) locals with
@@ -331,9 +241,9 @@ Definition remove_locals (ids : list ident) (locals : list (ident * nat)) : list
   List.filter (fun '(id, _) => negb (List.existsb (String.eqb id) ids)) locals.
 
 (* Split a term into its leading lambdas and residual body. *)
-Fixpoint peel_flams (t : fterm) : list ident * fterm :=
+Fixpoint peel_flams (t : lterm) : list ident * lterm :=
   match t with
-  | FLam id b => let '(ids, body) := peel_flams b in (id :: ids, body)
+  | LLam id b => let '(ids, body) := peel_flams b in (id :: ids, body)
   | _ => ([], t)
   end.
 
@@ -415,20 +325,20 @@ Section Printer.
 
   (* Accumulator ("spine") printer: [pending] carries the printed
      argument strings of the application spine enclosing [t], leftmost
-     argument first.  Walking [FApp] nodes into the accumulator keeps
+     argument first.  Walking [LApp] nodes into the accumulator keeps
      the recursion structural while letting the spine's head see all
      its arguments at once and choose the call shape ([finish_call]).
      Every returned string is a complete [obj]-typed F# expression. *)
-  Fixpoint print_fterm_k (locals : list (ident * nat)) (t : fterm) (pending : list string) {struct t} : string :=
+  Fixpoint print_fterm_k (locals : list (ident * nat)) (t : lterm) (pending : list string) {struct t} : string :=
     match t with
-    | FApp f x =>
+    | LApp f x =>
       print_fterm_k locals f (print_fterm_k locals x [] :: pending)
-    | FVar id =>
+    | LVar id =>
       match lookup_local id locals with
       | Some n => finish_call id n pending
       | None => wrap_applies id pending
       end
-    | FConst kn =>
+    | LConst kn =>
       let nm := pick_fun_name dups full_names default_module kn in
       if is_thunk kn then wrap_applies ("(" ++ nm ++ ".Force())") pending
       else
@@ -438,10 +348,10 @@ Section Printer.
            let the F# compiler reject it, matching the Lean backend. *)
         | None => wrap_applies nm pending
         end
-    | FCtor ind idx args =>
+    | LCtor ind idx args =>
       let cn := lookup_ctor_name env ind idx in
       let ind_n := lookup_ind_name ind_dups env ind in
-      let fix print_args (ts : list fterm) : list string :=
+      let fix print_args (ts : list lterm) : list string :=
         match ts with
         | [] => []
         | a :: rest => print_fterm_k locals a [] :: print_args rest
@@ -454,7 +364,7 @@ Section Printer.
             ++ concat_with ", " (print_args args) ++ ")))"
         end in
       wrap_applies head pending
-    | FProj p discr =>
+    | LProj p discr =>
       let ind := p.(proj_ind) in
       let arg := p.(proj_arg) in
       let cn := lookup_ctor_name env ind 0 in
@@ -487,19 +397,19 @@ Section Printer.
         ("(match (" ++ print_fterm_k locals discr [] ++ " :?> " ++ ind_n
           ++ ") with | " ++ ind_n ++ "." ++ cn ++ pat ++ " -> x)")
         pending
-    | FLam id body =>
+    | LLam id body =>
       wrap_applies
         ("(box (fun (" ++ id ++ ": obj) -> "
           ++ print_fterm_k (remove_locals [id] locals) body [] ++ "))")
         pending
-    | FLet id b body =>
+    | LLet id b body =>
       wrap_applies
         ("(let " ++ id ++ " : obj = " ++ print_fterm_k locals b [] ++ " in "
           ++ print_fterm_k (remove_locals [id] locals) body [] ++ ")")
         pending
-    | FCase discr ind brs =>
+    | LCase discr ind brs =>
       let ind_n := lookup_ind_name ind_dups env ind in
-      let print_br (i : nat) (br : list ident * fterm) : string :=
+      let print_br (i : nat) (br : list ident * lterm) : string :=
         let '(ids, body) := br in
         let cn := lookup_ctor_name env ind i in
         let pat :=
@@ -510,7 +420,7 @@ Section Printer.
           end in
         "| " ++ ind_n ++ "." ++ cn ++ pat ++ " -> "
           ++ print_fterm_k (remove_locals ids locals) body [] in
-      let fix print_brs (i : nat) (bs : list (list ident * fterm)) : list string :=
+      let fix print_brs (i : nat) (bs : list (list ident * lterm)) : list string :=
         match bs with
         | [] => []
         | b :: rest => print_br i b :: print_brs (S i) rest
@@ -530,7 +440,7 @@ Section Printer.
             ++ ") with " ++ concat_with " " (print_brs 0 brs) ++ ")")
           pending
       end
-    | FFix entries idx =>
+    | LFix entries idx =>
       (* Nested fixpoint.  Only the singleton case has a legal one-line
          F# form ([let rec f (x: obj) … : obj = body in …]); a mutual
          group would need an [and] binding, which F#'s light syntax
@@ -552,9 +462,9 @@ Section Printer.
           wrap_applies "(failwith ""peregrine: value-recursive fix"" : obj)" pending
         | _ =>
           let locals' := (nm, List.length ps) :: remove_locals (nm :: ps) locals in
-          let fix print_after_lams (u : fterm) : string :=
+          let fix print_after_lams (u : lterm) : string :=
             match u with
-            | FLam _ b => print_after_lams b
+            | LLam _ b => print_after_lams b
             | _ => print_fterm_k locals' u []
             end in
           "(let rec " ++ nm ++ " " ++ fs_params ps ++ " : obj = "
@@ -564,7 +474,7 @@ Section Printer.
       | _ =>
         wrap_applies "(failwith ""peregrine: mutual nested fix unsupported"" : obj)" pending
       end
-    | FPanic _ =>
+    | LPanic _ =>
       (* Stand-in [obj] for computationally irrelevant terms (tBox
          replacements).  Must be a benign value — erased argument slots
          are materialized eagerly under call-by-value, so a [failwith]
@@ -579,30 +489,30 @@ Section Printer.
      load-order dependent.  As a [Lazy<obj>] the body runs on first
      [.Force()] — inside [main] — while preserving evaluate-once
      sharing.  [leader] selects [let rec] vs [and] within a rec group;
-     a standalone [FDef] is always a leader.  Leaders use [let rec]
-     even when non-recursive: self-references are [FConst]s, and F#
+     a standalone [LDef] is always a leader.  Leaders use [let rec]
+     even when non-recursive: self-references are [LConst]s, and F#
      emits no warning for an unused [rec]. *)
-  Definition print_ffun (leader : bool) (name : string) (f : ffun) : string :=
-    match f.(ffun_params) with
+  Definition print_ffun (leader : bool) (name : string) (f : lfun) : string :=
+    match f.(lfun_params) with
     | [] =>
       if leader then
         "let " ++ name ++ " : Lazy<obj> = lazy ("
-          ++ print_fterm_k [] f.(ffun_body) [] ++ ")"
+          ++ print_fterm_k [] f.(lfun_body) [] ++ ")"
       else
         (* Nullary rec-group member (theoretical): a value binding in a
            [let rec] chain — checked-at-runtime initialization, covered
            by [#nowarn "40"]. *)
-        "and " ++ name ++ " : obj = " ++ print_fterm_k [] f.(ffun_body) []
+        "and " ++ name ++ " : obj = " ++ print_fterm_k [] f.(lfun_body) []
     | params =>
       (if leader then "let rec " else "and ") ++ name ++ " " ++ fs_params params
-        ++ " : obj = " ++ print_fterm_k [] f.(ffun_body) []
+        ++ " : obj = " ++ print_fterm_k [] f.(lfun_body) []
     end.
 
-  Definition print_decl (kn : kername) (d : fdecl) : string :=
+  Definition print_decl (kn : kername) (d : ldecl) : string :=
     match d with
-    | FInductive mib => print_inductive ind_dups kn mib
-    | FDef f => print_ffun true (pick_fun_name dups full_names default_module kn) f
-    | FRecGroup fs =>
+    | LInductive mib => print_inductive ind_dups kn mib
+    | LDef f => print_ffun true (pick_fun_name dups full_names default_module kn) f
+    | LRecGroup fs =>
       (* Module-level [and] continues the leader's [let rec] at column 0. *)
       match fs with
       | [] => ""
@@ -638,57 +548,26 @@ Definition preamble (ns : string) : string :=
     ++ "  let boxv : obj = box boxfn" ++ nl
     ++ nl.
 
-(* Knames of nullary standalone [FDef]s — the constants emitted as
+(* Knames of nullary standalone [LDef]s — the constants emitted as
    [Lazy<obj>] and therefore referenced via [.Force()]. *)
-Definition thunk_knames (decls : list (kername * fdecl)) : list kername :=
-  Utils.filter_map (fun (x : kername * fdecl) =>
+Definition thunk_knames (decls : list (kername * ldecl)) : list kername :=
+  Utils.filter_map (fun (x : kername * ldecl) =>
     let '(kn, d) := x in
     match d with
-    | FDef f => match f.(ffun_params) with [] => Some kn | _ => None end
+    | LDef f => match f.(lfun_params) with [] => Some kn | _ => None end
     | _ => None
     end
   ) decls.
 
-(* Kernames of every printed definition (mutual-group members included). *)
-Definition printed_knames (decls : list (kername * fdecl)) : list kername :=
-  List.concat (List.map (fun (x : kername * fdecl) =>
-    let '(kn, d) := x in
-    match d with
-    | FRecGroup fs => List.map fst fs
-    | FInductive _ => []
-    | _ => [kn]
-    end) decls).
-
-(* Base names occurring more than once — these get the file-root
-   disambiguator in [full_name]. *)
-Definition dup_base_names (decls : list (kername * fdecl)) : list string :=
-  let names := List.map base_name (printed_knames decls) in
-  List.filter (fun n =>
-    Nat.ltb 1 (List.length (List.filter (String.eqb n) names))) names.
-
-(* Qualified inductive names occurring more than once — these get the
-   file-root disambiguator in [ind_display_name]. *)
-Definition dup_ind_names (decls : list (kername * fdecl)) : list string :=
-  let names :=
-    List.concat (List.map (fun (x : kername * fdecl) =>
-      let '(kn, d) := x in
-      match d with
-      | FInductive mib =>
-        List.map (fun oib => ind_base (fst kn) (oib.(EAst.ind_name))) mib.(EAst.ind_bodies)
-      | _ => []
-      end) decls) in
-  List.filter (fun n =>
-    Nat.ltb 1 (List.length (List.filter (String.eqb n) names))) names.
-
-Definition print_program (full_names : bool) (default_module : string) (ns : string) (p : fprogram) : string :=
+Definition print_program (full_names : bool) (default_module : string) (ns : string) (p : lprogram) : string :=
   let default_module := fs_module_name default_module in
-  let env := build_ind_env p.(fdecls) in
-  let thunks := thunk_knames p.(fdecls) in
-  let arities := fun_arities p.(fdecls) in
-  let dups := dup_base_names p.(fdecls) in
-  let ind_dups := dup_ind_names p.(fdecls) in
+  let env := build_ind_env p.(ldecls) in
+  let thunks := thunk_knames p.(ldecls) in
+  let arities := fun_arities p.(ldecls) in
+  let dups := dup_base_names p.(ldecls) in
+  let ind_dups := dup_ind_names env in
   preamble ns
     ++ concat_with (nl ++ nl)
          (List.map (fun '(kn, d) =>
-            print_decl dups full_names default_module env thunks arities ind_dups kn d) p.(fdecls))
+            print_decl dups full_names default_module env thunks arities ind_dups kn d) p.(ldecls))
     ++ nl.

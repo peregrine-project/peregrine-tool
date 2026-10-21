@@ -4,8 +4,8 @@ From MetaRocq.Utils Require Import ResultMonad.
 From MetaRocq.Erasure Require EAst.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
-From Peregrine Require Import FSharpIR.
-From Peregrine Require Import FSharpCompile.
+From Peregrine Require Import LeanIR.
+From Peregrine Require Import LeanCompile.
 From Peregrine Require Import PrintFSharp.
 
 Local Open Scope bs_scope.
