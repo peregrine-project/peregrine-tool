@@ -193,8 +193,10 @@ jobs:
           lint: false
           lake-package-directory: "test/lean/"
 
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+      # For the tests of the F# backend (experimental), which build all the
+      # generated programs as one .NET project
+      - name: Set up .NET (F# backend, experimental)
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
