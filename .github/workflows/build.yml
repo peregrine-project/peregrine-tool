@@ -193,7 +193,14 @@ jobs:
           lint: false
           lake-package-directory: "test/lean/"
 
+      # The LLVM backend prints opaque pointers (`ptr`), which the default
+      # clang of ubuntu-22.04 (14) does not parse
+      - name: Set up clang for the LLVM tests
+        run: sudo apt-get install -y clang-15
+
       - name: Test extraction
+        env:
+          CLANG: clang-15
         run: |
           echo "::group::Running tests"
           eval $(opam env) && cd test && npm install && npm run test
