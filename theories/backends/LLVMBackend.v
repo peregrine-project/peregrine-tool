@@ -1,12 +1,11 @@
-(* LLVM/VIR backend entry point for the Peregrine CLI: mirrors WasmBackend.v,
-   retargeted to certirocq's CodegenLLVM backend (compile_LambdaANF_to_LLVM +
-   serialize_program). Requires the installed certirocq to expose
-   CertiRocq.CodegenLLVM (and Vellvm). *)
+(* LLVM backend: CertiRocq's CodegenLLVM (LambdaANF -> Vellvm's LLVM AST),
+   printed as textual LLVM IR. Mirrors WasmBackend.v. CodegenLLVM is not in
+   any CertiRocq release; it comes from the fork pinned in rocq-peregrine.opam. *)
 
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Utils Require Import ResultMonad.
-From CertiRocq Require Import CodegenLLVM.toplevel.   (* compile_LambdaANF_to_LLVM, serialize_program *)
+From CertiRocq Require Import CodegenLLVM.toplevel.
 From CertiRocq Require Import Common.Pipeline_utils.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
@@ -45,8 +44,15 @@ Definition llvm_phases := {|
 Definition llvm_pipeline prs (p : EAst.program) :=
   anf_pipeline compile_LambdaANF_to_LLVM prs p.
 
+(* The emitted module calls the runtime's [garbage_collect] without declaring
+   it; the correctness statement of CodegenLLVM puts this declaration in front
+   of the module ([runtime_prelude]), and so does the printer, which makes the
+   file a complete module. *)
+Definition llvm_prelude : string :=
+  "declare void @garbage_collect(ptr)" ++ String.String "010"%byte String.EmptyString.
+
 Definition print_llvm p : string :=
-  String.parse (serialize_program p).
+  llvm_prelude ++ serialize_bytestring p.
 
 Definition extract_llvm (remaps : constant_remappings)
                         (custom_attr : custom_attributes)
