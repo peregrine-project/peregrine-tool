@@ -3,8 +3,6 @@ From Peregrine Require Import PAst.
 From Peregrine Require Import Config.
 From Peregrine Require Import ConfigUtils.
 From Peregrine Require Import Transforms.
-From Peregrine Require Import EHindleyMilner.
-From Peregrine Require Import EHMNumericSigs.
 From Peregrine Require Import Erasure.
 From Peregrine Require Import CheckWf.
 From Peregrine Require RustBackend.
@@ -12,6 +10,7 @@ From Peregrine Require ElmBackend.
 From Peregrine Require OCamlBackend.
 From Peregrine Require CBackend.
 From Peregrine Require WasmBackend.
+From Peregrine Require LeanBackend.
 From Peregrine Require LLVMBackend.
 From Peregrine Require EvalBackend.
 From Peregrine Require ASTBackend.
@@ -72,24 +71,10 @@ Definition check_wf (p : PAst) : result' unit :=
       @CheckWfExAst.check_wf_typed_program EWellformed.all_env_flags env
   end.
 
-Definition validate_ast_type (c : config) (p : PAst) : result' unit :=
-  match c.(backend_opts) with
-  (* Untyped (lambda-box) input is accepted for the typed backends: [PAst_to_ExAst]
-     bridges it to lambda-box-typed via the verified HM section [infer]. *)
-  | Rust _ => Ok tt
-  | Elm _ => Ok tt
-  | C _ | Wasm _ | LLVM _ | OCaml _ | CakeML _ | Eval _ => Ok tt
-  | AST c =>
-    match c.(ast_type) with
-    | LambdaBoxTyped => Ok tt
-    | _ => Ok tt
-    end
-  end.
-
 Definition needs_typed (c : config) : bool :=
   match c.(backend_opts) with
   | Rust _ | Elm _ => true
-  | C _ | Wasm _ | LLVM _ | OCaml _ | CakeML _ | Eval _ => false
+  | C _ | Wasm _ | LLVM _ | OCaml _ | CakeML _ | Lean _ | Eval _ => false
   | AST c =>
     match c.(ast_type) with
     | LambdaBoxTyped => true
@@ -103,35 +88,40 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAs
   let impl_box := c.(erasure_opts).(implement_box) in
   let impl_lazy := c.(erasure_opts).(implement_lazy) in
   let spec_inst := c.(erasure_opts).(specialize_instances) in
+  let cse := c.(erasure_opts).(cse) in
   match p, typed with
   | Untyped env (Some t), true =>
       (* Typed backend on untyped (lambda-box) input: bridge to typed via the
-         verified HM section [infer] on the *raw* env (before the untyped
-         pipeline turns constructors into blocks, which the typed backends do
-         not consume), then run the typed pipeline, which preserves applied
-         constructors.  [infer_section] gives [trans_env (infer env) = env]. *)
-      let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (infer numeric_sigs env, t) in
+         HM inference [infer_for_backend] on the *raw* env (before the
+         untyped pipeline turns constructors into blocks, which the typed
+         backends do not consume), then run the typed pipeline, which
+         preserves applied constructors.  Inference failure is a pipeline
+         error.  [EHindleyMilner.infer_section] gives [trans_env env0 = env];
+         nothing is proved about the inferred types. *)
+      env0 <- infer_for_backend env;;
+      let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (env0, t) in
       Ok (Typed env' (Some t'))
   | Untyped env None, true =>
-      let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (infer numeric_sigs env, EAst.tBox) in
+      env0 <- infer_for_backend env;;
+      let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (env0, EAst.tBox) in
       Ok (Typed env' None)
   | Untyped env (Some t), false =>
-      let (env', t') := run_untyped_transforms econf cstr_reorder spec_inst impl_box impl_lazy (env, t) in
+      let (env', t') := run_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (env, t) in
       Ok (Untyped env' (Some t'))
   | Untyped env None, false =>
-      let (env', _) := run_untyped_transforms econf cstr_reorder spec_inst impl_box impl_lazy (env, EAst.tBox) in
+      let (env', _) := run_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (env, EAst.tBox) in
       Ok (Untyped env' None)
   | Typed env (Some t), true =>
       let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (env, t) in
       Ok (Typed env' (Some t'))
   | Typed env (Some t), false =>
-      let (env', t') := run_typed_to_untyped_transforms econf cstr_reorder spec_inst impl_box impl_lazy (env, t) in
+      let (env', t') := run_typed_to_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (env, t) in
       (Ok (Untyped env' (Some t')))
   | Typed env None, true =>
       let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (env, EAst.tBox) in
       Ok (Typed env' None)
   | Typed env None, false =>
-      let (env', _) := run_typed_to_untyped_transforms econf cstr_reorder spec_inst impl_box impl_lazy (env, EAst.tBox) in
+      let (env', _) := run_typed_to_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (env, EAst.tBox) in
       (Ok (Untyped env' None))
   end.
 
@@ -145,6 +135,7 @@ Inductive extracted_program :=
 | LLVMProgram : string -> extracted_program
 | OCamlProgram : (list string * string) -> extracted_program
 | CakeMLProgram : (list string * string) -> extracted_program
+| LeanProgram : string -> extracted_program
 | EvalProgram : string -> extracted_program
 | ASTProgram : string -> extracted_program.
 
@@ -226,6 +217,18 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       p';;
     Ok (LLVMProgram res)
 
+  | Lean opts =>
+    p' <- PAst_to_EAst p;;
+    (* The file name is spliced into every emitted identifier. *)
+    f <- Unicode.of_string f;;
+    res <- LeanBackend.extract_lean
+      const_remaps
+      custom_attr
+      opts
+      (NameSanitize.lean_sanitizer f)
+      p';;
+    Ok (LeanProgram res)
+
   | Eval opts =>
     p' <- PAst_to_EAst p;;
     res <- EvalBackend.eval
@@ -252,7 +255,6 @@ Definition peregrine_pipeline (c : string + config') (attrs : list string) (p : 
   p <- parse_ast p;; (* Parse input string into AST *)
   c <- get_config c attrs;; (* Parse or construct config *)
   check_wf p;; (* Check that AST is wellformed *)
-  validate_ast_type c p;; (* Check that the provided AST is compatible with the chosen backend *)
   p <- NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c) p;; (* Sanitize names in AST *)
   c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;; (* Sanitize names in config *)
   p <- apply_transforms c p (needs_typed c);; (* Apply program transformation *)

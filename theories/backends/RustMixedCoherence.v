@@ -1,7 +1,7 @@
 (** * Coercion-coherence for Peregrine's mixed-representation Rust backend.
 
-    This file formalises the mathematically-substantive coherence facts that
-    justify the [Path C] mixed numeric backend defined in
+    This file proves, for a ZArith model, the arithmetic facts behind the
+    [Path C] mixed numeric backend defined in
     [theories/backends/RustMixedRemaps.v].
 
     Background (see the header of RustMixedRemaps.v).  Coq [nat]/[Z] numerics
@@ -229,9 +229,10 @@ Qed.
         * "a <= b"                             realises  [Z.leb]        (coherent_leb)
         * "a < b"                              realises  [Z.ltb]        (coherent_ltb)
 
-    Under these per-string assumptions, the theorems above establish that every
-    op in [b_partition] agrees with its path-A meaning on the coerced values;
-    hence the mixed backend is sound INDEPENDENTLY of which ops are placed in
-    the B partition -- the partition is a pure performance choice, exactly as
-    claimed in the RustMixedRemaps.v header.  This trusted bridge is the only
-    unverified part of the coherence argument. *)
+    Under these per-string assumptions, the theorems above show that every op
+    in [b_partition] agrees with its path-A meaning whenever its arguments and
+    its result lie in [in_i64].  The emitted code does not establish the third
+    premise: it does not check the result of a B body, which on overflow panics
+    in a debug build and wraps in a release build.  The file proves facts about
+    a [Z] model; it proves nothing about the Rust program Peregrine emits, and
+    no other file imports it. *)

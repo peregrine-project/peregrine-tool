@@ -1,4 +1,8 @@
-(** * Instance / dictionary specialization for lambda-box (unverified first cut)
+(** * Instance / dictionary specialization for untyped lambda-box
+
+    This module implements the instance-specialization pass on untyped
+    lambda-box terms ([EAst]).  Correctness and wellformedness preservation
+    are axioms (see "Verification status" below).
 
     Motivation.  Typeclass-heavy frontends (notably Lean) erase to lambda-box
     in which even trivial arithmetic drags in dictionary values: [1 + 1] is
@@ -29,8 +33,7 @@
     [d] substituted in (via [spec_beta]; for a [tConst] whose body is a [tFix],
     the fixpoint is unfolded once first), so the beta/iota reductions above fire
     *inside* [f]'s body across the call boundary; the call site is redirected to
-    [f$specN x].  After this, existing dead-argument elimination ([Optimize]/
-    dearg) drops the now-unused [d] parameter.  A dictionary argument is
+    [f$specN x].  A dictionary argument is
     recognised by the heuristic "closed constructor whose inductive is a
     single-constructor record" ([dict_value]/[is_record_ind]), which excludes
     ordinary data (nat, list, bool, ...).  Specializations are memoised in a map
@@ -44,22 +47,23 @@
     definition to a call site.
 
     Composition with existing passes.
-      - It is meant to run just before [betared] (which the pipeline already
-        runs twice); [betared] mops up any cascading redexes this single
-        bottom-up pass leaves behind.
-      - It feeds dead-argument elimination: after specialization a dictionary
-        parameter becomes unused and [Optimize]'s mask analysis removes it.
+      - It runs in [Transforms.extra_unsafe_transforms], that is after
+        [betared] and dead-argument elimination, which run earlier in
+        [optional_unsafe_transforms].  Neither cleans up after it: redexes this
+        single bottom-up pass leaves behind stay, and so does a parameter that
+        specialization makes unused.  It runs only in the untyped pipeline.
       - It does NOT subsume any of them: dearg removes *dead* args (it cannot
         touch a dictionary that is still projected), betared does beta but not
         iota-on-constructor, and [EInlining] inlines *named constants* uniformly
         rather than specializing a shared function per call site.
 
-    Verification status.  UNVERIFIED.  Following the established pattern for the
-    optional / "Compatible" transforms in this toolchain (cf. [EBeta.betared_
-    transformation], which is justified by the [trust_betared_*] axioms, and the
-    [Admitted] obligations in [Transforms.v]), correctness and wellformedness
-    preservation are stated as trust axioms.  This is acceptable for a
-    [Compatible]-class optional phase; a real proof is future work. *)
+    Verification status.  Nothing about the pass is proved: wellformedness
+    preservation and evaluation preservation are the axioms
+    [trust_specialize_instances_wf] and [trust_specialize_instances_pres], and
+    the two [TransformExt] instances are the axioms
+    [specialize_instances_transformation_ext] and
+    [specialize_instances_transformation_ext'] (cf. MetaRocq's
+    [EBeta.betared_transformation] and its [trust_betared_*] axioms). *)
 
 From Stdlib Require Import List.
 From MetaRocq.Utils Require Import utils ReflectEq.
@@ -187,8 +191,8 @@ Definition dict_value (Σ : global_declarations) (t : term) : option term :=
 (** A spine element that belongs in a specialization prefix: either an erased
     type argument ([tBox], which typically precedes the dictionaries after
     erasure) or a statically-known dictionary value.  The boolean flags whether
-    it is an actual dictionary (so we only specialize prefixes that contain at
-    least one). *)
+    it is an actual dictionary (so only prefixes that contain at least one
+    dictionary are specialized). *)
 Definition prefix_elt (Σ : global_declarations) (t : term) : option (bool * term) :=
   match dict_value Σ t with
   | Some d => Some (true, d)
@@ -314,9 +318,56 @@ Fixpoint redirect (Σ : global_declarations) (seen : list (dkey × kername))
 
 Definition specialize_fuel : nat := 1000.
 
-(** Whole-program driver: gather keys, saturate to a memo table + fresh
-    declarations, then redirect every body and the main term and locally
-    reduce. *)
+(** Constants a term refers to. *)
+Fixpoint consts_of (t : term) : list kername :=
+  match t with
+  | tConst nm => [nm]
+  | tApp hd arg => consts_of hd ++ consts_of arg
+  | tLambda _ b | tProj _ b | tLazy b | tForce b => consts_of b
+  | tLetIn _ v b => consts_of v ++ consts_of b
+  | tCase _ disc brs => consts_of disc ++ concat (map (fun br => consts_of (snd br)) brs)
+  | tFix mfix _ | tCoFix mfix _ => concat (map (fun d => consts_of (dbody d)) mfix)
+  | tConstruct _ _ args | tEvar _ args => concat (map consts_of args)
+  | _ => []
+  end.
+
+Definition decl_consts (d : global_decl) : list kername :=
+  match d with
+  | ConstantDecl cb => match cst_body cb with Some b => consts_of b | None => [] end
+  | _ => []
+  end.
+
+(** Order generated declarations so that each comes after (is newer than)
+    the generated declarations it refers to: repeatedly emit those whose
+    references to still-pending declarations are all gone.  The result is
+    newest-first, like a [global_declarations].  The references form no cycle
+    (a specialization of [f] only calls specializations of constants older
+    than [f]); fuel stops the loop anyway, emitting what is left. *)
+Fixpoint order_decls (fuel : nat) (pending placed : global_declarations)
+  {struct fuel} : global_declarations :=
+  match fuel, pending with
+  | _, [] => placed
+  | 0, _ => pending ++ placed
+  | S fuel', _ =>
+      let is_ready p :=
+        forallb (fun kn => negb (existsb (fun q => eqb (fst q) kn) pending))
+                (decl_consts (snd p)) in
+      let ready := filter is_ready pending in
+      let rest := filter (fun p => negb (is_ready p)) pending in
+      match ready with
+      | [] => pending ++ placed
+      | _ => order_decls fuel' rest (List.rev ready ++ placed)
+      end
+  end.
+
+(** Whole-program driver.  The environment is newest-first and a declaration
+    may refer only to older ones, so the declarations are processed oldest
+    first: before each declaration [d], the specializations its body needs
+    (and those their bodies need) are generated and placed right below [d].
+    Everything such a specialization refers to (the callee, its body, the
+    dictionaries and their fields) is older than [d], so the result is again a
+    well-ordered environment.  The specializations the main term needs go on
+    top.  Bodies and the main term are then redirected and locally reduced. *)
 Definition drive_env (Σ : global_declarations) (main : term)
   : global_declarations × term :=
   let body_keys :=
@@ -325,11 +376,7 @@ Definition drive_env (Σ : global_declarations) (main : term)
                                   | Some b => collect_keys Σ [] b
                                   | None => [] end
              | _ => [] end in
-  let init_keys :=
-    concat (map (fun '(_, d) => body_keys d) Σ) ++ collect_keys Σ [] main in
-  let '(seen, gen_decls) := saturate Σ specialize_fuel init_keys [] [] in
-  let Σ' := Σ ++ List.rev gen_decls in
-  let red_decl :=
+  let red_decl seen :=
     fun '(kn, d) =>
       match d with
       | ConstantDecl cb =>
@@ -338,7 +385,18 @@ Definition drive_env (Σ : global_declarations) (main : term)
                             (cst_body cb) |})
       | _ => (kn, d)
       end in
-  (map red_decl Σ', specialize_instances (redirect Σ seen [] main)).
+  (* Generate the specializations [keys] need, given the memo table [seen];
+     return the new table and the new declarations, redirected, newest-first. *)
+  let gen seen keys :=
+    let '(seen', decls) := saturate Σ specialize_fuel keys seen [] in
+    (seen', order_decls specialize_fuel (map (red_decl seen') decls) []) in
+  let '(seen, Σ') :=
+    fold_right (fun kd '(seen, acc) =>
+        let '(seen', new) := gen seen (body_keys (snd kd)) in
+        (seen', red_decl seen' kd :: new ++ acc))
+      ([], []) Σ in
+  let '(seen', new) := gen seen (collect_keys Σ [] main) in
+  (new ++ Σ', specialize_instances (redirect Σ seen' [] main)).
 
 Definition specialize_instances_in_constant_body (cst : constant_body) : constant_body :=
   {| cst_body := option_map specialize_instances (cst_body cst) |}.

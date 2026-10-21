@@ -1,7 +1,8 @@
 import path from "path";
 import { ExecFailure, ExecResult, SimpleType, TestCase } from "./types";
-import { appendFileSync, copyFileSync, existsSync, mkdirSync } from "fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { execSync } from "child_process";
+import { find_entry_point } from "./utils";
 
 // Create a cargo.toml file and set up src/bin directory
 export function prepare_cargo(tmpdir: string): string {
@@ -16,15 +17,24 @@ export function prepare_cargo(tmpdir: string): string {
 }
 
 
+// Give a program printed with the default Rust configuration what
+// src/rust/config.sexp adds: Serialize on every type and the imports of the
+// S-expression printer
+export function make_printable(file: string) {
+  const src = readFileSync(file, "utf8").split("#[derive(Debug, Clone)]").join("#[derive(Debug, Clone, Serialize)]");
+  writeFileSync(file, src + "\nuse lexpr::{to_string}; use serde_derive::{Serialize}; use serde_lexpr::{to_value};\n");
+}
+
 // Add main function to `file` that calls `main_fn` and
 // prints the return value using s-expression printer
 function append_main(file: string, test: TestCase) {
+  const main = find_entry_point(readFileSync(file, "utf8"), test.main);
   const content = (test.output_type == SimpleType.Other) ?
     `fn main() {
-  Program::new().${test.main}();
+  Program::new().${main}();
 }
 ` : `fn main() {
-  let y = to_value(Program::new().${test.main}());
+  let y = to_value(Program::new().${main}());
   println!("{}", to_string(&y.unwrap()).unwrap())
 }
 `;
@@ -53,7 +63,8 @@ export function compile_rust(file: string, tmpdir: string, test: TestCase, timeo
   }
 }
 
-export function run_rust(file: string, tmpdir: string, test: TestCase, timeout: number): ExecResult {
+// `expected` is the expected output, by default the one of the Rust tests
+export function run_rust(file: string, tmpdir: string, test: TestCase, timeout: number, expected: string | undefined = test.expected_output?.[1]): ExecResult {
   // Command to run
   const m = path.basename(file, ".rs");
   const cmd = `cargo run -q --bin ${m}`;
@@ -67,13 +78,14 @@ export function run_rust(file: string, tmpdir: string, test: TestCase, timeout: 
 
     // Return success if there is no expected output to compare against or if the program
     // returns a type that we don't know how to print
-    if (test.expected_output === undefined || test.output_type === SimpleType.Other) {
+    // or if no output is recorded for Rust (missing or empty entry)
+    if (test.output_type === SimpleType.Other || !expected) {
       return { type: "success", time: time_main };
     }
 
     // Compare output against the expected output
-    if (res !== test.expected_output[1]) {
-      return { type: "error", reason: "incorrect result", actual: res, expected: test.expected_output[1] };
+    if (res !== expected) {
+      return { type: "error", reason: "incorrect result", actual: res, expected: expected };
     }
 
     return { type: "success", time: time_main };

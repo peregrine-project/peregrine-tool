@@ -113,6 +113,20 @@ Instance Serialize_cakeml_config' : Serialize cakeml_config' :=
   fun o =>
     @to_sexp _ Serialize_unit o.
 
+Instance Serialize_lean_config : Serialize lean_config :=
+  fun o =>
+    [Atom "lean_config";
+     to_sexp (lean_namespace o);
+     to_sexp (lean_print_full_names o)
+    ]%sexp.
+
+Instance Serialize_lean_config' : Serialize lean_config' :=
+  fun o =>
+    [Atom "lean_config";
+     to_sexp (lean_namespace' o);
+     to_sexp (lean_print_full_names' o)
+    ]%sexp.
+
 Instance Serialize_eval_config : Serialize eval_config :=
   fun o =>
     [Atom "eval_config";
@@ -173,6 +187,7 @@ Instance Serialize_backend_config : Serialize backend_config :=
     | LLVM o => [Atom "LLVM"; to_sexp o ]
     | OCaml o => [Atom "OCaml"; to_sexp o ]
     | CakeML o => [Atom "CakeML"; to_sexp o ]
+    | Lean o => [Atom "Lean"; to_sexp o ]
     | Eval o => [Atom "Eval"; to_sexp o ]
     | AST o => [Atom "AST"; to_sexp o ]
     end%sexp.
@@ -187,6 +202,7 @@ Instance Serialize_backend_config' : Serialize backend_config' :=
     | LLVM' o => [Atom "LLVM"; to_sexp o ]
     | OCaml' o => [Atom "OCaml"; to_sexp o ]
     | CakeML' o => [Atom "CakeML"; to_sexp o ]
+    | Lean' o => [Atom "Lean"; to_sexp o ]
     | Eval' o => [Atom "Eval"; to_sexp o ]
     | AST' o => [Atom "AST"; to_sexp o ]
     end%sexp.
@@ -266,7 +282,8 @@ Instance Serialize_erasure_phases : Serialize erasure_phases :=
      to_sexp (unboxing o);
      to_sexp (dearg_ctors o);
      to_sexp (dearg_consts o);
-     to_sexp (specialize_instances o)
+     to_sexp (specialize_instances o);
+     to_sexp (cse o)
     ]%sexp.
 
 Instance Serialize_erasure_phases' : Serialize erasure_phases' :=
@@ -279,7 +296,8 @@ Instance Serialize_erasure_phases' : Serialize erasure_phases' :=
      to_sexp (unboxing' o);
      to_sexp (dearg_ctors' o);
      to_sexp (dearg_consts' o);
-     to_sexp (specialize_instances' o)
+     to_sexp (specialize_instances' o);
+     to_sexp (cse' o)
     ]%sexp.
 
 Instance Serialize_config : Serialize config :=
@@ -354,6 +372,12 @@ Definition string_of_cakeml_config (x : cakeml_config) : string :=
 
 Definition string_of_cakeml_config' (x : cakeml_config') : string :=
   @to_string cakeml_config' Serialize_cakeml_config' x.
+
+Definition string_of_lean_config (x : lean_config) : string :=
+  @to_string lean_config Serialize_lean_config x.
+
+Definition string_of_lean_config' (x : lean_config') : string :=
+  @to_string lean_config' Serialize_lean_config' x.
 
 Definition string_of_eval_config (x : eval_config) : string :=
   @to_string eval_config Serialize_eval_config x.

@@ -1,13 +1,27 @@
 # Peregrine tests
 
-To run the tests suite run `npm run test`.
+To run the tests suite run `npm install` once and then `npm run test`.
+
+To run only some of the test configurations listed in `test_configurations` ([src/tests.ts](src/tests.ts)), name them on the command line:
+```bash
+npm run test -- Rust Elm WebAssembly-cps
+```
+The names are the ones the runner prints (`Running Rust tests:`), matched exactly; an unknown name is an error.
 
 The test suite depends on the following:
 * Node.js v22 or later
-* cargo and rust compiler
-* [elm compiler](https://elm-lang.org/)
-* elm-test (can be installed with npm)
+* cargo and rust compiler (the Rust tests fetch their crates from crates.io)
+* [elm compiler](https://elm-lang.org/) 0.19.1, as `elm` on the `PATH` (the Elm tests fetch their packages from package.elm-lang.org)
+* elm-test (installed by `npm install`)
 * gcc
+* [Lean](https://lean-lang.org/install/) (`lake`, installed with elan)
+
+The Rust and Elm backends take typed programs, so the `Rust` and `Elm` configurations only run the tests that have a `tsrc`, currently the Rocq ones.
+The `Rust-untyped` and `Elm-untyped` configurations give the same backends the untyped `src` of every test, whose types peregrine then infers, and expect the outputs of the typed sources.
+A test marked as `rejected` is a program whose types cannot be inferred: there peregrine must fail with `Could not infer types`.
+All four compile with `peregrine compile` and the pipeline configurations [src/rust/config.sexp](src/rust/config.sexp) and [src/elm/config.sexp](src/elm/config.sexp).
+The `Rust-verb` and `Rust-i64` configurations compile the typed sources with the `rust` and `rust-i64` commands instead; `rust-i64` represents numbers as `i64`, so its tests have their own expected outputs (`rust_i64_output`). The `rust-gmp` command is not tested here: its `rug` crate builds GMP from source, which takes longer than the compile timeout.
+The `OCaml-passes` configuration runs the OCaml tests with the optional `--specialize-instances` and `--cse` passes enabled and expects the same outputs.
 
 
 ## Agda frontend tests
@@ -37,3 +51,8 @@ done
 find dist/. -type f -name "*.txt" -delete
 find dist-typed/. -type f -name "*.txt" -delete
 ```
+
+## Directory
+* [src/](src/): Test runner source code
+* [rocq/](rocq/): Rocq test programs
+* [lean/](lean/): Lean test programs

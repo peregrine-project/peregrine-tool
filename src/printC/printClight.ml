@@ -128,12 +128,24 @@ let rec print_expr_list p (first, rl) =
 
 (* Statements *)
 
+(* CertiRocq's Clight types `value` as a void pointer, and stores known
+   functions into `value` slots (closures) without a cast. In the printed C,
+   `value` is an integer typedef (see the "value typedef" hack in
+   PrintCsyntax), and C rejects the implicit function-to-integer conversion
+   (an error since gcc 14, -Wint-conversion). Print the cast explicitly; a
+   function pointer and `value` have the same size, so it is a no-op. *)
+let cast_to_lhs e1 e2 =
+  match typeof e1, typeof e2 with
+  | (Tpointer (Tvoid, a) as ty), Tfunction _
+    when is_int_or_ptr_attr a 2 || is_int_or_ptr_attr a 3 -> Ecast (e2, ty)
+  | _ -> e2
+
 let rec print_stmt p s =
   match s with
   | Sskip ->
       fprintf p "/*skip*/;"
   | Sassign(e1, e2) ->
-      fprintf p "@[<hv 2>%a =@ %a;@]" print_expr e1 print_expr e2
+      fprintf p "@[<hv 2>%a =@ %a;@]" print_expr e1 print_expr (cast_to_lhs e1 e2)
   | Sset(id, e2) ->
       fprintf p "@[<hv 2>%s =@ %a;@]" (temp_name id) print_expr e2
   | Scall(None, e1, el) ->
@@ -220,7 +232,7 @@ and print_stmt_for p s =
   | Sskip ->
       fprintf p "(void)0"
   | Sassign(e1, e2) ->
-      fprintf p "%a = %a" print_expr e1 print_expr e2
+      fprintf p "%a = %a" print_expr e1 print_expr (cast_to_lhs e1 e2)
   | Sset(id, e2) ->
       fprintf p "%s = %a" (temp_name id) print_expr e2
   | Ssequence(Sskip, s2) ->

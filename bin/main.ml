@@ -75,7 +75,11 @@ let erasure_opts_t =
     let doc = "Specialize functions on statically-known typeclass/dictionary arguments." in
     Arg.(value & opt (some bool) None & info ["specialize-instances"] ~doc)
   in
-  Term.(const mk_erasure_opts $ betared_arg $ unbox_arg $ dearg_ctors_arg $ dearg_consts_arg $ specialize_instances_arg)
+  let cse_arg =
+    let doc = "Eliminate common subexpressions, restoring sharing that erasure drops." in
+    Arg.(value & opt (some bool) None & info ["cse"] ~doc)
+  in
+  Term.(const mk_erasure_opts $ betared_arg $ unbox_arg $ dearg_ctors_arg $ dearg_consts_arg $ specialize_instances_arg $ cse_arg)
 
 
 let sdocs = Manpage.s_common_options
@@ -145,65 +149,19 @@ let compile_cmd =
   let info = Cmd.info "compile" ~doc ~sdocs ~man in
   Cmd.v info Term.(const compile $ copts_t $ program_file $ config_file)
 
-let rust_cmd =
+let rust_cmd v =
   let program_file =
     let doc = "lambda box program" in
     Arg.(required & pos 0 (some file) None & info []
            ~docv:"FILE" ~doc)
   in
-  let doc = "Compile lambda box program to Rust" in
   let man = [
     `S Manpage.s_description;
     `P "";
     `Blocks help_secs; ]
   in
-  let info = Cmd.info "rust" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_rust $ copts_t $ erasure_opts_t $ program_file)
-
-let rustb_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box program to Rust (path B: native i64 numerics)" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "rustb" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_rust_native $ copts_t $ erasure_opts_t $ program_file)
-
-let rustm_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box program to Rust (path C: mixed A/B with coercions, partition 1: add/mul/sub/div/mod/pow/eqb/leb/ltb in B)" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "rustm" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_rust_mixed $ copts_t $ erasure_opts_t $ program_file)
-
-let rustm2_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box program to Rust (path C: mixed A/B with coercions, partition 2: only div/mod/pow in B)" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "rustm2" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_rust_mixed2 $ copts_t $ erasure_opts_t $ program_file)
+  let info = Cmd.info v.rust_verb_name ~doc:v.rust_verb_doc ~sdocs ~man in
+  Cmd.v info Term.(const (compile_rust v) $ copts_t $ erasure_opts_t $ program_file)
 
 let elm_cmd =
   let program_file =
@@ -249,6 +207,21 @@ let cakeml_cmd =
   in
   let info = Cmd.info "cakeml" ~doc ~sdocs ~man in
   Cmd.v info Term.(const compile_cakeml $ copts_t $ erasure_opts_t $ program_file)
+
+let lean_cmd =
+  let program_file =
+    let doc = "lambda box program" in
+    Arg.(required & pos 0 (some file) None & info []
+           ~docv:"FILE" ~doc)
+  in
+  let doc = "Compile lambda box program to Lean 4" in
+  let man = [
+    `S Manpage.s_description;
+    `P "";
+    `Blocks help_secs; ]
+  in
+  let info = Cmd.info "lean" ~doc ~sdocs ~man in
+  Cmd.v info Term.(const compile_lean $ copts_t $ erasure_opts_t $ program_file)
 
 let c_cmd =
   let program_file =
@@ -362,6 +335,6 @@ let main_cmd =
   let man = help_secs in
   let info = Cmd.info "peregrine" ~version ~doc ~sdocs ~man ~exits in
   let default = Term.(ret (const (fun _ -> `Help (`Pager, None)) $ copts_t)) in
-  Cmd.group info ~default [compile_cmd; rust_cmd; rustb_cmd; rustm_cmd; rustm2_cmd; elm_cmd; ocaml_cmd; cakeml_cmd; c_cmd; wasm_cmd; llvm_cmd; eval_cmd; ast_cmd; validate_cmd; help_cmd]
+  Cmd.group info ~default (compile_cmd :: List.map rust_cmd rust_verbs @ [elm_cmd; ocaml_cmd; cakeml_cmd; lean_cmd; c_cmd; wasm_cmd; llvm_cmd; eval_cmd; ast_cmd; validate_cmd; help_cmd])
 
 let () = exit (Cmd.eval main_cmd)

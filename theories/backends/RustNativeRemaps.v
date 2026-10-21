@@ -38,6 +38,7 @@ Local Open Scope bs_scope.
 Definition native_ind_remaps : inductive_remappings := [
   ind_remap {| inductive_mind := <%% bool %%>; inductive_ind := 0 |}
     "bool" ["true"; "false"] (Some "__bool_elim!");
+  comparison_ind_remap;
   ind_remap {| inductive_mind := <%% nat %%>; inductive_ind := 0 |}
     "i64" ["self.__nat_zero()"; "self.__nat_succ"] (Some "__nat_elim!");
   ind_remap {| inductive_mind := <%% positive %%>; inductive_ind := 0 |}
@@ -85,8 +86,12 @@ Definition native_const_remaps : constant_remappings := [
   (<%% Z.min %%>, mk_const "fn ##name##(&'a self, a: i64, b: i64) -> i64 { if a <= b { a } else { b } }");
   (<%% Z.max %%>, mk_const "fn ##name##(&'a self, a: i64, b: i64) -> i64 { if a >= b { a } else { b } }");
   (<%% Z.eqb %%>, mk_const "fn ##name##(&'a self, a: i64, b: i64) -> bool { a == b }");
-  (<%% Z.div %%>, mk_const "fn ##name##(&'a self, a: i64, b: i64) -> i64 { if b == 0 { 0 } else { a.div_euclid(b) } }");
-  (<%% Z.modulo %%>, mk_const "fn ##name##(&'a self, a: i64, b: i64) -> i64 { if b == 0 { a } else { a.rem_euclid(b) } }");
+  (* Coq [Z.div]/[Z.modulo] are floor division (remainder takes the divisor's
+     sign). Rust's [/]/[%] truncate toward zero and [div_euclid] is Euclidean,
+     so both disagree with Coq on negative divisors; the floor result is
+     recovered explicitly. Matches the GMP path's [div_floor]/[rem_floor]. *)
+  (<%% Z.div %%>, mk_const "fn ##name##(&'a self, a: i64, b: i64) -> i64 { if b == 0 { 0 } else { let q = a / b; let r = a % b; if r != 0 && (r < 0) != (b < 0) { q - 1 } else { q } } }");
+  (<%% Z.modulo %%>, mk_const "fn ##name##(&'a self, a: i64, b: i64) -> i64 { if b == 0 { a } else { let r = a % b; if r != 0 && (r < 0) != (b < 0) { r + b } else { r } } }");
   (<%% Z.compare %%>, mk_const "fn ##name##(&'a self, a: i64, b: i64) -> std::cmp::Ordering { a.cmp(&b) }");
   (<%% Z.of_N %%>, mk_const "fn ##name##(&'a self, a: i64) -> i64 { a }");
   (<%% Z.abs_N %%>, mk_const "fn ##name##(&'a self, a: i64) -> i64 { a.abs() }");
@@ -114,6 +119,7 @@ Definition native_top_preamble : string :=
   "macro_rules! __andb { ($b1:expr, $b2:expr) => { $b1 && $b2 } }";
   "macro_rules! __orb { ($b1:expr, $b2:expr) => { $b1 || $b2 } }";
   "macro_rules! __bool_elim { ($tcase:expr, $fcase:expr, $val:expr) => { if $val { $tcase } else { $fcase } } }";
+  cmp_elim_macro;
   "";
   "macro_rules! __nat_elim {";
   "  ($zcase:expr, $pred:ident, $scase:expr, $val:expr) => {";
@@ -172,14 +178,4 @@ Definition native_rust_config' : rust_config' := {|
   rust_any_type_symbol'    := None;
   rust_print_full_names'   := None;
   rust_default_attributes' := None;
-|}.
-
-Definition native_rust_config_full : rust_config := {|
-  rust_preamble_top       := native_top_preamble;
-  rust_preamble_program   := native_program_preamble;
-  rust_term_box_symbol    := "()";
-  rust_type_box_symbol    := "()";
-  rust_any_type_symbol    := "()";
-  rust_print_full_names   := true;
-  rust_default_attributes := "#[derive(Debug, Clone)]";
 |}.

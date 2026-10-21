@@ -49,6 +49,12 @@ data OCamlConfig = OCamlConfig
   { programType :: Maybe ProgramType
   }
 
+-- Lean backend configuration
+data LeanConfig = LeanConfig
+  { leanNamespace      :: Maybe String,
+    leanPrintFullNames :: Maybe Bool
+  }
+
 -- CakeML backend configuration
 type CakeMLConfig = ()
 
@@ -82,6 +88,7 @@ data BackendConfig
   | Wasm CertiRocqConfig
   | OCaml OCamlConfig
   | CakeML CakeMLConfig
+  | Lean LeanConfig
   | Eval EvalConfig
   | AST ASTConfig
 
@@ -134,7 +141,9 @@ data ErasurePhases = ErasurePhases
     betared       :: Maybe Bool,
     unboxing      :: Maybe Bool,
     deargCtor     :: Maybe Bool,
-    deargConst    :: Maybe Bool
+    deargConst    :: Maybe Bool,
+    specializeInstances :: Maybe Bool,
+    cse           :: Maybe Bool
   }
 
 -- Configuration of Peregrine
