@@ -7,6 +7,7 @@ theories/Classy.v
 theories/Closure.v
 theories/Demo.v
 theories/Hello.v
+theories/Id.v
 theories/Map.v
 theories/Mutual.v
 theories/Nat.v

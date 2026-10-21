@@ -91,7 +91,7 @@ value make_Coq_Init_Datatypes_list_cons(value $arg0, value $arg1, value *$argv)
   *($argv + 0LL) = (value) 2048LL;
   *($argv + 1LL) = $arg0;
   *($argv + 2LL) = $arg1;
-  return $argv + 1LL;
+  return (value) ($argv + 1LL);
 }
 
 value alloc_make_Coq_Init_Datatypes_list_cons(struct thread_info *$tinfo, value $arg0, value $arg1)
@@ -102,7 +102,7 @@ value alloc_make_Coq_Init_Datatypes_list_cons(struct thread_info *$tinfo, value 
   *($argv + 1LL) = $arg0;
   *($argv + 2LL) = $arg1;
   (*$tinfo).alloc = (*$tinfo).alloc + 3LL;
-  return $argv + 1LL;
+  return (value) ($argv + 1LL);
 }
 
 value make_CertiRocq_bool_false(void)
@@ -124,7 +124,7 @@ value make_Coq_Init_Datatypes_nat_S(value $arg0, value *$argv)
 {
   *($argv + 0LL) = (value) 1024LL;
   *($argv + 1LL) = $arg0;
-  return $argv + 1LL;
+  return (value) ($argv + 1LL);
 }
 
 value alloc_make_Coq_Init_Datatypes_nat_S(struct thread_info *$tinfo, value $arg0)
@@ -134,14 +134,14 @@ value alloc_make_Coq_Init_Datatypes_nat_S(struct thread_info *$tinfo, value $arg
   *($argv + 0LL) = 1024LL;
   *($argv + 1LL) = $arg0;
   (*$tinfo).alloc = (*$tinfo).alloc + 2LL;
-  return $argv + 1LL;
+  return (value) ($argv + 1LL);
 }
 
 value make_Coq_Init_Datatypes_option_Some(value $arg0, value *$argv)
 {
   *($argv + 0LL) = (value) 1024LL;
   *($argv + 1LL) = $arg0;
-  return $argv + 1LL;
+  return (value) ($argv + 1LL);
 }
 
 value alloc_make_Coq_Init_Datatypes_option_Some(struct thread_info *$tinfo, value $arg0)
@@ -151,7 +151,7 @@ value alloc_make_Coq_Init_Datatypes_option_Some(struct thread_info *$tinfo, valu
   *($argv + 0LL) = 1024LL;
   *($argv + 1LL) = $arg0;
   (*$tinfo).alloc = (*$tinfo).alloc + 2LL;
-  return $argv + 1LL;
+  return (value) ($argv + 1LL);
 }
 
 value make_Coq_Init_Datatypes_option_None(void)
@@ -164,7 +164,7 @@ value make_Coq_Init_Datatypes_prod_pair(value $arg0, value $arg1, value *$argv)
   *($argv + 0LL) = (value) 2048LL;
   *($argv + 1LL) = $arg0;
   *($argv + 2LL) = $arg1;
-  return $argv + 1LL;
+  return (value) ($argv + 1LL);
 }
 
 value alloc_make_Coq_Init_Datatypes_prod_pair(struct thread_info *$tinfo, value $arg0, value $arg1)
@@ -175,7 +175,7 @@ value alloc_make_Coq_Init_Datatypes_prod_pair(struct thread_info *$tinfo, value 
   *($argv + 1LL) = $arg0;
   *($argv + 2LL) = $arg1;
   (*$tinfo).alloc = (*$tinfo).alloc + 3LL;
-  return $argv + 1LL;
+  return (value) ($argv + 1LL);
 }
 
 unsigned long long get_Coq_Init_Datatypes_list_tag(value $v)
@@ -355,7 +355,7 @@ value call(struct thread_info *$tinfo, value $clo, value $arg)
   register value $f;
   register value $envi;
   register value $tmp;
-  $f = (*((struct closure *) $clo)).func;
+  $f = (value) (*((struct closure *) $clo)).func;
   $envi = (*((struct closure *) $clo)).env;
   $tmp =
     ((value (*)(struct thread_info *, value, value)) $f)

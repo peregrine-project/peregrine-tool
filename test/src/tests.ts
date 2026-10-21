@@ -340,6 +340,22 @@ var rocq_tests: TestCase[] =
             parameters: []
         },
         {
+            // Corelib's id is declared through a type alias (benchmarks UPSTREAM_ISSUES entry 3)
+            src: "rocq/extraction/Id.ast",
+            tsrc: "rocq/extraction/Id_typed.ast",
+            // The Elm backend has the same defect and no stopgap
+            skip: [Lang.Elm],
+            rust_i64_output: "(cons () 1 (cons () 2 (nil)))",
+            main: "Id_test",
+            output_type: { type: "list", a_t: SimpleType.Nat },
+            expected_output: [
+                "(cons (S O) (cons (S (S O)) nil))",
+                "(cons () (S () (O)) (cons () (S () (S () (O))) (nil)))",
+                "Cons () (S O) (Cons () (S (S O)) (Nil ()))"
+            ],
+            parameters: []
+        },
+        {
             src: "rocq/extraction/Map.ast",
             tsrc: "rocq/extraction/Map_typed.ast",
             rust_i64_output: "(cons () () 2 (cons () () 6 (cons () () 10 (nil () ()))))",

@@ -89,7 +89,8 @@ let write_c_res opts f p =
     let imports = runtime_imports in
     let cstr = get_out_file opts f "c" in
     let hstr = get_header_file opts f in
-    printCProg prg nenv cstr (imports @ [FromRelativePath hstr]);
+    (* The header is written next to the .c, so include it by basename *)
+    printCProg prg nenv cstr (imports @ [FromRelativePath (Filename.basename hstr)]);
     printCProg header nenv hstr (runtime_imports)
 
 let write_program opts f p =
