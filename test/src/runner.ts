@@ -11,7 +11,7 @@ import { compile_cakeml, get_cake } from "./cakeml";
 import { compile_rust, make_printable, prepare_cargo, run_rust } from "./rust";
 import { prepare_elm_project, run_elm } from "./elm";
 import { prepare_lean_project, run_lean } from "./lean";
-import { prepare_fsharp_project, run_fsharp } from "./fsharp";
+import { build_fsharp, has_dotnet, prepare_fsharp_project, run_fsharp } from "./fsharp";
 import { test_configurations, tests } from "./tests";
 
 
@@ -349,24 +349,33 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       }
       break;
     case Lang.FSharp:
+      // The F# backend is experimental, and its tests are skipped without the .NET SDK
+      if (!has_dotnet()) {
+        print_line("  skipped: dotnet not found");
+        break;
+      }
       var fsharpdir = prepare_fsharp_project(tmpdir, compile_timeout);
 
-      for (var test of tests) {
-        if (test.src === undefined) continue;
-        process.stdout.write(`  ${test.src}: `);
+      // Compile every test with peregrine, then build all of them at once.
+      // Each test gets its own directory, as several tests share a file name.
+      const compiled = tests.filter((t) => t.src !== undefined).map((test, k) => {
+        const outdir = path.join(fsharpdir, "gen", `${k}`);
+        mkdirSync(outdir, { recursive: true });
+        return { test, f_fs: compile_box(test.src, outdir, Lang.FSharp, opts) };
+      });
+      const programs = compiled.filter((c) => typeof c.f_fs === "string")
+        .map((c) => ({ test: c.test, file: c.f_fs as string }));
+      const build_failures = build_fsharp(fsharpdir, programs, compile_timeout);
 
-        // Compile peregrine
-        const f_fs = compile_box(test.src, fsharpdir, Lang.FSharp, opts);
-        if (typeof f_fs !== "string") {
-          print_result(f_fs, test.src);
+      for (const c of compiled) {
+        process.stdout.write(`  ${c.test.src}: `);
+        if (typeof c.f_fs !== "string") {
+          print_result(c.f_fs, c.test.src);
           continue;
         }
-
-        // Run F# (compiles + runs in one shot)
-        const res = run_fsharp(f_fs, fsharpdir, test, exec_timeout);
-
-        // Report result
-        print_result(res, test.src);
+        const i = programs.findIndex((p) => p.test === c.test);
+        const res = build_failures.get(i) ?? run_fsharp(fsharpdir, i, c.test, exec_timeout);
+        print_result(res, c.test.src);
       }
       break;
 
