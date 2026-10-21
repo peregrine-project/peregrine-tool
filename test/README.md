@@ -14,6 +14,7 @@ The test suite depends on the following:
 * [elm compiler](https://elm-lang.org/) 0.19.1, as `elm` on the `PATH` (the Elm tests fetch their packages from package.elm-lang.org)
 * elm-test (installed by `npm install`)
 * gcc
+* clang 15 or later, for the LLVM tests (`CLANG` names another binary, e.g. `CLANG=clang-15`)
 * [Lean](https://lean-lang.org/install/) (`lake`, installed with elan)
 
 The Rust and Elm backends take typed programs, so the `Rust` and `Elm` configurations only run the tests that have a `tsrc`, currently the Rocq ones.
@@ -21,6 +22,7 @@ The `Rust-untyped` and `Elm-untyped` configurations give the same backends the u
 A test marked as `rejected` is a program whose types cannot be inferred: there peregrine must fail with `Could not infer types`.
 All four compile with `peregrine compile` and the pipeline configurations [src/rust/config.sexp](src/rust/config.sexp) and [src/elm/config.sexp](src/elm/config.sexp).
 The `Rust-verb` and `Rust-i64` configurations compile the typed sources with the `rust` and `rust-i64` commands instead; `rust-i64` represents numbers as `i64`, so its tests have their own expected outputs (`rust_i64_output`). The `rust-gmp` command is not tested here: its `rug` crate builds GMP from source, which takes longer than the compile timeout.
+The `LLVM` configuration links the emitted `.ll` module with CertiRocq's C runtime and the C glue, as the `C` configuration does.
 The `OCaml-passes` configuration runs the OCaml tests with the optional `--specialize-instances` and `--cse` passes enabled and expects the same outputs.
 
 

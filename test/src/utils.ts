@@ -33,6 +33,8 @@ export function lang_to_peregrine_arg(lang: Lang): string {
       return "c";
     case Lang.Wasm:
       return "wasm";
+    case Lang.LLVM:
+      return "llvm";
     case Lang.Rust:
       return "rust";
     case Lang.Elm:
@@ -53,6 +55,8 @@ export function lang_to_ext(lang: Lang): string {
       return ".c";
     case Lang.Wasm:
       return ".wasm";
+    case Lang.LLVM:
+      return ".ll";
     case Lang.Rust:
       return ".rs";
     case Lang.Elm:

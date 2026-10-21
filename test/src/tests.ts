@@ -7,6 +7,7 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.C, "", ""],
     [Lang.Wasm, "cps", "--cps"],
     [Lang.Wasm, "", ""],
+    [Lang.LLVM, "", ""],
     [Lang.Rust, "", ""],
     [Lang.Elm, "", ""],
     // The typed backends on the untyped sources, whose types are inferred.
