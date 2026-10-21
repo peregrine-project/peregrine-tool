@@ -42,7 +42,7 @@ By default, all option fields are optional in the configuration file format. Any
 Validation does the following:
 1) Fill undeclared option with default values
 2) Check that options are compatible with the backend
-3) Check that AST type and backend are compatible
+3) Untyped input for a typed backend is annotated by type inference (see below); every other combination of AST type and backend is accepted as is
 4) Determine which transformations to apply based on configurations, and whether a transformations is required or incompatible with the chosen backend.
 5) Validate configuration values 
 
@@ -87,6 +87,10 @@ The transformations that will be applied will depend on both the AST type, backe
   a pass replacing lazy/force 
 * **annotate names**:
   a pass replacing de Bruijn variables by names
+* **specialize instances**:
+  a pass that clones a function at call sites that pass a statically known dictionary (single-constructor record) value, and reduces the clone (beta, case of a known constructor); see [optional passes](#optional-passes)
+* **common subexpression elimination**:
+  a pass that binds a closed subterm occurring at least twice, always in evaluated positions, with a `let`; see [optional passes](#optional-passes)
 
 
 ### Transformation support (Untyped target AST)
@@ -108,10 +112,22 @@ The transformations that will be applied will depend on both the AST type, backe
 | implement $\square$        | required | required | required | required | required | optional, default off |
 | implement lazy             | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
 | annotate names             | optional, default off | optional, default off | required | required | optional, default off | optional, default off |
+| specialize instances       | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
+| common subexpression elimination | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
 
 ### Transformation support (Typed target AST)
+
+If the input is untyped, it is first annotated with types by Hindley-Milner inference ([EHindleyMilner.v](/theories/erasure/EHindleyMilner.v)): constants get generalized type schemes, inductive declarations get their type parameters and constructor field types reconstructed from the constructor uses in the program, and the inference fails (as a pipeline error) when the program is not typable. Erasing the annotations gives back the input program and the annotations are well scoped (both proved, [EHindleyMilnerSound.v](/theories/erasure/EHindleyMilnerSound.v)); that the annotations describe the terms is not proved (postponed, with the other follow-up work, to [#79](https://github.com/peregrine-project/peregrine-tool/issues/79)). Only type parameters of an inductive become type variables; value, `Prop` and phantom parameters are dropped (see [backends.md](backends.md#rust)).
 
 | Pass                       | Rust                 | Elm                  | AST                   |
 |----------------------------|----------------------|----------------------|-----------------------|
 | remove parameters          | required             | required             | required              |
 | dearging                   | optional, default on | optional, default on | optional, default off |
+
+### Optional passes
+Instance specialization ([EInstanceSpecialize.v](/theories/erasure/EInstanceSpecialize.v)) and common subexpression elimination ([ECommonSubexpr.v](/theories/erasure/ECommonSubexpr.v)) are off by default in every backend and are enabled with the `specialize_instances` and `cse` fields of the configuration ([format.md](format.md)) or the `--specialize-instances` and `--cse` flags. They run only in the untyped pipeline, after the other optional passes (`optional_unsafe_transforms`) and before implement $\square$ (`extra_unsafe_transforms` in [Transforms.v](/theories/erasure/Transforms.v)), so beta reduction and dearging do not see their output; the Rust and Elm backends never run them.
+
+Their correctness is axiomatized:
+
+* Instance specialization: well-formedness preservation and evaluation preservation are the axioms `trust_specialize_instances_wf` and `trust_specialize_instances_pres`, and its two `TransformExt` instances are the axioms `specialize_instances_transformation_ext` and `specialize_instances_transformation_ext'`. Nothing about the pass is proved.
+* Common subexpression elimination: well-formedness preservation (`cse_wf`) and the `TransformExt` instances are proved; evaluation preservation is the axiom `cse_pres_eval`.

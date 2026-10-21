@@ -49,6 +49,12 @@ data OCamlConfig = OCamlConfig
   { programType :: Maybe ProgramType
   }
 
+-- Lean backend configuration
+data LeanConfig = LeanConfig
+  { leanNamespace      :: Maybe String,
+    leanPrintFullNames :: Maybe Bool
+  }
+
 -- FSharp backend configuration
 data FSharpConfig = FSharpConfig
   { fsharpNamespace      :: Maybe String,
@@ -88,6 +94,7 @@ data BackendConfig
   | Wasm CertiRocqConfig
   | OCaml OCamlConfig
   | CakeML CakeMLConfig
+  | Lean LeanConfig
   | FSharp FSharpConfig
   | Eval EvalConfig
   | AST ASTConfig
@@ -141,7 +148,9 @@ data ErasurePhases = ErasurePhases
     betared       :: Maybe Bool,
     unboxing      :: Maybe Bool,
     deargCtor     :: Maybe Bool,
-    deargConst    :: Maybe Bool
+    deargConst    :: Maybe Bool,
+    specializeInstances :: Maybe Bool,
+    cse           :: Maybe Bool
   }
 
 -- Configuration of Peregrine

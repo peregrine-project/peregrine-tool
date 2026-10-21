@@ -121,6 +121,28 @@ Proof.
   reflexivity.
 Qed.
 
+Instance Complete_lean_config : CompleteClass lean_config.
+Proof.
+  unfold CompleteClass, Complete.
+  intros l o.
+  cbn -[Deserialize_bool Deserialize_ident].
+  simpl_bytes.
+  rewrite 2!complete_class.
+  destruct o; cbn.
+  reflexivity.
+Qed.
+
+Instance Complete_lean_config' : CompleteClass lean_config'.
+Proof.
+  unfold CompleteClass, Complete.
+  intros l o.
+  cbn -[Deserialize_bool Deserialize_ident].
+  simpl_bytes.
+  rewrite 2!complete_class.
+  destruct o; cbn.
+  reflexivity.
+Qed.
+
 Instance Complete_cakeml_config : CompleteClass cakeml_config.
 Proof.
   unfold CompleteClass, Complete.
@@ -292,6 +314,10 @@ Proof.
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
+  - cbn -[Deserialize_lean_config].
+    simpl_bytes.
+    rewrite complete_class.
+    reflexivity.
   - cbn -[Deserialize_fsharp_config].
     simpl_bytes.
     rewrite complete_class.
@@ -332,6 +358,10 @@ Proof.
     rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_cakeml_config'].
+    simpl_bytes.
+    rewrite complete_class.
+    reflexivity.
+  - cbn -[Deserialize_lean_config'].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
@@ -443,7 +473,7 @@ Proof.
   intros l o.
   cbn -[Deserialize_bool].
   simpl_bytes.
-  rewrite 7!complete_class.
+  rewrite 9!complete_class.
   destruct o; cbn.
   reflexivity.
 Qed.
@@ -454,7 +484,7 @@ Proof.
   intros l o.
   cbn -[Deserialize_bool].
   simpl_bytes.
-  rewrite 7!complete_class.
+  rewrite 9!complete_class.
   destruct o; cbn.
   reflexivity.
 Qed.

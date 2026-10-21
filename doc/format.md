@@ -59,6 +59,8 @@ Both ASTs consist of an environment of constant- and inductive-declarations, and
 (Typed   (...env...) None)
 ```
 
+Backends that need a typed AST (Rust, Elm, `LambdaBoxTyped`) also accept an `Untyped` one; the middle-end then infers the type annotations (unverified) or fails if the program cannot be typed (see [backends.md](backends.md#rust)).
+
 The serializers/deserializers for `PAst` live in [SerializePAst.v](/theories/serialization/SerializePAst.v) and [DeserializePAst.v](/theories/serialization/DeserializePAst.v). They delegate to [SerializeEAst.v](/theories/serialization/SerializeEAst.v) and [SerializeExAst.v](/theories/serialization/SerializeExAst.v) for the underlying environments, to [SerializeCommon.v](/theories/serialization/SerializeCommon.v) for shared names/idents/kernames, and to [SerializePrimitives.v](/theories/serialization/SerializePrimitives.v) for `tPrim` payloads.
 
 ### Shared building blocks
@@ -189,7 +191,7 @@ Field by field:
 
 * `backend_opts` (`backend_config`) — selects the backend and its options; see below.
 
-* `erasure_opts` (`erasure_phases`) — toggles the optional erasure passes. The seven fields are
+* `erasure_opts` (`erasure_phases`) — toggles the optional erasure passes. The nine fields are
   ```
   (erasure_phases
     <implement_box>
@@ -198,9 +200,12 @@ Field by field:
     <betared>
     <unboxing>
     <dearg_ctors>
-    <dearg_consts>)
+    <dearg_consts>
+    <specialize_instances>
+    <cse>)
   ```
-  All booleans. Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
+  All booleans. `specialize_instances` and `cse` select the two optional passes described in [middleend.md](middleend.md); every backend leaves them off by default.
+  Only the nine-field form parses. To migrate a configuration written for the earlier seven-field form, append `None None` to its `erasure_phases` entry (`false false` where the fields are not optional). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
 
 * `inlinings_opts` (`inlinings`) — a list of `kername`s; constants in this list are inlined by the typed-erasure pass.
 
@@ -266,6 +271,7 @@ The `attributes_config` payload accepted via `--attributes` is the 5-element sub
 (Wasm   <wasm_config>)
 (OCaml  <ocaml_config>)
 (CakeML <cakeml_config>)
+(Lean   <lean_config>)
 (FSharp <fsharp_config>)
 (Eval   <eval_config>)
 (AST    <ast_config>)
@@ -328,6 +334,15 @@ and is forwarded to the Malfunction printer. Default: `Standalone`.
 
 #### CakeML (`cakeml_config`)
 `cakeml_config` is `unit`, serialized as the empty list `()`. CakeML extraction has no user-tunable fields at present.
+
+#### Lean (`lean_config`)
+```
+(lean_config
+  <lean_namespace>          ; "Generated"
+  <lean_print_full_names>)  ; true
+```
+* `lean_namespace` is the Lean namespace wrapped around the generated declarations.
+* `lean_print_full_names` toggles printing of names qualified by the input file's basename and the module path.
 
 #### F# (`fsharp_config`)
 ```

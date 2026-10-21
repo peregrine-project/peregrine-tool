@@ -4,6 +4,9 @@ open Peregrine.Caml_bytestring
 module Datatypes = Peregrine.Datatypes
 module Config = Peregrine.Config1
 module ConfigUtils = Peregrine.ConfigUtils
+module RustGMPRemaps = Peregrine.RustGMPRemaps
+module RustNativeRemaps = Peregrine.RustNativeRemaps
+module RustMixedRemaps = Peregrine.RustMixedRemaps
 module Pipeline = Peregrine.Pipeline2
 module ResultMonad = Peregrine.ResultMonad
 module Cps = Peregrine.Cps
@@ -61,6 +64,11 @@ let write_cakeml_res opts f p =
   write_res f (fun f ->
     output_string f (caml_string_of_bytestring (snd p)))
 
+let write_lean_res opts f p =
+  let f = get_out_file opts f "lean" in
+  let p = caml_string_of_bytestring p in
+  write_res f (fun f -> output_string f p)
+
 let write_fsharp_res opts f p =
   let f = get_out_file opts f "fs" in
   let p = caml_string_of_bytestring p in
@@ -86,7 +94,8 @@ let write_c_res opts f p =
     let imports = runtime_imports in
     let cstr = get_out_file opts f "c" in
     let hstr = get_header_file opts f in
-    printCProg prg nenv cstr (imports @ [FromRelativePath hstr]);
+    (* The header is written next to the .c, so include it by basename *)
+    printCProg prg nenv cstr (imports @ [FromRelativePath (Filename.basename hstr)]);
     printCProg header nenv hstr (runtime_imports)
 
 let write_program opts f p =
@@ -97,6 +106,7 @@ let write_program opts f p =
   | Pipeline.CakeMLProgram p -> write_cakeml_res opts f p
   | Pipeline.CProgram p -> write_c_res opts f p
   | Pipeline.WasmProgram p -> write_wasm_res opts f p
+  | Pipeline.LeanProgram p -> write_lean_res opts f p
   | Pipeline.FSharpProgram p -> write_fsharp_res opts f p
   | Pipeline.EvalProgram p -> cprint_endline p
   | Pipeline.ASTProgram p -> write_ast_res opts f p
@@ -127,14 +137,16 @@ let mk_erasure_config eopts = {
   ConfigUtils.unboxing'       = eopts.unboxing;
   ConfigUtils.dearg_ctors'    = eopts.dearg_ctors;
   ConfigUtils.dearg_consts'   = eopts.dearg_consts;
+  ConfigUtils.specialize_instances' = eopts.specialize_instances;
+  ConfigUtils.cse'            = eopts.cse;
 }
 
-let mk_config b eopts = {
+let mk_config ?(const_remaps=[]) ?(ind_remaps=[]) b eopts = {
   ConfigUtils.backend_opts' = b;
   ConfigUtils.erasure_opts' = Some (mk_erasure_config eopts);
   ConfigUtils.inlinings_opts' = [];
-  ConfigUtils.const_remappings_opts' = [];
-  ConfigUtils.ind_remappings_opts' = [];
+  ConfigUtils.const_remappings_opts' = const_remaps;
+  ConfigUtils.ind_remappings_opts' = ind_remaps;
   ConfigUtils.cstr_reorders_opts' = [];
   ConfigUtils.custom_attributes_opts' = []
 }
@@ -188,14 +200,54 @@ let compile opts f_prog f_config =
   let config = f_config |> read_file |> bytestring_of_caml_string in
   compile_aux opts f_prog prog (Datatypes.Coq_inl config)
 
-let compile_backend backend_opts opts eopts f_prog =
+let compile_backend ?(const_remaps=[]) ?(ind_remaps=[]) backend_opts opts eopts f_prog =
   let prog = f_prog |> read_file |> bytestring_of_caml_string in
-  let config = mk_config backend_opts eopts in
+  let config = mk_config ~const_remaps ~ind_remaps backend_opts eopts in
   compile_aux opts f_prog prog (Datatypes.Coq_inr config)
 
-let compile_rust opts eopts f_prog =
-  let b_opts = ConfigUtils.Rust' ConfigUtils.empty_rust_config' in
-  compile_backend b_opts opts eopts f_prog
+(* The Rust verbs, one per representation of nat/positive/N/Z. This list is
+   the only place that names them: main.ml makes one subcommand per entry. *)
+type rust_verb = {
+  rust_verb_name : string;
+  rust_verb_doc : string;
+  rust_verb_config : ConfigUtils.rust_config';
+  rust_verb_const_remaps : Config.constant_remappings;
+  rust_verb_ind_remaps : Config.inductive_remappings;
+}
+
+let rust_verbs = [
+  { rust_verb_name = "rust";
+    rust_verb_doc = "Compile lambda box program to Rust, without numeric remapping (nat/positive/N/Z as the extracted inductive types)";
+    rust_verb_config = ConfigUtils.empty_rust_config';
+    rust_verb_const_remaps = [];
+    rust_verb_ind_remaps = [] };
+  { rust_verb_name = "rust-gmp";
+    rust_verb_doc = "Compile lambda box program to Rust, with nat/positive/N/Z as GMP integers (rug::Integer, needs the rug crate)";
+    rust_verb_config = RustGMPRemaps.gmp_rust_config';
+    rust_verb_const_remaps = RustGMPRemaps.gmp_const_remaps;
+    rust_verb_ind_remaps = RustGMPRemaps.gmp_ind_remaps };
+  { rust_verb_name = "rust-i64";
+    rust_verb_doc = "Compile lambda box program to Rust, with nat/positive/N/Z as i64 (overflow is not checked)";
+    rust_verb_config = RustNativeRemaps.native_rust_config';
+    rust_verb_const_remaps = RustNativeRemaps.native_const_remaps;
+    rust_verb_ind_remaps = RustNativeRemaps.native_ind_remaps };
+  { rust_verb_name = "rust-mixed";
+    rust_verb_doc = "Compile lambda box program to Rust, with GMP integers and add/mul/sub/div/mod/pow/eqb/leb/ltb on nat computed in i64";
+    rust_verb_config = RustMixedRemaps.mixed_rust_config';
+    rust_verb_const_remaps = RustMixedRemaps.mixed_const_remaps;
+    rust_verb_ind_remaps = RustMixedRemaps.mixed_ind_remaps };
+  { rust_verb_name = "rust-mixed-narrow";
+    rust_verb_doc = "Compile lambda box program to Rust, with GMP integers and div/mod/pow on nat computed in i64";
+    rust_verb_config = RustMixedRemaps.mixed_rust_config';
+    rust_verb_const_remaps = RustMixedRemaps.mixed_const_remaps2;
+    rust_verb_ind_remaps = RustMixedRemaps.mixed_ind_remaps };
+]
+
+let compile_rust v opts eopts f_prog =
+  compile_backend
+    ~const_remaps:v.rust_verb_const_remaps
+    ~ind_remaps:v.rust_verb_ind_remaps
+    (ConfigUtils.Rust' v.rust_verb_config) opts eopts f_prog
 
 let compile_elm opts eopts f_prog =
   let b_opts = ConfigUtils.Elm' ConfigUtils.empty_elm_config' in
@@ -207,6 +259,10 @@ let compile_ocaml opts eopts f_prog =
 
 let compile_cakeml opts eopts f_prog =
   let b_opts = ConfigUtils.CakeML' ConfigUtils.empty_cakeml_config' in
+  compile_backend b_opts opts eopts f_prog
+
+let compile_lean opts eopts f_prog =
+  let b_opts = ConfigUtils.Lean' ConfigUtils.empty_lean_config' in
   compile_backend b_opts opts eopts f_prog
 
 let compile_fsharp opts eopts f_prog =

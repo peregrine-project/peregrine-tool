@@ -48,6 +48,11 @@ Section BackendConfig.
     program_type : Malfunction.Serialize.program_type;
   }.
 
+  Record lean_config := {
+    lean_namespace        : string;
+    lean_print_full_names : bool;
+  }.
+
   Record fsharp_config := {
     fsharp_namespace        : string;
     fsharp_print_full_names : bool;
@@ -80,6 +85,7 @@ Section BackendConfig.
   | Wasm   : wasm_config -> backend_config
   | OCaml  : ocaml_config -> backend_config
   | CakeML : cakeml_config -> backend_config
+  | Lean   : lean_config -> backend_config
   | FSharp : fsharp_config -> backend_config
   | Eval   : eval_config -> backend_config
   | AST    : ast_config -> backend_config.
@@ -141,6 +147,8 @@ Section GeneralConfig.
       unboxing_c       : phases_config;
       dearg_ctors_c    : phases_config;
       dearg_consts_c   : phases_config;
+      specialize_instances_c : phases_config;
+      cse_c            : phases_config;
     }.
 
   Record erasure_phases := {
@@ -151,6 +159,12 @@ Section GeneralConfig.
       unboxing       : bool;
       dearg_ctors    : bool;
       dearg_consts   : bool;
+      (* Instance/dictionary specialization (Peregrine-local unsafe pass,
+         see erasure/EInstanceSpecialize.v). *)
+      specialize_instances : bool;
+      (* Common-subexpression elimination (Peregrine-local unsafe pass,
+         see erasure/ECommonSubexpr.v). *)
+      cse            : bool;
     }.
 
   Record config := {

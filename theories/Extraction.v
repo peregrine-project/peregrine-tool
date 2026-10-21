@@ -1,6 +1,9 @@
 From MetaRocq.Erasure Require EAst.
 From Peregrine Require Pipeline.
 From Peregrine Require ConfigUtils.
+From Peregrine Require RustGMPRemaps.
+From Peregrine Require RustNativeRemaps.
+From Peregrine Require RustMixedRemaps.
 From Peregrine Require SerializePrimitives.
 From Peregrine Require DeserializePrimitives.
 From Stdlib Require Import ExtrOcamlBasic.
@@ -59,6 +62,32 @@ Extraction Inline CakeML.Backend.FFI.coq_msg_info.
 Extraction Inline CakeML.Backend.FFI.coq_user_error.
 
 
+(* Tail-recursive realisations of functions the printers apply to very long
+   inputs: extracted as is, they recurse once per element and overflow the
+   default 8 MiB stack (benchmarks UPSTREAM_ISSUES entry 13). On OCaml 4.14
+   List.map is not tail-recursive either, hence rev_map. *)
+From MetaRocq.Utils Require bytestring.
+From Stdlib Require List.
+Extract Constant Corelib.Lists.ListDef.map =>
+  "(fun f l -> List.rev (List.rev_map f l))".
+Extract Constant Stdlib.Lists.List.concat =>
+  "(fun ls -> List.rev (List.fold_left (fun acc l -> List.rev_append l acc) [] ls))".
+(* seq lives in mathcomp.ssreflect up to mathcomp 2.4 and in mathcomp.boot
+   from 2.5 on (the Nix CI), so name it by its short path *)
+From mathcomp Require seq.
+Extract Constant seq.cat =>
+  "(fun s1 s2 -> List.rev_append (List.rev s1) s2)".
+Extract Constant Corelib.Init.Datatypes.length =>
+  "(fun l -> let rec go n = function [] -> n | _ :: l -> go (S n) l in go O l)".
+Extract Constant MetaRocq.Utils.bytestring.String.append =>
+  "(fun x y ->
+     let rec rev acc = function EmptyString -> acc | String (c, s) -> rev (c :: acc) s in
+     List.fold_left (fun s c -> String (c, s)) y (rev [] x))".
+Extract Constant MetaRocq.Utils.bytestring.String.parse =>
+  "(fun l -> List.fold_left (fun s c -> String (c, s)) EmptyString (List.rev l))".
+Extract Constant MetaRocq.Utils.bytestring.String.print =>
+  "(fun s -> let rec go acc = function EmptyString -> List.rev acc | String (c, s) -> go (c :: acc) s in go [] s)".
+
 Set Warnings "-extraction-reserved-identifier".
 Set Warnings "-extraction-opaque-accessed".
 Set Warnings "-extraction-logical-axiom".
@@ -69,8 +98,11 @@ Require compcert.cfrontend.Csyntax
 
 Separate Extraction Pipeline.peregrine_pipeline Pipeline.peregrine_validate
                     ConfigUtils.empty_rust_config' ConfigUtils.empty_elm_config' ConfigUtils.empty_certirocq_config'
-                    ConfigUtils.empty_ocaml_config' ConfigUtils.empty_cakeml_config' ConfigUtils.empty_fsharp_config'
+                    ConfigUtils.empty_ocaml_config' ConfigUtils.empty_cakeml_config' ConfigUtils.empty_lean_config' ConfigUtils.empty_fsharp_config'
                     ConfigUtils.empty_config'
+                    RustGMPRemaps.gmp_const_remaps RustGMPRemaps.gmp_ind_remaps RustGMPRemaps.gmp_rust_config'
+                    RustNativeRemaps.native_const_remaps RustNativeRemaps.native_ind_remaps RustNativeRemaps.native_rust_config'
+                    RustMixedRemaps.mixed_const_remaps RustMixedRemaps.mixed_const_remaps2 RustMixedRemaps.mixed_ind_remaps RustMixedRemaps.mixed_rust_config'
                     Floats.Float32.to_bits Floats.Float.to_bits
                     Floats.Float32.of_bits Floats.Float.of_bits
                     Csyntax

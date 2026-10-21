@@ -2,7 +2,7 @@
 [![Build](https://github.com/peregrine-project/peregrine-tool/actions/workflows/build.yml/badge.svg)](https://github.com/peregrine-project/peregrine-tool/actions/workflows/build.yml)
 [![GitHub](https://img.shields.io/github/license/peregrine-project/peregrine-tool)](https://github.com/peregrine-project/peregrine-tool/blob/master/LICENSE)
 
-The Peregrine Project provides a unified middle-end for code generation from proof assistants. It supports Agda, Lean, and Rocq and can generate code in CakeML, C, Rust, OCaml, and WebAssembly.
+The Peregrine Project provides a unified middle-end for code generation from proof assistants. It supports Agda, Lean, and Rocq and can generate code in CakeML, C, Rust, OCaml, Lean, and WebAssembly.
 
 It puts a focus on correct code extraction: The middle end is verified in the Rocq proof assistant, and some of the frontends and backends are. It is based on an intermediate language called $\lambda_\square$ (LambdaBox).
 
@@ -39,8 +39,9 @@ Valid values for `TARGETLANGUAGE` are:
 * `c`
 * `ocaml`
 * `cakeml`
-* `rust`
+* `rust`, `rust-gmp`, `rust-i64`, `rust-mixed`, `rust-mixed-narrow`: see [backends.md](/doc/backends.md#numeric-representations)
 * `elm`
+* `lean`
 * `fsharp`
 
 For detailed usage on all commands and flags see [cmds.md](/doc/cmds.md) or use `peregrine --help`.
@@ -65,6 +66,7 @@ Peregrine supports extraction to the following programming languages
 * OCaml
 * CakeML
 * Elm
+* Lean
 * F#
 
 For more information on the backends see [backends.md](/doc/backends.md).
