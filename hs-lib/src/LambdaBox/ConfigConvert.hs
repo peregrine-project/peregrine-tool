@@ -33,7 +33,7 @@ elmConfigConv ElmConfig {..} =
     (fmap stringConv elmFalseElimDef)
     elmPrintFullNames
 
--- CertiRocq (C & Webassembly) backend configuration
+-- CertiRocq (C, WebAssembly & LLVM) backend configuration
 certirocqConfigConv :: CertiRocqConfig -> ConfigUtils.Coq_certirocq_config'
 certirocqConfigConv CertiRocqConfig {..} =
   ConfigUtils.Build_certirocq_config'
@@ -92,6 +92,7 @@ backendConfigConv (Rust c) = ConfigUtils.Rust' $ rustConfigConv c
 backendConfigConv (Elm c) = ConfigUtils.Elm' $ elmConfigConv c
 backendConfigConv (C c) = ConfigUtils.C' $ certirocqConfigConv c
 backendConfigConv (Wasm c) = ConfigUtils.Wasm' $ certirocqConfigConv c
+backendConfigConv (LLVM c) = ConfigUtils.LLVM' $ certirocqConfigConv c
 backendConfigConv (OCaml c) = ConfigUtils.OCaml' $ ocamlConfigConv c
 backendConfigConv (CakeML c) = ConfigUtils.CakeML' $ cakemlConfigConv c
 backendConfigConv (Lean c) = ConfigUtils.Lean' $ leanConfigConv c

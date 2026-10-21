@@ -29,7 +29,7 @@ data ElmConfig = ElmConfig
     elmPrintFullNames :: Maybe Bool
   }
 
--- CertiRocq (C & Webassembly) backend configuration
+-- CertiRocq (C, WebAssembly & LLVM) backend configuration
 data CertiRocqConfig = CertiRocqConfig
   { direct    :: Maybe Bool,
     cArgs     :: Maybe Int,
@@ -86,6 +86,7 @@ data BackendConfig
   | Elm ElmConfig
   | C CertiRocqConfig
   | Wasm CertiRocqConfig
+  | LLVM CertiRocqConfig
   | OCaml OCamlConfig
   | CakeML CakeMLConfig
   | Lean LeanConfig
