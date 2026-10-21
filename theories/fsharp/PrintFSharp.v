@@ -37,8 +37,11 @@ Local Open Scope bs_scope.
 (* Use just the last component of a kername.  All emitted definitions
    live inside a single F# module, so collisions only matter across
    modules that happen to share a local name — accepted v1 limitation,
-   controlled by the full-names printing flag. *)
-Definition local_name (kn : kername) : string := snd kn.
+   controlled by the full-names printing flag.  The bare name can be an
+   F# keyword ([val], [done], [base], ...), so it is quoted; F# reads
+   [``f``] and [f] as the same name.  Full names need no quoting: they
+   start with the file-name prefix and an underscore. *)
+Definition local_name (kn : kername) : string := "``" ++ snd kn ++ "``".
 
 Definition pick_fun_name (dups : list string) (full : bool) (default_module : string) (kn : kername) : string :=
   if full then full_name dups default_module kn else local_name kn.
