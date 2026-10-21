@@ -191,7 +191,7 @@ Section BackendConfigOptional.
 
   Definition mk_cakeml_config (o : cakeml_config') : cakeml_config := tt.
 
-  (* F# *)
+  (* F# (experimental) *)
   Record fsharp_config' := {
     fsharp_namespace'        : option string;
     fsharp_print_full_names' : option bool;

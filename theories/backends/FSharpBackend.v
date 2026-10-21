@@ -13,6 +13,8 @@ Import MonadNotation.
 
 Local Open Scope bs_scope.
 
+(* The F# backend is experimental and unverified. *)
+
 
 
 Definition default_fsharp_config := {|

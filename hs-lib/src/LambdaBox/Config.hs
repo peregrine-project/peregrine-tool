@@ -55,7 +55,7 @@ data LeanConfig = LeanConfig
     leanPrintFullNames :: Maybe Bool
   }
 
--- FSharp backend configuration
+-- F# backend configuration (experimental)
 data FSharpConfig = FSharpConfig
   { fsharpNamespace      :: Maybe String,
     fsharpPrintFullNames :: Maybe Bool

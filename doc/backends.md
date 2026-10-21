@@ -14,7 +14,7 @@ The table below summarises supported the backends
 | Rust         | typed (untyped: experimental) | ✗ | ✗ | Source language            | ✓ | Bump allocator, no GC |
 | Elm          | typed (untyped: experimental) | ✗ | ✗ | Source language            | ✓ | - |
 | Lean         | untyped | ✗ | ✗ | Source language            | ✗ | Reference counting (Lean runtime) |
-| F#           | untyped | ✗ | ✗ | F# source                  | ✓ | .NET GC |
+| F# (experimental) | untyped | ✗ | ✗ | Source language       | ✗ | .NET GC |
 | AST (debug)  | either  | ✓ | ✓ | Serialized AST             | ✗ | - |
 | Eval (debug) | either  | ✓ | ✗ | -                          | ✗ | -  |
 
@@ -97,15 +97,17 @@ Output
 * The generated Lean depends on the runtime library [`lean/Peregrine/Runtime.lean`](/lean/Peregrine/Runtime.lean).
 * Is compiled with [Lake](https://lean-lang.org/install/), see [`lean/README.md`](/lean/README.md).
 
-## F#
+## F# (experimental)
 
-F# backend extracting to surface level F# code. The backend requires untyped AST. The printer is unverified.
+Experimental F# backend extracting to surface level F# code. It accepts both typed and untyped ASTs as input.
+The backend is unverified. It shares the intermediate representation and the compiler of the [Lean backend](#lean) ([`theories/lean/`](/theories/lean/)); its printer is [`theories/fsharp/PrintFSharp.v`](/theories/fsharp/PrintFSharp.v), and [`theories/backends/FSharpBackend.v`](/theories/backends/FSharpBackend.v) wraps both.
 
 Output
 * A single, self-contained `.fs` file, including an inlined runtime helper, so it has no external dependencies. Note the emitted file cannot run under `dotnet fsi` (scripts reject top-level `module` declarations); compile it inside a .NET project.
 * Every value is printed as `obj`; source inductives become `[<RequireQualifiedAccess>]` discriminated unions, and nullary constants are wrapped in `Lazy<obj>` so they are not forced at module-init time.
 * Compile and run with [`dotnet`](https://dotnet.microsoft.com/) in `Release` mode — `Debug` builds and `dotnet fsi` disable .NET tail calls. Deep non-tail recursion should run on a large-stack thread (the test harness uses a 512 MiB stack).
-* No support for `tPrim`/primitives, and no support for remapping, like the Lean backend.
+* Programs with primitive values (`tPrim`) are rejected at compile time. Remapping is not supported, as in the Lean backend.
+* A nested mutual fixpoint, which no current frontend produces, compiles to code that fails when it is evaluated.
 
 ## Debug backends
 

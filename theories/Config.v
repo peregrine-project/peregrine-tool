@@ -53,6 +53,7 @@ Section BackendConfig.
     lean_print_full_names : bool;
   }.
 
+  (* F# backend (experimental) *)
   Record fsharp_config := {
     fsharp_namespace        : string;
     fsharp_print_full_names : bool;

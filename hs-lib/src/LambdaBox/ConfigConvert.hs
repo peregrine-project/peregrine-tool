@@ -61,7 +61,7 @@ leanConfigConv LeanConfig {..} =
     (fmap stringConv leanNamespace)
     leanPrintFullNames
 
--- FSharp backend configuration
+-- F# backend configuration (experimental)
 fsharpConfigConv :: FSharpConfig -> ConfigUtils.Coq_fsharp_config'
 fsharpConfigConv FSharpConfig {..} =
   ConfigUtils.Build_fsharp_config'
