@@ -211,26 +211,21 @@ Section BackendConfigOptional.
   Record eval_config' := {
     copts'    : option certirocq_config';
     fuel'     : nat;
-    eval_anf' : bool;
   }.
   Definition empty_eval_config' : eval_config' := {|
     copts'    := None;
     fuel'     := (Nat.pow 2 14);
-    eval_anf' := true;
   |}.
 
   Definition mk_eval_config (o : eval_config') : eval_config := {|
     copts    := get_optional o default_eval_config
       (fun c => option_map (mk_certirocq_config default_eval_config.(copts)) (copts' c)) copts;
     fuel     := o.(fuel');
-    eval_anf := o.(eval_anf');
   |}.
 
   Variant ASTType' :=
   | LambdaBox'
   | LambdaBoxTyped'
-  | LambdaBoxMut'   : option certirocq_config' -> ASTType'
-  | LambdaBoxLocal' : option certirocq_config' -> ASTType'
   | LambdaANF'      : option certirocq_config' -> ASTType'
   | LambdaANFC'     : option certirocq_config' -> ASTType'.
 
@@ -247,8 +242,6 @@ Section BackendConfigOptional.
         match o.(ast_type') with
         | LambdaBox' => LambdaBox
         | LambdaBoxTyped' => LambdaBoxTyped
-        | LambdaBoxMut' c => LambdaBoxMut (mk c)
-        | LambdaBoxLocal' c => LambdaBoxLocal (mk c)
         | LambdaANF' c => LambdaANF (mk c)
         | LambdaANFC' c => LambdaANFC (mk c)
         end

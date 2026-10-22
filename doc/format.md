@@ -358,8 +358,7 @@ and is forwarded to the Malfunction printer. Default: `Standalone`.
 ```
 (eval_config
   <copts>     ; certirocq_config, defaulting to the C/Wasm defaults
-  <fuel>      ; 2^14
-  <eval_anf>) ; true  — evaluate the ANF program; false uses the LambdaBoxMut evaluator
+  <fuel>)     ; 2^14
 ```
 The `eval` command runs the program in-process using CertiRocq's evaluator (after the relevant prefix of the C pipeline) and prints its result to stdout. `fuel` bounds the number of reduction steps before giving up.
 
@@ -371,8 +370,6 @@ The `eval` command runs the program in-process using CertiRocq's evaluator (afte
 ```
 LambdaBox                                    ; untyped lambda box (PAst)
 LambdaBoxTyped                               ; typed lambda box (PAst)
-(LambdaBoxMut   <certirocq_config>)          ; CertiRocq's L1g
-(LambdaBoxLocal <certirocq_config>)          ; CertiRocq's L4
 (LambdaANF      <certirocq_config>)          ; LambdaANF after the standard pipeline
 (LambdaANFC     <certirocq_config>)          ; LambdaANF without the final cleanup pass
 ```

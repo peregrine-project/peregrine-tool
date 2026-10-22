@@ -161,8 +161,6 @@ let mk_ast_config t copts : ConfigUtils.ast_config' =
     match t with
     | Box -> ConfigUtils.LambdaBox'
     | BoxTyped -> ConfigUtils.LambdaBoxTyped'
-    | BoxMut -> ConfigUtils.LambdaBoxMut' (Some (mk_certirocq_config copts))
-    | BoxLocal -> ConfigUtils.LambdaBoxLocal' (Some (mk_certirocq_config copts))
     | ANF -> ConfigUtils.LambdaANF' (Some (mk_certirocq_config copts))
     | ANFC -> ConfigUtils.LambdaANFC' (Some (mk_certirocq_config copts))
 
@@ -291,11 +289,10 @@ let compile_ast opts copts eopts t f_prog =
   let b_opts = ConfigUtils.AST' (mk_ast_config t copts) in
   compile_backend b_opts opts eopts f_prog
 
-let compile_eval opts copts eopts fuel anf f_prog =
+let compile_eval opts copts eopts fuel f_prog =
   let copts = (mk_certirocq_config copts) in
   let b_opts = ConfigUtils.Eval' {
       ConfigUtils.copts'    = Some copts;
       ConfigUtils.fuel'     = Peregrine.Caml_nat.nat_of_caml_int fuel;
-      ConfigUtils.eval_anf' = anf;
     } in
   compile_backend b_opts opts eopts f_prog

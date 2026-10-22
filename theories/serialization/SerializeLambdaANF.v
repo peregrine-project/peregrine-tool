@@ -5,7 +5,6 @@ From MetaRocq.Utils Require Import bytestring.
 From Stdlib Require Import List.
 From CeresBS Require Import Ceres.
 From Peregrine Require Import SerializeCommon.
-From Peregrine Require Import SerializeLambdaBoxMut.
 
 Import ListNotations.
 Local Open Scope bs_scope.

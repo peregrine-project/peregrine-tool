@@ -72,6 +72,4 @@ theories/serialization/DeserializeConfig.v
 theories/serialization/SerializeConfig.v
 theories/serialization/SerializeConfigComplete.v
 theories/serialization/SerializeConfigSound.v
-theories/serialization/SerializeLambdaBoxMut.v
-theories/serialization/SerializeLambdaBoxLocal.v
 theories/serialization/SerializeLambdaANF.v

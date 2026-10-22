@@ -78,14 +78,11 @@ evalConfigConv EvalConfig {..} =
   ConfigUtils.Build_eval_config'
     (fmap certirocqConfigConv copts)
     (natConv fuel)
-    evalAnf
 
 -- AST backend configuration
 astTypeConv :: ASTType -> ConfigUtils.ASTType'
 astTypeConv LambdaBox = ConfigUtils.LambdaBox'
 astTypeConv LambdaBoxTyped = ConfigUtils.LambdaBoxTyped'
-astTypeConv (LambdaBoxMut c) = ConfigUtils.LambdaBoxMut' (fmap certirocqConfigConv c)
-astTypeConv (LambdaBoxLocal c) = ConfigUtils.LambdaBoxLocal' (fmap certirocqConfigConv c)
 astTypeConv (LambdaANF c) = ConfigUtils.LambdaANF' (fmap certirocqConfigConv c)
 astTypeConv (LambdaANFC c) = ConfigUtils.LambdaANFC' (fmap certirocqConfigConv c)
 

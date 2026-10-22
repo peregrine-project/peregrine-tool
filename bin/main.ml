@@ -293,10 +293,6 @@ let eval_cmd =
     let doc = "evaluator fuel" in
     Arg.(value & opt int 10000 & info ["fuel"] ~doc)
   in
-  let anf_arg =
-    let doc = "evaluator type" in
-    Arg.(value & opt bool true & info ["anf"] ~doc)
-  in
   let doc = "Evaluate lambda box program" in
   let man = [
     `S Manpage.s_description;
@@ -304,12 +300,12 @@ let eval_cmd =
     `Blocks help_secs; ]
   in
   let info = Cmd.info "eval" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_eval $ copts_t $ certirocq_opts_t $ erasure_opts_t $ fuel_arg $ anf_arg $ program_file)
+  Cmd.v info Term.(const compile_eval $ copts_t $ certirocq_opts_t $ erasure_opts_t $ fuel_arg $ program_file)
 
 let ast_cmd =
   let ast_type =
     let doc = "AST type" in
-    Arg.(required & pos 0 (some (enum [("box", Box); ("typed", BoxTyped); ("mut", BoxMut); ("local", BoxLocal); ("anf", ANF); ("anfc", ANFC)])) None & info []
+    Arg.(required & pos 0 (some (enum [("box", Box); ("typed", BoxTyped); ("anf", ANF); ("anfc", ANFC)])) None & info []
            ~docv:"AST_TYPE" ~doc)
   in
   let program_file =

@@ -65,14 +65,11 @@ Section BackendConfig.
   Record eval_config := {
     copts    : certirocq_config;
     fuel     : nat;
-    eval_anf : bool;
   }.
 
   Variant ASTType :=
   | LambdaBox
   | LambdaBoxTyped
-  | LambdaBoxMut   : certirocq_config -> ASTType
-  | LambdaBoxLocal : certirocq_config -> ASTType
   | LambdaANF      : certirocq_config -> ASTType
   | LambdaANFC     : certirocq_config -> ASTType.
 

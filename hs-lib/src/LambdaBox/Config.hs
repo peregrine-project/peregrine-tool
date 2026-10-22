@@ -67,16 +67,13 @@ type CakeMLConfig = ()
 -- Eval backend configuration
 data EvalConfig = EvalConfig
   { copts    :: Maybe CertiRocqConfig,
-    fuel     :: Int,
-    evalAnf :: Bool
+    fuel     :: Int
   }
 
 -- AST backend configuration
 data ASTType
   = LambdaBox
   | LambdaBoxTyped
-  | LambdaBoxMut (Maybe CertiRocqConfig)
-  | LambdaBoxLocal (Maybe CertiRocqConfig)
   | LambdaANF (Maybe CertiRocqConfig)
   | LambdaANFC (Maybe CertiRocqConfig)
 

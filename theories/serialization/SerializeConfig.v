@@ -145,16 +145,14 @@ Instance Serialize_eval_config : Serialize eval_config :=
   fun o =>
     [Atom "eval_config";
      to_sexp (copts o);
-     to_sexp (fuel o);
-     to_sexp (eval_anf o)
+     to_sexp (fuel o)
     ]%sexp.
 
 Instance Serialize_eval_config' : Serialize eval_config' :=
   fun o =>
     [Atom "eval_config";
      to_sexp (copts' o);
-     to_sexp (fuel' o);
-     to_sexp (eval_anf' o)
+     to_sexp (fuel' o)
     ]%sexp.
 
 Instance Serialize_ASTType : Serialize ASTType :=
@@ -162,8 +160,6 @@ Instance Serialize_ASTType : Serialize ASTType :=
     match o with
     | LambdaBox => Atom "LambdaBox"
     | LambdaBoxTyped => Atom "LambdaBoxTyped"
-    | LambdaBoxMut c => [Atom "LambdaBoxMut"; to_sexp c]
-    | LambdaBoxLocal c => [Atom "LambdaBoxLocal"; to_sexp c]
     | LambdaANF c => [Atom "LambdaANF"; to_sexp c]
     | LambdaANFC c => [Atom "LambdaANFC"; to_sexp c]
     end%sexp.
@@ -173,8 +169,6 @@ Instance Serialize_ASTType' : Serialize ASTType' :=
     match o with
     | LambdaBox' => Atom "LambdaBox"
     | LambdaBoxTyped' => Atom "LambdaBoxTyped"
-    | LambdaBoxMut' c => [Atom "LambdaBoxMut"; to_sexp c]
-    | LambdaBoxLocal' c => [Atom "LambdaBoxLocal"; to_sexp c]
     | LambdaANF' c => [Atom "LambdaANF"; to_sexp c]
     | LambdaANFC' c => [Atom "LambdaANFC"; to_sexp c]
     end%sexp.

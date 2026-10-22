@@ -72,26 +72,6 @@ Definition compile_LambdaBoxMut
 
 Definition next_id := 100%positive.
 
-Definition mut_pipeline prs (p : EAst.program) :=
-  let env := p.1 in
-  '(prs, next_id) <- register_prims prs next_id env ;;
-  o <- get_options;;
-  (* Translate lambda_box -> lambda_boxmut *)
-  p_mut <- compile_LambdaBoxMut p;;
-  check_axioms prs p_mut;;
-  ret p_mut.
-
-Definition local_pipeline prs (p : EAst.program) :=
-  let env := p.1 in
-  '(prs, next_id) <- register_prims prs next_id env ;;
-  o <- get_options;;
-  (* Translate lambda_box -> lambda_boxmut *)
-  p_mut <- compile_LambdaBoxMut p;;
-  check_axioms prs p_mut;;
-  (* Translate lambda_boxmut -> lambda_boxlocal *)
-  p_local <- compile_LambdaBoxLocal prs p_mut;;
-  ret p_local.
-
 Definition anf_pipeline' prs (p : EAst.program) :=
   let env := p.1 in
   '(prs, next_id) <- register_prims prs next_id env ;;

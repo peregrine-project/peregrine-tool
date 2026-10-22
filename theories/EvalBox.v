@@ -5,10 +5,6 @@ From MetaRocq.Utils Require Import utils.
 From MetaRocq.Erasure Require Import EAst.
 From CertiRocq.Common Require Import Common.
 From CertiRocq.Common Require Import Pipeline_utils.
-From CertiRocq.LambdaBoxMut Require Import compile.
-From CertiRocq.LambdaBoxMut Require Import term.
-From CertiRocq.LambdaBoxMut Require Import program.
-From CertiRocq.LambdaBoxMut Require Import wcbvEval.
 From CertiRocq.LambdaANF Require Import toplevel.
 From CertiRocq.LambdaANF Require Import eval.
 From CertiRocq.LambdaANF Require Import cps.
@@ -198,12 +194,6 @@ End Evaluator.
 
 
 Definition fuel := (2^18)%nat.
-
-Definition eval_mut (n : nat) (p : Program Term) : pipelineM string :=
-  match wcbvEval (AstCommon.env p) n (main p) with
-  | Ret p => ret (print_term p)
-  | Exc s => compM.failwith ("Could not evaluate program:" ^ nl ^ s)
-  end.
 
 Definition eval_anf (n : nat) (p : LambdaANF_FullTerm) : pipelineM string :=
   let (env, p) := p in
