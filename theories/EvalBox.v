@@ -7,7 +7,7 @@ From CertiRocq.Common Require Import Common.
 From CertiRocq.Common Require Import Pipeline_utils.
 From CertiRocq.LambdaANF Require Import toplevel.
 From CertiRocq.LambdaANF Require Import eval.
-From CertiRocq.LambdaANF Require Import cps.
+From CertiRocq.LambdaANF Require Import term.
 From ExtLib.Structures Require Import Monad.
 
 Import MonadNotation.
@@ -75,7 +75,7 @@ Section Evaluator.
           match M.get y rho with
           | Some (Vconstr t vs) =>
             do e <- l_opt (findtag cl t) ("Case: " ^ (show_tag t) ^ " branch not found");
-            if CertiRocq.LambdaANF.cps_util.caseConsistent_f cenv cl t then
+            if CertiRocq.LambdaANF.term_util.caseConsistent_f cenv cl t then
               bstep_f rho e n'
             else (exceptionMonad.Exc "Case: consistency failure")
           | _ => (exceptionMonad.Exc ("Case: " ^ (show_var y) ^ " branch not found"))
@@ -128,7 +128,7 @@ Section Evaluator.
       destruct M.get; cbn; try now split.
       destruct v1; cbn; try now split.
       destruct findtag; cbn; try now split.
-      destruct cps_util.caseConsistent_f; cbn; try now split.
+      destruct term_util.caseConsistent_f; cbn; try now split.
       apply IHn.
     - cbn.
       destruct M.get; cbn; try now split.

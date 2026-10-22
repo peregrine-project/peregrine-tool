@@ -2,14 +2,14 @@ open Common
 open Peregrine.Caml_bytestring
 
 module Datatypes = Peregrine.Datatypes
-module Config = Peregrine.Config1
+module Config = Peregrine.Config0
 module ConfigUtils = Peregrine.ConfigUtils
 module RustGMPRemaps = Peregrine.RustGMPRemaps
 module RustNativeRemaps = Peregrine.RustNativeRemaps
 module RustMixedRemaps = Peregrine.RustMixedRemaps
 module Pipeline = Peregrine.Pipeline2
 module ResultMonad = Peregrine.ResultMonad
-module Cps = Peregrine.Cps
+module Anf_term = Peregrine.Term0
 
 
 
@@ -90,7 +90,7 @@ let printCProg prog names (dest : string) (imports : import list) =
     | FromLibrary (s, _) -> "#include <" ^ s ^ ">"
     | FromAbsolutePath _ ->
         failwith "Import with absolute path should have been filled") imports in
-  Peregrine.PrintClight.print_dest_names_imports prog (Cps.M.elements names) dest imports'
+  Peregrine.PrintClight.print_dest_names_imports prog (Anf_term.M.elements names) dest imports'
 
 let write_c_res opts f p =
   match p with

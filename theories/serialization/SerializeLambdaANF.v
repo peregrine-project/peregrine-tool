@@ -1,4 +1,4 @@
-From CertiRocq.LambdaANF Require Import cps.
+From CertiRocq.LambdaANF Require Import term.
 From CertiRocq.LambdaANF Require Import eval.
 From CertiRocq.LambdaANF Require Import toplevel.
 From MetaRocq.Utils Require Import bytestring.
@@ -13,8 +13,8 @@ Local Open Scope bs_scope.
 
 (*
 Definition LambdaANF_FullTerm : Type := LambdaANFenv * LambdaANFterm.
-Definition LambdaANFterm : Type := cps.exp.
-(* exp & val defined in cps *)
+Definition LambdaANFterm : Type := term.exp.
+(* exp & val defined in term *)
 Definition LambdaANFenv : Type := eval.prims * prim_env * ctor_env * ctor_tag * ind_tag * name_env * fun_env * eval.env.
 Module M := Maps.PTree. (* Compcert maps *)
 Definition prim_env := M.t (kername * string (* C definition *) * bool (* tinfo *) * nat (* arity *)).
