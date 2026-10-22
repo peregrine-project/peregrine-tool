@@ -14,21 +14,24 @@
     coqPackages = {
       coq.override.version = "9.1";
 
-      metarocq-utils.override.version = "1.5.1-9.1";
-      metarocq-common.override.version = "1.5.1-9.1";
-      metarocq-template-rocq.override.version = "1.5.1-9.1";
-      metarocq-pcuic.override.version = "1.5.1-9.1";
-      metarocq-safechecker.override.version = "1.5.1-9.1";
-      metarocq-safechecker-plugin.override.version = "1.5.1-9.1";
-      metarocq-template-pcuic.override.version = "1.5.1-9.1";
-      metarocq-erasure.override.version = "1.5.1-9.1";
-      metarocq-erasure-plugin.override.version = "1.5.1-9.1";
+      metarocq-utils.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
+      metarocq-common.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
+      metarocq-template-rocq.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
+      metarocq-pcuic.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
+      metarocq-safechecker.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
+      metarocq-safechecker-plugin.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
+      metarocq-template-pcuic.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
+      metarocq-erasure.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
+      metarocq-erasure-plugin.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
 
       TypedExtraction.override.version = "0.2.1";
-      CertiRocq.override.version = "0.9.1+9.1+llvm";
-      verified-extraction.override.version = "1.0.0-9.1";
+      # TODO(#155): the commit of CertiRocq/certirocq main that merges #155
+      CertiRocq.override.version = "6b4ab87014ccdddf69ea4a9278c4974ba671ca2d";
+      # CertiRocq needs coq-wasm >= 2.2.1
+      wasmcert.override.version = "2.2.1";
+      verified-extraction.override.version = "16de6e9f67b1085ef519095433f96f8b1067febe";
       ceres-bs.override.version = "1.0.0";
-      CakeMLExtraction.override.version = "0.1.0";
+      CakeMLExtraction.override.version = "3c47a631d9a6a591e33bcfb72e277844982dd4b0";
     }; rocqPackages = {
       rocq-core.override.version = "9.1";
     };

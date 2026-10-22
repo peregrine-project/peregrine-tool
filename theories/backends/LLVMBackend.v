@@ -1,6 +1,6 @@
 (* LLVM backend: CertiRocq's CodegenLLVM (LambdaANF -> Vellvm's LLVM AST),
    printed as textual LLVM IR. Mirrors WasmBackend.v. CodegenLLVM is not in
-   any CertiRocq release; it comes from the fork pinned in rocq-peregrine.opam. *)
+   any CertiRocq release yet; rocq-peregrine.opam pins CertiRocq by commit. *)
 
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.

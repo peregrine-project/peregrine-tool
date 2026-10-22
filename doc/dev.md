@@ -25,7 +25,7 @@ To install dependencies run:
 ```bash
 opam install . --deps-only
 ```
-This also pins the two dependencies that have no release, CertiRocq with the LLVM backend ([`spitters/certirocq`](https://github.com/spitters/certirocq)) and Vellvm, to the commits given in `pin-depends` of [rocq-peregrine.opam](/rocq-peregrine.opam). The CertiRocq fork replaces the released `rocq-certirocq` package for the C and Wasm backends too.
+This also pins the dependencies that have no release to the commits given in `pin-depends` of [rocq-peregrine.opam](/rocq-peregrine.opam): CertiRocq with the LLVM backend (used by the C, Wasm and LLVM backends and `eval`), the Vellvm commit it needs, and the MetaRocq 9.1 snapshot it is built against.
 
 ## Installing using `Nix`
 ```bash

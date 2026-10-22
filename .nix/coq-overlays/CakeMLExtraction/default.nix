@@ -37,6 +37,11 @@ mkCoqDerivation {
       null;
   release = {
     "0.1.0".hash = "sha256-diDUTj0l4vliov9+Lg8lNRdkLE7JAfJn8OU7J/HgmDE=";
+    # 0.1.0 ported to the MetaRocq 9.1 snapshot, see rocq-peregrine.opam
+    "3c47a631d9a6a591e33bcfb72e277844982dd4b0" = {
+      rev = "3c47a631d9a6a591e33bcfb72e277844982dd4b0";
+      hash = "sha256-XTfyd5v+f50ZqK/MQ4O9PywnCIDFCoM5w87aIBEpJpM=";
+    };
   };
   releaseRev = v: "v${v}";
 
