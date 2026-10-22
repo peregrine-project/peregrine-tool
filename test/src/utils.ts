@@ -43,6 +43,8 @@ export function lang_to_peregrine_arg(lang: Lang): string {
       return "cakeml";
     case Lang.Lean:
       return "lean";
+    case Lang.FSharp:
+      return "fsharp";
   }
 }
 
@@ -65,5 +67,7 @@ export function lang_to_ext(lang: Lang): string {
       return ".cml";
     case Lang.Lean:
       return ".lean";
+    case Lang.FSharp:
+      return ".fs";
   }
 }

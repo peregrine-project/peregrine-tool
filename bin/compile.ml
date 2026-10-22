@@ -74,6 +74,11 @@ let write_lean_res opts f p =
   let p = caml_string_of_bytestring p in
   write_res f (fun f -> output_string f p)
 
+let write_fsharp_res opts f p =
+  let f = get_out_file opts f "fs" in
+  let p = caml_string_of_bytestring p in
+  write_res f (fun f -> output_string f p)
+
 let write_ast_res opts f p =
   let f = get_out_file opts f "ast" in
   let p = caml_string_of_bytestring p in
@@ -108,6 +113,7 @@ let write_program opts f p =
   | Pipeline.WasmProgram p -> write_wasm_res opts f p
   | Pipeline.LLVMProgram p -> write_llvm_res opts f p
   | Pipeline.LeanProgram p -> write_lean_res opts f p
+  | Pipeline.FSharpProgram p -> write_fsharp_res opts f p
   | Pipeline.EvalProgram p -> cprint_endline p
   | Pipeline.ASTProgram p -> write_ast_res opts f p
 
@@ -263,6 +269,10 @@ let compile_cakeml opts eopts f_prog =
 
 let compile_lean opts eopts f_prog =
   let b_opts = ConfigUtils.Lean' ConfigUtils.empty_lean_config' in
+  compile_backend b_opts opts eopts f_prog
+
+let compile_fsharp opts eopts f_prog =
+  let b_opts = ConfigUtils.FSharp' ConfigUtils.empty_fsharp_config' in
   compile_backend b_opts opts eopts f_prog
 
 let compile_c opts copts eopts f_prog =

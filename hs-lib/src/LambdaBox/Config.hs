@@ -55,6 +55,12 @@ data LeanConfig = LeanConfig
     leanPrintFullNames :: Maybe Bool
   }
 
+-- F# backend configuration (experimental)
+data FSharpConfig = FSharpConfig
+  { fsharpNamespace      :: Maybe String,
+    fsharpPrintFullNames :: Maybe Bool
+  }
+
 -- CakeML backend configuration
 type CakeMLConfig = ()
 
@@ -90,6 +96,7 @@ data BackendConfig
   | OCaml OCamlConfig
   | CakeML CakeMLConfig
   | Lean LeanConfig
+  | FSharp FSharpConfig
   | Eval EvalConfig
   | AST ASTConfig
 

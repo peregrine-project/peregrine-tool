@@ -16,6 +16,7 @@ The test suite depends on the following:
 * gcc
 * clang 15 or later, for the LLVM tests (`CLANG` names another binary, e.g. `CLANG=clang-15`)
 * [Lean](https://lean-lang.org/install/) (`lake`, installed with elan)
+* [.NET SDK](https://dotnet.microsoft.com/) 10 or later (`dotnet`), for the F# backend (experimental); without it the `FSharp-experimental` configuration is skipped
 
 The Rust and Elm backends take typed programs, so the `Rust` and `Elm` configurations only run the tests that have a `tsrc`, currently the Rocq ones.
 The `Rust-untyped` and `Elm-untyped` configurations give the same backends the untyped `src` of every test, whose types peregrine then infers, and expect the outputs of the typed sources.
@@ -24,6 +25,7 @@ All four compile with `peregrine compile` and the pipeline configurations [src/r
 The `Rust-verb` and `Rust-i64` configurations compile the typed sources with the `rust` and `rust-i64` commands instead; `rust-i64` represents numbers as `i64`, so its tests have their own expected outputs (`rust_i64_output`). The `rust-gmp` command is not tested here: its `rug` crate builds GMP from source, which takes longer than the compile timeout.
 The `LLVM` configuration links the emitted `.ll` module with CertiRocq's C runtime and the C glue, as the `C` configuration does.
 The `OCaml-passes` configuration runs the OCaml tests with the optional `--specialize-instances` and `--cse` passes enabled and expects the same outputs.
+The `FSharp-experimental` configuration compiles every test with the experimental `fsharp` command, builds all the generated programs as one .NET project and runs each of them; it checks the outputs that the universal printers of [src/fsharp/TestPrinters.fs](src/fsharp/TestPrinters.fs) can print (booleans, natural numbers and lists of them).
 
 
 ## Agda frontend tests

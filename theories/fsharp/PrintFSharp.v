@@ -1,0 +1,576 @@
+From MetaRocq.Utils Require Import bytestring.
+From MetaRocq.Utils Require Import MRString.
+From MetaRocq.Common Require Import Kernames.
+From MetaRocq.Common Require Import BasicAst.
+From MetaRocq.Erasure Require EAst.
+From Peregrine Require Import LeanIR.
+(* The F# backend shares the Lean backend's IR ([LeanIR]), compiler
+   ([LeanCompile]) and the name-disambiguation and inductive-lookup
+   helpers of its printer; only the F# syntax below is specific. *)
+From Peregrine Require Import PrintLean(nl, concat_with, full_name,
+  ind_env, build_ind_env, lookup_oib, lookup_ind_name,
+  dup_base_names, dup_ind_names).
+From Peregrine Require Utils.
+From Stdlib Require Import List.
+From Stdlib Require Import PeanoNat.
+From Stdlib Require Import Strings.Byte.
+
+Import ListNotations.
+
+Local Open Scope bs_scope.
+
+(* ------------------------------------------------------------------ *)
+(*  LeanIR → F# source pretty-printer                                 *)
+(*                                                                    *)
+(*  Core invariant: every emitted expression has static type [obj],   *)
+(*  and every function value boxed into an [obj] is exactly a unary   *)
+(*  [FSharpFunc<obj,obj>] — [PG.apply] downcasts to [obj -> obj], and *)
+(*  .NET casts are checked at runtime, so [box]ing an n≥2-ary def     *)
+(*  directly would crash at the first apply.  Saturated calls to      *)
+(*  known n-ary definitions are emitted as direct (uncurried) calls;  *)
+(*  under-applied heads are wrapped in a chain of unary closures      *)
+(*  ([curry_wrapper]).  Every binding body is printed on a single     *)
+(*  line so the offside rule cannot re-associate anything, and every  *)
+(*  composite expression is parenthesized.                            *)
+(* ------------------------------------------------------------------ *)
+
+(* Use just the last component of a kername.  All emitted definitions
+   live inside a single F# module, so collisions only matter across
+   modules that happen to share a local name — accepted v1 limitation,
+   controlled by the full-names printing flag.  The bare name can be an
+   F# keyword ([val], [done], [base], ...), so it is quoted; F# reads
+   [``f``] and [f] as the same name.  Full names need no quoting: they
+   start with the file-name prefix and an underscore. *)
+Definition local_name (kn : kername) : string := "``" ++ snd kn ++ "``".
+
+Definition pick_fun_name (dups : list string) (full : bool) (default_module : string) (kn : kername) : string :=
+  if full then full_name dups default_module kn else local_name kn.
+
+(* ----- Name casing ------------------------------------------------- *)
+
+(* F# union cases must start with an uppercase letter.  ASCII-only
+   capitalization is enough: identifiers reaching this printer have
+   been sanitized upstream. *)
+Definition byte_upper (b : byte) : byte :=
+  match b with
+  | x61 => x41
+  | x62 => x42
+  | x63 => x43
+  | x64 => x44
+  | x65 => x45
+  | x66 => x46
+  | x67 => x47
+  | x68 => x48
+  | x69 => x49
+  | x6a => x4a
+  | x6b => x4b
+  | x6c => x4c
+  | x6d => x4d
+  | x6e => x4e
+  | x6f => x4f
+  | x70 => x50
+  | x71 => x51
+  | x72 => x52
+  | x73 => x53
+  | x74 => x54
+  | x75 => x55
+  | x76 => x56
+  | x77 => x57
+  | x78 => x58
+  | x79 => x59
+  | x7a => x5a
+  | _ => b
+  end.
+
+Definition byte_is_lower (b : byte) : bool :=
+  match b with
+  | x61 | x62 | x63 | x64 | x65 | x66 | x67 | x68 | x69 | x6a | x6b | x6c
+  | x6d | x6e | x6f | x70 | x71 | x72 | x73 | x74 | x75 | x76 | x77 | x78
+  | x79 | x7a => true
+  | _ => false
+  end.
+
+Definition byte_is_upper (b : byte) : bool :=
+  match b with
+  | x41 | x42 | x43 | x44 | x45 | x46 | x47 | x48 | x49 | x4a | x4b | x4c
+  | x4d | x4e | x4f | x50 | x51 | x52 | x53 | x54 | x55 | x56 | x57 | x58
+  | x59 | x5a => true
+  | _ => false
+  end.
+
+(* Capitalize the first letter; names not starting with an ASCII letter
+   get a "C" prefix instead (still a valid uppercase-led identifier). *)
+Definition fs_cap (s : string) : string :=
+  match s with
+  | String.EmptyString => "C"
+  | String.String b rest =>
+    if byte_is_lower b then String.String (byte_upper b) rest
+    else if byte_is_upper b then s
+    else "C" ++ s
+  end.
+
+Definition byte_is_digit (b : byte) : bool :=
+  match b with
+  | x30 | x31 | x32 | x33 | x34 | x35 | x36 | x37 | x38 | x39 => true
+  | _ => false
+  end.
+
+(* The [default_module] prefix comes from the input *file name*, which
+   the pipeline's name sanitizer never sees (it only rewrites names
+   inside the AST).  Rewrite anything outside [A-Za-z0-9_] to [_] and
+   guard against a leading digit, so a file called [over-under.ast]
+   still yields valid identifiers. *)
+Fixpoint sanitize_module_chars (s : string) : string :=
+  match s with
+  | String.EmptyString => String.EmptyString
+  | String.String b rest =>
+    let keep := orb (orb (byte_is_lower b) (byte_is_upper b))
+                    (orb (byte_is_digit b) (Byte.eqb b x5f)) in
+    String.String (if keep then b else x5f) (sanitize_module_chars rest)
+  end.
+
+Definition fs_module_name (s : string) : string :=
+  let s' := sanitize_module_chars s in
+  match s' with
+  | String.EmptyString => String.EmptyString (* empty means "no prefix" in [full_name] *)
+  | String.String b _ => if byte_is_digit b then "M" ++ s' else s'
+  end.
+
+(* Inductive type names come from [PrintLean.pick_ind_name], which
+   suffixes them with [_], so they never collide with F# keywords or
+   built-in types (e.g. [bool], [option], [unit]).  Type names keep their
+   source casing — F# accepts lowercase type names — but union cases
+   must be capitalized, hence [fs_cap] on ctors. *)
+Definition ctor_name (s : ident) : string := fs_cap s ++ "_".
+
+(* [obj_tuple 3 = "obj * obj * obj"] — the payload type of an n-field
+   union case. *)
+Fixpoint obj_tuple (n : nat) : string :=
+  match n with
+  | O => ""
+  | S O => "obj"
+  | S k => "obj * " ++ obj_tuple k
+  end.
+
+(* Format a parameter list: ["n_0"; "m_1"] ↦ "(n_0: obj) (m_1: obj)". *)
+Definition fs_params (ids : list ident) : string :=
+  concat_with " " (List.map (fun id => "(" ++ id ++ ": obj)") ids).
+
+(* ----- Constructor names ------------------------------------------ *)
+
+(* Constructor display names of one inductive, with positional
+   disambiguation: [fs_cap] can identify source names differing only in
+   leading-letter case ([foo]/[Foo] both map to [Foo_]); a later
+   duplicate gets its constructor index appended so the union still
+   compiles.  Declaration and use sites both go through this list, so
+   they always agree. *)
+Definition ctor_display_names (oib : EAst.one_inductive_body) : list string :=
+  let base := List.map (fun cb => ctor_name (cb.(EAst.cstr_name))) oib.(EAst.ind_ctors) in
+  (fix dedup (seen : list string) (i : nat) (l : list string) : list string :=
+     match l with
+     | [] => []
+     | n :: rest =>
+       let n' := if List.existsb (String.eqb n) seen then n ++ string_of_nat i else n in
+       n' :: dedup (n :: seen) (S i) rest
+     end) [] 0 base.
+
+Definition lookup_ctor_name (env : ind_env) (ind : inductive) (n : nat) : string :=
+  match lookup_oib env ind with
+  | Some oib =>
+    match nth_error (ctor_display_names oib) n with
+    | Some s => s
+    | None => "MissingCtor_" ++ string_of_nat n
+    end
+  | None => "MissingInd_" ++ string_of_nat n
+  end.
+
+(* ----- Inductive declaration printer (context-free) --------------- *)
+
+Definition print_ctor (nm : string) (nargs : nat) : string :=
+  "| " ++ nm
+    ++ (match nargs with O => "" | _ => " of " ++ obj_tuple nargs end).
+
+(* One union per one_inductive_body, on a single line.
+   [<RequireQualifiedAccess>] keeps same-named cases of different
+   unions apart (every use site is printed qualified anyway).  An
+   inductive with no constructors is elided: F# forbids empty unions,
+   and such a type can never be referenced by a well-formed program
+   (its only use sites are empty matches, printed without a cast). *)
+Definition print_one_inductive (ind_dups : list string) (mp : modpath)
+                               (oib : EAst.one_inductive_body) : string :=
+  let nm := PrintLean.pick_ind_name ind_dups mp (oib.(EAst.ind_name)) in
+  match oib.(EAst.ind_ctors) with
+  | [] =>
+    "// empty inductive " ++ nm ++ " elided (F# forbids empty unions; never referenced)"
+  | ctors =>
+    "[<RequireQualifiedAccess>]" ++ nl
+      ++ "type " ++ nm ++ " = "
+      ++ concat_with " "
+           (List.map (fun '(cn, cb) => print_ctor cn (cb.(EAst.cstr_nargs)))
+              (List.combine (ctor_display_names oib) ctors))
+  end.
+
+(* Mutual inductives need no [and]-chaining: every field is [obj], so
+   the printed unions never refer to each other. *)
+Definition print_inductive (ind_dups : list string) (kn : kername)
+                           (mib : EAst.mutual_inductive_body) : string :=
+  concat_with nl (List.map (print_one_inductive ind_dups (fst kn)) mib.(EAst.ind_bodies)).
+
+(* ----- Arity bookkeeping ------------------------------------------ *)
+
+(* Arity of every top-level function — the printer needs it to decide
+   between a direct (uncurried) call and a curried wrapper. *)
+Definition fun_arities (decls : list (kername * ldecl)) : list (kername * nat) :=
+  List.concat (List.map (fun (x : kername * ldecl) =>
+    let '(kn, d) := x in
+    match d with
+    | LDef f => [(kn, List.length f.(lfun_params))]
+    | LRecGroup fs => List.map (fun '(kn', f) => (kn', List.length f.(lfun_params))) fs
+    | LInductive _ => []
+    end) decls).
+
+(* Locally bound function names (nested [let rec]s from [LFix]) and
+   their arities.  Plain [obj]-typed locals are absent from the map. *)
+Definition lookup_local (id : ident) (locals : list (ident * nat)) : option nat :=
+  match List.find (fun '(id', _) => String.eqb id' id) locals with
+  | Some (_, n) => Some n
+  | None => None
+  end.
+
+(* Drop shadowed names when entering binders.  The compiler suffixes
+   every local with its binding depth, so real shadowing cannot occur —
+   this is robustness only. *)
+Definition remove_locals (ids : list ident) (locals : list (ident * nat)) : list (ident * nat) :=
+  List.filter (fun '(id, _) => negb (List.existsb (String.eqb id) ids)) locals.
+
+(* Split a term into its leading lambdas and residual body. *)
+Fixpoint peel_flams (t : lterm) : list ident * lterm :=
+  match t with
+  | LLam id b => let '(ids, body) := peel_flams b in (id :: ids, body)
+  | _ => ([], t)
+  end.
+
+(* ----- Call-shape helpers ------------------------------------------ *)
+
+(* Apply an [obj]-typed head to already-printed argument strings, one
+   generic application at a time. *)
+Definition wrap_applies (s : string) (args : list string) : string :=
+  List.fold_left (fun acc a => "(PG.apply " ++ acc ++ " " ++ a ++ ")") args s.
+
+(* Turn an n-ary definition into an [obj]: a 1-ary function is already
+   an [FSharpFunc<obj,obj>], so it boxes directly; n≥2 needs a chain of
+   unary closures.  The [box] between lambda levels is load-bearing —
+   without it fsc fuses the nest into an [OptimizedClosures.FSharpFunc]
+   whose downcast to [obj -> obj] fails at runtime.  The wrapper
+   variables [c0..] cannot collide with program locals (those all carry
+   a [_<depth>] suffix). *)
+Definition curry_wrapper (name : string) (n : nat) : string :=
+  match n with
+  | O => name (* unreachable: arity-0 heads never reach the wrapper *)
+  | S O => "(box " ++ name ++ ")"
+  | _ =>
+    let ids :=
+      let fix aux (i max : nat) : list string :=
+        match i with
+        | O => []
+        | S k => ("c" ++ string_of_nat (max - i)) :: aux k max
+        end in
+      aux n n in
+    let call := "(" ++ name ++ " " ++ concat_with " " ids ++ ")" in
+    let fix wrap (rest : list string) : string :=
+      match rest with
+      | [] => call
+      | id :: rest' => "(box (fun (" ++ id ++ ": obj) -> " ++ wrap rest' ++ "))"
+      end in
+    wrap ids
+  end.
+
+(* Finish printing a spine whose head is a function of known [arity]
+   with [pending] printed argument strings:
+   - arity 0: the head is already a value (nullary rec-group member);
+     apply generically.
+   - saturated: direct call on the first [arity] arguments, generic
+     applies for the rest.
+   - under-applied: curried wrapper, with the available arguments still
+     applied NOW via [PG.apply] (preserving call-by-value strictness). *)
+Definition finish_call (name : string) (arity : nat) (pending : list string) : string :=
+  match arity with
+  | O => wrap_applies name pending
+  | _ =>
+    if Nat.leb arity (List.length pending) then
+      wrap_applies
+        ("(" ++ name ++ " " ++ concat_with " " (List.firstn arity pending) ++ ")")
+        (List.skipn arity pending)
+    else
+      wrap_applies (curry_wrapper name arity) pending
+  end.
+
+(* ----- Term / declaration printer --------------------------------- *)
+
+Section Printer.
+  (* Invariant context, shared by every printer below.  [dups] is the set
+     of base names that collide in this program (see [full_name]);
+     [arities] maps every top-level function to its parameter count. *)
+  Context (dups : list string) (full_names : bool) (default_module : string)
+          (env : ind_env) (thunks : list kername) (arities : list (kername * nat))
+          (ind_dups : list string).
+
+  (* Nullary top-level constants are emitted as [Lazy<obj>] (see
+     [print_ffun]); references to them must force via [.Force()]. *)
+  Definition is_thunk (kn : kername) : bool :=
+    List.existsb (fun k => eq_kername k kn) thunks.
+
+  Definition lookup_arity (kn : kername) : option nat :=
+    match List.find (fun '(kn', _) => eq_kername kn' kn) arities with
+    | Some (_, n) => Some n
+    | None => None
+    end.
+
+  (* Accumulator ("spine") printer: [pending] carries the printed
+     argument strings of the application spine enclosing [t], leftmost
+     argument first.  Walking [LApp] nodes into the accumulator keeps
+     the recursion structural while letting the spine's head see all
+     its arguments at once and choose the call shape ([finish_call]).
+     Every returned string is a complete [obj]-typed F# expression. *)
+  Fixpoint print_fterm_k (locals : list (ident * nat)) (t : lterm) (pending : list string) {struct t} : string :=
+    match t with
+    | LApp f x =>
+      print_fterm_k locals f (print_fterm_k locals x [] :: pending)
+    | LVar id =>
+      match lookup_local id locals with
+      | Some n => finish_call id n pending
+      | None => wrap_applies id pending
+      end
+    | LConst kn =>
+      let nm := pick_fun_name dups full_names default_module kn in
+      if is_thunk kn then wrap_applies ("(" ++ nm ++ ".Force())") pending
+      else
+        match lookup_arity kn with
+        | Some n => finish_call nm n pending
+        (* Unknown arity (axiom / missing decl): print the bare name and
+           let the F# compiler reject it, matching the Lean backend. *)
+        | None => wrap_applies nm pending
+        end
+    | LCtor ind idx args =>
+      let cn := lookup_ctor_name env ind idx in
+      let ind_n := lookup_ind_name ind_dups env ind in
+      let fix print_args (ts : list lterm) : list string :=
+        match ts with
+        | [] => []
+        | a :: rest => print_fterm_k locals a [] :: print_args rest
+        end in
+      let head :=
+        match args with
+        | [] => "(box " ++ ind_n ++ "." ++ cn ++ ")"
+        | _ =>
+          "(box (" ++ ind_n ++ "." ++ cn ++ " ("
+            ++ concat_with ", " (print_args args) ++ ")))"
+        end in
+      wrap_applies head pending
+    | LProj p discr =>
+      let ind := p.(proj_ind) in
+      let arg := p.(proj_arg) in
+      let cn := lookup_ctor_name env ind 0 in
+      let ind_n := lookup_ind_name ind_dups env ind in
+      let nargs :=
+        match lookup_oib env ind with
+        | Some oib =>
+          match nth_error oib.(EAst.ind_ctors) 0 with
+          | Some cb => cb.(EAst.cstr_nargs)
+          | None => 0
+          end
+        | None => 0
+        end in
+      let mk_pat (i : nat) :=
+        if Nat.eqb i arg then "x" else "_" in
+      let pat_args :=
+        let fix aux (i : nat) :=
+          match i with
+          | O => []
+          | S k => mk_pat (nargs - i) :: aux k
+          end in
+        aux nargs in
+      let pat :=
+        match pat_args with
+        | [] => ""
+        | [p1] => " " ++ p1
+        | _ => " (" ++ concat_with ", " pat_args ++ ")"
+        end in
+      wrap_applies
+        ("(match (" ++ print_fterm_k locals discr [] ++ " :?> " ++ ind_n
+          ++ ") with | " ++ ind_n ++ "." ++ cn ++ pat ++ " -> x)")
+        pending
+    | LLam id body =>
+      wrap_applies
+        ("(box (fun (" ++ id ++ ": obj) -> "
+          ++ print_fterm_k (remove_locals [id] locals) body [] ++ "))")
+        pending
+    | LLet id b body =>
+      wrap_applies
+        ("(let " ++ id ++ " : obj = " ++ print_fterm_k locals b [] ++ " in "
+          ++ print_fterm_k (remove_locals [id] locals) body [] ++ ")")
+        pending
+    | LCase discr ind brs =>
+      let ind_n := lookup_ind_name ind_dups env ind in
+      let print_br (i : nat) (br : list ident * lterm) : string :=
+        let '(ids, body) := br in
+        let cn := lookup_ctor_name env ind i in
+        let pat :=
+          match ids with
+          | [] => ""
+          | [x1] => " " ++ x1
+          | _ => " (" ++ concat_with ", " ids ++ ")"
+          end in
+        "| " ++ ind_n ++ "." ++ cn ++ pat ++ " -> "
+          ++ print_fterm_k (remove_locals ids locals) body [] in
+      let fix print_brs (i : nat) (bs : list (list ident * lterm)) : list string :=
+        match bs with
+        | [] => []
+        | b :: rest => print_br i b :: print_brs (S i) rest
+        end in
+      match brs with
+      | [] =>
+        (* Match on an empty inductive (e.g. an [Empty]/[False] left
+           over from erasure).  We still evaluate the discriminant for
+           its effects, then produce the placeholder [box ()] — these
+           expressions are unreachable in well-typed programs. *)
+        wrap_applies
+          ("(let _ = " ++ print_fterm_k locals discr [] ++ " in box ())")
+          pending
+      | _ =>
+        wrap_applies
+          ("(match (" ++ print_fterm_k locals discr [] ++ " :?> " ++ ind_n
+            ++ ") with " ++ concat_with " " (print_brs 0 brs) ++ ")")
+          pending
+      end
+    | LFix entries idx =>
+      (* Nested fixpoint.  Only the singleton case has a legal one-line
+         F# form ([let rec f (x: obj) … : obj = body in …]); a mutual
+         group would need an [and] binding, which F#'s light syntax
+         rejects on a single line, and multi-line blocks at a fixed
+         column are offside errors once nested.  Mutual nested fixes
+         are not produced by any current frontend (the Lean backend
+         panics on them too), so we fail loudly rather than miscompile.
+         The single entry's leading lambdas become real parameters; the
+         fix name is then a known-arity head (direct call when the
+         enclosing spine saturates it, curried wrapper otherwise). *)
+      match entries with
+      | [(nm, body)] =>
+        let ps := fst (peel_flams body) in
+        match ps with
+        | [] =>
+          (* A parameterless entry would need value recursion ([let rec
+             x = … x …]), which .NET cannot express eagerly.  No
+             frontend produces it; fail loudly at runtime. *)
+          wrap_applies "(failwith ""peregrine: value-recursive fix"" : obj)" pending
+        | _ =>
+          let locals' := (nm, List.length ps) :: remove_locals (nm :: ps) locals in
+          let fix print_after_lams (u : lterm) : string :=
+            match u with
+            | LLam _ b => print_after_lams b
+            | _ => print_fterm_k locals' u []
+            end in
+          "(let rec " ++ nm ++ " " ++ fs_params ps ++ " : obj = "
+            ++ print_after_lams body
+            ++ " in " ++ finish_call nm (List.length ps) pending ++ ")"
+        end
+      | _ =>
+        wrap_applies "(failwith ""peregrine: mutual nested fix unsupported"" : obj)" pending
+      end
+    | LPanic _ =>
+      (* Stand-in [obj] for computationally irrelevant terms (tBox
+         replacements).  Must be a benign value — erased argument slots
+         are materialized eagerly under call-by-value, so a [failwith]
+         here would abort correct programs.  [PG.boxv] also survives
+         head position ([box x ~> box]), unlike a bare [box ()]/null. *)
+      wrap_applies "PG.boxv" pending
+    end.
+
+  (* Nullary standalone constants become memoized [Lazy<obj>]: a plain
+     nullary [let] runs inside the module's static initializer, where
+     deep recursion overflows the small startup stack and evaluation is
+     load-order dependent.  As a [Lazy<obj>] the body runs on first
+     [.Force()] — inside [main] — while preserving evaluate-once
+     sharing.  [leader] selects [let rec] vs [and] within a rec group;
+     a standalone [LDef] is always a leader.  Leaders use [let rec]
+     even when non-recursive: self-references are [LConst]s, and F#
+     emits no warning for an unused [rec]. *)
+  Definition print_ffun (leader : bool) (name : string) (f : lfun) : string :=
+    match f.(lfun_params) with
+    | [] =>
+      if leader then
+        "let " ++ name ++ " : Lazy<obj> = lazy ("
+          ++ print_fterm_k [] f.(lfun_body) [] ++ ")"
+      else
+        (* Nullary rec-group member (theoretical): a value binding in a
+           [let rec] chain — checked-at-runtime initialization, covered
+           by [#nowarn "40"]. *)
+        "and " ++ name ++ " : obj = " ++ print_fterm_k [] f.(lfun_body) []
+    | params =>
+      (if leader then "let rec " else "and ") ++ name ++ " " ++ fs_params params
+        ++ " : obj = " ++ print_fterm_k [] f.(lfun_body) []
+    end.
+
+  Definition print_decl (kn : kername) (d : ldecl) : string :=
+    match d with
+    | LInductive mib => print_inductive ind_dups kn mib
+    | LDef f => print_ffun true (pick_fun_name dups full_names default_module kn) f
+    | LRecGroup fs =>
+      (* Module-level [and] continues the leader's [let rec] at column 0. *)
+      match fs with
+      | [] => ""
+      | (kn1, f1) :: rest =>
+        concat_with nl
+          (print_ffun true (pick_fun_name dups full_names default_module kn1) f1
+            :: List.map (fun '(kn', f) =>
+                 print_ffun false (pick_fun_name dups full_names default_module kn') f) rest)
+      end
+    end.
+
+End Printer.
+
+(* Warnings silenced: 25/26 (incomplete/redundant matches — single-ctor
+   projections), 40 (checked value recursion), 49 (uppercase pattern
+   variables), 58 (indentation), 64 (construct makes code less generic). *)
+Definition preamble (ns : string) : string :=
+  "module " ++ ns ++ nl
+    ++ "// Generated by Peregrine (F# backend). Self-contained." ++ nl
+    ++ "// Build in Release (--tailcalls+): Debug/fsi disable tail calls and may overflow on deep recursion." ++ nl
+    ++ "#nowarn ""25""" ++ nl
+    ++ "#nowarn ""26""" ++ nl
+    ++ "#nowarn ""40""" ++ nl
+    ++ "#nowarn ""49""" ++ nl
+    ++ "#nowarn ""58""" ++ nl
+    ++ "#nowarn ""64""" ++ nl
+    ++ "module PG =" ++ nl
+    ++ "  let inline apply (f: obj) (x: obj) : obj = (f :?> (obj -> obj)) x" ++ nl
+    ++ "  // The erased-term placeholder: a box that absorbs any application" ++ nl
+    ++ "  // (the lambda-box rule is [box x ~> box]), so erased values are" ++ nl
+    ++ "  // safe even in head position." ++ nl
+    ++ "  let rec boxfn (_: obj) : obj = box boxfn" ++ nl
+    ++ "  let boxv : obj = box boxfn" ++ nl
+    ++ nl.
+
+(* Knames of nullary standalone [LDef]s — the constants emitted as
+   [Lazy<obj>] and therefore referenced via [.Force()]. *)
+Definition thunk_knames (decls : list (kername * ldecl)) : list kername :=
+  Utils.filter_map (fun (x : kername * ldecl) =>
+    let '(kn, d) := x in
+    match d with
+    | LDef f => match f.(lfun_params) with [] => Some kn | _ => None end
+    | _ => None
+    end
+  ) decls.
+
+Definition print_program (full_names : bool) (default_module : string) (ns : string) (p : lprogram) : string :=
+  let default_module := fs_module_name default_module in
+  let env := build_ind_env p.(ldecls) in
+  let thunks := thunk_knames p.(ldecls) in
+  let arities := fun_arities p.(ldecls) in
+  let dups := dup_base_names p.(ldecls) in
+  let ind_dups := dup_ind_names env in
+  preamble ns
+    ++ concat_with (nl ++ nl)
+         (List.map (fun '(kn, d) =>
+            print_decl dups full_names default_module env thunks arities ind_dups kn d) p.(ldecls))
+    ++ nl.

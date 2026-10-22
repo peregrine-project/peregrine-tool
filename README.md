@@ -43,6 +43,7 @@ Valid values for `TARGETLANGUAGE` are:
 * `rust`, `rust-gmp`, `rust-i64`, `rust-mixed`, `rust-mixed-narrow`: see [backends.md](/doc/backends.md#numeric-representations)
 * `elm`
 * `lean`
+* `fsharp` (experimental)
 
 For detailed usage on all commands and flags see [cmds.md](/doc/cmds.md) or use `peregrine --help`.
 
@@ -68,5 +69,6 @@ Peregrine supports extraction to the following programming languages
 * CakeML
 * Elm
 * Lean
+* F# (experimental)
 
 For more information on the backends see [backends.md](/doc/backends.md).

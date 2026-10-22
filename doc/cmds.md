@@ -25,6 +25,7 @@ Valid values for `BACKEND` are:
 * `rust`, `rust-gmp`, `rust-i64`, `rust-mixed`, `rust-mixed-narrow`: Rust with different representations of `nat`, `positive`, `N` and `Z`; see [backends.md](backends.md#numeric-representations)
 * `elm`
 * `lean`
+* `fsharp` (experimental)
 * `ast`
 * `eval`
 
@@ -36,7 +37,7 @@ The backend commands other than `ast` take these flags, which select optional mi
 * `--specialize-instances`: specialize functions at call sites that pass a statically known dictionary (record) value
 * `--cse`: hoist repeated closed subterms into a `let`
 
-`--specialize-instances` and `--cse` are off by default and act only on untyped targets (`wasm`, `c`, `llvm`, `ocaml`, `cakeml`, `lean`, `eval`); the typed pipeline of the Rust and Elm commands does not run them. Their correctness rests on axioms ([middleend.md](middleend.md#optional-passes)).
+`--specialize-instances` and `--cse` are off by default and act only on untyped targets (`wasm`, `c`, `llvm`, `ocaml`, `cakeml`, `lean`, `fsharp`, `eval`); the typed pipeline of the Rust and Elm commands does not run them. Their correctness rests on axioms ([middleend.md](middleend.md#optional-passes)).
 
 ## `validate` command
 ```

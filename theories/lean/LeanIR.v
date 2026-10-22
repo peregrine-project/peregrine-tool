@@ -17,6 +17,8 @@ Local Open Scope bs_scope.
 (*  fixpoints are lambda-lifted to top-level [LDef]/[LRecGroup]       *)
 (*  declarations during compilation, so the IR only carries named     *)
 (*  top-level functions.                                              *)
+(*                                                                    *)
+(*  The F# backend (experimental) shares this IR and [LeanCompile].   *)
 (* ------------------------------------------------------------------ *)
 
 Inductive lterm : Set :=

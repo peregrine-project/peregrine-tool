@@ -223,6 +223,21 @@ let lean_cmd =
   let info = Cmd.info "lean" ~doc ~sdocs ~man in
   Cmd.v info Term.(const compile_lean $ copts_t $ erasure_opts_t $ program_file)
 
+let fsharp_cmd =
+  let program_file =
+    let doc = "lambda box program" in
+    Arg.(required & pos 0 (some file) None & info []
+           ~docv:"FILE" ~doc)
+  in
+  let doc = "Compile lambda box program to F# (experimental)" in
+  let man = [
+    `S Manpage.s_description;
+    `P "";
+    `Blocks help_secs; ]
+  in
+  let info = Cmd.info "fsharp" ~doc ~sdocs ~man in
+  Cmd.v info Term.(const compile_fsharp $ copts_t $ erasure_opts_t $ program_file)
+
 let c_cmd =
   let program_file =
     let doc = "lambda box program" in
@@ -335,6 +350,6 @@ let main_cmd =
   let man = help_secs in
   let info = Cmd.info "peregrine" ~version ~doc ~sdocs ~man ~exits in
   let default = Term.(ret (const (fun _ -> `Help (`Pager, None)) $ copts_t)) in
-  Cmd.group info ~default (compile_cmd :: List.map rust_cmd rust_verbs @ [elm_cmd; ocaml_cmd; cakeml_cmd; lean_cmd; c_cmd; wasm_cmd; llvm_cmd; eval_cmd; ast_cmd; validate_cmd; help_cmd])
+  Cmd.group info ~default (compile_cmd :: List.map rust_cmd rust_verbs @ [elm_cmd; ocaml_cmd; cakeml_cmd; lean_cmd; fsharp_cmd; c_cmd; wasm_cmd; llvm_cmd; eval_cmd; ast_cmd; validate_cmd; help_cmd])
 
 let () = exit (Cmd.eval main_cmd)

@@ -161,6 +161,28 @@ Proof.
   reflexivity.
 Qed.
 
+Instance Complete_fsharp_config : CompleteClass fsharp_config.
+Proof.
+  unfold CompleteClass, Complete.
+  intros l o.
+  cbn -[Deserialize_bool Deserialize_ident].
+  simpl_bytes.
+  rewrite 2!complete_class.
+  destruct o; cbn.
+  reflexivity.
+Qed.
+
+Instance Complete_fsharp_config' : CompleteClass fsharp_config'.
+Proof.
+  unfold CompleteClass, Complete.
+  intros l o.
+  cbn -[Deserialize_bool Deserialize_ident].
+  simpl_bytes.
+  rewrite 2!complete_class.
+  destruct o; cbn.
+  reflexivity.
+Qed.
+
 Instance Complete_eval_config : CompleteClass eval_config.
 Proof.
   unfold CompleteClass, Complete.
@@ -300,6 +322,10 @@ Proof.
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
+  - cbn -[Deserialize_fsharp_config].
+    simpl_bytes.
+    rewrite complete_class.
+    reflexivity.
   - cbn -[Deserialize_eval_config].
     simpl_bytes.
     rewrite complete_class.
@@ -344,6 +370,10 @@ Proof.
     rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_lean_config'].
+    simpl_bytes.
+    rewrite complete_class.
+    reflexivity.
+  - cbn -[Deserialize_fsharp_config'].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
