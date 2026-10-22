@@ -8,7 +8,7 @@ From MetaRocq.Erasure Require EAstUtils ErasureFunction ErasureCorrectness EPret
 From MetaRocq.Erasure Require Import EProgram EInlining EBeta EWellformed.
 From MetaRocq.ErasurePlugin Require Import ETransform Erasure.
 From MetaRocq.Erasure Require EImplementBox.
-From Peregrine Require EImplementLazyForce.
+From MetaRocq.Erasure Require EImplementLazyForce.
 From Peregrine Require Import EInstanceSpecialize.
 From Peregrine Require Import ECommonSubexpr.
 From Malfunction Require Pipeline.
@@ -132,6 +132,58 @@ Proof.
 Qed.
 
 
+(* [efl_coind_to_ind] only drops [tCoFix], so its well-formedness implies
+   the one of [efl]. *)
+Definition coind_to_ind_wf env t l :
+  let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
+    (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params all_env_flags)) in
+  wellformed (efl_coind_to_ind efl) env l t ->
+  wellformed efl env l t.
+Proof.
+  cbn.
+  generalize dependent l.
+  induction t using EInduction.term_forall_list_ind; auto; try discriminate; intro l'; try (simpl; rtoProp; solve_all).
+  all: try (unfold wf_fix in *; rtoProp; solve_all).
+  all: inversion X; auto; subst; destruct X0;
+    cbn in *; unfold EPrimitive.test_array_model in *; rtoProp; solve_all.
+Qed.
+
+Definition coind_to_ind_wf_glob env :
+  let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
+    (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params all_env_flags)) in
+  wf_glob (efl_coind_to_ind efl) env ->
+  wf_glob efl env.
+Proof.
+  cbn.
+  induction env.
+  - constructor.
+  - destruct a. cbn.
+    intros.
+    inversion H; subst.
+    constructor; auto.
+    destruct g.
+    + destruct c, cst_body0; auto.
+      apply coind_to_ind_wf. assumption.
+    + cbn.
+      assumption.
+Qed.
+
+Definition coind_to_ind_wf_eprogram p :
+  let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
+    (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params all_env_flags)) in
+  wf_eprogram (efl_coind_to_ind efl) p ->
+  wf_eprogram efl p.
+Proof.
+  intros.
+  destruct H.
+  split.
+  - apply coind_to_ind_wf_glob.
+    assumption.
+  - apply coind_to_ind_wf.
+    assumption.
+Qed.
+
+
 Program Definition extra_unsafe_transforms (spec_inst cse impl_box impl_lazy_force : bool) :=
   let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
   (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params EWellformed.all_env_flags)) in
@@ -173,25 +225,25 @@ Program Definition untyped_transform_pipeline {guard : abstract_guard_impl}
    (* Target evaluation, with no more cases on prop, unguarded fixpoints, constructors as block *)
    (EProgram.eval_eprogram final_wcbv_flags) :=
   rebuild_wf_env_transform_mapping true true ▷
-  verified_lambdabox_pipeline_mapping ▷
+  verified_lambdabox_pipeline_mapping econf ▷
   optional_unsafe_transforms econf ▷
   extra_unsafe_transforms spec_inst cse impl_box impl_lazy_force.
 Next Obligation.
   cbn. intros.
   destruct H as [? [? ?]].
-  destruct enable_unsafe as [[] ? ? ?]=> //.
-  split; auto.
-  split; auto.
+  destruct econf as [[[] ? ? ?] ? ? [] ?]=> //; cbn.
+  all: split; auto.
+  all: split; auto.
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct enable_unsafe as [[] ? ? ?]=> //.
+  destruct econf as [[[] ? ? ?] ? ? [] ?]=> //.
 Qed.
 Final Obligation.
   cbn. intros.
-  destruct enable_unsafe.
-  cbn in H.
-  destruct betared, spec_inst, cse, impl_box, impl_lazy_force; auto.
+  destruct econf as [[[] ? ? []] ? ? [] ?]; cbn in *;
+    try apply coind_to_ind_wf_eprogram in H;
+    destruct spec_inst, cse, impl_box, impl_lazy_force; auto.
 Qed.
 
 
@@ -384,9 +436,9 @@ Next Obligation.
 Qed.
 Final Obligation.
   cbn. intros.
-  destruct enable_unsafe.
-  cbn in H.
-  destruct betared, spec_inst, cse, impl_box, impl_lazy_force; auto.
+  destruct econf as [[[] ? ? []] ? ? [] ?]; cbn in *;
+    try apply coind_to_ind_wf_eprogram in H;
+    destruct spec_inst, cse, impl_box, impl_lazy_force; auto.
 Qed.
 
 
