@@ -4,7 +4,7 @@ To install Peregrine dependencies either [opam](http://opam.ocaml.org/) or [Nix]
 
 To build the Peregrine Haskell libary GHC and cabal are required.
 
-Additionally, Lean, Node.JS, cargo, rustc, and gcc are required to run the test suite.
+Additionally, Lean, Node.JS, cargo, rustc, and gcc are required to run the test suite; the .NET SDK is needed for the tests of the experimental F# backend, which are skipped without it.
 
 ## Getting sources
 To checkout the Peregrine source code:

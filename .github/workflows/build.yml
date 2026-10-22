@@ -193,6 +193,13 @@ jobs:
           lint: false
           lake-package-directory: "test/lean/"
 
+      # For the tests of the F# backend (experimental), which build all the
+      # generated programs as one .NET project
+      - name: Set up .NET (F# backend, experimental)
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Test extraction
         run: |
           echo "::group::Running tests"

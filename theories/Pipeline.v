@@ -11,6 +11,7 @@ From Peregrine Require OCamlBackend.
 From Peregrine Require CBackend.
 From Peregrine Require WasmBackend.
 From Peregrine Require LeanBackend.
+From Peregrine Require FSharpBackend.
 From Peregrine Require EvalBackend.
 From Peregrine Require ASTBackend.
 From Peregrine Require NameSanitize.
@@ -73,7 +74,7 @@ Definition check_wf (p : PAst) : result' unit :=
 Definition needs_typed (c : config) : bool :=
   match c.(backend_opts) with
   | Rust _ | Elm _ => true
-  | C _ | Wasm _ | OCaml _ | CakeML _ | Lean _ | Eval _ => false
+  | C _ | Wasm _ | OCaml _ | CakeML _ | Lean _ | FSharp _ | Eval _ => false
   | AST c =>
     match c.(ast_type) with
     | LambdaBoxTyped => true
@@ -134,6 +135,7 @@ Inductive extracted_program :=
 | OCamlProgram : (list string * string) -> extracted_program
 | CakeMLProgram : (list string * string) -> extracted_program
 | LeanProgram : string -> extracted_program
+| FSharpProgram : string -> extracted_program
 | EvalProgram : string -> extracted_program
 | ASTProgram : string -> extracted_program.
 
@@ -184,6 +186,16 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       f
       p';;
     Ok (CakeMLProgram res)
+
+  | FSharp opts =>
+    p' <- PAst_to_EAst p;;
+    res <- FSharpBackend.extract_fsharp
+      const_remaps
+      custom_attr
+      opts
+      f
+      p';;
+    Ok (FSharpProgram res)
 
   | C opts =>
     p' <- PAst_to_EAst p;;

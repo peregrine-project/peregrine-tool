@@ -20,6 +20,8 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Rust, "i64", "--dearg-ctors false --dearg-consts false", false, "rust-i64"],
     [Lang.CakeML, "", ""],
     [Lang.Lean, "", ""],
+    // The F# backend is experimental
+    [Lang.FSharp, "experimental", ""],
     // The two optional middle-end passes, which only the untyped pipeline runs
     [Lang.OCaml, "passes", "--specialize-instances true --cse true"]
 ];
