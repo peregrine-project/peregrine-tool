@@ -55,6 +55,14 @@ jobs:
         #if: ${{ !steps.opam-cache.outputs.cache-hit }}
         run: |
           opam repo add rocq-released https://rocq-prover.org/opam/released
+          # CertiRocq up to 6b4ab870 installs CertiRocq/extraction/extraction.v,
+          # which CompCert's build loads in place of its own, so coq-compcert
+          # cannot be rebuilt while it is installed. A switch restored from an
+          # older lock file may have to rebuild coq-compcert: remove CertiRocq
+          # first.
+          if [ "${{ steps.opam-cache.outputs.cache-hit }}" != 'true' ] && opam list -i --silent rocq-certirocq; then
+            opam remove -y rocq-certirocq
+          fi
           opam install --deps-only -j${{ env.JOBS }} .github/rocq-peregrine.opam.locked
           opam clean -a -c -s --logs
 
