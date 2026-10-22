@@ -40,10 +40,12 @@ pin-depends: [
   #   ["rocq-certirocq.dev" "git+https://github.com/CertiRocq/certirocq.git#<merge commit>"]
   ["rocq-certirocq.dev" "git+https://github.com/barabbs/certirocq.git#6b4ab87014ccdddf69ea4a9278c4974ba671ca2d"]
   ["rocq-vellvm.dev" "git+https://github.com/vellvm/vellvm.git#b63a28a0a36cbae73a454d99a97bb8171568343e"]
-  # TODO: MetaRocq 9.1 snapshot ports, not yet pushed: rocq-verified-extraction
-  # main plus a one-line rename for MetaRocq#1286, and cakeml-backend v0.1.0
-  # adapted like rocq-verified-extraction bb535da.
-  ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/MetaRocq/rocq-verified-extraction.git#16de6e9f67b1085ef519095433f96f8b1067febe"]
+  # TODO: replace by the commit of MetaRocq/rocq-verified-extraction that
+  # merges this one: its rocq-9.1 branch (02b475a) plus the rename of
+  # switch_no_params for MetaRocq#1286, which the 9.1 snapshot needs.
+  ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/barabbs/rocq-verified-extraction.git#16de6e9f67b1085ef519095433f96f8b1067febe"]
+  # cakeml-backend v0.1.0 ported to the MetaRocq 9.1 snapshot (its main,
+  # a5df761, does not build and changes the generated CakeML).
   ["rocq-cakeml-extraction.0.1.0+dev" "git+https://github.com/peregrine-project/cakeml-backend.git#3c47a631d9a6a591e33bcfb72e277844982dd4b0"]
   ["rocq-metarocq-utils.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#c8cd46054518193103c3bb33aa6e15c7f489e72c"]
   ["rocq-metarocq-common.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#c8cd46054518193103c3bb33aa6e15c7f489e72c"]
