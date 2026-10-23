@@ -53,6 +53,9 @@ jobs:
 
       - name: Build dependencies
         #if: ${{ !steps.opam-cache.outputs.cache-hit }}
+        # Fail before the 6 h job limit, so that the next step can show the
+        # logs of the builds still running
+        timeout-minutes: 300
         run: |
           opam repo add rocq-released https://rocq-prover.org/opam/released
           # CertiRocq up to 6b4ab870 installs CertiRocq/extraction/extraction.v,
@@ -65,6 +68,14 @@ jobs:
           fi
           opam install --deps-only -j${{ env.JOBS }} .github/rocq-peregrine.opam.locked
           opam clean -a -c -s --logs
+
+      # opam prints a build log only when the build ends
+      - name: Show the logs of unfinished builds
+        if: failure()
+        run: |
+          for f in ~/.opam/log/*.out; do
+            echo "::group::$f"; tail -n 40 "$f"; echo "::endgroup::"
+          done
 
       # Save here, not at the end of the job: the switch holds the
       # dependencies only (rocq-peregrine is not installed yet), and a run
