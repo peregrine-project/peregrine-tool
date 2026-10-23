@@ -13,6 +13,9 @@ depends: [
   "rocq-core" {= "9.1.1"}
   "rocq-runtime" {= "9.1.1"}
   "rocq-stdlib" {= "9.0.0"}
+  # The version the CertiRocq pin was validated with. Without it, a switch
+  # restored from the cache of an older lock file keeps mathcomp 2.4.0.
+  "rocq-mathcomp-ssreflect" {= "2.5.0"}
   "rocq-certirocq" {= "dev"}
   "rocq-vellvm" {= "dev"}
   "rocq-ceres-bytestring" {= "1.0.0"}
