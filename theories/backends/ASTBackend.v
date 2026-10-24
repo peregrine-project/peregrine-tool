@@ -8,8 +8,6 @@ From Peregrine Require Import Utils.
 From Peregrine Require Import PAst.
 From Peregrine Require Import CertiRocqBackend.
 From Peregrine Require SerializePAst.
-From Peregrine Require SerializeLambdaBoxMut.
-From Peregrine Require SerializeLambdaBoxLocal.
 From Peregrine Require SerializeLambdaANF.
 From MetaRocq.Utils Require Import ResultMonad.
 
@@ -51,34 +49,6 @@ Definition extract_untyped_ast (p : EAst.program)
 Definition extract_typed_ast (p : ExAst.global_env)
                              : result' string :=
   Ok (SerializePAst.string_of_PAst (Typed p None)).
-
-Definition extract_mut_ast (remaps : constant_remappings)
-                           (opts : certirocq_config)
-                           (p : EAst.program)
-                           : result' string :=
-  let config := mk_opts opts in
-  let prs := mk_prims remaps in
-  let (res, _) :=
-    run_pipeline EAst.program _ config p (mut_pipeline prs) in
-  match res with
-  | compM.Ret s =>
-    Ok (@SerializeLambdaBoxMut.string_of_Program _ SerializeLambdaBoxMut.Serialize_Term s)
-  | compM.Err s => Err s
-  end.
-
-Definition extract_local_ast (remaps : constant_remappings)
-                             (opts : certirocq_config)
-                             (p : EAst.program)
-                            : result' string :=
-  let config := mk_opts opts in
-  let prs := mk_prims remaps in
-  let (res, _) :=
-    run_pipeline EAst.program _ config p (local_pipeline prs) in
-  match res with
-  | compM.Ret s =>
-    Ok (SerializeLambdaBoxLocal.string_of_LambdaBoxLocalTerm s)
-  | compM.Err s => Err s
-  end.
 
 
 Definition extract_anf_ast (remaps : constant_remappings)
@@ -126,16 +96,6 @@ Definition extract_ast (remaps : constant_remappings)
   | LambdaBoxTyped =>
     match PAst_to_ExAst p with
     | Ok p => extract_typed_ast p
-    | Err e => Err e
-    end
-  | LambdaBoxMut c =>
-    match PAst_to_EAst p with
-    | Ok p => extract_mut_ast remaps c p
-    | Err e => Err e
-    end
-  | LambdaBoxLocal c =>
-    match PAst_to_EAst p with
-    | Ok p => extract_local_ast remaps c p
     | Err e => Err e
     end
   | LambdaANF c =>

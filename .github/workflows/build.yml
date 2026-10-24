@@ -53,10 +53,41 @@ jobs:
 
       - name: Build dependencies
         #if: ${{ !steps.opam-cache.outputs.cache-hit }}
+        # Fail before the 6 h job limit, so that the next step can show the
+        # logs of the builds still running
+        timeout-minutes: 300
         run: |
           opam repo add rocq-released https://rocq-prover.org/opam/released
+          # CertiRocq up to 6b4ab870 installs CertiRocq/extraction/extraction.v,
+          # which CompCert's build loads in place of its own, so coq-compcert
+          # cannot be rebuilt while it is installed. A switch restored from an
+          # older lock file may have to rebuild coq-compcert: remove CertiRocq
+          # first.
+          if [ "${{ steps.opam-cache.outputs.cache-hit }}" != 'true' ] && opam list -i --silent rocq-certirocq; then
+            opam remove -y rocq-certirocq
+          fi
+          # CertiRocq up to 6b4ab870 builds with a plain `make`: serially, its
+          # theories alone take more than 4 h here. opam drops MAKEFLAGS but
+          # passes GNUMAKEFLAGS. Its bootstrap also needs more than the
+          # default 8 MB of stack.
+          export GNUMAKEFLAGS=-j${{ env.JOBS }}
+          ulimit -Ss "$(ulimit -Hs)"
+          # Its plugin build also writes to /tmp, which the build sandbox of
+          # opam 2.0 mounts read-only: the build then loops forever in
+          # `make plugins`. Mount /tmp read-write.
+          hook=~/.opam/opam-init/hooks/sandbox.sh
+          grep -q '^add_mounts rw /tmp$' $hook || sed -i 's|^add_sys_mounts .* /tmp$|&\nadd_mounts rw /tmp|' $hook
+          grep -n '/tmp' $hook
           opam install --deps-only -j${{ env.JOBS }} .github/rocq-peregrine.opam.locked
           opam clean -a -c -s --logs
+
+      # opam prints a build log only when the build ends
+      - name: Show the logs of unfinished builds
+        if: failure()
+        run: |
+          for f in ~/.opam/log/*.out; do
+            echo "::group::$f"; tail -n 40 "$f"; echo "::endgroup::"
+          done
 
       # Save here, not at the end of the job: the switch holds the
       # dependencies only (rocq-peregrine is not installed yet), and a run
@@ -193,6 +224,10 @@ jobs:
           lint: false
           lake-package-directory: "test/lean/"
 
+      # The LLVM backend prints opaque pointers (`ptr`), which the default
+      # clang of ubuntu-22.04 (14) does not parse
+      - name: Set up clang for the LLVM tests
+        run: sudo apt-get install -y clang-15
       # For the tests of the F# backend (experimental), which build all the
       # generated programs as one .NET project
       - name: Set up .NET (F# backend, experimental)
@@ -201,6 +236,8 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Test extraction
+        env:
+          CLANG: clang-15
         run: |
           echo "::group::Running tests"
           eval $(opam env) && cd test && npm install && npm run test

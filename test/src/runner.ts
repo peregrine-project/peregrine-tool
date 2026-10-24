@@ -5,7 +5,7 @@ import { execSync } from "child_process";
 import path from "path";
 import { existsSync, mkdirSync } from "fs";
 import { lang_to_ext, lang_to_peregrine_arg, print_line, replace_ext } from "./utils";
-import { compile_c, set_c_env } from "./c";
+import { compile_c, compile_llvm, set_c_env } from "./c";
 import { compile_ocaml, compile_types } from "./ocaml";
 import { compile_cakeml, get_cake } from "./cakeml";
 import { compile_rust, make_printable, prepare_cargo, run_rust } from "./rust";
@@ -225,6 +225,33 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile C
         const f_exec = compile_c(f_c, test, compile_timeout);
+        if (typeof f_exec !== "string") {
+          print_result(f_exec, test.src);
+          continue;
+        }
+
+        // Run executable
+        const res = run_exec(f_exec, test, false);
+
+        // Report result
+        print_result(res, test.src);
+      }
+      break;
+    case Lang.LLVM:
+      await set_c_env(compile_timeout);
+      for (var test of tests) {
+        if (test.src === undefined) continue;
+        process.stdout.write(`  ${test.src}: `);
+
+        // Compile peregrine
+        const f_ll = compile_box(test.src, tmpdir, Lang.LLVM, opts);
+        if (typeof f_ll !== "string") {
+          print_result(f_ll, test.src);
+          continue;
+        }
+
+        // Compile LLVM IR
+        const f_exec = compile_llvm(f_ll, test, compile_timeout);
         if (typeof f_exec !== "string") {
           print_result(f_exec, test.src);
           continue;

@@ -3,13 +3,12 @@ From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Utils Require Import ResultMonad.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
-From CertiRocq Require Import LambdaBoxMut.compile.
-From CertiRocq Require Import LambdaBoxLocal.toplevel.
 From CertiRocq Require Import LambdaANF.toplevel.
 From CertiRocq Require Import Compiler.pipeline.
 From CertiRocq Require Import Common.Common.
 From CertiRocq Require Import Common.compM.
 From CertiRocq Require Import Common.Pipeline_utils.
+From MetaRocq.Erasure Require EImplementBox.
 
 From ExtLib Require Import Monads.
 Import MonadNotation.
@@ -22,14 +21,12 @@ Definition mk_opts (o : certirocq_config) : Options := {|
   inductives_mapping := []; (* Not used *)
   direct := o.(Config.direct);
   c_args := o.(Config.c_args);
-  anf_conf := 0;
+  anf_variant := 0;
   show_anf := false;
   o_level := o.(Config.o_level);
   time := false;
   time_anf := false;
   debug := false;
-  dev := 0;
-  Pipeline_utils.prefix := o.(Config.prefix);
   Pipeline_utils.body_name := o.(Config.body_name);
   prims := []; (* We pass prims directly to the pipeline *)
 |}.
@@ -57,53 +54,28 @@ Definition register_prims prs (id : positive) (env : EAst.global_declarations) :
 
 
 
-Definition compile_program (p : EAst.program) : Program Term := {|
-  main := LambdaBoxMut.compile.compile (snd p);
-  env := LambdaBoxMut.compile.compile_ctx (fst p);
-|}.
-
-Definition compile_LambdaBoxMut
-  : CertiRocqTrans (EAst.program) (Program LambdaBoxMut.compile.Term) :=
-  fun src =>
-    debug_msg "Translating from L1g to L1k" ;;
-    (LiftCertiRocqTrans "LambdaBoxMut" compile_program src).
-
-
-
 Definition next_id := 100%positive.
 
-Definition mut_pipeline prs (p : EAst.program) :=
-  let env := p.1 in
-  '(prs, next_id) <- register_prims prs next_id env ;;
-  o <- get_options;;
-  (* Translate lambda_box -> lambda_boxmut *)
-  p_mut <- compile_LambdaBoxMut p;;
-  check_axioms prs p_mut;;
-  ret p_mut.
+(* A program without a main term gets [tBox] as its main ([PAst_to_EAst]),
+   after the middle-end has implemented boxes. CertiRocq's CPS conversion
+   rejects [tBox], so it gets the implementation of box instead. *)
+Definition implement_main_box (p : EAst.program) : EAst.program :=
+  match p.2 with
+  | EAst.tBox => (p.1, EImplementBox.iBox)
+  | _ => p
+  end.
 
-Definition local_pipeline prs (p : EAst.program) :=
-  let env := p.1 in
-  '(prs, next_id) <- register_prims prs next_id env ;;
-  o <- get_options;;
-  (* Translate lambda_box -> lambda_boxmut *)
-  p_mut <- compile_LambdaBoxMut p;;
-  check_axioms prs p_mut;;
-  (* Translate lambda_boxmut -> lambda_boxlocal *)
-  p_local <- compile_LambdaBoxLocal prs p_mut;;
-  ret p_local.
+Definition compile_LambdaBox_to_LambdaANF (direct : bool) next_id prs (p : EAst.program) :=
+  if direct then compile_LambdaANF_ANF next_id prs p
+  else compile_LambdaANF_CPS next_id prs (implement_main_box p).
 
 Definition anf_pipeline' prs (p : EAst.program) :=
   let env := p.1 in
   '(prs, next_id) <- register_prims prs next_id env ;;
   o <- get_options;;
-  (* Translate lambda_box -> lambda_boxmut *)
-  p_mut <- compile_LambdaBoxMut p;;
-  check_axioms prs p_mut;;
-  (* Translate lambda_boxmut -> lambda_boxlocal *)
-  p_local <- compile_LambdaBoxLocal prs p_mut;;
-  (* Translate lambda_boxlocal -> lambda_anf *)
-  let local_to_anf_trans := if o.(direct) then compile_LambdaANF_ANF else compile_LambdaANF_CPS in
-  p_anf <- local_to_anf_trans next_id prs p_local;;
+  check_axioms prs p;;
+  (* Translate lambda_box -> lambda_anf *)
+  p_anf <- compile_LambdaBox_to_LambdaANF o.(direct) next_id prs p;;
   ret p_anf.
 
 Definition id_trans {A : Type} : CertiRocqTrans A A :=
@@ -116,14 +88,9 @@ Definition anf_pipeline {A : Type}
   let env := p.1 in
   '(prs, next_id) <- register_prims prs next_id env ;;
   o <- get_options;;
-  (* Translate lambda_box -> lambda_boxmut *)
-  p_mut <- compile_LambdaBoxMut p;;
-  check_axioms prs p_mut;;
-  (* Translate lambda_boxmut -> lambda_boxlocal *)
-  p_local <- compile_LambdaBoxLocal prs p_mut;;
-  (* Translate lambda_boxlocal -> lambda_anf *)
-  let local_to_anf_trans := if o.(direct) then compile_LambdaANF_ANF else compile_LambdaANF_CPS in
-  p_anf <- local_to_anf_trans next_id prs p_local;;
+  check_axioms prs p;;
+  (* Translate lambda_box -> lambda_anf *)
+  p_anf <- compile_LambdaBox_to_LambdaANF o.(direct) next_id prs p;;
   (* Translate lambda_anf -> lambda_anf *)
   let anf_trans :=
     if o.(debug)
