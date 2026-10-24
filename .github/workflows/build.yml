@@ -71,13 +71,14 @@ jobs:
           # passes GNUMAKEFLAGS. Its bootstrap also needs more than the
           # default 8 MB of stack.
           # TEMPORARY diagnostics for the CertiRocq plugin build
-          ( while sleep 300; do
-              date; ps -eo etimes,pcpu,rss,args --sort=-pcpu | head -8 | cut -c1-250
+          ( set +e; while sleep 300; do
+              date; ps -eo etimes,pcpu,rss,args --sort=-pcpu | head -8 | cut -c1-300
               for f in ~/.opam/log/rocq-certirocq-*.out; do
-                [ -f "$f" ] && { wc -l "$f"; grep -c 'CAMLDEP extraction/AST.ml$' "$f"; tail -n 3 "$f"; }
+                wc -l "$f"; grep -c 'CAMLDEP extraction/AST.ml$' "$f"; tail -n 5 "$f"
               done
               d=~/.opam/4.14.2/.opam-switch/build/rocq-certirocq.dev/plugins/plugin
-              [ -d $d ] && ls -la --time-style=full-iso $d | head -20
+              ls -la --time-style=full-iso $d | head -40
+              ls -la --time-style=full-iso $d/extraction | head -5
             done ) &
           export GNUMAKEFLAGS=-j${{ env.JOBS }}
           ulimit -Ss "$(ulimit -Hs)"
