@@ -66,6 +66,12 @@ jobs:
           if [ "${{ steps.opam-cache.outputs.cache-hit }}" != 'true' ] && opam list -i --silent rocq-certirocq; then
             opam remove -y rocq-certirocq
           fi
+          # CertiRocq up to 6b4ab870 builds with a plain `make`: serially, its
+          # theories alone take more than 4 h here. opam drops MAKEFLAGS but
+          # passes GNUMAKEFLAGS. Its bootstrap also needs more than the
+          # default 8 MB of stack.
+          export GNUMAKEFLAGS=-j${{ env.JOBS }}
+          ulimit -Ss "$(ulimit -Hs)"
           opam install --deps-only -j${{ env.JOBS }} .github/rocq-peregrine.opam.locked
           opam clean -a -c -s --logs
 
