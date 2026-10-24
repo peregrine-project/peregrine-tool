@@ -70,16 +70,6 @@ jobs:
           # theories alone take more than 4 h here. opam drops MAKEFLAGS but
           # passes GNUMAKEFLAGS. Its bootstrap also needs more than the
           # default 8 MB of stack.
-          # TEMPORARY diagnostics for the CertiRocq plugin build
-          ( set +e; while sleep 300; do
-              date; ps -eo etimes,pcpu,rss,args --sort=-pcpu | head -8 | cut -c1-300
-              for f in ~/.opam/log/rocq-certirocq-*.out; do
-                wc -l "$f"; grep -c 'CAMLDEP extraction/AST.ml$' "$f"; tail -n 5 "$f"
-              done
-              d=~/.opam/4.14.2/.opam-switch/build/rocq-certirocq.dev/plugins/plugin
-              ls -la --time-style=full-iso $d | head -40
-              ls -la --time-style=full-iso $d/extraction | head -5
-            done ) &
           export GNUMAKEFLAGS=-j${{ env.JOBS }}
           ulimit -Ss "$(ulimit -Hs)"
           opam install --deps-only -j${{ env.JOBS }} .github/rocq-peregrine.opam.locked
