@@ -72,6 +72,12 @@ jobs:
           # default 8 MB of stack.
           export GNUMAKEFLAGS=-j${{ env.JOBS }}
           ulimit -Ss "$(ulimit -Hs)"
+          # Its plugin build also writes to /tmp, which the build sandbox of
+          # opam 2.0 mounts read-only: the build then loops forever in
+          # `make plugins`. Mount /tmp read-write.
+          hook=~/.opam/opam-init/hooks/sandbox.sh
+          grep -q '^add_mounts rw /tmp$' $hook || sed -i 's|^add_sys_mounts .* /tmp$|&\nadd_mounts rw /tmp|' $hook
+          grep -n '/tmp' $hook
           opam install --deps-only -j${{ env.JOBS }} .github/rocq-peregrine.opam.locked
           opam clean -a -c -s --logs
 
