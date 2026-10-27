@@ -18,7 +18,7 @@ mkCoqDerivation {
   inherit version;
   # CertiRocq's LLVM backend needs Vellvm's current AST (CONV_Impure), which
   # no release contains yet. Same commit as the pin-depends of
-  # rocq-peregrine.opam. Taken from spitters/certirocq's overlay.
+  # rocq-peregrine.opam.
   defaultVersion = "b63a28a0a36cbae73a454d99a97bb8171568343e";
   release."b63a28a0a36cbae73a454d99a97bb8171568343e".hash =
     "sha256-Nt+hlUzbHnca+LVUmnfu/F9wE53cPlp6trO5X0Hd6vQ=";

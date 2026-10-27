@@ -28,22 +28,23 @@ depends: [
   "cmdliner" {>= "2.0.0"}
 ]
 
-# CertiRocq with the LLVM backend (CertiRocq/certirocq#155) is in no
-# release, and neither are the Vellvm commit it needs and the MetaRocq 9.1
-# snapshot it is built against (MetaRocq 1.5.1 lacks EImplementLazyForce).
+# CertiRocq with the LLVM backend is in no release, and neither are the
+# Vellvm commit it needs and the MetaRocq 9.1 snapshot it is built against
+# (MetaRocq 1.5.1 lacks EImplementLazyForce).
 # The MetaRocq snapshot gets the version 1.5.1+9.1+dev, so that it satisfies
 # the `< 1.5.2` bounds of rocq-verified-extraction and rocq-cakeml-extraction,
 # whose releases do not build against it. Keep all commits equal to the ones
 # in .github/rocq-peregrine.opam.locked and .nix/.
 pin-depends: [
-  # TODO(#155): replace by the commit of CertiRocq/certirocq main that merges #155:
-  #   ["rocq-certirocq.dev" "git+https://github.com/CertiRocq/certirocq.git#<merge commit>"]
-  ["rocq-certirocq.dev" "git+https://github.com/barabbs/certirocq.git#6b4ab87014ccdddf69ea4a9278c4974ba671ca2d"]
+  # The peregrine branch of peregrine-project/certirocq: CertiRocq main
+  # (f1e46a48) plus the LLVM backend (vir-llvm-backend, 29f55074) and
+  # Peregrine's fixes on top of it.
+  ["rocq-certirocq.dev" "git+https://github.com/peregrine-project/certirocq.git#a8dc26feadde902e109ae3a1bbdfacadfc4bb9f6"]
   ["rocq-vellvm.dev" "git+https://github.com/vellvm/vellvm.git#b63a28a0a36cbae73a454d99a97bb8171568343e"]
-  # TODO: replace by the commit of MetaRocq/rocq-verified-extraction that
-  # merges this one: its rocq-9.1 branch (02b475a) plus the rename of
-  # switch_no_params for MetaRocq#1286, which the 9.1 snapshot needs.
-  ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/barabbs/rocq-verified-extraction.git#16de6e9f67b1085ef519095433f96f8b1067febe"]
+  # The peregrine branch of peregrine-project/rocq-verified-extraction: its
+  # rocq-9.1 branch (02b475a) plus the rename of switch_no_params for
+  # MetaRocq#1286, which the 9.1 snapshot needs.
+  ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/peregrine-project/rocq-verified-extraction.git#0305df76ac89a83488f12175e2c5d45e1a55d16c"]
   # cakeml-backend v0.1.0 ported to the MetaRocq 9.1 snapshot (its main,
   # a5df761, does not build and changes the generated CakeML).
   ["rocq-cakeml-extraction.0.1.0+dev" "git+https://github.com/peregrine-project/cakeml-backend.git#3c47a631d9a6a591e33bcfb72e277844982dd4b0"]

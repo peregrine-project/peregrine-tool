@@ -25,11 +25,11 @@
       metarocq-erasure-plugin.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
 
       TypedExtraction.override.version = "0.2.1";
-      # TODO(#155): the commit of CertiRocq/certirocq main that merges #155
-      CertiRocq.override.version = "6b4ab87014ccdddf69ea4a9278c4974ba671ca2d";
+      # The peregrine branch of peregrine-project/certirocq, see rocq-peregrine.opam
+      CertiRocq.override.version = "a8dc26feadde902e109ae3a1bbdfacadfc4bb9f6";
       # CertiRocq needs coq-wasm >= 2.2.1
       wasmcert.override.version = "2.2.1";
-      verified-extraction.override.version = "16de6e9f67b1085ef519095433f96f8b1067febe";
+      verified-extraction.override.version = "0305df76ac89a83488f12175e2c5d45e1a55d16c";
       ceres-bs.override.version = "1.0.0";
       CakeMLExtraction.override.version = "3c47a631d9a6a591e33bcfb72e277844982dd4b0";
     }; rocqPackages = {

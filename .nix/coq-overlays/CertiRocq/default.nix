@@ -15,9 +15,9 @@
 
 mkCoqDerivation {
   pname = "CertiRocq";
-  # CertiRocq with the LLVM backend (CertiRocq/certirocq#155), see
-  # rocq-peregrine.opam. TODO(#155): owner = "CertiRocq" and the merge commit.
-  owner = "barabbs";
+  # CertiRocq with the LLVM backend, from the peregrine branch of
+  # peregrine-project/certirocq, see rocq-peregrine.opam.
+  owner = "peregrine-project";
   repo = "certirocq";
   opam-name = "rocq-certirocq";
   mlPlugin = true;
@@ -39,13 +39,13 @@ mkCoqDerivation {
         metarocq-erasure-plugin.version
       ]
       [
-        (case "9.1" "c8cd46054518193103c3bb33aa6e15c7f489e72c" "6b4ab87014ccdddf69ea4a9278c4974ba671ca2d")
+        (case "9.1" "c8cd46054518193103c3bb33aa6e15c7f489e72c" "a8dc26feadde902e109ae3a1bbdfacadfc4bb9f6")
       ]
       null;
   release = {
-    "6b4ab87014ccdddf69ea4a9278c4974ba671ca2d" = {
-      rev = "6b4ab87014ccdddf69ea4a9278c4974ba671ca2d";
-      hash = "sha256-XEFhXNE7G1QVmN6CWb8N0jF7jIIyxo9UFvHkkXxNKSU=";
+    "a8dc26feadde902e109ae3a1bbdfacadfc4bb9f6" = {
+      rev = "a8dc26feadde902e109ae3a1bbdfacadfc4bb9f6";
+      hash = "sha256-1PtRnC8fL+PfLjXjGC0y+kMvIjtczSscpTnVElK93lo=";
     };
   };
 
