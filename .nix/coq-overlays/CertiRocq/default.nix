@@ -9,12 +9,15 @@
   metarocq-erasure-plugin,
   metarocq-safechecker-plugin,
   ExtLib,
+  vellvm,
   version ? null,
 }:
 
 mkCoqDerivation {
   pname = "CertiRocq";
-  owner = "CertiRocq";
+  # CertiRocq with the LLVM backend, from the peregrine branch of
+  # peregrine-project/certirocq, see rocq-peregrine.opam.
+  owner = "peregrine-project";
   repo = "certirocq";
   opam-name = "rocq-certirocq";
   mlPlugin = true;
@@ -36,22 +39,26 @@ mkCoqDerivation {
         metarocq-erasure-plugin.version
       ]
       [
-        (case "9.1" "1.5.1-9.1" "0.9.1+9.1")
+        (case "9.1" "c8cd46054518193103c3bb33aa6e15c7f489e72c" "a8dc26feadde902e109ae3a1bbdfacadfc4bb9f6")
       ]
       null;
   release = {
-    "0.9.1+9.1".hash = "sha256-YsweBaoq8+QG63e7Llp/4bHldAFnSQSyMumJkb+Bsp0=";
+    "a8dc26feadde902e109ae3a1bbdfacadfc4bb9f6" = {
+      rev = "a8dc26feadde902e109ae3a1bbdfacadfc4bb9f6";
+      hash = "sha256-1PtRnC8fL+PfLjXjGC0y+kMvIjtczSscpTnVElK93lo=";
+    };
   };
-  releaseRev = v: "v${v}";
 
   buildInputs = [
     pkgs.clang
+    pkgs.python3
   ];
 
   propagatedBuildInputs = [
     wasmcert
     compcert
     ExtLib
+    vellvm
     metarocq-erasure-plugin
     metarocq-safechecker-plugin
   ];
@@ -86,8 +93,8 @@ mkCoqDerivation {
     DST=$OUTDIR/CertiRocq/Plugin/runtime make -C runtime install
     COQLIBINSTALL=$OUTDIR make -C theories install
     COQLIBINSTALL=$OUTDIR make -C libraries install
-    COQLIBINSTALL=$OUTDIR COQPLUGININSTALL=$OCAMLFIND_DESTDIR make -C plugin install
-    COQLIBINSTALL=$OUTDIR COQPLUGININSTALL=$OCAMLFIND_DESTDIR make -C cplugin install
+    COQLIBINSTALL=$OUTDIR COQPLUGININSTALL=$OCAMLFIND_DESTDIR make -C plugins/plugin install
+    COQLIBINSTALL=$OUTDIR COQPLUGININSTALL=$OCAMLFIND_DESTDIR make -C plugins/cplugin install
 
     runHook postInstall
   '';

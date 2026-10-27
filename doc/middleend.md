@@ -95,7 +95,7 @@ The transformations that will be applied will depend on both the AST type, backe
 
 ### Transformation support (Untyped target AST)
 
-| Pass                       | C   | Wasm | OCaml | CakeML | Eval | AST |
+| Pass                       | C, LLVM | Wasm | OCaml | CakeML | Eval | AST |
 |----------------------------|---------------|---------------|-----|------|-------|--------|
 | reorder constructors       | optional, default on | optional, default on | optional, default on | optional, default on | optional, default on | optional, default on |
 | fixpoints                  | required | required | required | required | required | required |

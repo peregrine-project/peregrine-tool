@@ -16,8 +16,12 @@ let
     let
       case = case: out: { inherit case out; };
     in
+    # The per-package `override.version` of config.nix only changes the
+    # package itself: its MetaRocq dependencies are built at defaultVersion.
+    # So the snapshot must be the default, or e.g. erasure-plugin at the
+    # snapshot is built against erasure 1.5.1.
     lib.switch coq.coq-version [
-      (case "9.1" "1.5.1-9.1")
+      (case "9.1" "c8cd46054518193103c3bb33aa6e15c7f489e72c")
       (case "9.0" "1.4-9.0.1")
     ] null;
   release = {
@@ -26,6 +30,11 @@ let
     "1.4-9.1".sha256 = "sha256-v6jFvUavIzyb/e6ytAaZjxQLFM9uW9TDUB77yRO74eE=";
     "1.4.1-9.1".sha256 = "sha256-tzoAWX74lg7pArGVP11QBvDRKMvmGxXvrf3+1E3Y4DI=";
     "1.5.1-9.1".sha256 = "sha256-0iFnSzfbufn2XhJ8EPyWu3KIiHYwxfMVQa2KT6GSR7s=";
+    # 9.1 snapshot needed by CertiRocq (EImplementLazyForce); no release has it
+    "c8cd46054518193103c3bb33aa6e15c7f489e72c" = {
+      rev = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
+      sha256 = "sha256-Lcr6B4gYSS57zVinn+e2tk1Kfy9XzJs+sd3CTuSTvX0=";
+    };
   };
   releaseRev = v: "v${v}";
 

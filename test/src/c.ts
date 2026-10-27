@@ -79,7 +79,9 @@ function get_pp_fun(type: ProgramType): [string[], string] {
 // 1) sets up garbage collector;
 // 2) runs the program
 // 3) pretty prints the return value as S-expression
-function get_c_main(test: TestCase): string {
+// `entry` is the function that runs the program: `body` for the C backend,
+// `certirocq_main` for the LLVM backend
+function get_c_main(test: TestCase, entry: string = "body"): string {
   counter = 0;
   const pp_fun = get_pp_fun(test.output_type);
   const pp_def = pp_fun[0].join("\n");
@@ -90,7 +92,7 @@ function get_c_main(test: TestCase): string {
 #include "gc_stack.h"
 #include <time.h>
 
-extern value body(struct thread_info *);
+extern value ${entry}(struct thread_info *);
 ${pp_def}
 
 int main(int argc, char *argv[]) {
@@ -98,7 +100,7 @@ int main(int argc, char *argv[]) {
   struct thread_info* tinfo;
 
   tinfo = make_tinfo();
-  val = body(tinfo);
+  val = ${entry}(tinfo);
   ${pp}
 
   return 0;
@@ -127,6 +129,29 @@ export function compile_c(file: string, test: TestCase, timeout: number): string
     }
 
     return { type: "error", reason: "compile error", compiler: "gcc", code: e.status, error: e.stderr.toString('utf8') };
+  }
+}
+
+// Compile an LLVM IR file, emitted by the LLVM backend, using clang. The
+// module uses the same runtime (gc_stack.c) and value representation as the C
+// backend, so the C glue prints the result.
+export function compile_llvm(file: string, test: TestCase, timeout: number): string | ExecFailure {
+  const f_out = replace_ext(file, ".o");
+  const f_glue = "src/c/glue.c";
+  // The module uses opaque pointers (`ptr`), which needs clang 15 or later
+  const clang = process.env.CLANG ?? "clang";
+  const cmd = `${clang} -o ${f_out} -w -O2 -I\${C_RUNTIME_PATH} \${C_RUNTIME_PATH}/gc_stack.c ${file} ${f_glue} -xc -`;
+  const main = get_c_main(test, "certirocq_main");
+
+  try {
+    execSync(cmd, { stdio: "pipe", timeout: timeout, input: main });
+    return f_out;
+  } catch (e) {
+    if (e.signal == "SIGTERM") {
+      return { type: "error", reason: "timeout" };
+    }
+
+    return { type: "error", reason: "compile error", compiler: "clang", code: e.status, error: e.stderr.toString('utf8') };
   }
 }
 

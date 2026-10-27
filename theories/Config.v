@@ -43,6 +43,7 @@ Section BackendConfig.
   Definition c_config : Type := certirocq_config.
 
   Definition wasm_config : Type := certirocq_config.
+  Definition llvm_config : Type := certirocq_config.
 
   Record ocaml_config := {
     program_type : Malfunction.Serialize.program_type;
@@ -64,14 +65,11 @@ Section BackendConfig.
   Record eval_config := {
     copts    : certirocq_config;
     fuel     : nat;
-    eval_anf : bool;
   }.
 
   Variant ASTType :=
   | LambdaBox
   | LambdaBoxTyped
-  | LambdaBoxMut   : certirocq_config -> ASTType
-  | LambdaBoxLocal : certirocq_config -> ASTType
   | LambdaANF      : certirocq_config -> ASTType
   | LambdaANFC     : certirocq_config -> ASTType.
 
@@ -84,6 +82,7 @@ Section BackendConfig.
   | Elm    : elm_config -> backend_config
   | C      : c_config -> backend_config
   | Wasm   : wasm_config -> backend_config
+  | LLVM   : llvm_config -> backend_config
   | OCaml  : ocaml_config -> backend_config
   | CakeML : cakeml_config -> backend_config
   | Lean   : lean_config -> backend_config

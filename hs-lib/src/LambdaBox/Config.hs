@@ -29,7 +29,7 @@ data ElmConfig = ElmConfig
     elmPrintFullNames :: Maybe Bool
   }
 
--- CertiRocq (C & Webassembly) backend configuration
+-- CertiRocq (C, WebAssembly & LLVM) backend configuration
 data CertiRocqConfig = CertiRocqConfig
   { direct    :: Maybe Bool,
     cArgs     :: Maybe Int,
@@ -67,16 +67,13 @@ type CakeMLConfig = ()
 -- Eval backend configuration
 data EvalConfig = EvalConfig
   { copts    :: Maybe CertiRocqConfig,
-    fuel     :: Int,
-    evalAnf :: Bool
+    fuel     :: Int
   }
 
 -- AST backend configuration
 data ASTType
   = LambdaBox
   | LambdaBoxTyped
-  | LambdaBoxMut (Maybe CertiRocqConfig)
-  | LambdaBoxLocal (Maybe CertiRocqConfig)
   | LambdaANF (Maybe CertiRocqConfig)
   | LambdaANFC (Maybe CertiRocqConfig)
 
@@ -92,6 +89,7 @@ data BackendConfig
   | Elm ElmConfig
   | C CertiRocqConfig
   | Wasm CertiRocqConfig
+  | LLVM CertiRocqConfig
   | OCaml OCamlConfig
   | CakeML CakeMLConfig
   | Lean LeanConfig

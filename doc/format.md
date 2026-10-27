@@ -269,6 +269,7 @@ The `attributes_config` payload accepted via `--attributes` is the 5-element sub
 (Elm    <elm_config>)
 (C      <c_config>)
 (Wasm   <wasm_config>)
+(LLVM   <llvm_config>)
 (OCaml  <ocaml_config>)
 (CakeML <cakeml_config>)
 (Lean   <lean_config>)
@@ -277,7 +278,7 @@ The `attributes_config` payload accepted via `--attributes` is the 5-element sub
 (AST    <ast_config>)
 ```
 
-The `c_config`, `wasm_config`, and the `copts` field of `eval_config` all share the same underlying `certirocq_config` record, since they all drive the CertiRocq pipeline. The defaults below are the values used when a field is omitted in the optional form.
+The `c_config`, `wasm_config`, `llvm_config`, and the `copts` field of `eval_config` all share the same underlying `certirocq_config` record, since they all drive the CertiRocq pipeline. The defaults below are the values used when a field is omitted in the optional form.
 
 #### Rust (`rust_config`)
 ```
@@ -309,7 +310,7 @@ The `c_config`, `wasm_config`, and the `copts` field of `eval_config` all share 
 ```
 The generated module starts with `module <elm_module_name> exposing (..)` followed by `elm_preamble` and `elm_false_elim_def`.
 
-#### C / Wasm (`certirocq_config`)
+#### C / Wasm / LLVM (`certirocq_config`)
 ```
 (certirocq_config
   <direct>     ; true   — use the direct (ANF) pipeline
@@ -319,7 +320,7 @@ The generated module starts with `module <elm_module_name> exposing (..)` follow
   <prefix>     ; ""     — prefix prepended to generated FFI symbols
   <body_name>) ; "body" — name of the top-level function
 ```
-The C and Wasm backends use this record verbatim. The C backend additionally selects between `gc_stack.h` (when `direct = true`) and `gc.h` (when `direct = false`) and prepends the GC header to the list of `#include`s.
+The C, Wasm and LLVM backends use this record verbatim; the LLVM backend ignores `prefix` and `body_name` and always names its entry point `certirocq_main`. The C backend additionally selects between `gc_stack.h` (when `direct = true`) and `gc.h` (when `direct = false`) and prepends the GC header to the list of `#include`s.
 
 #### OCaml (`ocaml_config`)
 ```
@@ -357,8 +358,7 @@ and is forwarded to the Malfunction printer. Default: `Standalone`.
 ```
 (eval_config
   <copts>     ; certirocq_config, defaulting to the C/Wasm defaults
-  <fuel>      ; 2^14
-  <eval_anf>) ; true  — evaluate the ANF program; false uses the LambdaBoxMut evaluator
+  <fuel>)     ; 2^14
 ```
 The `eval` command runs the program in-process using CertiRocq's evaluator (after the relevant prefix of the C pipeline) and prints its result to stdout. `fuel` bounds the number of reduction steps before giving up.
 
@@ -370,8 +370,6 @@ The `eval` command runs the program in-process using CertiRocq's evaluator (afte
 ```
 LambdaBox                                    ; untyped lambda box (PAst)
 LambdaBoxTyped                               ; typed lambda box (PAst)
-(LambdaBoxMut   <certirocq_config>)          ; CertiRocq's L1g
-(LambdaBoxLocal <certirocq_config>)          ; CertiRocq's L4
 (LambdaANF      <certirocq_config>)          ; LambdaANF after the standard pipeline
 (LambdaANFC     <certirocq_config>)          ; LambdaANF without the final cleanup pass
 ```

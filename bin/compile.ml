@@ -2,14 +2,14 @@ open Common
 open Peregrine.Caml_bytestring
 
 module Datatypes = Peregrine.Datatypes
-module Config = Peregrine.Config1
+module Config = Peregrine.Config0
 module ConfigUtils = Peregrine.ConfigUtils
 module RustGMPRemaps = Peregrine.RustGMPRemaps
 module RustNativeRemaps = Peregrine.RustNativeRemaps
 module RustMixedRemaps = Peregrine.RustMixedRemaps
 module Pipeline = Peregrine.Pipeline2
 module ResultMonad = Peregrine.ResultMonad
-module Cps = Peregrine.Cps
+module Anf_term = Peregrine.Term0
 
 
 
@@ -41,6 +41,11 @@ let write_res f p =
 
 let write_wasm_res opts f p =
   let f = get_out_file opts f "wasm" in
+  let p = caml_string_of_bytestring p in
+  write_res f (fun f -> output_string f p)
+
+let write_llvm_res opts f p =
+  let f = get_out_file opts f "ll" in
   let p = caml_string_of_bytestring p in
   write_res f (fun f -> output_string f p)
 
@@ -85,7 +90,7 @@ let printCProg prog names (dest : string) (imports : import list) =
     | FromLibrary (s, _) -> "#include <" ^ s ^ ">"
     | FromAbsolutePath _ ->
         failwith "Import with absolute path should have been filled") imports in
-  Peregrine.PrintClight.print_dest_names_imports prog (Cps.M.elements names) dest imports'
+  Peregrine.PrintClight.print_dest_names_imports prog (Anf_term.M.elements names) dest imports'
 
 let write_c_res opts f p =
   match p with
@@ -106,6 +111,7 @@ let write_program opts f p =
   | Pipeline.CakeMLProgram p -> write_cakeml_res opts f p
   | Pipeline.CProgram p -> write_c_res opts f p
   | Pipeline.WasmProgram p -> write_wasm_res opts f p
+  | Pipeline.LLVMProgram p -> write_llvm_res opts f p
   | Pipeline.LeanProgram p -> write_lean_res opts f p
   | Pipeline.FSharpProgram p -> write_fsharp_res opts f p
   | Pipeline.EvalProgram p -> cprint_endline p
@@ -155,8 +161,6 @@ let mk_ast_config t copts : ConfigUtils.ast_config' =
     match t with
     | Box -> ConfigUtils.LambdaBox'
     | BoxTyped -> ConfigUtils.LambdaBoxTyped'
-    | BoxMut -> ConfigUtils.LambdaBoxMut' (Some (mk_certirocq_config copts))
-    | BoxLocal -> ConfigUtils.LambdaBoxLocal' (Some (mk_certirocq_config copts))
     | ANF -> ConfigUtils.LambdaANF' (Some (mk_certirocq_config copts))
     | ANFC -> ConfigUtils.LambdaANFC' (Some (mk_certirocq_config copts))
 
@@ -277,15 +281,18 @@ let compile_wasm opts copts eopts f_prog =
   let b_opts = ConfigUtils.Wasm' (mk_certirocq_config copts) in
   compile_backend b_opts opts eopts f_prog
 
+let compile_llvm opts copts eopts f_prog =
+  let b_opts = ConfigUtils.LLVM' (mk_certirocq_config copts) in
+  compile_backend b_opts opts eopts f_prog
+
 let compile_ast opts copts eopts t f_prog =
   let b_opts = ConfigUtils.AST' (mk_ast_config t copts) in
   compile_backend b_opts opts eopts f_prog
 
-let compile_eval opts copts eopts fuel anf f_prog =
+let compile_eval opts copts eopts fuel f_prog =
   let copts = (mk_certirocq_config copts) in
   let b_opts = ConfigUtils.Eval' {
       ConfigUtils.copts'    = Some copts;
       ConfigUtils.fuel'     = Peregrine.Caml_nat.nat_of_caml_int fuel;
-      ConfigUtils.eval_anf' = anf;
     } in
   compile_backend b_opts opts eopts f_prog
