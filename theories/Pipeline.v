@@ -106,11 +106,11 @@ Definition remapped_ind (c : config) (kn : Kernames.kername) : bool :=
                     | StringIndRemap ind _ => Kernames.eq_kername kn (Kernames.inductive_mind ind)
                     end) c.(ind_remappings_opts).
 
-(** Typed dead-code elimination (unverified, ETypedDCE.v), enabled together
-    with instance specialization. *)
+(** Typed dead-code elimination (unverified, ETypedDCE.v), always run on this
+    branch; [spec_inst] enables the typed instance specialization before it. *)
 Definition typed_dce (c : config) (spec_inst : bool) (p : ExAst.global_env * EAst.term)
   : ExAst.global_env * EAst.term :=
-  if spec_inst then ETypedDCE.typed_dce true (remapped_ind c) p else p.
+  ETypedDCE.typed_dce spec_inst (remapped_ind c) p.
 
 Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAst :=
   let econf := mk_opts c typed in

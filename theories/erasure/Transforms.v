@@ -143,8 +143,9 @@ Program Definition extra_unsafe_transforms (spec_inst impl_box impl_lazy_force :
     (specialize_instances_transformation efl EImplementBox.block_wcbv_flags) ▷
   (* Dead-code elimination (unverified, EFieldDCE.v): prunes the declarations
      specialization leaves unreachable and removes unused constructor fields;
-     enabled together with specialization. *)
-  ETransform.optional_self_transform spec_inst
+     always enabled on this branch, so that it can be measured without the
+     specialization pass. *)
+  ETransform.optional_self_transform true
     (EFieldDCE.dce_transformation efl EImplementBox.block_wcbv_flags) ▷
   ETransform.optional_self_transform impl_box implement_box_transformation ▷
   ETransform.optional_self_transform impl_lazy_force implement_lazy_force_transformation.
