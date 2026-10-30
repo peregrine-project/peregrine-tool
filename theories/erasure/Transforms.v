@@ -10,6 +10,7 @@ From MetaRocq.ErasurePlugin Require Import ETransform Erasure.
 From MetaRocq.Erasure Require EImplementBox.
 From Peregrine Require EImplementLazyForce.
 From Peregrine Require Import EInstanceSpecialize.
+From Peregrine Require EFieldDCE.
 From Malfunction Require Pipeline.
 
 Import PCUICProgram.
@@ -140,8 +141,18 @@ Program Definition extra_unsafe_transforms (spec_inst impl_box impl_lazy_force :
      elimination can clean up the exposed dictionary plumbing. *)
   ETransform.optional_self_transform spec_inst
     (specialize_instances_transformation efl EImplementBox.block_wcbv_flags) ▷
+  (* Dead-code elimination (unverified, EFieldDCE.v): prunes the declarations
+     specialization leaves unreachable and removes unused constructor fields;
+     enabled together with specialization. *)
+  ETransform.optional_self_transform spec_inst
+    (EFieldDCE.dce_transformation efl EImplementBox.block_wcbv_flags) ▷
   ETransform.optional_self_transform impl_box implement_box_transformation ▷
   ETransform.optional_self_transform impl_lazy_force implement_lazy_force_transformation.
+Next Obligation.
+  cbn. intros.
+  destruct spec_inst, impl_box, impl_lazy_force; cbn in *;
+    try assumption; try (apply switch_off_box_wf_eprogram; assumption).
+Qed.
 Next Obligation.
   cbn. intros.
   destruct spec_inst, impl_box, impl_lazy_force; cbn in *;

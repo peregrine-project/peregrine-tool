@@ -7,6 +7,7 @@ From Peregrine Require Import EHindleyMilner.
 From Peregrine Require Import EHMNumericSigs.
 From Peregrine Require Import Erasure.
 From Peregrine Require Import CheckWf.
+From Peregrine Require ETypedDCE.
 From Peregrine Require RustBackend.
 From Peregrine Require ElmBackend.
 From Peregrine Require OCamlBackend.
@@ -97,6 +98,20 @@ Definition needs_typed (c : config) : bool :=
     end
   end.
 
+(** Inductives whose representation is fixed by a remapping; the typed
+    dead-code elimination keeps their fields. *)
+Definition remapped_ind (c : config) (kn : Kernames.kername) : bool :=
+  existsb (fun r => match r with
+                    | KnIndRemap kn' _ => Kernames.eq_kername kn kn'
+                    | StringIndRemap ind _ => Kernames.eq_kername kn (Kernames.inductive_mind ind)
+                    end) c.(ind_remappings_opts).
+
+(** Typed dead-code elimination (unverified, ETypedDCE.v), enabled together
+    with instance specialization. *)
+Definition typed_dce (c : config) (spec_inst : bool) (p : ExAst.global_env * EAst.term)
+  : ExAst.global_env * EAst.term :=
+  if spec_inst then ETypedDCE.typed_dce true (remapped_ind c) p else p.
+
 Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAst :=
   let econf := mk_opts c typed in
   let cstr_reorder := mk_cstr_reorders c in
@@ -111,6 +126,7 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAs
          not consume), then run the typed pipeline, which preserves applied
          constructors.  [infer_section] gives [trans_env (infer env) = env]. *)
       let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (infer numeric_sigs env, t) in
+      let '(env', t') := typed_dce c spec_inst (env', t') in
       Ok (Typed env' (Some t'))
   | Untyped env None, true =>
       let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (infer numeric_sigs env, EAst.tBox) in
@@ -123,6 +139,7 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAs
       Ok (Untyped env' None)
   | Typed env (Some t), true =>
       let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (env, t) in
+      let '(env', t') := typed_dce c spec_inst (env', t') in
       Ok (Typed env' (Some t'))
   | Typed env (Some t), false =>
       let (env', t') := run_typed_to_untyped_transforms econf cstr_reorder spec_inst impl_box impl_lazy (env, t) in
