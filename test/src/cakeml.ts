@@ -55,21 +55,25 @@ function branch(ctor: string, vars: string[], body: string): string {
 
 // A function printing a value of type `type`, in the format of the expected
 // outputs. Returns the bindings it needs and its name, or undefined for a type
-// that cannot be printed. It matches on the constructor names of the Rocq
-// standard library, which depends on the unqualified names of
-// peregrine-project/cakeml-backend#12.
+// that cannot be printed. It matches on the constructors of the Rocq standard
+// library, by the names the CakeML backend gives them: the kername of the inductive,
+// its index in its mutual block, the constructor index and the constructor name.
+function ctor(ind: string, index: number, name: string): string {
+  return `Corelib.Init.Datatypes.${ind}.0.${index}.${name}`;
+}
+
 function get_printer(type: ProgramType, id: number = 0): { binds: string[], name: string } | undefined {
   const name = `pp${id}`;
   const arg = `(Var (Short "x"))`;
   const self = (v: string) => `(App Opapp ((Var (Short "${name}")) (Var (Short "${v}"))))`;
   switch (type) {
     case SimpleType.Nat: {
-      const s = branch("S", ["n"], seq(print_str("(S "), seq(self("n"), print_str(")"))));
-      const body = `Mat ${arg} (${branch("O", [], print_str("O"))} ${s})`;
+      const s = branch(ctor("nat", 1, "S"), ["n"], seq(print_str("(S "), seq(self("n"), print_str(")"))));
+      const body = `Mat ${arg} (${branch(ctor("nat", 0, "O"), [], print_str("O"))} ${s})`;
       return { binds: [`(Dlet (unk unk) "${name}" (Letrec (("${name}" "x" ${body})) (Var (Short "${name}"))))`], name };
     }
     case SimpleType.Bool: {
-      const body = `Mat ${arg} (${branch("true", [], print_str("true"))} ${branch("false", [], print_str("false"))})`;
+      const body = `Mat ${arg} (${branch(ctor("bool", 0, "true"), [], print_str("true"))} ${branch(ctor("bool", 1, "false"), [], print_str("false"))})`;
       return { binds: [`(Dlet (unk unk) "${name}" (Fun "x" (${body})))`], name };
     }
     case SimpleType.UInt63:
@@ -80,9 +84,9 @@ function get_printer(type: ProgramType, id: number = 0): { binds: string[], name
       const elem = get_printer(type.a_t, id + 1);
       if (elem === undefined) return undefined;
       const head = `(App Opapp ((Var (Short "${elem.name}")) (Var (Short "h"))))`;
-      const cons = branch("cons", ["h", "t"],
+      const cons = branch(ctor("list", 1, "cons"), ["h", "t"],
         seq(print_str("(cons "), seq(head, seq(print_str(" "), seq(self("t"), print_str(")"))))));
-      const body = `Mat ${arg} (${branch("nil", [], print_str("nil"))} ${cons})`;
+      const body = `Mat ${arg} (${branch(ctor("list", 0, "nil"), [], print_str("nil"))} ${cons})`;
       return {
         binds: [...elem.binds, `(Dlet (unk unk) "${name}" (Letrec (("${name}" "x" ${body})) (Var (Short "${name}"))))`],
         name

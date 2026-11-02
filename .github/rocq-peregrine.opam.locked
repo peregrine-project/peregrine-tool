@@ -27,3 +27,8 @@ depends: [
 build: [make "build"]
 install: [make "install"]
 dev-repo: "git+https://github.com/peregrine-project/peregrine-tool.git"
+pin-depends: [
+  # cakeml-backend v0.1.0 with the datatype declarations and qualified constructor
+  # names (cakeml-backend#11, #12), until it is released
+  ["rocq-cakeml-extraction.0.1.0" "git+https://github.com/peregrine-project/cakeml-backend.git#f98c95348b3e086965f3bfdf25668a5dfec5227e"]
+]
