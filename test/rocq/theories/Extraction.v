@@ -8,6 +8,7 @@ From Peregrine.Tests Require Map.
 From Peregrine.Tests Require Mutual.
 From Peregrine.Tests Require Nat.
 From Peregrine.Tests Require OddEven.
+From Peregrine.Tests Require OpenCase.
 From Peregrine.Tests Require Params.
 From Peregrine.Tests Require Phantom.
 From Peregrine.Tests Require PolyLet.
@@ -47,6 +48,10 @@ Peregrine Extract Typed "extraction/Nat_typed.ast" Nat.thing.
 (* OddEven.v *)
 Peregrine Extract "extraction/OddEven.ast" OddEven.test.
 Peregrine Extract Typed "extraction/OddEven_typed.ast" OddEven.test.
+
+(* OpenCase.v *)
+Peregrine Extract "extraction/OpenCase.ast" OpenCase.test.
+Peregrine Extract Typed "extraction/OpenCase_typed.ast" OpenCase.test.
 
 (* Params.v *)
 Peregrine Extract "extraction/Params.ast" Params.test.

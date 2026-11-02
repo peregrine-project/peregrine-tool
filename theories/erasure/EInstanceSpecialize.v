@@ -123,7 +123,9 @@ Section specialize.
           match disc' with
           | tConstruct _ c cargs =>
               match nth_error brs' c with
-              | Some br => iota_red npar cargs br
+              (* Not [iota_red]: its [substl] assumes closed arguments, and here
+                 they may refer to binders around the [tCase]. *)
+              | Some br => subst (List.rev (skipn npar cargs)) 0 (snd br)
               | None => tCase (ind, npar) disc' brs'
               end
           | _ => tCase (ind, npar) disc' brs'
@@ -135,6 +137,15 @@ Section specialize.
   Definition specialize_instances : term -> term := spec_aux [].
 
 End specialize.
+
+(** Iota with open constructor arguments keeps them apart. *)
+Example specialize_instances_open_iota (i : inductive) :
+  specialize_instances
+    (tLambda nAnon (tLambda nAnon
+       (tCase (i, 0) (tConstruct i 0 [tRel 1; tRel 0])
+          [([nAnon; nAnon], tApp (tRel 1) (tRel 0))])))
+  = tLambda nAnon (tLambda nAnon (tApp (tRel 1) (tRel 0))).
+Proof. reflexivity. Qed.
 
 (** ** Cloning driver
 
