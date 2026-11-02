@@ -64,6 +64,7 @@
 From Stdlib Require Import List.
 From MetaRocq.Utils Require Import utils ReflectEq.
 From MetaRocq.Common Require Import BasicAst Kernames.
+From Peregrine Require EDeclOrder.
 From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils EReflect ELiftSubst EGlobalEnv EProgram.
 
 Import ListNotations.
@@ -316,7 +317,8 @@ Definition specialize_fuel : nat := 1000.
 
 (** Whole-program driver: gather keys, saturate to a memo table + fresh
     declarations, then redirect every body and the main term and locally
-    reduce. *)
+    reduce.  The clones refer to declarations newer than their position, so
+    the environment is sorted by dependencies at the end. *)
 Definition drive_env (Σ : global_declarations) (main : term)
   : global_declarations × term :=
   let body_keys :=
@@ -338,7 +340,7 @@ Definition drive_env (Σ : global_declarations) (main : term)
                             (cst_body cb) |})
       | _ => (kn, d)
       end in
-  (map red_decl Σ', specialize_instances (redirect Σ seen [] main)).
+  (EDeclOrder.topo_sort (map red_decl Σ'), specialize_instances (redirect Σ seen [] main)).
 
 Definition specialize_instances_in_constant_body (cst : constant_body) : constant_body :=
   {| cst_body := option_map specialize_instances (cst_body cst) |}.

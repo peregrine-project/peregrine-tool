@@ -29,6 +29,7 @@ From MetaRocq.Utils Require Import utils.
 From MetaRocq.Common Require Import BasicAst Kernames.
 From MetaRocq.Erasure Require Import EAst EPrimitive.
 From MetaRocq.Erasure Require EGlobalEnv.
+From Peregrine Require Import EDeclOrder.
 
 Import ListNotations.
 
@@ -164,18 +165,6 @@ Definition drop_fields_mib (used : list field) (kn : kername) (mib : mutual_indu
 
 (** ** Reachability *)
 
-Fixpoint consts_of (t : term) : list kername :=
-  match t with
-  | tConst kn => [kn]
-  | tEvar _ l | tConstruct _ _ l => concat (map consts_of l)
-  | tLambda _ b => consts_of b
-  | tLetIn _ b u | tApp b u => consts_of b ++ consts_of u
-  | tCase _ d brs => consts_of d ++ concat (map (fun br => consts_of (snd br)) brs)
-  | tProj _ u | tLazy u | tForce u => consts_of u
-  | tFix defs _ | tCoFix defs _ => concat (map (fun d => consts_of (dbody d)) defs)
-  | _ => []
-  end.
-
 Definition body_of (Σ : global_declarations) (kn : kername) : option term :=
   match EGlobalEnv.lookup_env Σ kn with
   | Some (ConstantDecl cb) => cst_body cb
@@ -204,55 +193,6 @@ Definition prune (Σ : global_declarations) (main : term) : global_declarations 
                           | InductiveDecl _ => true
                           end) Σ.
 
-(** ** Dependency order
-
-    [EInstanceSpecialize] appends the specialized clones at the old end of
-    the environment although they refer to newer declarations, and CertiRocq
-    translates the environment in order ("Unknown DeBruijn index").  The
-    environment is re-sorted, newest first, so that every declaration comes
-    after (is newer than) what it refers to. *)
-
-Fixpoint inds_of (t : term) : list kername :=
-  match t with
-  | tConstruct ind _ l => inductive_mind ind :: concat (map inds_of l)
-  | tCase (ind, _) d brs =>
-    inductive_mind ind :: inds_of d ++ concat (map (fun br => inds_of (snd br)) brs)
-  | tEvar _ l => concat (map inds_of l)
-  | tLambda _ b => inds_of b
-  | tLetIn _ b u | tApp b u => inds_of b ++ inds_of u
-  | tProj _ u | tLazy u | tForce u => inds_of u
-  | tFix defs _ | tCoFix defs _ => concat (map (fun d => inds_of (dbody d)) defs)
-  | _ => []
-  end.
-
-Definition deps_of (d : global_decl) : list kername :=
-  match d with
-  | ConstantDecl cb =>
-    match cst_body cb with Some b => consts_of b ++ inds_of b | None => [] end
-  | InductiveDecl _ => []
-  end.
-
-(** Depth-first: dependencies are pushed before the declaration, so the
-    accumulator is newest first. *)
-Fixpoint visit (fuel : nat) (Σ : global_declarations) (st : KernameSet.t * global_declarations)
-         (kn : kername) : KernameSet.t * global_declarations :=
-  match fuel with
-  | 0 => st
-  | S fuel =>
-    let '(seen, acc) := st in
-    if KernameSet.mem kn seen then st else
-    match EGlobalEnv.lookup_env Σ kn with
-    | None => st
-    | Some d =>
-      let '(seen, acc) := fold_left (visit fuel Σ) (deps_of d) (KernameSet.add kn seen, acc) in
-      (seen, (kn, d) :: acc)
-    end
-  end.
-
-Definition topo_sort (Σ : global_declarations) : global_declarations :=
-  snd (fold_left (fun st '(kn, _) => visit (S #|Σ|) Σ st kn) (List.rev Σ)
-                 (KernameSet.empty, [])).
-
 (** ** The pass *)
 
 Definition dce_round (p : global_declarations * term) : global_declarations * term :=
@@ -278,7 +218,7 @@ Fixpoint iterate {A} (n : nat) (f : A -> A) (a : A) : A :=
   match n with 0 => a | S n => iterate n f (f a) end.
 
 Definition dce_program (p : global_declarations * term) : global_declarations * term :=
-  let '(Σ, t) := iterate 3 dce_round p in (topo_sort Σ, t).
+  let '(Σ, t) := iterate 3 dce_round p in (Σ, t).
 
 (** ** Transform wrapper (unverified, like [EInstanceSpecialize]) *)
 
