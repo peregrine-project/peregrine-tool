@@ -51,27 +51,38 @@ jobs:
         continue-on-error: true
         working-directory: ${{ runner.temp }}/fstar-io/seiostar/.build
         run: opam exec -- peregrine validate io_program.ast
-      - name: Wrap the output in Untyped
+      - name: Wrap the output in Untyped, and apply constructors with tApp
         working-directory: ${{ runner.temp }}/fstar-io/seiostar/.build
         run: |
           python3 - <<'PY'
-          s = open("io_program.ast").read().strip()
-          depth, in_str, i = 0, False, 1
-          while True:
-              c = s[i]
-              if in_str:
-                  in_str = c != '"' or s[i - 1] == "\\"
-              elif c == '"':
-                  in_str = True
-              elif c == "(":
-                  depth += 1
-              elif c == ")":
-                  depth -= 1
-                  if depth == 0:
-                      break
-              i += 1
-          env, term = s[1:i + 1], s[i + 1:-1].strip()
-          open("wrapped.ast", "w").write(f"(Untyped {env} (Some {term}))\n")
+          import re, sys
+          sys.setrecursionlimit(1000000)
+          toks = re.findall(r'"(?:[^"\\\\]|\\\\.)*"|[()]|[^\\s()"]+', open("io_program.ast").read())
+          pos = 0
+          def rd():
+              global pos
+              t = toks[pos]; pos += 1
+              if t != "(":
+                  return t
+              out = []
+              while toks[pos] != ")":
+                  out.append(rd())
+              pos += 1
+              return out
+          def fix(x):
+              if not isinstance(x, list):
+                  return x
+              x = [fix(y) for y in x]
+              if len(x) == 4 and x[0] == "tConstruct" and x[3]:
+                  r = ["tConstruct", x[1], x[2], []]
+                  for a in x[3]:
+                      r = ["tApp", r, a]
+                  return r
+              return x
+          def pr(x):
+              return x if not isinstance(x, list) else "(" + " ".join(pr(y) for y in x) + ")"
+          env, term = fix(rd())
+          open("wrapped.ast", "w").write(f"(Untyped {pr(env)} (Some {pr(term)}))\n")
           PY
       - name: Validate the wrapped output
         working-directory: ${{ runner.temp }}/fstar-io/seiostar/.build
