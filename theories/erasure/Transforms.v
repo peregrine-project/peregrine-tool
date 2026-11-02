@@ -415,6 +415,7 @@ Program Definition typed_to_untyped_transform_pipeline {guard : abstract_guard_i
    trans_env_transform ▷
    rebuild_wf_env_transform_mapping true true ▷
    verified_lambdabox_typed_pipeline econf ▷
+   optional_unsafe_transforms econf ▷
    extra_unsafe_transforms spec_inst cse impl_box impl_lazy_force.
 Next Obligation.
   intros.
@@ -433,6 +434,10 @@ Next Obligation.
   cbn in *.
   destruct H as [? [? ?]].
   split; auto.
+Qed.
+Next Obligation.
+  cbn. intros.
+  destruct econf as [[[] ? ? ?] ? ? [] ?]=> //.
 Qed.
 Final Obligation.
   cbn. intros.
