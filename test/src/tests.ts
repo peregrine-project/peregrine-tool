@@ -400,6 +400,15 @@ var rocq_tests: TestCase[] =
             parameters: []
         },
         {
+            src: "rocq/extraction/OpenCase.ast",
+            tsrc: "rocq/extraction/OpenCase_typed.ast",
+            rust_i64_output: "3",
+            main: "OpenCase_test",
+            output_type: SimpleType.Nat,
+            expected_output: ["(S (S (S O)))", "(S () (S () (S () (O))))", "S (S (S O))"],
+            parameters: []
+        },
+        {
             src: "rocq/extraction/Params.ast",
             tsrc: "rocq/extraction/Params_typed.ast",
             rust_i64_output: "3",
