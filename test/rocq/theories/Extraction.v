@@ -11,6 +11,7 @@ From Peregrine.Tests Require OddEven.
 From Peregrine.Tests Require OpenCase.
 From Peregrine.Tests Require Params.
 From Peregrine.Tests Require Phantom.
+From Peregrine.Tests Require Remap.
 From Peregrine.Tests Require PolyLet.
 
 (* Classy.v *)
@@ -59,6 +60,9 @@ Peregrine Extract Typed "extraction/Params_typed.ast" Params.test.
 
 (* Phantom.v *)
 Peregrine Extract "extraction/Phantom.ast" Phantom.test.
+
+(* Remap.v *)
+Peregrine Extract "extraction/Remap.ast" Remap.test.
 
 (* PolyLet.v *)
 Peregrine Extract "extraction/PolyLet.ast" PolyLet.test.

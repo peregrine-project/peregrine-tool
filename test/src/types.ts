@@ -59,6 +59,9 @@ export type TestCase = {
   arguments?: string[],
   // Extra flags and args for compiling the test program
   compiler_args?: string,
+  // Pipeline configuration files per backend, for backends compiled with
+  // `peregrine compile` on this test
+  configs?: Partial<Record<Lang, string>>,
   // Backends on which the test is known to fail and is not run
   skip?: Lang[],
   // The types of the untyped source cannot be inferred: the typed backends

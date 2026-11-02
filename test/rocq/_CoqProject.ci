@@ -12,4 +12,5 @@ theories/OddEven.v
 theories/OpenCase.v
 theories/Params.v
 theories/Phantom.v
+theories/Remap.v
 theories/PolyLet.v
