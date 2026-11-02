@@ -70,7 +70,7 @@ function get_printer(type: ProgramType, id: number = 0): { binds: string[], name
     }
     case SimpleType.Bool: {
       const body = `Mat ${arg} (${branch("true", [], print_str("true"))} ${branch("false", [], print_str("false"))})`;
-      return { binds: [`(Dlet (unk unk) "${name}" (Fun "x" ${body}))`], name };
+      return { binds: [`(Dlet (unk unk) "${name}" (Fun "x" (${body})))`], name };
     }
     case SimpleType.UInt63:
     case SimpleType.Other:
