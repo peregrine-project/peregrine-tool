@@ -1,0 +1,92 @@
+# One-off measurement, on this branch only: does the SEIO* example compile and run
+# through current Peregrine? Not intended for master.
+name: SEIO* compatibility check
+on:
+  push:
+    branches: [ci-seio-check]
+permissions:
+  contents: read
+env:
+  JOBS: 4
+  TMPDIR: /tmp
+  FSTAR_VERSION: v2026.03.24
+  FSTAR_IO_REV: 23d998f1b108f898f63f686ef9a596f7340cf48f
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo apt-get update
+      - name: Restore opam cache
+        uses: actions/cache/restore@v6
+        with:
+          path: "~/.opam"
+          key: opam-4.14.2-${{hashFiles('.github/rocq-peregrine.opam.locked')}}
+          restore-keys: |
+            opam-4.14.2-
+      - uses: avsm/setup-ocaml@v1
+        with:
+          ocaml-version: "4.14.2"
+      - name: Build Peregrine
+        run: |
+          opam repo add rocq-released https://rocq-prover.org/opam/released
+          opam install --deps-only -j${{ env.JOBS }} .github/rocq-peregrine.opam.locked
+          opam install -j${{ env.JOBS }} ./rocq-peregrine.opam
+          opam exec -- which peregrine malfunction ocamlfind
+      - name: Install F*
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$FSTAR_VERSION" -R FStarLang/FStar -p "fstar-$FSTAR_VERSION-Linux-x86_64.tar.gz" -D "$RUNNER_TEMP"
+          tar xzf "$RUNNER_TEMP/fstar-$FSTAR_VERSION-Linux-x86_64.tar.gz" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/fstar/bin/fstar.exe" --version
+      - name: Generate io_program.ast
+        run: |
+          git clone https://github.com/andricicezar/fstar-io "$RUNNER_TEMP/fstar-io"
+          git -C "$RUNNER_TEMP/fstar-io" checkout "$FSTAR_IO_REV"
+          cd "$RUNNER_TEMP/fstar-io/seiostar"
+          make -j1 .build/io_program.ast FSTAR_EXE="$RUNNER_TEMP/fstar/bin/fstar.exe" 2>&1 | grep -v -E '^TAC>>|^Verified module' | tail -40
+          ls -l .build/io_program.ast
+      - name: Validate the unmodified output
+        continue-on-error: true
+        working-directory: ${{ runner.temp }}/fstar-io/seiostar/.build
+        run: opam exec -- peregrine validate io_program.ast
+      - name: Wrap the output in Untyped
+        working-directory: ${{ runner.temp }}/fstar-io/seiostar/.build
+        run: |
+          python3 - <<'PY'
+          s = open("io_program.ast").read().strip()
+          depth, in_str, i = 0, False, 1
+          while True:
+              c = s[i]
+              if in_str:
+                  in_str = c != '"' or s[i - 1] == "\\"
+              elif c == '"':
+                  in_str = True
+              elif c == "(":
+                  depth += 1
+              elif c == ")":
+                  depth -= 1
+                  if depth == 0:
+                      break
+              i += 1
+          env, term = s[1:i + 1], s[i + 1:-1].strip()
+          open("wrapped.ast", "w").write(f"(Untyped {env} (Some {term}))\n")
+          PY
+      - name: Validate the wrapped output
+        working-directory: ${{ runner.temp }}/fstar-io/seiostar/.build
+        run: opam exec -- peregrine validate wrapped.ast
+      - name: Compile, link and run
+        working-directory: ${{ runner.temp }}/fstar-io/seiostar/.build
+        run: |
+          opam exec -- peregrine ocaml wrapped.ast -o io_program_raw.mlf
+          cp ../lambdabox/axioms.ml .
+          opam exec -- ocamlfind ocamlopt -package unix -c -o axioms.cmx axioms.ml
+          opam exec -- malfunction cmx io_program_raw.mlf
+          opam exec -- ocamlfind ocamlopt -package unix -linkpkg axioms.cmx io_program_raw.cmx -o io_program_exe
+          echo foo > temp
+          ./io_program_exe | tee output.txt
+          echo "--- temp:"
+          cat temp
+          grep -qx true output.txt
+          grep -qx overwrite temp
