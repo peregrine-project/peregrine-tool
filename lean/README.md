@@ -89,7 +89,7 @@ A configuration or attribute file can remap a constant, whether it is an axiom o
 
 ```lisp
 (config
-  (Lean (lean_config "Generated" true))
+  (Lean (lean_config None None))
   None
   ()
   ((((MPfile ("M")) "double")
