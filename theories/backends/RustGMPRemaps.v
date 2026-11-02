@@ -110,7 +110,7 @@ Definition gmp_const_remaps : constant_remappings := [
   (<%% Pos.add %%>, mk_const "fn ##name##(&'a self, a: &'a rug::Integer, b: &'a rug::Integer) -> &'a rug::Integer { self.alloc(rug::Integer::from(a + b)) }");
   (<%% Pos.succ %%>, mk_const "fn ##name##(&'a self, a: &'a rug::Integer) -> &'a rug::Integer { self.alloc(rug::Integer::from(a + 1)) }");
   (<%% Pos.pred %%>, mk_const "fn ##name##(&'a self, a: &'a rug::Integer) -> &'a rug::Integer { self.alloc(rug::Integer::from(a - 1).max(rug::Integer::from(1))) }");
-  (<%% Pos.sub %%>, mk_const "fn ##name##(&'a self, a: &'a rug::Integer, b: &'a rug::Integer) -> &'a rug::Integer { self.alloc(rug::Integer::from(a - b)) }");
+  (<%% Pos.sub %%>, mk_const "fn ##name##(&'a self, a: &'a rug::Integer, b: &'a rug::Integer) -> &'a rug::Integer { self.alloc(rug::Integer::from(a - b).max(rug::Integer::from(1))) }");
   (<%% Pos.mul %%>, mk_const "fn ##name##(&'a self, a: &'a rug::Integer, b: &'a rug::Integer) -> &'a rug::Integer { self.alloc(rug::Integer::from(a * b)) }");
   (<%% Pos.min %%>, mk_const "fn ##name##(&'a self, a: &'a rug::Integer, b: &'a rug::Integer) -> &'a rug::Integer { if a <= b { a } else { b } }");
   (<%% Pos.max %%>, mk_const "fn ##name##(&'a self, a: &'a rug::Integer, b: &'a rug::Integer) -> &'a rug::Integer { if a >= b { a } else { b } }");
