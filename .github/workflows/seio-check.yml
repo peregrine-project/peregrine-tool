@@ -57,7 +57,7 @@ jobs:
           python3 - <<'PY'
           import re, sys
           sys.setrecursionlimit(1000000)
-          toks = re.findall(r'"(?:[^"\\\\]|\\\\.)*"|[()]|[^\\s()"]+', open("io_program.ast").read())
+          toks = re.findall(r'"(?:[^"\\]|\\.)*"|[()]|[^\s()"]+', open("io_program.ast").read())
           pos = 0
           def rd():
               global pos
