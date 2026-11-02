@@ -7,7 +7,7 @@ import { existsSync, mkdirSync } from "fs";
 import { lang_to_ext, lang_to_peregrine_arg, print_line, replace_ext } from "./utils";
 import { compile_c, set_c_env } from "./c";
 import { compile_ocaml, compile_types } from "./ocaml";
-import { compile_cakeml, get_cake } from "./cakeml";
+import { cakeml_output_checked, compile_cakeml, get_cake } from "./cakeml";
 import { compile_rust, make_printable, prepare_cargo, run_rust } from "./rust";
 import { prepare_elm_project, run_elm } from "./elm";
 import { prepare_lean_project, run_lean } from "./lean";
@@ -20,6 +20,8 @@ var exec_timeout = 30000; // 30 seconds
 // Timeout for the compilation phases
 var compile_timeout = 30000; // 30 seconds
 var remove_output = true;
+// Set when the CakeML backend pin includes the fix of cakeml-backend#11
+const cakeml_outputs_enforced = false;
 
 // List of failed tests
 var failed_tests: string[] = [];
@@ -204,9 +206,15 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // Run executable
-        const res = run_exec(f_exec, test, true); //TODO: support checking that output is correct
+        const res = run_exec(f_exec, test, !cakeml_output_checked(test));
 
-        // Report result
+        // Report result. Until the CakeML backend declares its datatypes
+        // (peregrine-project/cakeml-backend#11) and the pin moves past that fix,
+        // a wrong result is reported without failing the suite.
+        if (!cakeml_outputs_enforced && res.type === "error" && res.reason === "incorrect result") {
+          print_line(`known wrong result (cakeml-backend#11): got ${res.actual}, expected ${res.expected}`);
+          continue;
+        }
         print_result(res, test.src);
       }
       break;
