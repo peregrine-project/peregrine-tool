@@ -3,7 +3,7 @@ From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Utils Require Import ResultMonad.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import BasicAst.
-From MetaRocq.Erasure Require EAst.
+From MetaRocq.Erasure Require EAst ELiftSubst.
 From MetaRocq.Erasure.Typed Require Import ExAst.
 From Stdlib Require Import List.
 
@@ -201,8 +201,9 @@ Section Printer.
     else curry f args (n - List.length args).
 
   (* The local context: names of de Bruijn variables, with the arity of the
-     local functions bound by a fixpoint. *)
-  Definition ctx := list (string * option nat).
+     functions bound by a fixpoint and the arguments every call to them
+     passes first (the parameters a lifted group is closed over). *)
+  Definition ctx := list (string * option (nat * list string)).
 
   (* Accumulator printer: [pending] holds the printed arguments of the
      application spine around [t], leftmost first, so that the head of a spine
@@ -219,7 +220,7 @@ Section Printer.
     | EAst.tBox => Ok "()"
     | EAst.tRel n =>
       match nth_error Γ n with
-      | Some (v, Some k) => Ok (call_known v k pending)
+      | Some (v, Some (k, pre)) => Ok (call_known v k (List.app pre pending))
       | Some (v, None) => Ok (apply_unary v pending)
       | None => Err ("unbound variable " ++ string_of_nat n)
       end
@@ -288,7 +289,7 @@ Section Printer.
       let names := if single then mapi (fun j d => var (name_ident (EAst.dname d)) (depth + j)) mfix
                    else mapi (fun j _ => sel j) mfix in
       let arities := map (fun d => List.length (fst (lambdas (EAst.dbody d)))) mfix in
-      let Γ' := List.app (List.rev (combine names (map Some arities))) Γ in
+      let Γ' := List.app (List.rev (combine names (map (fun a => Some (a, [])) arities))) Γ in
       let fix peel (u : EAst.term) (Γp : ctx) (pv : list string) {struct u} : kres (list string * string) :=
         match u with
         | EAst.tLambda na b =>
@@ -329,20 +330,31 @@ Section Printer.
 
   Definition tvars_of (n : nat) : list string := map kty_var (seq 0 n).
 
-  (* A constant whose body is a group of mutual fixpoints gets the members as
-     top-level functions [pg_<constant>__mJ], which Koka lets call each other,
-     and the constant itself calls its member.  Koka infers their types. *)
-  Definition print_group (kn : kername) (mfix : EAst.mfixpoint EAst.term) : kres (list string * list (string * option nat)) :=
+  Fixpoint app_spine (t : EAst.term) (args : list EAst.term) : EAst.term * list EAst.term :=
+    match t with
+    | EAst.tApp f a => app_spine f (a :: args)
+    | _ => (t, args)
+    end.
+
+  (* A constant whose body, after its leading lambdas, applies a group of
+     mutual fixpoints gets the members as top-level functions
+     [pg_<constant>__mJ], which Koka lets call each other; the constant calls
+     its member.  The members take the constant's parameters [pre] first when
+     their bodies refer to them (lambda lifting: every call passes them
+     unchanged).  Koka infers the members' types. *)
+  Definition print_group (kn : kername) (pre : list string) (Γp : ctx) (mfix : EAst.mfixpoint EAst.term)
+    : kres (list string * ctx) :=
     let names := mapi (fun j _ => fun_name kn ++ "__m" ++ string_of_nat j) mfix in
-    let arities := map (fun d => List.length (fst (lambdas (EAst.dbody d)))) mfix in
-    let Γg := List.rev (combine names (map Some arities)) in
+    let arities := map (fun d => List.length pre + List.length (fst (lambdas (EAst.dbody d)))) mfix in
+    let Γg := List.rev (combine names (map (fun a => Some (a, pre)) arities)) in
+    let base := List.length Γg + List.length Γp in
     defs <- monad_map (fun '(n, d) =>
         let '(params, inner) := lambdas (EAst.dbody d) in
-        let pvars := mapi (fun j na => var (name_ident na) (List.length Γg + j)) params in
-        body' <- print_term (List.app (List.rev (map (fun v => (v, None)) pvars)) Γg) inner [];;
-        match pvars with
+        let pvars := mapi (fun j na => var (name_ident na) (base + j)) params in
+        body' <- print_term (List.app (List.rev (map (fun v => (v, None)) pvars)) (List.app Γg Γp)) inner [];;
+        match List.app pre pvars with
         | [] => Err "a fixpoint without parameters"
-        | _ => Ok ("fun " ++ n ++ "(" ++ concat_with ", " pvars ++ ") { " ++ body' ++ " }")
+        | ps => Ok ("fun " ++ n ++ "(" ++ concat_with ", " ps ++ ") { " ++ body' ++ " }")
         end) (combine names mfix);;
     Ok (defs, Γg).
 
@@ -351,12 +363,7 @@ Section Printer.
     let Γt := tvars_of (List.length (fst ty)) in
     let body := const_body b in
     let '(params, inner) := lambdas body in
-    group <- match b with
-             | EAst.tFix mfix _ =>
-               if Nat.ltb 1 (List.length mfix) then g <- print_group kn mfix;; Ok (Some g) else Ok None
-             | _ => Ok None
-             end;;
-    let self := match b with EAst.tFix [_] 0 => [(fun_name kn, Some (List.length params))] | _ => [] end in
+    let self := match b with EAst.tFix [_] 0 => [(fun_name kn, Some (List.length params, []))] | _ => [] end in
     match split_arrows (List.length params) (snd ty) with
     | None => Err ("the type of " ++ string_of_kername kn ++ " has fewer arrows than its body has lambdas")
     | Some (doms, res) =>
@@ -364,16 +371,31 @@ Section Printer.
       res' <- print_type Γt res;;
       let base := List.length self in
       let pvars := mapi (fun j na => var (name_ident na) (base + j)) params in
-      body' <- match group, b with
-               | Some (_, Γg), EAst.tFix _ i =>
-                 (* the constant is its member [i] *)
-                 match nth_error (List.rev Γg) i with
-                 | Some (n, Some k) => Ok (call_known n k pvars)
-                 | _ => Err "fixpoint index out of range"
-                 end
-               | _, _ => print_term (List.app (List.rev (map (fun v => (v, None)) pvars)) self) inner []
-               end;;
-      let pre := match group with Some (defs, _) => concat_with kt_nl defs ++ kt_nl | None => "" end in
+      let Γp := List.app (List.rev (map (fun v => (v, None)) pvars)) self in
+      '(pre, body') <-
+        match b, app_spine inner [] with
+        | EAst.tFix mfix i, _ =>
+          (* the constant is its member [i] *)
+          if Nat.ltb 1 (List.length mfix) then
+            '(defs, Γg) <- print_group kn [] [] mfix;;
+            match nth_error (List.rev Γg) i with
+            | Some (n, Some (k, _)) => Ok (concat_with kt_nl defs ++ kt_nl, call_known n k pvars)
+            | _ => Err "fixpoint index out of range"
+            end
+          else body' <- print_term Γp inner [];; Ok ("", body')
+        | _, (EAst.tFix mfix i, args) =>
+          if Nat.ltb 1 (List.length mfix) then
+            let closed := forallb (fun d => ELiftSubst.closedn (List.length mfix) (EAst.dbody d)) mfix in
+            let lifted := if closed then [] else pvars in
+            '(defs, Γg) <- print_group kn lifted Γp mfix;;
+            args' <- monad_map (fun a => print_term Γp a []) args;;
+            match nth_error (List.rev Γg) i with
+            | Some (n, Some (k, pre)) => Ok (concat_with kt_nl defs ++ kt_nl, call_known n k (List.app pre args'))
+            | _ => Err "fixpoint index out of range"
+            end
+          else body' <- print_term Γp inner [];; Ok ("", body')
+        | _, _ => body' <- print_term Γp inner [];; Ok ("", body')
+        end;;
       match pvars with
       | [] =>
         if is_thunk kn then

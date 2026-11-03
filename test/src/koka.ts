@@ -77,7 +77,9 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
 export function compile_koka(file: string, test: TestCase, timeout: number): { exe: string, checked: boolean } | ExecFailure {
   const source = readFileSync(file, "utf8");
   // The entry point: pg_<main>, or for the typed backend the full name ending in it
-  const found = source.match(new RegExp(`^(val|fun) (pg_\\w*?${test.main})\\b(\\(\\))?`, "m"));
+  // (a Lean name keeps its dots, which the sanitizer escapes as _UU2e)
+  const main_re = test.main.replace(/_/g, "(?:_|_UU2e)");
+  const found = source.match(new RegExp(`^(val|fun) (pg_\\w*?${main_re})\\b(\\(\\))?`, "m"));
   // failing that, a name ending in the last component of the entry point
   const last = test.main.split("_").pop();
   const fallback = found === null ? source.match(new RegExp(`^(val|fun) (pg_\\w*_${last})\\b(\\(\\))?`, "m")) : null;
@@ -123,7 +125,8 @@ export function run_koka(exe: string, test: TestCase, checked: boolean, timeout:
     res = execSync(`ulimit -s unlimited; ${exe}`, { stdio: "pipe", timeout: timeout, encoding: "utf8", shell: "/bin/bash" }).trim();
   } catch (e) {
     if (e.signal == "SIGTERM") return { type: "error", reason: "timeout" };
-    return { type: "error", reason: "runtime error", error: e };
+    const out = (e.stderr ? e.stderr.toString() : "") || (e.stdout ? e.stdout.toString() : "");
+    return { type: "error", reason: "runtime error", error: out.slice(-2000) || `${e}` };
   }
   const time = Date.now() - start;
   if (!checked || test.expected_output === undefined || test.output_type === SimpleType.Other) {

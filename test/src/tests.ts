@@ -407,7 +407,7 @@ var rocq_tests: TestCase[] =
         {
             // Corelib's id is declared through a type alias (benchmarks UPSTREAM_ISSUES entry 3)
             src: "rocq/extraction/Id.ast",
-            koka_typed_rejected: true,
+            koka_typed_rejected: "typed-source",
             tsrc: "rocq/extraction/Id_typed.ast",
             // The Elm backend has the same defect and no stopgap
             skip: [Lang.Elm],
@@ -474,7 +474,7 @@ var rocq_tests: TestCase[] =
         },
         {
             src: "rocq/extraction/Params.ast",
-            koka_typed_rejected: true,
+            koka_typed_rejected: "typed-source",
             tsrc: "rocq/extraction/Params_typed.ast",
             rust_i64_output: "3",
             main: "Params_test",

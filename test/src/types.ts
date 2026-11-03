@@ -74,7 +74,8 @@ export type TestCase = {
   cofix?: boolean,
   // The typed Koka backend cannot print the program (a type Koka cannot
   // express, primitives, cofixpoints): its typed lanes expect a rejection
-  koka_typed_rejected?: boolean,
+  // ("typed-source": only the typed source, which type inference avoids)
+  koka_typed_rejected?: boolean | "typed-source",
   // The expected output of the Rust-i64 test configuration, where nat is i64
   // and bool is the Rust bool; a test without one is not run there
   rust_i64_output?: string,
