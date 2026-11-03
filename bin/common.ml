@@ -20,15 +20,17 @@ type erasure_opts = {
   dearg_consts        : bool option;
   specialize_instances : bool option;
   cse                 : bool option;
+  lower_cofix         : bool option;
 }
 
-let mk_erasure_opts betared unboxing dearg_ctors dearg_consts specialize_instances cse = {
+let mk_erasure_opts betared unboxing dearg_ctors dearg_consts specialize_instances cse lower_cofix = {
   betared;
   unboxing;
   dearg_ctors;
   dearg_consts;
   specialize_instances;
   cse;
+  lower_cofix;
 }
 
 type certirocq_opts = {

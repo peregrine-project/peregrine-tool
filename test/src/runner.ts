@@ -7,7 +7,7 @@ import { existsSync, mkdirSync } from "fs";
 import { lang_to_ext, lang_to_peregrine_arg, print_line, replace_ext } from "./utils";
 import { compile_c, compile_llvm, set_c_env } from "./c";
 import { compile_ocaml, compile_types } from "./ocaml";
-import { compile_cakeml, get_cake } from "./cakeml";
+import { cakeml_output_checked, compile_cakeml, get_cake } from "./cakeml";
 import { compile_rust, make_printable, prepare_cargo, run_rust } from "./rust";
 import { prepare_elm_project, run_elm } from "./elm";
 import { prepare_lean_project, run_lean } from "./lean";
@@ -77,6 +77,18 @@ function print_rejected(res: string | ExecFailure, test: string) {
 
 
 // Run the given executable and compare against the expected test result
+// Report the result of compiling a program with cofixpoints without lowering
+// them: peregrine must fail and name them
+function print_cofix_rejected(res: string | ExecFailure, test: string) {
+  if (typeof res === "string") {
+    print_result({ type: "error", reason: "incorrect result", expected: "a rejection of cofixpoints", actual: "a compiled program" }, test);
+  } else if (res.reason === "compile error" && res.error.includes("does not support cofixpoints")) {
+    print_line("rejected for its cofixpoints, as expected");
+  } else {
+    print_result(res, test);
+  }
+}
+
 function run_exec(file: string, test: TestCase, skip_output_check: boolean): ExecResult {
   // Command to run
   const cmd = file;
@@ -153,6 +165,8 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
     print_line(`  ${typed_src(t) ?? t.src ?? t.tsrc}: skipped (known failure)`);
     return false;
   });
+  // A configuration lowering cofixpoints only runs the programs that use them
+  if (opts.includes("--lower-cofix")) tests = tests.filter((t) => t.cofix);
   switch (lang) {
     case Lang.OCaml:
       compile_types(compile_timeout);
@@ -162,6 +176,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile peregrine
         const f_mlf = compile_box(test.src, tmpdir, Lang.OCaml, opts);
+        if (test.cofix && !opts.includes("--lower-cofix")) {
+          print_cofix_rejected(f_mlf, test.src);
+          continue;
+        }
         if (typeof f_mlf !== "string") {
           print_result(f_mlf, test.src);
           continue;
@@ -190,6 +208,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile peregrine
         const f_cml = compile_box(test.src, tmpdir, Lang.CakeML, opts);
+        if (test.cofix && !opts.includes("--lower-cofix")) {
+          print_cofix_rejected(f_cml, test.src);
+          continue;
+        }
         if (typeof f_cml !== "string") {
           print_result(f_cml, test.src);
           continue;
@@ -204,7 +226,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // Run executable
-        const res = run_exec(f_exec, test, true); //TODO: support checking that output is correct
+        const res = run_exec(f_exec, test, !cakeml_output_checked(test));
 
         // Report result
         print_result(res, test.src);
@@ -218,6 +240,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile peregrine
         const f_c = compile_box(test.src, tmpdir, Lang.C, opts);
+        if (test.cofix && !opts.includes("--lower-cofix")) {
+          print_cofix_rejected(f_c, test.src);
+          continue;
+        }
         if (typeof f_c !== "string") {
           print_result(f_c, test.src);
           continue;
@@ -271,6 +297,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile peregrine
         const f = compile_box(test.src, tmpdir, Lang.Wasm, opts);
+        if (test.cofix && !opts.includes("--lower-cofix")) {
+          print_cofix_rejected(f, test.src);
+          continue;
+        }
         if (typeof f !== "string") {
           print_result(f, test.src);
           continue;

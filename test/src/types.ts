@@ -65,6 +65,9 @@ export type TestCase = {
   // The types of the untyped source cannot be inferred: the typed backends
   // (Rust, Elm) must reject `src` with "Could not infer types"
   rejected?: boolean,
+  // The program has cofixpoints: only a configuration passing --lower-cofix runs
+  // it, and C, Wasm, OCaml and CakeML must reject it without that option
+  cofix?: boolean,
   // The expected output of the Rust-i64 test configuration, where nat is i64
   // and bool is the Rust bool; a test without one is not run there
   rust_i64_output?: string,

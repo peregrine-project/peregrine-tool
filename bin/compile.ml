@@ -137,8 +137,8 @@ let mk_certirocq_config copts = {
 
 let mk_erasure_config eopts = {
   ConfigUtils.implement_box'  = None;
-  ConfigUtils.implement_lazy' = None;
-  ConfigUtils.cofix_to_laxy'  = None;
+  ConfigUtils.implement_lazy' = eopts.lower_cofix;
+  ConfigUtils.cofix_to_laxy'  = eopts.lower_cofix;
   ConfigUtils.betared'        = eopts.betared;
   ConfigUtils.unboxing'       = eopts.unboxing;
   ConfigUtils.dearg_ctors'    = eopts.dearg_ctors;

@@ -1,13 +1,16 @@
 From Peregrine.Plugin Require Import Loader.
 From Peregrine.Tests Require Classy.
 From Peregrine.Tests Require Closure.
+From Peregrine.Tests Require CoStream.
 From Peregrine.Tests Require Demo.
 From Peregrine.Tests Require Hello.
+From Peregrine.Tests Require EtaFix.
 From Peregrine.Tests Require Id.
 From Peregrine.Tests Require Map.
 From Peregrine.Tests Require Mutual.
 From Peregrine.Tests Require Nat.
 From Peregrine.Tests Require OddEven.
+From Peregrine.Tests Require OpenCase.
 From Peregrine.Tests Require Params.
 From Peregrine.Tests Require Phantom.
 From Peregrine.Tests Require PolyLet.
@@ -20,6 +23,9 @@ Peregrine Extract Typed "extraction/Classy_typed.ast" Classy.test.
 Peregrine Extract "extraction/Closure.ast" Closure.test.
 Peregrine Extract Typed "extraction/Closure_typed.ast" Closure.test.
 
+(* CoStream.v *)
+Peregrine Extract "extraction/CoStream.ast" CoStream.test.
+
 (* Demo.v *)
 Peregrine Extract "extraction/Demo.ast" Demo.test.
 Peregrine Extract Typed "extraction/Demo_typed.ast" Demo.test.
@@ -27,6 +33,10 @@ Peregrine Extract Typed "extraction/Demo_typed.ast" Demo.test.
 (* Hello.v *)
 Peregrine Extract "extraction/Hello.ast" Hello.hello.
 Peregrine Extract Typed "extraction/Hello_typed.ast" Hello.hello.
+
+(* EtaFix.v *)
+Peregrine Extract "extraction/EtaFix.ast" EtaFix.test.
+Peregrine Extract Typed "extraction/EtaFix_typed.ast" EtaFix.test.
 
 (* Id.v *)
 Peregrine Extract "extraction/Id.ast" Id.test.
@@ -47,6 +57,10 @@ Peregrine Extract Typed "extraction/Nat_typed.ast" Nat.thing.
 (* OddEven.v *)
 Peregrine Extract "extraction/OddEven.ast" OddEven.test.
 Peregrine Extract Typed "extraction/OddEven_typed.ast" OddEven.test.
+
+(* OpenCase.v *)
+Peregrine Extract "extraction/OpenCase.ast" OpenCase.test.
+Peregrine Extract Typed "extraction/OpenCase_typed.ast" OpenCase.test.
 
 (* Params.v *)
 Peregrine Extract "extraction/Params.ast" Params.test.

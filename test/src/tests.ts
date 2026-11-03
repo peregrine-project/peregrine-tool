@@ -24,7 +24,11 @@ export var test_configurations: TestConfiguration[] = [
     // The F# backend is experimental
     [Lang.FSharp, "experimental", ""],
     // The two optional middle-end passes, which only the untyped pipeline runs
-    [Lang.OCaml, "passes", "--specialize-instances true --cse true"]
+    [Lang.OCaml, "passes", "--specialize-instances true --cse true"],
+    // The lowering of cofixpoints, which only the programs using them run
+    [Lang.OCaml, "cofix", "--lower-cofix true"],
+    [Lang.C, "cofix", "--lower-cofix true"],
+    [Lang.Wasm, "cofix", "--lower-cofix true"]
 ];
 
 // Agda Tests
@@ -316,6 +320,20 @@ var rocq_tests: TestCase[] =
             parameters: []
         },
         {
+            src: "rocq/extraction/CoStream.ast",
+            main: "CoStream_test",
+            output_type: { type: "list", a_t: SimpleType.Nat },
+            expected_output: [
+                "(cons O (cons (S O) (cons O (cons (S O) nil))))",
+                "(cons () (O) (cons () (S () (O)) (cons () (O) (cons () (S () (O)) (nil)))))",
+                "Cons O (Cons (S O) (Cons O (Cons (S O) Nil)))"
+            ],
+            parameters: [],
+            cofix: true,
+            // Rust and Elm have no typed source for this program
+            skip: [Lang.Rust, Lang.Elm]
+        },
+        {
             src: "rocq/extraction/Demo.ast",
             tsrc: "rocq/extraction/Demo_typed.ast",
             rust_i64_output: "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
@@ -339,6 +357,19 @@ var rocq_tests: TestCase[] =
                 "(cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))) nil))))))",
                 "",
                 ""
+            ],
+            parameters: []
+        },
+        {
+            src: "rocq/extraction/EtaFix.ast",
+            tsrc: "rocq/extraction/EtaFix_typed.ast",
+            rust_i64_output: "8",
+            main: "EtaFix_test",
+            output_type: SimpleType.Nat,
+            expected_output: [
+                "(S (S (S (S (S (S (S (S O))))))))",
+                "(S () (S () (S () (S () (S () (S () (S () (S () (O)))))))))",
+                "S (S (S (S (S (S (S (S O)))))))"
             ],
             parameters: []
         },
@@ -398,6 +429,15 @@ var rocq_tests: TestCase[] =
             main: "OddEven_test",
             output_type: SimpleType.Bool,
             expected_output: ["false", "(false)", "False"],
+            parameters: []
+        },
+        {
+            src: "rocq/extraction/OpenCase.ast",
+            tsrc: "rocq/extraction/OpenCase_typed.ast",
+            rust_i64_output: "3",
+            main: "OpenCase_test",
+            output_type: SimpleType.Nat,
+            expected_output: ["(S (S (S O)))", "(S () (S () (S () (O))))", "S (S (S O))"],
             parameters: []
         },
         {

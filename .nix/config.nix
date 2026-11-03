@@ -31,7 +31,7 @@
       wasmcert.override.version = "2.2.1";
       verified-extraction.override.version = "0305df76ac89a83488f12175e2c5d45e1a55d16c";
       ceres-bs.override.version = "1.0.0";
-      CakeMLExtraction.override.version = "3c47a631d9a6a591e33bcfb72e277844982dd4b0";
+      CakeMLExtraction.override.version = "8df83a16525ca08bb9b5b375b3331b3f480d346b";
     }; rocqPackages = {
       rocq-core.override.version = "9.1";
     };

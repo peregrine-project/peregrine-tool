@@ -4,11 +4,14 @@ theories/Classy.v
 theories/Closure.v
 theories/Demo.v
 theories/Hello.v
+theories/EtaFix.v
 theories/Id.v
 theories/Map.v
+theories/CoStream.v
 theories/Mutual.v
 theories/Nat.v
 theories/OddEven.v
+theories/OpenCase.v
 theories/Params.v
 theories/Phantom.v
 theories/PolyLet.v

@@ -144,10 +144,8 @@ Fixpoint compile_term (c : ctx) (t : EAst.term) {struct t} : lterm :=
    to the fix; the remaining [m-j-1] outer params stay as closure
    variables for the lifted top-level definition.
 
-   Soundness relies on [leftover] not free-referencing the dropped
-   binders; this is true for the [tFix] uses we target (the fix's
-   body uses the *closure* outer params, not the η-stripped ones),
-   but is not checked here. *)
+   The strip is sound only if [leftover] does not refer to the stripped
+   binders: see [eta_fix_captures]. *)
 Fixpoint eta_strip_max (max_n : nat) (k : nat) (t : EAst.term) : nat * EAst.term :=
   match max_n with
   | O => (0, t)
@@ -161,6 +159,44 @@ Fixpoint eta_strip_max (max_n : nat) (k : nat) (t : EAst.term) : nat * EAst.term
     | _ => (0, t)
     end
   end.
+
+(* Does [t] refer to one of the [n] binders starting at de Bruijn index
+   [lo]?  Primitive values are treated conservatively. *)
+Fixpoint mentions_binders (lo n : nat) (t : EAst.term) : bool :=
+  match t with
+  | EAst.tRel i => Nat.leb lo i && Nat.ltb i (lo + n)
+  | EAst.tEvar _ l => existsb (mentions_binders lo n) l
+  | EAst.tLambda _ b => mentions_binders (S lo) n b
+  | EAst.tLetIn _ b u => mentions_binders lo n b || mentions_binders (S lo) n u
+  | EAst.tApp f a => mentions_binders lo n f || mentions_binders lo n a
+  | EAst.tConstruct _ _ l => existsb (mentions_binders lo n) l
+  | EAst.tCase _ d brs =>
+    mentions_binders lo n d
+    || existsb (fun br => mentions_binders (List.length (fst br) + lo) n (snd br)) brs
+  | EAst.tProj _ u | EAst.tLazy u | EAst.tForce u => mentions_binders lo n u
+  | EAst.tFix defs _ | EAst.tCoFix defs _ =>
+    existsb (fun d => mentions_binders (List.length defs + lo) n d.(EAst.dbody)) defs
+  | EAst.tPrim _ => true
+  | _ => false
+  end.
+
+(* Does a fixpoint body refer to one of the [n] outer binders it is η-applied
+   to?  Those binders sit directly outside the fix binders.  A recursive call
+   rebinds the parameter that would alias such a binder, so the strip would
+   change the value the body sees. *)
+Definition eta_fix_captures (n : nat) (defs : list (EAst.def EAst.term)) : bool :=
+  Nat.ltb 0 n
+  && existsb (fun d => mentions_binders (List.length defs) n d.(EAst.dbody)) defs.
+
+(* Can the [n] η-applied binders alias the first parameters of member [k]?
+   Not when the member has fewer parameters than arguments: it then returns a
+   function, which takes the remaining arguments. *)
+Definition eta_fix_strippable (n k : nat) (defs : list (EAst.def EAst.term)) : bool :=
+  negb (eta_fix_captures n defs)
+  && match nth_error defs k with
+     | Some d => Nat.leb n (List.length (fst (peel_lambdas d.(EAst.dbody))))
+     | None => false
+     end.
 
 (* Compile the body of a single top-level constant.
 
@@ -190,10 +226,12 @@ Definition compile_constant_body (kn : kername) (t : EAst.term) : lfun :=
      the shape Rocq's extraction produces for top-level fixpoints
      ([λ x. fix ... x]).  For non-fix bodies (e.g. [λ x y. f x y]
      for an arbitrary [f]), stripping would silently shift the
-     body's de Bruijn indices and silently lose binders. *)
+     body's de Bruijn indices and silently lose binders.  A fix that
+     [eta_fix_strippable] refuses is compiled as a nested fix. *)
   let '(n_stripped, body1') :=
     match body0 with
-    | EAst.tFix _ _ => (n0, body0)
+    | EAst.tFix defs k =>
+      if eta_fix_strippable n0 k defs then (n0, body0) else (0, body1)
     | _             => (0, body1)
     end in
   match body1' with
@@ -213,13 +251,12 @@ Definition compile_constant_body (kn : kername) (t : EAst.term) : lfun :=
          Lean variable.  Any further inner params become additional
          lfun params.  Outer lambdas left of the η chunk are closure
          variables that every recursive self-reference must re-pass. *)
-      let n_stripped' := if Nat.leb n_stripped n_inner then n_stripped else n_inner in
-      let extra_inner := List.skipn n_stripped' inner_params in
+      let extra_inner := List.skipn n_stripped inner_params in
       let all_params := List.app outer_params extra_inner in
       let ids := generate_ids 0 all_params in
       let outer_ids := List.firstn n_outer ids in
       let extra_inner_ids := List.skipn n_outer ids in
-      let n_closure := n_outer - n_stripped' in
+      let n_closure := n_outer - n_stripped in
       let closure_ids := List.firstn n_closure outer_ids in
       let eta_ids := List.skipn n_closure outer_ids in
       let c0 : ctx := push_vars outer_ids [] in
@@ -297,16 +334,19 @@ Definition compile_decl (kn : kername) (gd : EAst.global_decl) : list (kername *
       let n_outer := List.length outer_params in
       let '(n_eta, body1') := eta_strip_max n_outer 0 body1 in
       match body1' with
-      | EAst.tFix defs _ =>
+      | EAst.tFix defs k =>
         match defs with
         | d0 :: _ :: _ =>
+          if eta_fix_captures n_eta defs then
+            [(kn, LDef (compile_constant_body kn t))]
+          else
           (* Mutual block.  Multiple constants in the env may expand
              the *same* tFix (e.g. both [oddNat] and [evenNat] are
              top-level), so only the constant whose name matches the
-             first def's [dname] actually emits the block; the
-             others are silently dropped to avoid Lean's "already
-             declared" error. *)
-          if eq_kername kn (sibling_kname kn d0) then
+             first def's [dname], and that selects that def, actually
+             emits the block; the others are silently dropped to avoid
+             Lean's "already declared" error. *)
+          if eq_kername kn (sibling_kname kn d0) && Nat.eqb k 0 then
             [(kn, LRecGroup (emit_siblings kn
                (List.firstn (n_outer - n_eta) outer_params) n_eta defs))]
           else
@@ -332,3 +372,36 @@ Definition compile_env (env : EAst.global_declarations) : list (kername * ldecl)
 Definition compile_program (p : EAst.program) : lprogram :=
   let env := List.rev (fst p) in
   {| ldecls := compile_env env |}.
+
+(** ** Tests of the η-strip conditions *)
+
+(* [foo x := (fix f y := match y with O => x | S n => f n end) x], here with
+   the body reduced to a reference to [x]: under [y] and [f], [x] is index 2. *)
+Example eta_fix_captures_outer :
+  eta_fix_captures 1
+    [{| EAst.dname := nAnon; EAst.dbody := EAst.tLambda nAnon (EAst.tRel 2); EAst.rarg := 0 |}]
+  = true.
+Proof. reflexivity. Qed.
+
+(* The recursive reference (index 1 under [y]) and [y] itself are not captures. *)
+Example eta_fix_captures_self :
+  eta_fix_captures 1
+    [{| EAst.dname := nAnon;
+        EAst.dbody := EAst.tLambda nAnon (EAst.tApp (EAst.tRel 1) (EAst.tRel 0));
+        EAst.rarg := 0 |}]
+  = false.
+Proof. reflexivity. Qed.
+
+(* A closure variable further out is not one of the η-applied binders. *)
+Example eta_fix_captures_closure :
+  eta_fix_captures 1
+    [{| EAst.dname := nAnon; EAst.dbody := EAst.tLambda nAnon (EAst.tRel 3); EAst.rarg := 0 |}]
+  = false.
+Proof. reflexivity. Qed.
+
+(* [add x y := (fix f a := ..) x y]: two arguments, one parameter. *)
+Example eta_fix_strippable_too_few_params :
+  eta_fix_strippable 2 0
+    [{| EAst.dname := nAnon; EAst.dbody := EAst.tLambda nAnon (EAst.tRel 0); EAst.rarg := 0 |}]
+  = false.
+Proof. reflexivity. Qed.

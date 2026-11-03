@@ -24,7 +24,7 @@ depends: [
   "rocq-typed-extraction-common" {= "0.2.1"}
   "rocq-elm-extraction" {= "0.2.1"}
   "rocq-rust-extraction" {= "0.2.1"}
-  "rocq-cakeml-extraction" {= "0.1.0+dev"}
+  "rocq-cakeml-extraction" {= "0.1.1+dev"}
   "rocq-verified-extraction" {= "1.0.0+9.1+dev"}
   "cmdliner" {= "2.1.0"}
 ]
@@ -38,9 +38,9 @@ pin-depends: [
   # rocq-9.1 branch (02b475a) plus the rename of switch_no_params for
   # MetaRocq#1286, which the 9.1 snapshot needs.
   ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/peregrine-project/rocq-verified-extraction.git#0305df76ac89a83488f12175e2c5d45e1a55d16c"]
-  # cakeml-backend v0.1.0 ported to the MetaRocq 9.1 snapshot (its main,
-  # a5df761, does not build and changes the generated CakeML).
-  ["rocq-cakeml-extraction.0.1.0+dev" "git+https://github.com/peregrine-project/cakeml-backend.git#3c47a631d9a6a591e33bcfb72e277844982dd4b0"]
+  # cakeml-backend ported to the MetaRocq 9.1 snapshot, with the datatype
+  # declarations and qualified constructor names (cakeml-backend#16).
+  ["rocq-cakeml-extraction.0.1.1+dev" "git+https://github.com/peregrine-project/cakeml-backend.git#8df83a16525ca08bb9b5b375b3331b3f480d346b"]
   ["rocq-metarocq-utils.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#c8cd46054518193103c3bb33aa6e15c7f489e72c"]
   ["rocq-metarocq-common.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#c8cd46054518193103c3bb33aa6e15c7f489e72c"]
   ["rocq-metarocq-template.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#c8cd46054518193103c3bb33aa6e15c7f489e72c"]

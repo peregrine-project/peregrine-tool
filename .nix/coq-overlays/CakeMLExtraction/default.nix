@@ -37,10 +37,10 @@ mkCoqDerivation {
       null;
   release = {
     "0.1.0".hash = "sha256-diDUTj0l4vliov9+Lg8lNRdkLE7JAfJn8OU7J/HgmDE=";
-    # 0.1.0 ported to the MetaRocq 9.1 snapshot, see rocq-peregrine.opam
-    "3c47a631d9a6a591e33bcfb72e277844982dd4b0" = {
-      rev = "3c47a631d9a6a591e33bcfb72e277844982dd4b0";
-      hash = "sha256-XTfyd5v+f50ZqK/MQ4O9PywnCIDFCoM5w87aIBEpJpM=";
+    # ported to the MetaRocq 9.1 snapshot, with datatype declarations (cakeml-backend#16), see rocq-peregrine.opam
+    "8df83a16525ca08bb9b5b375b3331b3f480d346b" = {
+      rev = "8df83a16525ca08bb9b5b375b3331b3f480d346b";
+      hash = "sha256-eaKUaN856DouqtXeCHwbLAkQJODEX9hFjonvSznTnb0=";
     };
   };
   releaseRev = v: "v${v}";

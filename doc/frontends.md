@@ -12,7 +12,7 @@ A frontend's job is, for a given top-level definition, to:
 3. expose options and produce a serialized configuration file as described in [format.md](/doc/format.md)
 
 ## Frontends
-Peregrine comes with three frontends described below
+Peregrine comes with the Rocq, Agda and Lean frontends described below. The [SEIO\*](#f-seio) project also targets Peregrine.
 
 ### Rocq
 
@@ -90,17 +90,31 @@ def val_at_false (f: Bool -> Nat): Nat := f .false
 #erase val_at_false to "out.ast"
 ```
 
+`#erase` also writes `out.ast.inlinings`, an [attribute file](/doc/format.md#attribute-files) listing the constants to inline. Pass it to Peregrine with `--attributes=out.ast.inlinings`.
+
+#### Relation to LCNF
+
+The frontend erases Lean's kernel terms (`Expr`) directly, with a translation adapted from Lean's `toLCNF`. It runs before Lean's LCNF pipeline, so the only Lean compiler steps it applies are matcher and `macro_inline` inlining and `csimp` replacement. The optimizations of the LCNF pipeline, such as specialization, do not apply.
+
+#### Primitives
+
+By default (`nat := .machine`), `Nat` literals become `primInt`, which panics on overflow, and functions marked `@[extern]`, such as `Nat.add`, become axioms that the target must implement. With `nat := .peano`, `Nat` stays an inductive.
+
 #### Limitations
 
 The Lean frontend doesn't support
 * $\lambda_\square^T$
-* Primitives
+* String literals, or primitive floats and arrays
 * Lean IO monad
 * Lean Task API
 * computed fields
-* Peregrine configuration files
+* Writing a complete Peregrine configuration file, or attributes other than inlinings
 
 The Lean frontend is partially verified.
+
+### F\* (SEIO\*)
+
+[SEIO\*](https://github.com/andricicezar/fstar-io/tree/main/seiostar) compiles $\lambda_{io}$, a small language with IO operations quoted from F\* programs, to untyped $\lambda_\square$. IO operations become constants without a body, implemented by a linked OCaml runtime. Its pipeline uses the OCaml backend of an older Peregrine, and its output has no `Untyped` constructor, which the current parser requires. Its proof of robust relational hyperproperty preservation ends at $\lambda_{io}$.
 
 
 
