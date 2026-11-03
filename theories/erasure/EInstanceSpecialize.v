@@ -537,7 +537,8 @@ Definition prune_env (Σ : global_declarations) (main : term) : global_declarati
     List.rev (fst (fold_left step Σ ([], term_global_deps main)))
   end.
 
-Definition prune_program (p : program) : program := (prune_env p.1 p.2, p.2).
+Definition prune_program (p : global_declarations × term) : global_declarations × term :=
+  (prune_env p.1 p.2, p.2).
 
 Example prune_keeps_reachable :
   let k (s : string) : kername := (MPfile ["T"%bs], s) in
