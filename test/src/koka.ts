@@ -79,7 +79,7 @@ export function compile_koka(file: string, test: TestCase, timeout: number): { e
   const target = isDelayed ? `pg_force(${main})` : main;
   const pp = test.expected_output === undefined ? undefined : printer(program_types(source), test.output_type);
   const body = pp === undefined
-    ? `val _ = unsafe-total(fn() { ${target} }); ()`
+    ? `val pg_unused = unsafe-total(fn() { ${target} }); ()`
     : `println(${pp.name}(unsafe-total(fn() { ${target} })))`;
   // Koka derives the module name from the path, which must be a lower-case
   // identifier: the program is compiled as prog.kk in its own directory.
