@@ -2,6 +2,7 @@ From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Erasure Require EAst.
 From Stdlib Require Import List.
+From Corelib Require PrimInt63 PrimString.
 
 Import ListNotations.
 
@@ -43,6 +44,10 @@ Inductive lterm : Set :=
 (* A target-language expression applied to arguments: the body of a remapped
    constant. *)
 | LExtern : string -> list lterm -> lterm
+(* Primitive literals: Rocq's 63-bit integers and strings.  Primitive floats
+   and arrays have no translation; the backends reject them. *)
+| LPrimInt    : PrimInt63.int -> lterm
+| LPrimString : PrimString.string -> lterm
 | LPanic  : string -> lterm.
 
 Record lfun := mkLFun {

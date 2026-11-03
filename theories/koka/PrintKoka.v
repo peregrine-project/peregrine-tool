@@ -4,6 +4,7 @@ From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import BasicAst.
 From MetaRocq.Erasure Require EAst.
 From Peregrine Require Import LeanIR.
+From Peregrine Require Import PrintPrim.
 (* The Koka backend shares the Lean backend's IR ([LeanIR]), compiler
    ([LeanCompile]) and the name-disambiguation and inductive-lookup
    helpers of its printer; only the Koka syntax below is specific. *)
@@ -317,6 +318,8 @@ Section Printer.
         | _ => "(" ++ target ++ ")(" ++ concat_with ", " args' ++ ")"
         end in
       wrap_applies call pending
+    | LPrimInt i => wrap_applies ("pg_cast(" ++ prim_int_decimal i ++ ")") pending
+    | LPrimString s => wrap_applies ("pg_cast(" ++ prim_string_literal s ++ ")") pending
     | LPanic _ =>
       (* The erased-value placeholder: it absorbs any application. *)
       wrap_applies "pg_boxv" pending

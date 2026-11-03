@@ -7,6 +7,9 @@ From Peregrine Require Import Utils.
 From Peregrine Require Import LeanIR.
 From Peregrine Require Import LeanCompile.
 From Peregrine Require Import PrintLean.
+From Peregrine Require Import LeanCheck.
+
+Import MonadNotation.
 
 Local Open Scope bs_scope.
 
@@ -37,6 +40,7 @@ Definition extract_lean (remaps : constant_remappings)
                         (file_name : string)
                         (p : EAst.program)
                         : result' string :=
+  check_supported "Lean" remaps p;;
   let ir := compile_program remaps p in
   Ok (print_program (remap_modules remaps) opts.(lean_print_full_names) file_name opts.(lean_namespace) ir).
 
@@ -50,9 +54,10 @@ Definition extract_lean (remaps : constant_remappings)
 
 Theorem extract_lean_total :
   forall remaps attrs opts file p,
+    check_supported "Lean" remaps p = Ok tt ->
     exists s, extract_lean remaps attrs opts file p = Ok s.
 Proof.
-  intros. eexists. reflexivity.
+  intros * H. unfold extract_lean. rewrite H. eexists. reflexivity.
 Qed.
 
 (* Semantics preservation: ⟦p⟧_λ□ ≈ ⟦extract_lean p⟧_Lean.

@@ -8,6 +8,7 @@ From Peregrine Require Import Utils.
 From Peregrine Require Import LeanIR.
 From Peregrine Require Import LeanCompile.
 From Peregrine Require Import PrintFSharp.
+From Peregrine Require Import LeanCheck.
 
 Import MonadNotation.
 
@@ -36,60 +37,13 @@ Definition fsharp_phases := {|
 
 
 
-(* Terms the compiler has no translation for.  [compile_term] would turn
-   them into [LPanic], which the printer emits as the erased-value
-   placeholder, so the program would compute a wrong result instead of
-   failing.  The required phases above remove [tBox], [tLazy], [tForce]
-   and [tCoFix]; [tCoFix] is still listed so that it fails loudly should
-   that ever change. *)
-Fixpoint unsupported_term (t : EAst.term) : option string :=
-  let first := fix first (l : list (option string)) :=
-    match l with
-    | [] => None
-    | Some s :: _ => Some s
-    | None :: l => first l
-    end in
-  match t with
-  | EAst.tEvar _ _ => Some "tEvar"
-  | EAst.tCoFix _ _ => Some "tCoFix"
-  | EAst.tPrim _ => Some "tPrim (primitive integers, floats, strings and arrays)"
-  | EAst.tLambda _ b | EAst.tProj _ b | EAst.tLazy b | EAst.tForce b =>
-    unsupported_term b
-  | EAst.tLetIn _ b u | EAst.tApp b u =>
-    first [unsupported_term b; unsupported_term u]
-  | EAst.tConstruct _ _ args => first (List.map unsupported_term args)
-  | EAst.tCase _ d brs =>
-    first (unsupported_term d :: List.map (fun br => unsupported_term (snd br)) brs)
-  | EAst.tFix mfix _ => first (List.map (fun d => unsupported_term d.(EAst.dbody)) mfix)
-  | _ => None
-  end.
-
-Definition check_supported (remaps : constant_remappings) (p : EAst.program) : result' unit :=
-  let check_body (where_ : string) (t : EAst.term) : result' unit :=
-    match unsupported_term t with
-    | Some s => Err ("The F# backend does not support " ++ s ++ ", used in " ++ where_)
-    | None => Ok tt
-    end in
-  let check_decl (d : kername * EAst.global_decl) : result' unit :=
-    match snd d with
-    (* The body of a remapped constant is not printed. *)
-    | EAst.ConstantDecl {| EAst.cst_body := Some t |} =>
-      match LeanCompile.lookup_remap remaps (fst d) with
-      | Some _ => Ok tt
-      | None => check_body (string_of_kername (fst d)) t
-      end
-    | _ => Ok tt
-    end in
-  monad_iter check_decl (fst p);;
-  check_body "the main term" (snd p).
-
 Definition extract_fsharp (remaps : constant_remappings)
                           (custom_attr : custom_attributes)
                           (opts : fsharp_config)
                           (file_name : string)
                           (p : EAst.program)
                           : result' string :=
-  check_supported remaps p;;
+  check_supported "F#" remaps p;;
   let ir := compile_program remaps p in
   Ok (print_program (remap_modules remaps) opts.(fsharp_print_full_names) file_name opts.(fsharp_namespace) ir).
 
@@ -103,7 +57,7 @@ Definition extract_fsharp (remaps : constant_remappings)
 
 Theorem extract_fsharp_total :
   forall remaps attrs opts file p,
-    check_supported remaps p = Ok tt ->
+    check_supported "F#" remaps p = Ok tt ->
     exists s, extract_fsharp remaps attrs opts file p = Ok s.
 Proof.
   intros * H. unfold extract_fsharp. rewrite H. eexists. reflexivity.

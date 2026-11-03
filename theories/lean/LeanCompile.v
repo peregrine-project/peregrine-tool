@@ -127,8 +127,13 @@ Fixpoint compile_term (c : ctx) (t : EAst.term) {struct t} : lterm :=
     LFix entries idx
   | EAst.tCoFix _ _ =>
     LPanic "tCoFix unsupported"
-  | EAst.tPrim _ =>
-    LPanic "tPrim unsupported"
+  | EAst.tPrim p =>
+    match p.π2 return lterm with
+    | EPrimitive.primIntModel i => LPrimInt i
+    | EPrimitive.primStringModel s => LPrimString s
+    | EPrimitive.primFloatModel _ => LPanic "primitive floats unsupported"
+    | EPrimitive.primArrayModel _ => LPanic "primitive arrays unsupported"
+    end
   | EAst.tLazy _ =>
     LPanic "tLazy should have been removed by implement_lazy"
   | EAst.tForce _ =>
