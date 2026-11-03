@@ -510,6 +510,7 @@ Definition get_sanitizer (o : Config.config) : utf8_string -> string :=
   | Config.OCaml _ => ocaml_sanitizer
   | Config.CakeML _ => cakeml_sanitizer
   | Config.C _ => c_sanitizer
+  | Config.LLVM _ => c_sanitizer
   | Config.Wasm _ => wasm_sanitizer
   | Config.Lean _ => lean_sanitizer
   | Config.FSharp _ => fsharp_sanitizer

@@ -11,7 +11,9 @@
 
 mkCoqDerivation {
   pname = "verified-extraction";
-  owner = "MetaRocq";
+  # The MetaRocq 9.1 snapshot port, from the peregrine branch of
+  # peregrine-project/rocq-verified-extraction, see rocq-peregrine.opam.
+  owner = "peregrine-project";
   repo = "rocq-verified-extraction";
   opam-name = "rocq-verified-extraction";
 
@@ -37,6 +39,11 @@ mkCoqDerivation {
       null;
   release = {
     "1.0.0-9.1".hash = "sha256-0eKpchQtnPI12rcsb9+qN1pdNX9KY8VryZP0oqHuYeU=";
+    # rocq-9.1 plus the MetaRocq 9.1 snapshot port, see rocq-peregrine.opam
+    "0305df76ac89a83488f12175e2c5d45e1a55d16c" = {
+      rev = "0305df76ac89a83488f12175e2c5d45e1a55d16c";
+      hash = "sha256-ue+/r+quaB6IPn+QRbGne0jRTBy3aF9DMlqXDOWgrmA=";
+    };
   };
   releaseRev = v: "v${v}";
 

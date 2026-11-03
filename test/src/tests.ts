@@ -7,6 +7,7 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.C, "", ""],
     [Lang.Wasm, "cps", "--cps"],
     [Lang.Wasm, "", ""],
+    [Lang.LLVM, "", ""],
     [Lang.Rust, "", ""],
     [Lang.Elm, "", ""],
     // The typed backends on the untyped sources, whose types are inferred.
@@ -362,7 +363,7 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Remap.ast",
             // Only the Lean and F# tests supply remappings of these constants
-            skip: [Lang.OCaml, Lang.C, Lang.Wasm, Lang.Rust, Lang.Elm, Lang.CakeML],
+            skip: [Lang.OCaml, Lang.C, Lang.Wasm, Lang.LLVM, Lang.Rust, Lang.Elm, Lang.CakeML],
             configs: { [Lang.Lean]: "src/lean/remap.sexp", [Lang.FSharp]: "src/fsharp/remap.sexp" },
             main: "Remap_test",
             output_type: SimpleType.Nat,

@@ -106,13 +106,13 @@ Instance Deserialize_fsharp_config' : Deserialize fsharp_config' :=
 Instance Deserialize_eval_config : Deserialize eval_config :=
   fun l e =>
     Deser.match_con "eval_config" []
-      [ ("eval_config", Deser.con3_ Build_eval_config) ]
+      [ ("eval_config", Deser.con2_ Build_eval_config) ]
       l e.
 
 Instance Deserialize_eval_config' : Deserialize eval_config' :=
   fun l e =>
     Deser.match_con "eval_config" []
-      [ ("eval_config", Deser.con3_ Build_eval_config') ]
+      [ ("eval_config", Deser.con2_ Build_eval_config') ]
       l e.
 
 Instance Deserialize_ASTType : Deserialize ASTType :=
@@ -121,9 +121,7 @@ Instance Deserialize_ASTType : Deserialize ASTType :=
       [ ("LambdaBox", LambdaBox);
         ("LambdaBoxTyped", LambdaBoxTyped)
       ]
-      [ ("LambdaBoxMut", Deser.con1_ LambdaBoxMut);
-        ("LambdaBoxLocal", Deser.con1_ LambdaBoxLocal);
-        ("LambdaANF", Deser.con1_ LambdaANF);
+      [ ("LambdaANF", Deser.con1_ LambdaANF);
         ("LambdaANFC", Deser.con1_ LambdaANFC)
       ]
       l e.
@@ -134,9 +132,7 @@ Instance Deserialize_ASTType' : Deserialize ASTType' :=
       [ ("LambdaBox", LambdaBox');
         ("LambdaBoxTyped", LambdaBoxTyped')
       ]
-      [ ("LambdaBoxMut", Deser.con1_ LambdaBoxMut');
-        ("LambdaBoxLocal", Deser.con1_ LambdaBoxLocal');
-        ("LambdaANF", Deser.con1_ LambdaANF');
+      [ ("LambdaANF", Deser.con1_ LambdaANF');
         ("LambdaANFC", Deser.con1_ LambdaANFC')
       ]
       l e.
@@ -160,6 +156,7 @@ Instance Deserialize_backend_config : Deserialize backend_config :=
         ("Elm", Deser.con_ Elm);
         ("C", Deser.con_ C);
         ("Wasm", Deser.con_ Wasm);
+        ("LLVM", Deser.con_ LLVM);
         ("OCaml", Deser.con_ OCaml);
         ("CakeML", Deser.con_ CakeML);
         ("Lean", Deser.con_ Lean);
@@ -176,6 +173,7 @@ Instance Deserialize_backend_config' : Deserialize backend_config' :=
         ("Elm", Deser.con_ Elm');
         ("C", Deser.con_ C');
         ("Wasm", Deser.con_ Wasm');
+        ("LLVM", Deser.con_ LLVM');
         ("OCaml", Deser.con_ OCaml');
         ("CakeML", Deser.con_ CakeML');
         ("Lean", Deser.con_ Lean');

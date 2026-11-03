@@ -11,6 +11,7 @@ From Peregrine Require OCamlBackend.
 From Peregrine Require CBackend.
 From Peregrine Require WasmBackend.
 From Peregrine Require LeanBackend.
+From Peregrine Require LLVMBackend.
 From Peregrine Require FSharpBackend.
 From Peregrine Require EvalBackend.
 From Peregrine Require ASTBackend.
@@ -76,7 +77,7 @@ Definition check_wf (p : PAst) : result' unit :=
 Definition needs_typed (c : config) : bool :=
   match c.(backend_opts) with
   | Rust _ | Elm _ => true
-  | C _ | Wasm _ | OCaml _ | CakeML _ | Lean _ | FSharp _ | Eval _ => false
+  | C _ | Wasm _ | LLVM _ | OCaml _ | CakeML _ | Lean _ | FSharp _ | Eval _ => false
   | AST c =>
     match c.(ast_type) with
     | LambdaBoxTyped => true
@@ -134,6 +135,7 @@ Inductive extracted_program :=
 | ElmProgram : string -> extracted_program
 | CProgram : (CertiRocq.Codegen.toplevel.Cprogram * list string) -> extracted_program
 | WasmProgram : string -> extracted_program
+| LLVMProgram : string -> extracted_program
 | OCamlProgram : (list string * string) -> extracted_program
 | CakeMLProgram : (list string * string) -> extracted_program
 | LeanProgram : string -> extracted_program
@@ -219,6 +221,16 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       p';;
     Ok (WasmProgram res)
 
+  | LLVM opts =>
+    p' <- PAst_to_EAst p;;
+    res <- LLVMBackend.extract_llvm
+      const_remaps
+      custom_attr
+      opts
+      f
+      p';;
+    Ok (LLVMProgram res)
+
   | Lean opts =>
     p' <- PAst_to_EAst p;;
     (* The file name is spliced into every emitted identifier. *)
@@ -298,6 +310,7 @@ Definition check_lowered (c : config) (p : PAst) : result' unit :=
     match c.(backend_opts) with
     | C _ => Some "C"
     | Wasm _ => Some "Wasm"
+    | LLVM _ => Some "LLVM"
     | OCaml _ => Some "OCaml"
     | CakeML _ => Some "CakeML"
     | Eval _ => Some "eval"

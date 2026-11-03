@@ -15,6 +15,7 @@ From Peregrine Require Import LeanBackend.
 From Peregrine Require Import FSharpBackend.
 From Peregrine Require Import CBackend.
 From Peregrine Require Import WasmBackend.
+From Peregrine Require Import LLVMBackend.
 From Peregrine Require Import EvalBackend.
 From Peregrine Require Import ASTBackend.
 
@@ -36,7 +37,6 @@ Section ErasureConfig.
   Definition mk_opts (c : config) (typed : bool) : erasure_configuration := {|
       enable_unsafe := {|
         Erasure.cofix_to_lazy := c.(erasure_opts).(cofix_to_laxy);
-        Erasure.inlining := true;
         Erasure.inductives_extraction := true;
         Erasure.unboxing := c.(erasure_opts).(unboxing);
         Erasure.betared := c.(erasure_opts).(betared);
@@ -47,6 +47,7 @@ Section ErasureConfig.
         do_trim_ctor_masks := c.(erasure_opts).(dearg_ctors);
       |};
       enable_typed_erasure := typed;
+      Erasure.inlining := true;
       inlined_constants := MetaRocq.Erasure.Typed.Utils.kername_set_of_list c.(inlinings_opts);
       extracted_inductives := mk_ind_remaps c;
     |}.
@@ -158,6 +159,7 @@ Section BackendConfigOptional.
   Definition c_config' : Type := certirocq_config'.
 
   Definition wasm_config' : Type := certirocq_config'.
+  Definition llvm_config' : Type := certirocq_config'.
 
   (* OCaml *)
   Record ocaml_config' := {
@@ -209,26 +211,21 @@ Section BackendConfigOptional.
   Record eval_config' := {
     copts'    : option certirocq_config';
     fuel'     : nat;
-    eval_anf' : bool;
   }.
   Definition empty_eval_config' : eval_config' := {|
     copts'    := None;
     fuel'     := (Nat.pow 2 14);
-    eval_anf' := true;
   |}.
 
   Definition mk_eval_config (o : eval_config') : eval_config := {|
     copts    := get_optional o default_eval_config
       (fun c => option_map (mk_certirocq_config default_eval_config.(copts)) (copts' c)) copts;
     fuel     := o.(fuel');
-    eval_anf := o.(eval_anf');
   |}.
 
   Variant ASTType' :=
   | LambdaBox'
   | LambdaBoxTyped'
-  | LambdaBoxMut'   : option certirocq_config' -> ASTType'
-  | LambdaBoxLocal' : option certirocq_config' -> ASTType'
   | LambdaANF'      : option certirocq_config' -> ASTType'
   | LambdaANFC'     : option certirocq_config' -> ASTType'.
 
@@ -245,8 +242,6 @@ Section BackendConfigOptional.
         match o.(ast_type') with
         | LambdaBox' => LambdaBox
         | LambdaBoxTyped' => LambdaBoxTyped
-        | LambdaBoxMut' c => LambdaBoxMut (mk c)
-        | LambdaBoxLocal' c => LambdaBoxLocal (mk c)
         | LambdaANF' c => LambdaANF (mk c)
         | LambdaANFC' c => LambdaANFC (mk c)
         end
@@ -257,6 +252,7 @@ Section BackendConfigOptional.
   | Elm'    : elm_config' -> backend_config'
   | C'      : c_config' -> backend_config'
   | Wasm'   : wasm_config' -> backend_config'
+  | LLVM'   : llvm_config' -> backend_config'
   | OCaml'  : ocaml_config' -> backend_config'
   | CakeML' : cakeml_config' -> backend_config'
   | Lean'   : lean_config' -> backend_config'
@@ -269,6 +265,7 @@ Section BackendConfigOptional.
     | Elm' o    => Elm (mk_elm_config o)
     | C' o      => C (mk_certirocq_config default_c_config o)
     | Wasm' o   => Wasm (mk_certirocq_config default_wasm_config o)
+    | LLVM' o   => LLVM (mk_certirocq_config default_llvm_config o)
     | OCaml' o  => OCaml (mk_ocaml_config o)
     | CakeML' o => CakeML (mk_cakeml_config o)
     | Lean' o   => Lean (mk_lean_config o)
@@ -355,6 +352,7 @@ Section GeneralConfigOptional.
       | Elm' _    => get_default_phases_opt elm_phases
       | C' _      => get_default_phases_opt c_phases
       | Wasm' _   => get_default_phases_opt wasm_phases
+      | LLVM' _   => get_default_phases_opt llvm_phases
       | OCaml' _  => get_default_phases_opt ocaml_phases
       | CakeML' _ => get_default_phases_opt cakeml_phases
       | Lean' _   => get_default_phases_opt lean_phases
@@ -369,6 +367,7 @@ Section GeneralConfigOptional.
       | Elm' _    => enforce_phases o def_opt elm_phases
       | C' _      => enforce_phases o def_opt c_phases
       | Wasm' _   => enforce_phases o def_opt wasm_phases
+      | LLVM' _   => enforce_phases o def_opt llvm_phases
       | OCaml' _  => enforce_phases o def_opt ocaml_phases
       | CakeML' _ => enforce_phases o def_opt cakeml_phases
       | Lean' _   => enforce_phases o def_opt lean_phases
@@ -479,6 +478,12 @@ Section GeneralConfigOptional.
   Definition is_wasm_config (o : config) : bool :=
     match o.(backend_opts) with
     | Wasm _ => true
+    | _ => false
+    end.
+
+  Definition is_llvm_config (o : config) : bool :=
+    match o.(backend_opts) with
+    | LLVM _ => true
     | _ => false
     end.
 

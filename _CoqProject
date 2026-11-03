@@ -15,7 +15,6 @@ theories/Pipeline.v
 theories/erasure/Erasure.v
 theories/erasure/ErasureTyped.v
 theories/erasure/Transforms.v
-theories/erasure/EImplementLazyForce.v
 theories/erasure/EInstanceSpecialize.v
 theories/erasure/ECommonSubexpr.v
 theories/erasure/EHindleyMilner.v
@@ -37,6 +36,7 @@ theories/backends/OCamlBackend.v
 theories/backends/CakeMLBackend.v
 theories/backends/CBackend.v
 theories/backends/WasmBackend.v
+theories/backends/LLVMBackend.v
 theories/backends/CertiRocqBackend.v
 theories/backends/LeanBackend.v
 theories/backends/FSharpBackend.v
@@ -71,6 +71,4 @@ theories/serialization/DeserializeConfig.v
 theories/serialization/SerializeConfig.v
 theories/serialization/SerializeConfigComplete.v
 theories/serialization/SerializeConfigSound.v
-theories/serialization/SerializeLambdaBoxMut.v
-theories/serialization/SerializeLambdaBoxLocal.v
 theories/serialization/SerializeLambdaANF.v

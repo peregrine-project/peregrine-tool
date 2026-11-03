@@ -5,13 +5,9 @@ From MetaRocq.Utils Require Import utils.
 From MetaRocq.Erasure Require Import EAst.
 From CertiRocq.Common Require Import Common.
 From CertiRocq.Common Require Import Pipeline_utils.
-From CertiRocq.LambdaBoxMut Require Import compile.
-From CertiRocq.LambdaBoxMut Require Import term.
-From CertiRocq.LambdaBoxMut Require Import program.
-From CertiRocq.LambdaBoxMut Require Import wcbvEval.
 From CertiRocq.LambdaANF Require Import toplevel.
 From CertiRocq.LambdaANF Require Import eval.
-From CertiRocq.LambdaANF Require Import cps.
+From CertiRocq.LambdaANF Require Import term.
 From ExtLib.Structures Require Import Monad.
 
 Import MonadNotation.
@@ -79,7 +75,7 @@ Section Evaluator.
           match M.get y rho with
           | Some (Vconstr t vs) =>
             do e <- l_opt (findtag cl t) ("Case: " ^ (show_tag t) ^ " branch not found");
-            if CertiRocq.LambdaANF.cps_util.caseConsistent_f cenv cl t then
+            if CertiRocq.LambdaANF.term_util.caseConsistent_f cenv cl t then
               bstep_f rho e n'
             else (exceptionMonad.Exc "Case: consistency failure")
           | _ => (exceptionMonad.Exc ("Case: " ^ (show_var y) ^ " branch not found"))
@@ -132,7 +128,7 @@ Section Evaluator.
       destruct M.get; cbn; try now split.
       destruct v1; cbn; try now split.
       destruct findtag; cbn; try now split.
-      destruct cps_util.caseConsistent_f; cbn; try now split.
+      destruct term_util.caseConsistent_f; cbn; try now split.
       apply IHn.
     - cbn.
       destruct M.get; cbn; try now split.
@@ -198,12 +194,6 @@ End Evaluator.
 
 
 Definition fuel := (2^18)%nat.
-
-Definition eval_mut (n : nat) (p : Program Term) : pipelineM string :=
-  match wcbvEval (AstCommon.env p) n (main p) with
-  | Ret p => ret (print_term p)
-  | Exc s => compM.failwith ("Could not evaluate program:" ^ nl ^ s)
-  end.
 
 Definition eval_anf (n : nat) (p : LambdaANF_FullTerm) : pipelineM string :=
   let (env, p) := p in

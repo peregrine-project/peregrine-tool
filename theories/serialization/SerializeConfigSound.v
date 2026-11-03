@@ -284,10 +284,9 @@ Proof.
   sound_field He.
   apply sound_class in Ea0.
   apply sound_class in Ea1.
-  apply sound_class in Ea2.
   unfold to_sexp, Serialize_eval_config.
   cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2.
+  rewrite <- Ea0, <- Ea1.
   reflexivity.
 Qed.
 
@@ -301,10 +300,9 @@ Proof.
   sound_field He.
   apply sound_class in Ea0.
   apply sound_class in Ea1.
-  apply sound_class in Ea2.
   unfold to_sexp, Serialize_eval_config'.
   cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2.
+  rewrite <- Ea0, <- Ea1.
   reflexivity.
 Qed.
 
@@ -328,16 +326,6 @@ Proof.
     apply sound_class in Ea1.
     rewrite <- Ea1.
     reflexivity.
-  - destruct He as [es [<- He]].
-    sound_field He.
-    apply sound_class in Ea1.
-    rewrite <- Ea1.
-    reflexivity.
-  - destruct He as [es [<- He]].
-    sound_field He.
-    apply sound_class in Ea1.
-    rewrite <- Ea1.
-    reflexivity.
 Qed.
 
 Instance Sound_ASTType' : SoundClass ASTType'.
@@ -349,16 +337,6 @@ Proof.
   - destruct He as [es ?]; subst.
     reflexivity.
   - destruct He as [es ?]; subst.
-    reflexivity.
-  - destruct He as [es [<- He]].
-    sound_field He.
-    apply sound_class in Ea1.
-    rewrite <- Ea1.
-    reflexivity.
-  - destruct He as [es [<- He]].
-    sound_field He.
-    apply sound_class in Ea1.
-    rewrite <- Ea1.
     reflexivity.
   - destruct He as [es [<- He]].
     sound_field He.

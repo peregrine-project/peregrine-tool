@@ -25,7 +25,6 @@ Definition default_eval_config := {|
     body_name := "body";
   |};
   Config.fuel     := (Nat.pow 2 14);
-  Config.eval_anf := true;
 |}.
 
 Definition eval_phases := {|
@@ -45,12 +44,6 @@ Definition eval_phases := {|
 Definition eval_anf_pipeline prs fuel (p : EAst.program) :=
   anf_pipeline (fun _ => eval_anf fuel) prs p.
 
-Definition eval_mut_pipeline prs fuel (p : EAst.program) :=
-  p_anf <- mut_pipeline prs p;;
-  (* Eval using mut evaluator *)
-  p_v <- eval_mut fuel p_anf;;
-  ret p_v.
-
 Definition eval (remaps : constant_remappings)
                 (custom_attr : custom_attributes)
                 (opts : eval_config)
@@ -59,9 +52,8 @@ Definition eval (remaps : constant_remappings)
                 : result' string :=
   let config := mk_opts opts.(Config.copts) in
   let prs := mk_prims remaps in
-  let evaluator := if opts.(Config.eval_anf) then eval_anf_pipeline else eval_mut_pipeline in
   let (res, _) :=
-    run_pipeline EAst.program string config p (evaluator prs opts.(Config.fuel)) in
+    run_pipeline EAst.program string config p (eval_anf_pipeline prs opts.(Config.fuel)) in
   match res with
   | compM.Ret s => Ok s
   | compM.Err s => Err s

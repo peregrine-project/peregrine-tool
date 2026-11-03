@@ -33,7 +33,7 @@ elmConfigConv ElmConfig {..} =
     (fmap stringConv elmFalseElimDef)
     elmPrintFullNames
 
--- CertiRocq (C & Webassembly) backend configuration
+-- CertiRocq (C, WebAssembly & LLVM) backend configuration
 certirocqConfigConv :: CertiRocqConfig -> ConfigUtils.Coq_certirocq_config'
 certirocqConfigConv CertiRocqConfig {..} =
   ConfigUtils.Build_certirocq_config'
@@ -78,14 +78,11 @@ evalConfigConv EvalConfig {..} =
   ConfigUtils.Build_eval_config'
     (fmap certirocqConfigConv copts)
     (natConv fuel)
-    evalAnf
 
 -- AST backend configuration
 astTypeConv :: ASTType -> ConfigUtils.ASTType'
 astTypeConv LambdaBox = ConfigUtils.LambdaBox'
 astTypeConv LambdaBoxTyped = ConfigUtils.LambdaBoxTyped'
-astTypeConv (LambdaBoxMut c) = ConfigUtils.LambdaBoxMut' (fmap certirocqConfigConv c)
-astTypeConv (LambdaBoxLocal c) = ConfigUtils.LambdaBoxLocal' (fmap certirocqConfigConv c)
 astTypeConv (LambdaANF c) = ConfigUtils.LambdaANF' (fmap certirocqConfigConv c)
 astTypeConv (LambdaANFC c) = ConfigUtils.LambdaANFC' (fmap certirocqConfigConv c)
 
@@ -99,6 +96,7 @@ backendConfigConv (Rust c) = ConfigUtils.Rust' $ rustConfigConv c
 backendConfigConv (Elm c) = ConfigUtils.Elm' $ elmConfigConv c
 backendConfigConv (C c) = ConfigUtils.C' $ certirocqConfigConv c
 backendConfigConv (Wasm c) = ConfigUtils.Wasm' $ certirocqConfigConv c
+backendConfigConv (LLVM c) = ConfigUtils.LLVM' $ certirocqConfigConv c
 backendConfigConv (OCaml c) = ConfigUtils.OCaml' $ ocamlConfigConv c
 backendConfigConv (CakeML c) = ConfigUtils.CakeML' $ cakemlConfigConv c
 backendConfigConv (Lean c) = ConfigUtils.Lean' $ leanConfigConv c

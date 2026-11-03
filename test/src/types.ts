@@ -33,6 +33,7 @@ export enum Lang {
   OCaml = "OCaml",
   C = "C",
   Wasm = "WebAssembly",
+  LLVM = "LLVM",
   Rust = "Rust",
   Elm = "Elm",
   CakeML = "CakeML",
