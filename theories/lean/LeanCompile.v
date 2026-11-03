@@ -4,6 +4,7 @@ From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import BasicAst.
 From MetaRocq.Erasure Require EAst.
 From MetaRocq.Erasure Require ELiftSubst.
+From Peregrine Require Import Config.
 From Peregrine Require Import LeanIR.
 From Stdlib Require Import List.
 From Stdlib Require Import PeanoNat.
@@ -324,9 +325,34 @@ Definition emit_siblings (kn : kername) (closure : list name) (n_eta : nat)
     end in
   aux 0 defs.
 
-Definition compile_decl (kn : kername) (gd : EAst.global_decl) : list (kername * ldecl) :=
+Fixpoint lookup_remap (remaps : constant_remappings) (kn : kername) : option remapped_constant :=
+  match remaps with
+  | [] => None
+  | (kn', r) :: remaps => if eq_kername kn kn' then Some r else lookup_remap remaps kn
+  end.
+
+(* A remapped constant is a definition with the remapping as its body, so its
+   callers, its arity and its name are handled like those of any other. *)
+Definition remapped_fun (r : remapped_constant) : lfun :=
+  let ids := generate_ids 0 (List.repeat nAnon r.(re_const_arity)) in
+  {| lfun_params := ids;
+     lfun_body   := LExtern r.(re_const_s) (List.map LVar ids) |}.
+
+(* The external modules the remappings name, without repetition. *)
+Definition remap_modules (remaps : constant_remappings) : list string :=
+  List.fold_right (fun '(_, r) acc =>
+    match r.(re_const_ext) with
+    | Some m => if existsb (String.eqb m) acc then acc else m :: acc
+    | None => acc
+    end) [] remaps.
+
+Definition compile_decl (remaps : constant_remappings) (kn : kername) (gd : EAst.global_decl)
+  : list (kername * ldecl) :=
   match gd with
   | EAst.ConstantDecl cb =>
+    match lookup_remap remaps kn with
+    | Some r => [(kn, LDef (remapped_fun r))]
+    | None =>
     match cb.(EAst.cst_body) with
     | None => []  (* axiom; skip *)
     | Some t =>
@@ -358,20 +384,22 @@ Definition compile_decl (kn : kername) (gd : EAst.global_decl) : list (kername *
         [(kn, LDef (compile_constant_body kn t))]
       end
     end
+    end
   | EAst.InductiveDecl mib => [(kn, LInductive mib)]
   end.
 
-Definition compile_env (env : EAst.global_declarations) : list (kername * ldecl) :=
+Definition compile_env (remaps : constant_remappings) (env : EAst.global_declarations)
+  : list (kername * ldecl) :=
   List.fold_right (fun '(kn, gd) acc =>
-    List.app (compile_decl kn gd) acc
+    List.app (compile_decl remaps kn gd) acc
   ) [] env.
 
 (* MetaCoq stores the global environment in reverse order of dependency
    (most recently declared first).  Lean wants definitions before uses,
    so we reverse. *)
-Definition compile_program (p : EAst.program) : lprogram :=
+Definition compile_program (remaps : constant_remappings) (p : EAst.program) : lprogram :=
   let env := List.rev (fst p) in
-  {| ldecls := compile_env env |}.
+  {| ldecls := compile_env remaps env |}.
 
 (** ** Tests of the η-strip conditions *)
 

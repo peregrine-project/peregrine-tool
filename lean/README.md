@@ -83,13 +83,30 @@ The `lakefile.toml` at the repository root builds the runtime alone (`lake build
 * `lean_namespace` — the namespace wrapped around the generated code. Default `"Generated"`.
 * `lean_print_full_names` — prefix names with the file name and module path. Default `true`. When `false`, only the last component of each name is printed, quoted as `«f»` so that it cannot clash with a Lean keyword, and same-named definitions from different modules collide.
 
+## Remapping
+
+A configuration or attribute file can remap a constant, whether it is an axiom or has a body. The constant becomes a definition with `re_const_arity` parameters that applies `re_const_s`, a Lean expression, to them. The expression takes each argument as an `Obj` and returns an `Obj`, so it uses `Peregrine.cast` and `Peregrine.reflect` at other types:
+
+```lisp
+(config
+  (Lean (lean_config None None))
+  None
+  ()
+  ((((MPfile ("M")) "double")
+    (remapped_constant None 1 false false "fun (x : Obj) => reflect (2 * (cast x : Nat))")))
+  () () ())
+```
+
+`re_const_ext` names a module to import. `re_const_gc` and `re_const_inl` have no effect, as Lean's compiler decides inlining.
+
 ## Limitations
 
 * `tPrim` (primitive integers, floats, strings, arrays) and `tEvar` are not supported. They compile to the placeholder `()` without a compile-time error, so a program that uses them misbehaves at run time. Cofixpoints are supported: the required *cofix to lazy* pass turns them into fixpoints before the backend runs.
 * A top-level mutual fixpoint is emitted together with the constant named after its first member, when that constant selects that member. A constant with that name that selects another member emits nothing. If the program only reaches another member, the group is missing and the output does not compile in Lean.
 * A mutual fixpoint nested inside a term compiles to a run-time `panic!`.
 * Axioms (constants without a body) are skipped. A program that references one does not compile in Lean.
-* Constant remappings (`remaps`) and custom attributes (`custom_attr`) are ignored.
+* Custom attributes (`custom_attr`) and inductive remappings are ignored.
+* A member of a top-level mutual fixpoint cannot be remapped: the group still declares it.
 * Erased terms are represented by `()`. A program that inspects one at run time has undefined behaviour.
 * Names, and the file name used as a prefix, are sanitized with the OCaml sanitizer, so they can contain escapes such as `_UU2e` (`my-file.ast` gives `my_UU2dfile_f`).
 * Numerals are unary constructor towers. The generated file sets `maxRecDepth 1000000` so that Lean can elaborate them.
