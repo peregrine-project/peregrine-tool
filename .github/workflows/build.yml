@@ -236,3 +236,6 @@ jobs:
           opam exec -- make -C examples/io check
           # the optional passes must keep the order of the primitive calls
           opam exec -- make -C examples/io clean check PEREGRINE_FLAGS="--cse true --specialize-instances true"
+
+      - name: Tasks example (OCaml threads and Lean Task)
+        run: opam exec -- make -C examples/tasks check
