@@ -5,6 +5,7 @@ From Peregrine Require Import ConfigUtils.
 From Peregrine Require Import Transforms.
 From Peregrine Require Import Erasure.
 From Peregrine Require Import CheckWf.
+From Peregrine Require Import RecursorInlining.
 From Peregrine Require RustBackend.
 From Peregrine Require ElmBackend.
 From Peregrine Require OCamlBackend.
@@ -366,9 +367,14 @@ Definition check_lowered (c : config) (p : PAst) : result' unit :=
   | _, _ => Ok tt
   end.
 
-Definition peregrine_pipeline (c : string + config') (attrs : list string) (p : string) (f : string) : extraction_result :=
+(** [inline_recursors]: add the program's recursors ([I_rect]/[I_rec]) to the
+    inlinings, as if an attribute file listing them had been passed
+    (see RecursorInlining.v). *)
+Definition peregrine_pipeline (c : string + config') (attrs : list string) (inline_recursors : bool)
+  (p : string) (f : string) : extraction_result :=
   p <- parse_ast p;; (* Parse input string into AST *)
   c <- get_config c attrs;; (* Parse or construct config *)
+  let c := if inline_recursors then merge_attributes_config c [recursor_attributes p] else c in
   check_wf p;; (* Check that AST is wellformed *)
   p <- NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c) p;; (* Sanitize names in AST *)
   c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;; (* Sanitize names in config *)

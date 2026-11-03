@@ -5,12 +5,14 @@ type copts = {
   debug: bool;
   output_file: string option;
   attrs: string list;
+  inline_recursors: bool;
 }
-let mk_copts verbose debug output_file attrs = {
+let mk_copts verbose debug output_file attrs inline_recursors = {
   verbose;
   debug;
   output_file;
-  attrs
+  attrs;
+  inline_recursors
 }
 
 (* The frontends, see frontend.ml *)

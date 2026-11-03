@@ -198,7 +198,7 @@ let compile_aux opts fo ~typed f_input config =
   let f_name = stem |> Filename.basename |> bytestring_of_caml_string in
   let attrs = read_attrs opts attrs in
   info opts "Compiling:";
-  let res = Pipeline.peregrine_pipeline config attrs prog f_name in
+  let res = Pipeline.peregrine_pipeline config attrs opts.inline_recursors prog f_name in
   match res with
   | ResultMonad.Ok p ->
     info opts "Compiled successfully:";

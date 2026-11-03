@@ -207,7 +207,7 @@ Field by field:
   All booleans. `specialize_instances` and `cse` select the two optional passes described in [middleend.md](middleend.md); every backend leaves them off by default.
   Only the nine-field form parses. To migrate a configuration written for the earlier seven-field form, append `None None` to its `erasure_phases` entry (`false false` where the fields are not optional). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
 
-* `inlinings_opts` (`inlinings`) — a list of `kername`s; constants in this list are inlined by the typed-erasure pass.
+* `inlinings_opts` (`inlinings`) — a list of `kername`s; constants in this list are inlined by MetaRocq's inlining pass (`EInlining`; untyped pipeline only). The CLI flag `--inline-recursors` extends this list automatically with the program's recursors `I_rect`/`I_rec` (see [usage.md](usage.md#middle-end-passes) and [RecursorInlining.v](/theories/RecursorInlining.v)); the result is identical to listing them in an attribute file.
 
 * `const_remappings_opts` (`constant_remappings`) — a list of `(<kername> <remapped_constant>)` pairs (see below).
 
