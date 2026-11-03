@@ -23,7 +23,11 @@ export var test_configurations: TestConfiguration[] = [
     // The F# backend is experimental
     [Lang.FSharp, "experimental", ""],
     // The two optional middle-end passes, which only the untyped pipeline runs
-    [Lang.OCaml, "passes", "--specialize-instances true --cse true"]
+    [Lang.OCaml, "passes", "--specialize-instances true --cse true"],
+    // The lowering of cofixpoints, which only the programs using them run
+    [Lang.OCaml, "cofix", "--lower-cofix true"],
+    [Lang.C, "cofix", "--lower-cofix true"],
+    [Lang.Wasm, "cofix", "--lower-cofix true"]
 ];
 
 // Agda Tests
@@ -313,6 +317,20 @@ var rocq_tests: TestCase[] =
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S (S (S O)))))", "(S () (S () (S () (S () (S () (O))))))", "S (S (S (S (S O))))"],
             parameters: []
+        },
+        {
+            src: "rocq/extraction/CoStream.ast",
+            main: "CoStream_test",
+            output_type: { type: "list", a_t: SimpleType.Nat },
+            expected_output: [
+                "(cons O (cons (S O) (cons O (cons (S O) nil))))",
+                "(cons () (O) (cons () (S () (O)) (cons () (O) (cons () (S () (O)) (nil)))))",
+                "Cons O (Cons (S O) (Cons O (Cons (S O) Nil)))"
+            ],
+            parameters: [],
+            cofix: true,
+            // Rust and Elm have no typed source for this program
+            skip: [Lang.Rust, Lang.Elm]
         },
         {
             src: "rocq/extraction/Demo.ast",

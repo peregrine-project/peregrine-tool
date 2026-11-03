@@ -10,6 +10,7 @@ theories/Hello.v
 theories/EtaFix.v
 theories/Id.v
 theories/Map.v
+theories/CoStream.v
 theories/Mutual.v
 theories/Nat.v
 theories/OddEven.v
