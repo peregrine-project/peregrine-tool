@@ -342,6 +342,19 @@ var rocq_tests: TestCase[] =
             parameters: []
         },
         {
+            src: "rocq/extraction/EtaFix.ast",
+            tsrc: "rocq/extraction/EtaFix_typed.ast",
+            rust_i64_output: "8",
+            main: "EtaFix_test",
+            output_type: SimpleType.Nat,
+            expected_output: [
+                "(S (S (S (S (S (S (S (S O))))))))",
+                "(S () (S () (S () (S () (S () (S () (S () (S () (O)))))))))",
+                "S (S (S (S (S (S (S (S O)))))))"
+            ],
+            parameters: []
+        },
+        {
             // Corelib's id is declared through a type alias (benchmarks UPSTREAM_ISSUES entry 3)
             src: "rocq/extraction/Id.ast",
             tsrc: "rocq/extraction/Id_typed.ast",
