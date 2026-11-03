@@ -29,11 +29,11 @@
     On top of the local reducer, the pass *clones* a function at call sites
     where a leading argument is a statically-known dictionary value: for [f d x]
     with [d] a closed dictionary [tConstruct] (or a [tConst] whose body unfolds
-    to one), it emits a specialized copy [f$specN] whose body is [f]'s body with
+    to one), it emits a specialized copy [f_specN] whose body is [f]'s body with
     [d] substituted in (via [spec_beta]; for a [tConst] whose body is a [tFix],
     the fixpoint is unfolded once first), so the beta/iota reductions above fire
     *inside* [f]'s body across the call boundary; the call site is redirected to
-    [f$specN x].  A dictionary argument is
+    [f_specN x].  A dictionary argument is
     recognised by the heuristic "closed constructor whose inductive is a
     single-constructor record" ([dict_value]/[is_record_ind]), which excludes
     ordinary data (nat, list, bool, ...).  Specializations are memoised in a map
@@ -94,16 +94,28 @@ Definition spec_map_subterms (f : term -> term) (t : term) : term :=
   | tBox => tBox
   end.
 
+(** Terms that evaluate to themselves without effect or cost, so that
+    substituting one for a variable used several times does not repeat work. *)
+Fixpoint spec_value (t : term) : bool :=
+  match t with
+  | tRel _ | tBox | tConst _ | tLambda _ _ | tFix _ _ => true
+  | tConstruct _ _ args => forallb spec_value args
+  | _ => false
+  end.
+
 Section specialize.
 
   (** Apply an already-reduced [body] to a spine of already-reduced [args],
-      firing beta as far as [body] is a literal lambda. *)
+      firing beta as far as [body] is a literal lambda and the argument is a
+      value: substituting any other argument would evaluate it once per use. *)
   Fixpoint spec_beta (body : term) (args : list term) {struct args} : term :=
     match args with
     | [] => body
     | a :: args =>
         match body with
-        | tLambda na body => spec_beta (body {0 := a}) args
+        | tLambda na body =>
+            if spec_value a then spec_beta (body {0 := a}) args
+            else mkApps (tLambda na body) (a :: args)
         | _ => mkApps body (a :: args)
         end
     end.
@@ -122,6 +134,7 @@ Section specialize.
         let reduced :=
           match disc' with
           | tConstruct _ c cargs =>
+              if negb (forallb spec_value cargs) then tCase (ind, npar) disc' brs' else
               match nth_error brs' c with
               (* Not [iota_red]: its [substl] assumes closed arguments, and here
                  they may refer to binders around the [tCase]. *)
@@ -139,6 +152,15 @@ Section specialize.
 End specialize.
 
 (** Iota with open constructor arguments keeps them apart. *)
+(** Beta does not duplicate an argument that is not a value. *)
+Example specialize_instances_beta_nonvalue (f : kername) :
+  specialize_instances
+    (tApp (tLambda nAnon (tApp (tApp (tConst f) (tRel 0)) (tRel 0)))
+          (tApp (tConst f) tBox))
+  = tApp (tLambda nAnon (tApp (tApp (tConst f) (tRel 0)) (tRel 0)))
+         (tApp (tConst f) tBox).
+Proof. reflexivity. Qed.
+
 Example specialize_instances_open_iota (i : inductive) :
   specialize_instances
     (tLambda nAnon (tLambda nAnon
@@ -167,9 +189,16 @@ Fixpoint list_eqb {A} (f : A -> A -> bool) (l1 l2 : list A) : bool :=
 Definition eqb_key (k1 k2 : dkey) : bool :=
   eqb (fst k1) (fst k2) && list_eqb (fun a b => eqb a b) (snd k1) (snd k2).
 
-(** Fresh, deterministic name for the [i]-th specialization of [nm]. *)
-Definition fresh_name (nm : kername) (i : nat) : kername :=
-  (nm.1, (nm.2 ++ "$spec" ++ string_of_nat i)%bs).
+(** Fresh, deterministic name for a specialization of [nm]: [nm_specI] for the
+    least [I >= i] that names no declaration of [Σ] and no earlier
+    specialization in [seen].  The name is formed after the backends' names are
+    sanitized, so it uses only characters every backend accepts. *)
+Fixpoint fresh_name_aux (taken : kername -> bool) (nm : kername) (i fuel : nat) : kername :=
+  let kn := (nm.1, (nm.2 ++ "_spec" ++ string_of_nat i)%bs) in
+  match fuel with
+  | 0 => kn
+  | S fuel' => if taken kn then fresh_name_aux taken nm (S i) fuel' else kn
+  end.
 
 (** Is [ind] a single-constructor record (the typeclass/dictionary shape)? *)
 Definition is_record_ind (Σ : global_declarations) (ind : inductive) : bool :=
@@ -294,7 +323,9 @@ Fixpoint saturate (Σ : global_declarations) (fuel : nat) (worklist : list dkey)
             match callee_body Σ nm with
             | Some b =>
                 let body := spec_body b dicts in
-                let fn := fresh_name nm #|seen| in
+                let taken kn :=
+                  match lookup_env Σ kn with Some _ => true | None => false end || existsb (fun p => eqb (snd p) kn) seen in
+                let fn := fresh_name_aux taken nm 0 (S (#|Σ| + #|seen|)) in
                 let new_keys := collect_keys Σ [] body in
                 saturate Σ fuel' (new_keys ++ rest) ((k, fn) :: seen)
                          ((fn, ConstantDecl {| cst_body := Some body |}) :: decls)
@@ -473,3 +504,75 @@ Axiom specialize_instances_transformation_ext' :
   forall (efl : EEnvFlags) (wfl : WcbvFlags),
   TransformExt.t (specialize_instances_transformation efl wfl)
     extends_eprogram extends_eprogram.
+
+
+(** ** Pruning unreachable constants
+
+    Specialization keeps the constants it cloned, and nothing else removes a
+    constant that the program no longer uses.  [prune_program] keeps the
+    constants reachable from the main term and every inductive.  The
+    environment is newest-first and a declaration refers only to older ones,
+    so one pass from the newest declaration computes reachability.  A program
+    without a main term, whose main is [tBox], is a library: every constant
+    is kept. *)
+
+Definition decl_global_deps (d : global_decl) : KernameSet.t :=
+  match d with
+  | ConstantDecl {| cst_body := Some b |} => term_global_deps b
+  | _ => KernameSet.empty
+  end.
+
+Definition prune_env (Σ : global_declarations) (main : term) : global_declarations :=
+  match main with
+  | tBox => Σ
+  | _ =>
+    let step '(acc, live) '(kn, d) :=
+      match d with
+      | InductiveDecl _ => ((kn, d) :: acc, live)
+      | ConstantDecl _ =>
+        if KernameSet.mem kn live
+        then ((kn, d) :: acc, KernameSet.union (decl_global_deps d) live)
+        else (acc, live)
+      end in
+    List.rev (fst (fold_left step Σ ([], term_global_deps main)))
+  end.
+
+Definition prune_program (p : program) : program := (prune_env p.1 p.2, p.2).
+
+Example prune_keeps_reachable :
+  let k (s : string) : kername := (MPfile ["T"%bs], s) in
+  prune_env [(k "c", ConstantDecl {| cst_body := Some (tConst (k "a")) |});
+             (k "b", ConstantDecl {| cst_body := Some tBox |});
+             (k "a", ConstantDecl {| cst_body := None |})] (tConst (k "c"))
+  = [(k "c", ConstantDecl {| cst_body := Some (tConst (k "a")) |});
+     (k "a", ConstantDecl {| cst_body := None |})].
+Proof. vm_compute. reflexivity. Qed.
+
+Example prune_library (Σ : global_declarations) : prune_env Σ tBox = Σ.
+Proof. reflexivity. Qed.
+
+Axiom trust_prune_wf :
+  forall efl : EEnvFlags,
+  forall (input : Transform.program _ term),
+  wf_eprogram efl input -> wf_eprogram efl (prune_program input).
+
+Axiom trust_prune_pres :
+  forall (efl : EEnvFlags) (wfl : WcbvFlags) (p : Transform.program _ term) (v : term),
+  wf_eprogram efl p ->
+  eval_eprogram wfl p v ->
+  eval_eprogram wfl (prune_program p) v.
+
+Program Definition prune_transformation (efl : EEnvFlags) (wfl : WcbvFlags) :
+  Transform.t _ _ EAst.term EAst.term _ _
+    (eval_eprogram wfl) (eval_eprogram wfl) :=
+  {| name := "pruning unreachable constants";
+     transform p _ := prune_program p;
+     pre p := wf_eprogram efl p;
+     post p := wf_eprogram efl p;
+     obseq p hp p' v v' := v' = v |}.
+Next Obligation.
+  now apply trust_prune_wf.
+Qed.
+Next Obligation.
+  exists v. split; [now eapply trust_prune_pres|reflexivity].
+Qed.

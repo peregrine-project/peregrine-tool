@@ -132,4 +132,5 @@ Instance specialization ([EInstanceSpecialize.v](/theories/erasure/EInstanceSpec
 Their correctness is axiomatized:
 
 * Instance specialization: well-formedness preservation and evaluation preservation are the axioms `trust_specialize_instances_wf` and `trust_specialize_instances_pres`, and its two `TransformExt` instances are the axioms `specialize_instances_transformation_ext` and `specialize_instances_transformation_ext'`. Nothing about the pass is proved.
+* Pruning, which runs with instance specialization and removes the constants unreachable from the main term (a program without one keeps them all): well-formedness preservation and evaluation preservation are the axioms `trust_prune_wf` and `trust_prune_pres`. Specialized copies are named `f_specN`, with `N` chosen so that the name is new.
 * Common subexpression elimination: well-formedness preservation (`cse_wf`) and the `TransformExt` instances are proved; evaluation preservation is the axiom `cse_pres_eval`.
