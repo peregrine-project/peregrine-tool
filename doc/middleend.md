@@ -76,7 +76,7 @@ The transformations that will be applied will depend on both the AST type, backe
 * **remove singleton types**:
   Unboxes singleton types by, i.e. inductive types with 1 constructor with 1 argument 
 * **inlining**:
-  a pass inlining declarations. Only declarations declared as inline will be inlined.
+  a pass inlining declarations. Only declarations declared as inline will be inlined (the `inlinings` of the configuration and attribute files, plus the program's recursors when `--inline-recursors` is given). This is MetaRocq's `EInlining.inline_transformation`, proved correct for any list of inlined constants.
 * **beta reduction**:
   a pass performing beta reduction
 * **remap inductives**:

@@ -10,6 +10,7 @@ theories/CheckWf.v
 theories/EvalBox.v
 theories/CoqToLambdaBox.v
 theories/Extraction.v
+theories/RecursorInlining.v
 theories/Pipeline.v
 
 theories/erasure/Erasure.v

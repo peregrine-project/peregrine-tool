@@ -25,7 +25,17 @@ let copts_t =
     let doc = "Attribute config files." in
     Arg.(value & opt (list file) [] & info ["attributes"] ~docs ~doc)
   in
-  Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg)
+  let inline_recursors_arg =
+    let doc = "Inline the recursors of the program: every constant \
+               $(i,I)_rect or $(i,I)_rec whose inductive $(i,I) is declared \
+               in the same module is added to the inlinings, exactly as if \
+               an attribute file listed it (see --attributes). Rocq's own \
+               extraction always does this. Combine with --betared=true to \
+               reduce the inlined recursors to direct recursion. Off by \
+               default; ignored by $(b,erase) and $(b,validate)." in
+    Arg.(value & opt ~vopt:true bool false & info ["inline-recursors"] ~docs ~docv:"BOOL" ~doc)
+  in
+  Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg $ inline_recursors_arg)
 
 let certirocq_opts_t =
   let cps_arg =

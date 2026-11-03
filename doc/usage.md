@@ -189,6 +189,7 @@ The backend commands (not `compile`, `validate` or `erase`) take these flags, wh
 | `--lower-cofix` | translate cofixpoints, `lazy` and `force` to fixpoints and thunks |
 
 * `--specialize-instances` and `--cse` are off by default and act only on the untyped targets. The typed pipeline of `rust` and `elm` does not run them. Their correctness rests on axioms ([middleend.md](middleend.md#optional-passes)).
+* `--inline-recursors[=BOOL]` (default `false`) adds the program's recursors to the inlinings: every constant `I_rect` or `I_rec` whose inductive `I` is declared in the same module, exactly as if an attribute file listed it. Rocq's own extraction always does this; with `--betared=true` the inlined recursors become direct pattern matching and recursion ([RecursorInlining.v](/theories/RecursorInlining.v)). The inlining pass is MetaRocq's verified `EInlining`. The typed pipeline of `rust` and `elm` does not inline. Unlike the flags in the table, it is a common option: `compile` takes it too, `erase` and `validate` ignore it.
 * `--lower-cofix` uses two passes whose evaluation-preservation proofs are admitted. Without it, `c`, `wasm`, `llvm`, `ocaml`, `cakeml` and `eval` reject a program that still has cofixpoints, `lazy` or `force` after the middle-end. `lean`, `fsharp` and `koka` always run these passes.
 
 
