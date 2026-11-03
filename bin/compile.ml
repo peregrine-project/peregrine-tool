@@ -7,6 +7,7 @@ module ConfigUtils = Peregrine.ConfigUtils
 module RustGMPRemaps = Peregrine.RustGMPRemaps
 module RustNativeRemaps = Peregrine.RustNativeRemaps
 module RustMixedRemaps = Peregrine.RustMixedRemaps
+module RustHybridRemaps = Peregrine.RustHybridRemaps
 module Pipeline = Peregrine.Pipeline2
 module ResultMonad = Peregrine.ResultMonad
 module Anf_term = Peregrine.Term0
@@ -245,6 +246,11 @@ let rust_verbs = [
     rust_verb_config = RustMixedRemaps.mixed_rust_config';
     rust_verb_const_remaps = RustMixedRemaps.mixed_const_remaps2;
     rust_verb_ind_remaps = RustMixedRemaps.mixed_ind_remaps };
+  { rust_verb_name = "rust-hybrid";
+    rust_verb_doc = "Compile lambda box program to Rust, with nat/positive/N/Z as i64 when the value fits and as GMP integers otherwise, overflow checked (needs the rug crate)";
+    rust_verb_config = RustHybridRemaps.hybrid_rust_config';
+    rust_verb_const_remaps = RustHybridRemaps.hybrid_const_remaps;
+    rust_verb_ind_remaps = RustHybridRemaps.hybrid_ind_remaps };
 ]
 
 let compile_rust v opts eopts f_prog =
