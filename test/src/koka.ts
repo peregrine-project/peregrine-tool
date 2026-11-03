@@ -52,7 +52,7 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
     const t = find_type(types, [[["O", "zero"], 0], [["S", "succ", "suc"], 1]]);
     if (t === undefined) return undefined;
     const [z, s] = t.ctors;
-    return { name, decls: [`fun ${name}( x : any ) : div string { match ${cast(t)} { ${z.name} -> "O"; ${s.name}(n) -> "(S " ++ ${name}(n) ++ ")" } }`] };
+    return { name, decls: [`fun ${name}( x : any ) : div string { match ${cast(t)} { ${z.name} -> "O"; ${s.name}(n) -> "(S " ++ ${name}(pg_cast(n)) ++ ")" } }`] };
   }
   if (type === SimpleType.Bool) {
     const t = find_type(types, [[["true"], 0], [["false"], 0]]) ?? find_type(types, [[["false"], 0], [["true"], 0]]);
@@ -67,7 +67,7 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
   const [nil, cons] = t.ctors;
   return {
     name,
-    decls: [...elem.decls, `fun ${name}( x : any ) : div string { match ${cast(t)} { ${nil.name} -> "nil"; ${cons.name}(h, t) -> "(cons " ++ ${elem.name}(h) ++ " " ++ ${name}(t) ++ ")" } }`]
+    decls: [...elem.decls, `fun ${name}( x : any ) : div string { match ${cast(t)} { ${nil.name} -> "nil"; ${cons.name}(h, t) -> "(cons " ++ ${elem.name}(pg_cast(h)) ++ " " ++ ${name}(pg_cast(t)) ++ ")" } }`]
   };
 }
 
@@ -78,9 +78,13 @@ export function compile_koka(file: string, test: TestCase, timeout: number): { e
   const source = readFileSync(file, "utf8");
   // The entry point: pg_<main>, or for the typed backend the full name ending in it
   const found = source.match(new RegExp(`^(val|fun) (pg_\\w*?${test.main})\\b(\\(\\))?`, "m"));
-  const main = found === null ? `pg_${test.main}` : found[2];
+  // failing that, a name ending in the last component of the entry point
+  const last = test.main.split("_").pop();
+  const fallback = found === null ? source.match(new RegExp(`^(val|fun) (pg_\\w*_${last})\\b(\\(\\))?`, "m")) : null;
+  const entry = found ?? fallback;
+  const main = entry === null ? `pg_${test.main}` : entry[2];
   const isDelayed = new RegExp(`^val ${main} : delayed`, "m").test(source);
-  const isNullaryFun = found !== null && found[1] === "fun" && found[3] !== undefined;
+  const isNullaryFun = entry !== null && entry[1] === "fun" && entry[3] !== undefined;
   const target = isDelayed ? `pg_force(${main})` : isNullaryFun ? `${main}()` : main;
   const pp = test.expected_output === undefined ? undefined : printer(program_types(source), test.output_type);
   // The printers cast with pg_cast, which only the untyped preamble declares

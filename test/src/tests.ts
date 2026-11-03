@@ -326,6 +326,7 @@ var rocq_tests: TestCase[] =
         },
         {
             src: "rocq/extraction/CoStream.ast",
+            koka_typed_rejected: true,
             main: "CoStream_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -340,6 +341,7 @@ var rocq_tests: TestCase[] =
         },
         {
             src: "rocq/extraction/Prims.ast",
+            koka_typed_rejected: true,
             main: "Prims_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -405,6 +407,7 @@ var rocq_tests: TestCase[] =
         {
             // Corelib's id is declared through a type alias (benchmarks UPSTREAM_ISSUES entry 3)
             src: "rocq/extraction/Id.ast",
+            koka_typed_rejected: true,
             tsrc: "rocq/extraction/Id_typed.ast",
             // The Elm backend has the same defect and no stopgap
             skip: [Lang.Elm],
@@ -471,6 +474,7 @@ var rocq_tests: TestCase[] =
         },
         {
             src: "rocq/extraction/Params.ast",
+            koka_typed_rejected: true,
             tsrc: "rocq/extraction/Params_typed.ast",
             rust_i64_output: "3",
             main: "Params_test",

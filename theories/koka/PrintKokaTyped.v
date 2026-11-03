@@ -53,6 +53,8 @@ Definition var (id : ident) (depth : nat) : string := "v_" ++ id ++ "_" ++ strin
 
 Definition kty_var (i : nat) : string := "a" ++ string_of_nat i.
 
+Definition nonempty {A} (l : list A) : bool := match l with [] => false | _ => true end.
+
 Section Printer.
   Context (Σ : global_env).
   Context (remap : kername -> option string).
@@ -168,6 +170,13 @@ Section Printer.
     | _ => false
     end.
 
+  (* A constant whose type is erased denotes [□], which absorbs arguments. *)
+  Definition erased_type (kn : kername) : bool :=
+    match lookup_env Σ kn with
+    | Some (ConstantDecl {| cst_type := (_, TBox) |}) => true
+    | _ => false
+    end.
+
   Definition name_ident (na : name) : ident :=
     match na with
     | nAnon => "x"
@@ -204,7 +213,8 @@ Section Printer.
     | EAst.tApp f a =>
       a' <- print_term Γ a [];;
       print_term Γ f (a' :: pending)
-    | EAst.tBox => Ok (apply_unary "()" pending)
+    (* [□] absorbs its arguments *)
+    | EAst.tBox => Ok "()"
     | EAst.tRel n =>
       match nth_error Γ n with
       | Some (v, Some k) => Ok (call_known v k pending)
@@ -224,6 +234,7 @@ Section Printer.
       match remap kn with
       | Some s => Ok (apply_unary ("(" ++ s ++ ")") pending)
       | None =>
+        if andb (erased_type kn) (nonempty pending) then Ok "()" else
         match const_arity kn with
         | Some n =>
           if is_thunk kn then Ok (apply_unary ("pg_force(" ++ fun_name kn ++ ")") pending)
@@ -263,8 +274,16 @@ Section Printer.
         Ok (apply_unary ("(match " ++ d' ++ " { " ++ concat_with "; " brs' ++ " })") pending)
       end
     | EAst.tFix mfix idx =>
-      (* local functions, mutually recursive, in one block *)
-      let names := mapi (fun j d => var (name_ident (EAst.dname d)) (depth + j)) mfix in
+      (* One fixpoint is a local function.  Koka's local functions cannot be
+         mutually recursive, so a group of several is one local function
+         [pg_gN] that returns the tuple of its members, each of which reaches
+         the others through it. *)
+      let single := match mfix with [_] => true | _ => false end in
+      let g := "pg_g" ++ string_of_nat depth in
+      let ms := mapi (fun j _ => "pg_m" ++ string_of_nat j) mfix in
+      let sel j := "(match " ++ g ++ "(()) { (" ++ concat_with ", " ms ++ ") -> pg_m" ++ string_of_nat j ++ " })" in
+      let names := if single then mapi (fun j d => var (name_ident (EAst.dname d)) (depth + j)) mfix
+                   else mapi (fun j _ => sel j) mfix in
       let arities := map (fun d => List.length (fst (lambdas (EAst.dbody d)))) mfix in
       let Γ' := List.app (List.rev (combine names (map Some arities))) Γ in
       let fix peel (u : EAst.term) (Γp : ctx) (pv : list string) {struct u} : kres (list string * string) :=
@@ -283,13 +302,16 @@ Section Printer.
           | [] => Err "a fixpoint without parameters"
           | _ =>
             rest <- print_defs ds' ns';;
-            Ok (("fun " ++ n ++ "(" ++ concat_with ", " pvars ++ ") { " ++ body' ++ " }") :: rest)
+            Ok ((if single then "fun " ++ n ++ "(" ++ concat_with ", " pvars ++ ") { " ++ body' ++ " }"
+                 else "fn(" ++ concat_with ", " pvars ++ ") { " ++ body' ++ " }") :: rest)
           end
         | _, _ => Err "unreachable"
         end in
       defs <- print_defs mfix names;;
       match nth_error names idx, nth_error arities idx with
-      | Some n, Some k => Ok ("(fn() { " ++ concat_with "; " defs ++ "; " ++ call_known n k pending ++ " })()")
+      | Some n, Some k =>
+        if single then Ok ("(fn() { " ++ concat_with "; " defs ++ "; " ++ call_known n k pending ++ " })()")
+        else Ok ("(fn() { fun " ++ g ++ "(pg_u) { (" ++ concat_with ", " defs ++ ") }; " ++ call_known n k pending ++ " })()")
       | _, _ => Err "fixpoint index out of range"
       end
     | EAst.tVar _ => Err "tVar"
