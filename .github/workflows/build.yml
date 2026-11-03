@@ -230,3 +230,6 @@ jobs:
           echo "::group::Running tests"
           eval $(opam env) && cd test && npm install && npm run test
           echo "::endgroup::"
+
+      - name: IO example (OCaml and C)
+        run: opam exec -- make -C examples/io check
