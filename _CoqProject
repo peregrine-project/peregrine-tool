@@ -33,6 +33,7 @@ theories/backends/RustBackend.v
 theories/backends/RustGMPRemaps.v
 theories/backends/RustNativeRemaps.v
 theories/backends/RustMixedRemaps.v
+theories/backends/RustHybridRemaps.v
 theories/backends/RustMixedCoherence.v
 theories/backends/ElmBackend.v
 theories/backends/OCamlBackend.v
