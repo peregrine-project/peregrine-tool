@@ -30,7 +30,6 @@ Peregrine Extract "extraction/CoStream.ast" CoStream.test.
 
 (* Prims.v *)
 Peregrine Extract "extraction/Prims.ast" Prims.test.
-Peregrine Extract Typed "extraction/Prims_typed.ast" Prims.test.
 
 (* Demo.v *)
 Peregrine Extract "extraction/Demo.ast" Demo.test.

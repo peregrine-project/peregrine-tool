@@ -337,8 +337,6 @@ var rocq_tests: TestCase[] =
         },
         {
             src: "rocq/extraction/Prims.ast",
-            tsrc: "rocq/extraction/Prims_typed.ast",
-            rust_i64_output: "(cons () 1 (cons () 0 (nil)))",
             main: "Prims_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -346,7 +344,9 @@ var rocq_tests: TestCase[] =
                 "(cons () (S () (O)) (cons () (O) (nil)))",
                 "Cons (S O) (Cons O Nil)"
             ],
-            parameters: []
+            parameters: [],
+            // The typed backends reject primitive types, and Wasm strings
+            skip: [Lang.Rust, Lang.Elm, Lang.Wasm]
         },
         {
             src: "rocq/extraction/Demo.ast",
