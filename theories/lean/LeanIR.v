@@ -40,6 +40,9 @@ Inductive lterm : Set :=
    fixes that appear as subterms; top-level fixpoints are handled by
    [compile_constant_body] and become [LDef]/[LRecGroup]. *)
 | LFix    : list (ident * lterm) -> nat -> lterm
+(* A target-language expression applied to arguments: the body of a remapped
+   constant. *)
+| LExtern : string -> list lterm -> lterm
 | LPanic  : string -> lterm.
 
 Record lfun := mkLFun {

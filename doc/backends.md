@@ -116,7 +116,7 @@ Output
 * A single, self-contained `.fs` file, including an inlined runtime helper, so it has no external dependencies. Note the emitted file cannot run under `dotnet fsi` (scripts reject top-level `module` declarations); compile it inside a .NET project.
 * Every value is printed as `obj`; source inductives become `[<RequireQualifiedAccess>]` discriminated unions, and nullary constants are wrapped in `Lazy<obj>` so they are not forced at module-init time.
 * Compile and run with [`dotnet`](https://dotnet.microsoft.com/) in `Release` mode — `Debug` builds and `dotnet fsi` disable .NET tail calls. Deep non-tail recursion should run on a large-stack thread (the test harness uses a 512 MiB stack).
-* Programs with primitive values (`tPrim`) are rejected at compile time. Remapping is not supported, as in the Lean backend.
+* Programs with primitive values (`tPrim`) are rejected at compile time. Constant remapping works as in the Lean backend: `re_const_s` is an F# expression taking curried `obj` arguments and returning `obj`, and `re_const_ext` names a module to open.
 * A nested mutual fixpoint, which no current frontend produces, compiles to code that fails when it is evaluated.
 * A top-level mutual fixpoint is emitted with the constant named after its first member, when that constant selects that member, as in the Lean backend. Other constants that select a member keep their name only if a member has it.
 

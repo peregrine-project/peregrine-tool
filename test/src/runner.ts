@@ -392,7 +392,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f_lean = compile_box(test.src, leandir, Lang.Lean, opts);
+        const f_lean = compile_box(test.src, leandir, Lang.Lean, opts, test.configs?.[Lang.Lean]);
         if (typeof f_lean !== "string") {
           print_result(f_lean, test.src);
           continue;
@@ -418,7 +418,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       const compiled = tests.filter((t) => t.src !== undefined).map((test, k) => {
         const outdir = path.join(fsharpdir, "gen", `${k}`);
         mkdirSync(outdir, { recursive: true });
-        return { test, f_fs: compile_box(test.src, outdir, Lang.FSharp, opts) };
+        return { test, f_fs: compile_box(test.src, outdir, Lang.FSharp, opts, test.configs?.[Lang.FSharp]) };
       });
       const programs = compiled.filter((c) => typeof c.f_fs === "string")
         .map((c) => ({ test: c.test, file: c.f_fs as string }));

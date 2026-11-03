@@ -361,6 +361,16 @@ var rocq_tests: TestCase[] =
             parameters: []
         },
         {
+            src: "rocq/extraction/Remap.ast",
+            // Only the Lean and F# tests supply remappings of these constants
+            skip: [Lang.OCaml, Lang.C, Lang.Wasm, Lang.Rust, Lang.Elm, Lang.CakeML],
+            configs: { [Lang.Lean]: "src/lean/remap.sexp", [Lang.FSharp]: "src/fsharp/remap.sexp" },
+            main: "Remap_test",
+            output_type: SimpleType.Nat,
+            expected_output: ["(S (S (S O)))", "(S () (S () (S () (O))))", "S (S (S O))"],
+            parameters: []
+        },
+        {
             src: "rocq/extraction/EtaFix.ast",
             tsrc: "rocq/extraction/EtaFix_typed.ast",
             rust_i64_output: "8",

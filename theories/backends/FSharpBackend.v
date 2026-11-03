@@ -64,7 +64,7 @@ Fixpoint unsupported_term (t : EAst.term) : option string :=
   | _ => None
   end.
 
-Definition check_supported (p : EAst.program) : result' unit :=
+Definition check_supported (remaps : constant_remappings) (p : EAst.program) : result' unit :=
   let check_body (where_ : string) (t : EAst.term) : result' unit :=
     match unsupported_term t with
     | Some s => Err ("The F# backend does not support " ++ s ++ ", used in " ++ where_)
@@ -72,7 +72,12 @@ Definition check_supported (p : EAst.program) : result' unit :=
     end in
   let check_decl (d : kername * EAst.global_decl) : result' unit :=
     match snd d with
-    | EAst.ConstantDecl {| EAst.cst_body := Some t |} => check_body (string_of_kername (fst d)) t
+    (* The body of a remapped constant is not printed. *)
+    | EAst.ConstantDecl {| EAst.cst_body := Some t |} =>
+      match LeanCompile.lookup_remap remaps (fst d) with
+      | Some _ => Ok tt
+      | None => check_body (string_of_kername (fst d)) t
+      end
     | _ => Ok tt
     end in
   monad_iter check_decl (fst p);;
@@ -84,9 +89,9 @@ Definition extract_fsharp (remaps : constant_remappings)
                           (file_name : string)
                           (p : EAst.program)
                           : result' string :=
-  check_supported p;;
-  let ir := compile_program p in
-  Ok (print_program opts.(fsharp_print_full_names) file_name opts.(fsharp_namespace) ir).
+  check_supported remaps p;;
+  let ir := compile_program remaps p in
+  Ok (print_program (remap_modules remaps) opts.(fsharp_print_full_names) file_name opts.(fsharp_namespace) ir).
 
 
 
@@ -98,7 +103,7 @@ Definition extract_fsharp (remaps : constant_remappings)
 
 Theorem extract_fsharp_total :
   forall remaps attrs opts file p,
-    check_supported p = Ok tt ->
+    check_supported remaps p = Ok tt ->
     exists s, extract_fsharp remaps attrs opts file p = Ok s.
 Proof.
   intros * H. unfold extract_fsharp. rewrite H. eexists. reflexivity.
