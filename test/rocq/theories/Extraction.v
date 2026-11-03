@@ -3,6 +3,7 @@ From Peregrine.Tests Require Classy.
 From Peregrine.Tests Require Closure.
 From Peregrine.Tests Require Demo.
 From Peregrine.Tests Require Hello.
+From Peregrine.Tests Require EtaFix.
 From Peregrine.Tests Require Id.
 From Peregrine.Tests Require Map.
 From Peregrine.Tests Require Mutual.
@@ -29,6 +30,10 @@ Peregrine Extract Typed "extraction/Demo_typed.ast" Demo.test.
 (* Hello.v *)
 Peregrine Extract "extraction/Hello.ast" Hello.hello.
 Peregrine Extract Typed "extraction/Hello_typed.ast" Hello.hello.
+
+(* EtaFix.v *)
+Peregrine Extract "extraction/EtaFix.ast" EtaFix.test.
+Peregrine Extract Typed "extraction/EtaFix_typed.ast" EtaFix.test.
 
 (* Id.v *)
 Peregrine Extract "extraction/Id.ast" Id.test.
