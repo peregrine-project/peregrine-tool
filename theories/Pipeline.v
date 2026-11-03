@@ -310,6 +310,7 @@ Definition check_lowered (c : config) (p : PAst) : result' unit :=
     match c.(backend_opts) with
     | C _ => Some "C"
     | Wasm _ => Some "Wasm"
+    | LLVM _ => Some "LLVM"
     | OCaml _ => Some "OCaml"
     | CakeML _ => Some "CakeML"
     | Eval _ => Some "eval"

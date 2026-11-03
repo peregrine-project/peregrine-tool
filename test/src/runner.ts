@@ -271,6 +271,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile peregrine
         const f_ll = compile_box(test.src, tmpdir, Lang.LLVM, opts);
+        if (test.cofix && !opts.includes("--lower-cofix")) {
+          print_cofix_rejected(f_ll, test.src);
+          continue;
+        }
         if (typeof f_ll !== "string") {
           print_result(f_ll, test.src);
           continue;
