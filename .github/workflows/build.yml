@@ -232,4 +232,7 @@ jobs:
           echo "::endgroup::"
 
       - name: IO example (OCaml and C)
-        run: opam exec -- make -C examples/io check
+        run: |
+          opam exec -- make -C examples/io check
+          # the optional passes must keep the order of the primitive calls
+          opam exec -- make -C examples/io clean check PEREGRINE_FLAGS="--cse true --specialize-instances true"

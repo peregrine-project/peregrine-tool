@@ -2,6 +2,8 @@
 # are written per backend: ocaml/axioms.ml and c/freeio_prims.c.
 #   make check   builds the program for OCaml and C and runs it with input 3.
 PEREGRINE ?= peregrine
+# extra flags of the OCaml build, e.g. --cse true --specialize-instances true
+PEREGRINE_FLAGS ?=
 COQC      ?= coqc
 CC        ?= gcc
 RUNTIME   ?= $(shell $(COQC) -where)/user-contrib/CertiRocq/Plugin/runtime
@@ -17,7 +19,7 @@ build/FreeIO.ast: FreeIO.v
 build/ocaml/freeio: build/FreeIO.ast ocaml/axioms.ml ocaml/driver.ml
 	mkdir -p build/ocaml
 	cp ocaml/axioms.ml ocaml/driver.ml build/ocaml/
-	$(PEREGRINE) ocaml build/FreeIO.ast -o build/ocaml/FreeIO.mlf
+	$(PEREGRINE) ocaml build/FreeIO.ast -o build/ocaml/FreeIO.mlf $(PEREGRINE_FLAGS)
 	cd build/ocaml && echo 'val main : Obj.t' > FreeIO.mli && ocamlfind ocamlopt -c FreeIO.mli \
 	  && ocamlfind ocamlopt -c axioms.ml && malfunction cmx FreeIO.mlf \
 	  && ocamlfind ocamlopt -c driver.ml && ocamlfind ocamlopt -o freeio axioms.cmx FreeIO.cmx driver.cmx
