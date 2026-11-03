@@ -20,8 +20,6 @@ var exec_timeout = 30000; // 30 seconds
 // Timeout for the compilation phases
 var compile_timeout = 30000; // 30 seconds
 var remove_output = true;
-// Set when the CakeML backend pin includes the fix of cakeml-backend#11
-const cakeml_outputs_enforced = false;
 
 // List of failed tests
 var failed_tests: string[] = [];
@@ -208,13 +206,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         // Run executable
         const res = run_exec(f_exec, test, !cakeml_output_checked(test));
 
-        // Report result. Until the CakeML backend declares its datatypes
-        // (peregrine-project/cakeml-backend#11) and the pin moves past that fix,
-        // a wrong result is reported without failing the suite.
-        if (!cakeml_outputs_enforced && res.type === "error" && res.reason === "incorrect result") {
-          print_line(`known wrong result (cakeml-backend#11): got ${res.actual}, expected ${res.expected}`);
-          continue;
-        }
+        // Report result
         print_result(res, test.src);
       }
       break;
