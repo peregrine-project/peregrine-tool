@@ -174,6 +174,7 @@ Instance Deserialize_backend_config : Deserialize backend_config :=
         ("Lean", Deser.con_ Lean);
         ("FSharp", Deser.con_ FSharp);
         ("Koka", Deser.con_ Koka);
+        ("KokaTyped", Deser.con_ KokaTyped);
         ("Eval", Deser.con_ Eval);
         ("AST", Deser.con_ AST)
       ]
@@ -192,6 +193,7 @@ Instance Deserialize_backend_config' : Deserialize backend_config' :=
         ("Lean", Deser.con_ Lean');
         ("FSharp", Deser.con_ FSharp');
         ("Koka", Deser.con_ Koka');
+        ("KokaTyped", Deser.con_ KokaTyped');
         ("Eval", Deser.con_ Eval');
         ("AST", Deser.con_ AST')
       ]

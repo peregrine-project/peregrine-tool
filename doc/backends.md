@@ -17,6 +17,7 @@ The table below summarises supported the backends
 | Lean         | untyped | ✗ | ✗ | Source language            | ✗ | Reference counting (Lean runtime) |
 | F# (experimental) | untyped | ✗ | ✗ | Source language       | ✗ | .NET GC |
 | Koka (experimental) | untyped | ✗ | ✗ | Source language     | ✗ | Reference counting (Perceus) |
+| Koka, typed (experimental) | typed (untyped: inferred) | ✗ | ✗ | Source language | ✓ | Reference counting (Perceus) |
 | AST (debug)  | either  | ✓ | ✓ | Serialized AST             | ✗ | - |
 | Eval (debug) | either  | ✓ | ✗ | -                          | ✗ | -  |
 
@@ -133,6 +134,14 @@ Output
 * Compile with `koka -O2 -o <exe> <file>.kk`, after adding a `main`. Koka's runtime uses Perceus reference counting, including the reuse of unshared constructor cells.
 * Programs with primitive values (`tPrim`) are rejected at compile time. Constant remapping works as in the Lean backend: `re_const_s` is a Koka expression applied to the arguments, of type `any`, and `re_const_ext` names a module to import.
 * A nested mutual fixpoint, which no current frontend produces, compiles to code that fails when it is evaluated.
+
+## Koka, typed (experimental)
+
+`peregrine koka-typed` prints typed lambda-box as Koka with its types: each inductive becomes a Koka type with type parameters and typed fields, and each constant a function with its type scheme, so the program needs no casts and Koka's own optimizations see the real types. Untyped input is typed by Hindley-Milner inference first, as for Rust and Elm. The printer is [`theories/koka/PrintKokaTyped.v`](/theories/koka/PrintKokaTyped.v).
+
+* Functions take as many arguments as their body has leading lambdas; a saturated call is a direct call, and any other use builds curried closures, which the arrow types denote. Every function returns `pure`.
+* A monomorphic nullary constant is a `delayed` value; a polymorphic one is a nullary function.
+* The backend rejects a program with a type it cannot express (`TAny`, a type variable applied to arguments), primitive values, projections, cofixpoints and `lazy`; the untyped `koka` verb compiles those.
 
 ## Debug backends
 

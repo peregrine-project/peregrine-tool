@@ -27,6 +27,7 @@ Valid values for `BACKEND` are:
 * `lean`
 * `fsharp` (experimental)
 * `koka` (experimental)
+* `koka-typed` (experimental)
 * `ast`
 * `eval`
 

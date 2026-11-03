@@ -96,6 +96,8 @@ Section BackendConfig.
   | Lean   : lean_config -> backend_config
   | FSharp : fsharp_config -> backend_config
   | Koka   : koka_config -> backend_config
+  (* the typed Koka backend (experimental): typed lambda-box, no casts *)
+  | KokaTyped : koka_config -> backend_config
   | Eval   : eval_config -> backend_config
   | AST    : ast_config -> backend_config.
 

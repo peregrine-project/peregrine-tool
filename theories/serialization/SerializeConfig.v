@@ -212,6 +212,7 @@ Instance Serialize_backend_config : Serialize backend_config :=
     | Lean o => [Atom "Lean"; to_sexp o ]
     | FSharp o => [Atom "FSharp"; to_sexp o ]
     | Koka o => [Atom "Koka"; to_sexp o ]
+    | KokaTyped o => [Atom "KokaTyped"; to_sexp o ]
     | Eval o => [Atom "Eval"; to_sexp o ]
     | AST o => [Atom "AST"; to_sexp o ]
     end%sexp.
@@ -229,6 +230,7 @@ Instance Serialize_backend_config' : Serialize backend_config' :=
     | Lean' o => [Atom "Lean"; to_sexp o ]
     | FSharp' o => [Atom "FSharp"; to_sexp o ]
     | Koka' o => [Atom "Koka"; to_sexp o ]
+    | KokaTyped' o => [Atom "KokaTyped"; to_sexp o ]
     | Eval' o => [Atom "Eval"; to_sexp o ]
     | AST' o => [Atom "AST"; to_sexp o ]
     end%sexp.

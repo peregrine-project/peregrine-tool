@@ -275,6 +275,7 @@ The `attributes_config` payload accepted via `--attributes` is the 5-element sub
 (Lean   <lean_config>)
 (FSharp <fsharp_config>)   ; experimental
 (Koka   <koka_config>)     ; experimental
+(KokaTyped <koka_config>)  ; experimental, typed lambda-box
 (Eval   <eval_config>)
 (AST    <ast_config>)
 ```

@@ -283,6 +283,10 @@ let compile_koka opts eopts f_prog =
   let b_opts = ConfigUtils.Koka' ConfigUtils.empty_koka_config' in
   compile_backend b_opts opts eopts f_prog
 
+let compile_koka_typed opts eopts f_prog =
+  let b_opts = ConfigUtils.KokaTyped' ConfigUtils.empty_koka_config' in
+  compile_backend b_opts opts eopts f_prog
+
 let compile_c opts copts eopts f_prog =
   let b_opts = ConfigUtils.C' (mk_certirocq_config copts) in
   compile_backend b_opts opts eopts f_prog

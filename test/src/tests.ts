@@ -25,6 +25,9 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.FSharp, "experimental", ""],
     // The Koka backend is experimental
     [Lang.Koka, "experimental", ""],
+    // The typed Koka backend, on the typed sources and through type inference
+    [Lang.Koka, "typed", "", false, "koka-typed"],
+    [Lang.Koka, "typed-untyped", "", true, "koka-typed"],
     // The two optional middle-end passes, which only the untyped pipeline runs
     [Lang.OCaml, "passes", "--specialize-instances true --cse true"],
     // The lowering of cofixpoints, which only the programs using them run

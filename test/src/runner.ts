@@ -448,22 +448,32 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         break;
       }
       tests.forEach((test, k) => {
-        if (test.src === undefined) return;
-        process.stdout.write(`  ${test.src}: `);
+        // The typed backend (verb koka-typed) compiles the typed source, or
+        // the untyped one through type inference
+        const typed = rust_verb === "koka-typed";
+        const src = typed ? typed_src(test) : test.src;
+        if (src === undefined) return;
+        process.stdout.write(`  ${src}: `);
         // Each test gets its own directory, as several tests share a file name.
-        const outdir = path.join(tmpdir, "koka", `${k}`);
+        const outdir = path.join(tmpdir, "koka", `${n}-${k}`);
         mkdirSync(outdir, { recursive: true });
-        const f_kk = compile_box(test.src, outdir, Lang.Koka, opts, test.configs?.[Lang.Koka]);
+        const f_kk = typed
+          ? compile_box(src, outdir, Lang.Koka, opts, undefined, rust_verb)
+          : compile_box(src, outdir, Lang.Koka, opts, test.configs?.[Lang.Koka]);
+        if (typed && untyped && test.rejected) {
+          print_rejected(f_kk, src);
+          return;
+        }
         if (typeof f_kk !== "string") {
-          print_result(f_kk, test.src);
+          print_result(f_kk, src);
           return;
         }
         const built = compile_koka(f_kk, test, compile_timeout * 4);
         if ("type" in built) {
-          print_result(built, test.src);
+          print_result(built, src);
           return;
         }
-        print_result(run_koka(built.exe, test, built.checked, exec_timeout), test.src);
+        print_result(run_koka(built.exe, test, built.checked, exec_timeout), src);
       });
       break;
 

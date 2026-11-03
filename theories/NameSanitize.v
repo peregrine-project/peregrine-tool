@@ -527,6 +527,7 @@ Definition get_sanitizer (o : Config.config) : utf8_string -> string :=
   | Config.Lean _ => lean_sanitizer
   | Config.FSharp _ => fsharp_sanitizer
   | Config.Koka _ => koka_sanitizer
+  | Config.KokaTyped _ => koka_sanitizer
   (* Name sanitizing not necessary here *)
   | Config.Eval _ => skip_sanitize
   | Config.AST _ => skip_sanitize

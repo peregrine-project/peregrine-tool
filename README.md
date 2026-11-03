@@ -45,6 +45,7 @@ Valid values for `TARGETLANGUAGE` are:
 * `lean`
 * `fsharp` (experimental)
 * `koka` (experimental)
+* `koka-typed` (experimental)
 
 For detailed usage on all commands and flags see [cmds.md](/doc/cmds.md) or use `peregrine --help`.
 

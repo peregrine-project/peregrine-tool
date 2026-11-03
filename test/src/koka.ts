@@ -21,14 +21,16 @@ type KokaType = { name: string, ctors: { name: string, short: string, nargs: num
 
 function program_types(source: string): KokaType[] {
   const types: KokaType[] = [];
-  for (const m of source.matchAll(/^type (t_\w+) \{ (.*) \}$/gm)) {
-    const ctors = m[2].split("; ").filter((c) => c.length > 0).map((c) => {
+  for (const m of source.matchAll(/^type (t_\w+)(<([^>]*)>)? \{ (.*) \}$/gm)) {
+    // a typed program's types have parameters; the printers read them as any
+    const arity = m[3] === undefined ? 0 : m[3].split(",").length;
+    const ctors = m[4].split("; ").filter((c) => c.length > 0).map((c) => {
       const name = c.split("(")[0].trim();
       const short = name.replace(/^C_.*?_\d+_/, "");
       const nargs = c.includes("(") ? c.split(",").length : 0;
       return { name, short, nargs };
     });
-    types.push({ name: m[1], ctors });
+    types.push({ name: arity === 0 ? m[1] : `${m[1]}<${Array(arity).fill("any").join(", ")}>`, ctors });
   }
   return types;
 }
@@ -74,17 +76,22 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
 // and whether its output is checked.
 export function compile_koka(file: string, test: TestCase, timeout: number): { exe: string, checked: boolean } | ExecFailure {
   const source = readFileSync(file, "utf8");
-  const main = `pg_${test.main}`;
+  // The entry point: pg_<main>, or for the typed backend the full name ending in it
+  const found = source.match(new RegExp(`^(val|fun) (pg_\\w*?${test.main})\\b(\\(\\))?`, "m"));
+  const main = found === null ? `pg_${test.main}` : found[2];
   const isDelayed = new RegExp(`^val ${main} : delayed`, "m").test(source);
-  const target = isDelayed ? `pg_force(${main})` : main;
+  const isNullaryFun = found !== null && found[1] === "fun" && found[3] !== undefined;
+  const target = isDelayed ? `pg_force(${main})` : isNullaryFun ? `${main}()` : main;
   const pp = test.expected_output === undefined ? undefined : printer(program_types(source), test.output_type);
+  // The printers cast with pg_cast, which only the untyped preamble declares
+  const cast = source.includes("extern pg_cast") ? "" : `extern pg_cast( x : a ) : b { c inline "#1"; js inline "#1" }\n`;
   const body = pp === undefined
     ? `val pg_unused = unsafe-total(fn() { ${target} }); ()`
-    : `println(${pp.name}(unsafe-total(fn() { ${target} })))`;
+    : `println(${pp.name}(pg_cast(unsafe-total(fn() { ${target} }))))`;
   // Koka derives the module name from the path, which must be a lower-case
   // identifier: the program is compiled as prog.kk in its own directory.
   const dir = path.dirname(file);
-  writeFileSync(path.join(dir, "prog.kk"), `${source}\n${(pp?.decls ?? []).join("\n")}\npub fun main() { ${body} }\n`);
+  writeFileSync(path.join(dir, "prog.kk"), `${source}\n${cast}${(pp?.decls ?? []).join("\n")}\npub fun main() { ${body} }\n`);
 
   const exe = path.join(dir, "prog");
   try {
