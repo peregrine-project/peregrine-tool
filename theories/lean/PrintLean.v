@@ -4,6 +4,7 @@ From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import BasicAst.
 From MetaRocq.Erasure Require EAst.
 From Peregrine Require Import LeanIR.
+From Peregrine Require Import PrintPrim.
 From Peregrine Require Utils.
 From Stdlib Require Import List.
 From Stdlib Require Import PeanoNat.
@@ -290,6 +291,8 @@ Section Printer.
       end
     | LExtern target args =>
       "(" ++ concat_with " " (("(" ++ target ++ ")") :: List.map print_lterm args) ++ ")"
+    | LPrimInt i => reflect ("(" ++ prim_int_decimal i ++ " : Nat)")
+    | LPrimString s => reflect ("(" ++ prim_string_literal s ++ " : String)")
     | LPanic _ =>
       (* Stand-in Obj for computationally irrelevant terms (tBox
          replacements).  A well-typed program should never inspect such a

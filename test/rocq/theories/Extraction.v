@@ -2,6 +2,7 @@ From Peregrine.Plugin Require Import Loader.
 From Peregrine.Tests Require Classy.
 From Peregrine.Tests Require Closure.
 From Peregrine.Tests Require CoStream.
+From Peregrine.Tests Require Prims.
 From Peregrine.Tests Require Demo.
 From Peregrine.Tests Require Hello.
 From Peregrine.Tests Require EtaFix.
@@ -26,6 +27,10 @@ Peregrine Extract Typed "extraction/Closure_typed.ast" Closure.test.
 
 (* CoStream.v *)
 Peregrine Extract "extraction/CoStream.ast" CoStream.test.
+
+(* Prims.v *)
+Peregrine Extract "extraction/Prims.ast" Prims.test.
+Peregrine Extract Typed "extraction/Prims_typed.ast" Prims.test.
 
 (* Demo.v *)
 Peregrine Extract "extraction/Demo.ast" Demo.test.

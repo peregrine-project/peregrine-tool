@@ -22,6 +22,8 @@ theories/erasure/EHindleyMilnerSound.v
 
 theories/lean/LeanIR.v
 theories/lean/LeanCompile.v
+theories/lean/LeanCheck.v
+theories/lean/PrintPrim.v
 theories/lean/PrintLean.v
 
 theories/fsharp/PrintFSharp.v

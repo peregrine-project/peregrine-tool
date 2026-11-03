@@ -336,6 +336,19 @@ var rocq_tests: TestCase[] =
             skip: [Lang.Rust, Lang.Elm]
         },
         {
+            src: "rocq/extraction/Prims.ast",
+            tsrc: "rocq/extraction/Prims_typed.ast",
+            rust_i64_output: "(cons () 1 (cons () 0 (nil)))",
+            main: "Prims_test",
+            output_type: { type: "list", a_t: SimpleType.Nat },
+            expected_output: [
+                "(cons (S O) (cons O nil))",
+                "(cons () (S () (O)) (cons () (O) (nil)))",
+                "Cons (S O) (Cons O Nil)"
+            ],
+            parameters: []
+        },
+        {
             src: "rocq/extraction/Demo.ast",
             tsrc: "rocq/extraction/Demo_typed.ast",
             rust_i64_output: "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
