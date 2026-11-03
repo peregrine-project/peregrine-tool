@@ -1,0 +1,10 @@
+build/
+*.vo
+*.vok
+*.vos
+*.glob
+.*.aux
+!c/*.c
+!c/*.h
+!seio/*.c
+!seio/*.h

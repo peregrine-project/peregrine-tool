@@ -237,3 +237,12 @@ jobs:
           echo "::group::Running tests"
           eval $(opam env) && cd test && npm install && npm run test
           echo "::endgroup::"
+
+      - name: IO example (OCaml and C)
+        run: |
+          opam exec -- make -C examples/io check
+          # the optional passes must keep the order of the primitive calls
+          opam exec -- make -C examples/io clean check PEREGRINE_FLAGS="--cse true --specialize-instances true"
+
+      - name: Tasks example (OCaml threads and Lean Task)
+        run: opam exec -- make -C examples/tasks check
