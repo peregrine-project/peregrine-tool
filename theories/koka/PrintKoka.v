@@ -280,7 +280,7 @@ Section Printer.
       | [] =>
         (* A match on an empty type: evaluate the discriminant, then give the
            erased-value placeholder.  Unreachable in a well-typed program. *)
-        wrap_applies (block ["val _ = " ++ print_kterm_k locals discr []] "pg_boxv") pending
+        wrap_applies (block ["val pg_d = " ++ print_kterm_k locals discr []] "pg_boxv") pending
       | _ =>
         wrap_applies
           ("(match " ++ scrutinee (print_kterm_k locals discr []) ind ++ " { "
