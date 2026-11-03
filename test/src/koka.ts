@@ -1,8 +1,8 @@
 // Test driver for the Koka backend (experimental).
 import { execSync } from "child_process";
 import { readFileSync, writeFileSync } from "fs";
+import path from "path";
 import { ExecFailure, ExecResult, ProgramType, SimpleType, TestCase } from "./types";
-import { replace_ext } from "./utils";
 
 // The Koka tests need the koka compiler; without it they are skipped.
 export function has_koka(): boolean {
@@ -81,11 +81,14 @@ export function compile_koka(file: string, test: TestCase, timeout: number): { e
   const body = pp === undefined
     ? `val _ = unsafe-total(fn() { ${target} }); ()`
     : `println(${pp.name}(unsafe-total(fn() { ${target} })))`;
-  writeFileSync(file, `${source}\n${(pp?.decls ?? []).join("\n")}\npub fun main() { ${body} }\n`);
+  // Koka derives the module name from the path, which must be a lower-case
+  // identifier: the program is compiled as prog.kk in its own directory.
+  const dir = path.dirname(file);
+  writeFileSync(path.join(dir, "prog.kk"), `${source}\n${(pp?.decls ?? []).join("\n")}\npub fun main() { ${body} }\n`);
 
-  const exe = replace_ext(file, "");
+  const exe = path.join(dir, "prog");
   try {
-    execSync(`koka -O2 -o ${exe} ${file}`, { stdio: "pipe", timeout: timeout });
+    execSync(`koka -O2 -o prog prog.kk`, { stdio: "pipe", timeout: timeout, cwd: dir });
     execSync(`chmod +x ${exe}`, { stdio: "pipe" });
   } catch (e) {
     if (e.signal == "SIGTERM") return { type: "error", reason: "timeout" };
