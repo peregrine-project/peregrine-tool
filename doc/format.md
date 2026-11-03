@@ -274,6 +274,7 @@ The `attributes_config` payload accepted via `--attributes` is the 5-element sub
 (CakeML <cakeml_config>)
 (Lean   <lean_config>)
 (FSharp <fsharp_config>)   ; experimental
+(Koka   <koka_config>)     ; experimental
 (Eval   <eval_config>)
 (AST    <ast_config>)
 ```
@@ -353,6 +354,15 @@ and is forwarded to the Malfunction printer. Default: `Standalone`.
 ```
 * `fsharp_namespace` is the F# `module` name the generated `.fs` file opens with.
 * `fsharp_print_full_names` toggles printing of names qualified by the input file's basename and the module path, as for Lean.
+
+#### Koka (`koka_config`, experimental)
+```
+(koka_config
+  <koka_module>             ; ""
+  <koka_print_full_names>)  ; true
+```
+* `koka_module` is printed as the `module` declaration of the generated file when it is not empty; Koka requires it to match the file name.
+* `koka_print_full_names` toggles printing of names qualified by the input file's basename and the module path, as for Lean.
 
 #### Eval (`eval_config`)
 ```

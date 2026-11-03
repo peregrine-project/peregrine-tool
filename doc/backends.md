@@ -16,6 +16,7 @@ The table below summarises supported the backends
 | Elm          | typed (untyped: experimental) | ✗ | ✗ | Source language            | ✓ | - |
 | Lean         | untyped | ✗ | ✗ | Source language            | ✗ | Reference counting (Lean runtime) |
 | F# (experimental) | untyped | ✗ | ✗ | Source language       | ✗ | .NET GC |
+| Koka (experimental) | untyped | ✗ | ✗ | Source language     | ✗ | Reference counting (Perceus) |
 | AST (debug)  | either  | ✓ | ✓ | Serialized AST             | ✗ | - |
 | Eval (debug) | either  | ✓ | ✗ | -                          | ✗ | -  |
 
@@ -119,6 +120,19 @@ Output
 * Programs with primitive values (`tPrim`) are rejected at compile time. Constant remapping works as in the Lean backend: `re_const_s` is an F# expression taking curried `obj` arguments and returning `obj`, and `re_const_ext` names a module to open.
 * A nested mutual fixpoint, which no current frontend produces, compiles to code that fails when it is evaluated.
 * A top-level mutual fixpoint is emitted with the constant named after its first member, when that constant selects that member, as in the Lean backend. Other constants that select a member keep their name only if a member has it.
+
+## Koka (experimental)
+
+Experimental [Koka](https://koka-lang.github.io/) backend extracting to Koka source code. It accepts both typed and untyped ASTs as input.
+The backend is unverified. It shares the intermediate representation and the compiler of the [Lean backend](#lean) ([`theories/lean/`](/theories/lean/)); its printer is [`theories/koka/PrintKoka.v`](/theories/koka/PrintKoka.v), and [`theories/backends/KokaBackend.v`](/theories/backends/KokaBackend.v) wraps both.
+
+Output
+* A single `.kk` file. Every value has type `any`; an identity `extern`, `pg_cast`, converts between `any` and the datatypes, so constructors are cast to `any` and a discriminant is cast to its datatype before a `match`. Functions return `pure any`, which allows general recursion and an incomplete match.
+* Each source inductive becomes a Koka type whose fields have type `any`. Names are prefixed by their kind: `pg_` for functions, `v_` for locals, `t_` for types and `C_<type>_<index>_` for constructors.
+* Nullary constants are `delayed` values, forced on first use.
+* Compile with `koka -O2 -o <exe> <file>.kk`, after adding a `main`. Koka's runtime uses Perceus reference counting, including the reuse of unshared constructor cells.
+* Programs with primitive values (`tPrim`) are rejected at compile time. Constant remapping works as in the Lean backend: `re_const_s` is a Koka expression applied to the arguments, of type `any`, and `re_const_ext` names a module to import.
+* A nested mutual fixpoint, which no current frontend produces, compiles to code that fails when it is evaluated.
 
 ## Debug backends
 

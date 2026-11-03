@@ -61,6 +61,12 @@ data FSharpConfig = FSharpConfig
     fsharpPrintFullNames :: Maybe Bool
   }
 
+-- Koka backend configuration (experimental)
+data KokaConfig = KokaConfig
+  { kokaModule         :: Maybe String,
+    kokaPrintFullNames :: Maybe Bool
+  }
+
 -- CakeML backend configuration
 type CakeMLConfig = ()
 
@@ -94,6 +100,7 @@ data BackendConfig
   | CakeML CakeMLConfig
   | Lean LeanConfig
   | FSharp FSharpConfig
+  | Koka KokaConfig
   | Eval EvalConfig
   | AST ASTConfig
 

@@ -45,6 +45,8 @@ export function lang_to_peregrine_arg(lang: Lang): string {
       return "lean";
     case Lang.FSharp:
       return "fsharp";
+    case Lang.Koka:
+      return "koka";
   }
 }
 
@@ -69,5 +71,7 @@ export function lang_to_ext(lang: Lang): string {
       return ".lean";
     case Lang.FSharp:
       return ".fs";
+    case Lang.Koka:
+      return ".kk";
   }
 }

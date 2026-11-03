@@ -68,6 +68,13 @@ fsharpConfigConv FSharpConfig {..} =
     (fmap stringConv fsharpNamespace)
     fsharpPrintFullNames
 
+-- Koka backend configuration (experimental)
+kokaConfigConv :: KokaConfig -> ConfigUtils.Coq_koka_config'
+kokaConfigConv KokaConfig {..} =
+  ConfigUtils.Build_koka_config'
+    (fmap stringConv kokaModule)
+    kokaPrintFullNames
+
 -- CakeML backend configuration
 cakemlConfigConv :: CakeMLConfig -> ConfigUtils.Coq_cakeml_config'
 cakemlConfigConv t = t
@@ -101,6 +108,7 @@ backendConfigConv (OCaml c) = ConfigUtils.OCaml' $ ocamlConfigConv c
 backendConfigConv (CakeML c) = ConfigUtils.CakeML' $ cakemlConfigConv c
 backendConfigConv (Lean c) = ConfigUtils.Lean' $ leanConfigConv c
 backendConfigConv (FSharp c) = ConfigUtils.FSharp' $ fsharpConfigConv c
+backendConfigConv (Koka c) = ConfigUtils.Koka' $ kokaConfigConv c
 backendConfigConv (Eval c) = ConfigUtils.Eval' $ evalConfigConv c
 backendConfigConv (AST c) = ConfigUtils.AST' $ astConfigConv c
 

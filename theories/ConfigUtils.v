@@ -13,6 +13,7 @@ From Peregrine Require Import OCamlBackend.
 From Peregrine Require Import CakeMLBackend.
 From Peregrine Require Import LeanBackend.
 From Peregrine Require Import FSharpBackend.
+From Peregrine Require Import KokaBackend.
 From Peregrine Require Import CBackend.
 From Peregrine Require Import WasmBackend.
 From Peregrine Require Import LLVMBackend.
@@ -208,6 +209,21 @@ Section BackendConfigOptional.
     fsharp_print_full_names := get_optional o default_fsharp_config fsharp_print_full_names' fsharp_print_full_names;
   |}.
 
+  (* Koka (experimental) *)
+  Record koka_config' := {
+    koka_module'           : option string;
+    koka_print_full_names' : option bool;
+  }.
+  Definition empty_koka_config' : koka_config' := {|
+    koka_module'           := None;
+    koka_print_full_names' := None;
+  |}.
+
+  Definition mk_koka_config (o : koka_config') : koka_config := {|
+    koka_module           := get_optional o default_koka_config koka_module' koka_module;
+    koka_print_full_names := get_optional o default_koka_config koka_print_full_names' koka_print_full_names;
+  |}.
+
   Record eval_config' := {
     copts'    : option certirocq_config';
     fuel'     : nat;
@@ -257,6 +273,7 @@ Section BackendConfigOptional.
   | CakeML' : cakeml_config' -> backend_config'
   | Lean'   : lean_config' -> backend_config'
   | FSharp' : fsharp_config' -> backend_config'
+  | Koka'   : koka_config' -> backend_config'
   | Eval'   : eval_config' -> backend_config'
   | AST'    : ast_config' -> backend_config'.
   Definition mk_backend_config (o : backend_config') : backend_config :=
@@ -270,6 +287,7 @@ Section BackendConfigOptional.
     | CakeML' o => CakeML (mk_cakeml_config o)
     | Lean' o   => Lean (mk_lean_config o)
     | FSharp' o => FSharp (mk_fsharp_config o)
+    | Koka' o   => Koka (mk_koka_config o)
     | Eval' o   => Eval (mk_eval_config o)
     | AST' o    => AST (mk_ast_config o)
     end.
@@ -357,6 +375,7 @@ Section GeneralConfigOptional.
       | CakeML' _ => get_default_phases_opt cakeml_phases
       | Lean' _   => get_default_phases_opt lean_phases
       | FSharp' _ => get_default_phases_opt fsharp_phases
+      | Koka' _   => get_default_phases_opt koka_phases
       | Eval' _   => get_default_phases_opt eval_phases
       | AST' _   => get_default_phases_opt ast_phases
       end in
@@ -372,6 +391,7 @@ Section GeneralConfigOptional.
       | CakeML' _ => enforce_phases o def_opt cakeml_phases
       | Lean' _   => enforce_phases o def_opt lean_phases
       | FSharp' _ => enforce_phases o def_opt fsharp_phases
+      | Koka' _   => enforce_phases o def_opt koka_phases
       | Eval' _   => enforce_phases o def_opt eval_phases
       | AST' _   => enforce_phases o def_opt ast_phases
       end
@@ -466,6 +486,12 @@ Section GeneralConfigOptional.
   Definition is_fsharp_config (o : config) : bool :=
     match o.(backend_opts) with
     | FSharp _ => true
+    | _ => false
+    end.
+
+  Definition is_koka_config (o : config) : bool :=
+    match o.(backend_opts) with
+    | Koka _ => true
     | _ => false
     end.
 

@@ -26,6 +26,7 @@ Valid values for `BACKEND` are:
 * `elm`
 * `lean`
 * `fsharp` (experimental)
+* `koka` (experimental)
 * `ast`
 * `eval`
 
@@ -38,7 +39,7 @@ The backend commands other than `ast` take these flags, which select optional mi
 * `--cse`: hoist repeated closed subterms into a `let`
 * `--lower-cofix`: translate cofixpoints, `lazy` and `force` to fixpoints and thunks, using passes whose correctness proofs are incomplete. Without it, `c`, `wasm`, `llvm`, `ocaml`, `cakeml` and `eval` reject a program that still contains them after the middle end. `lean` and `fsharp` always run these passes
 
-`--specialize-instances` and `--cse` are off by default and act only on untyped targets (`wasm`, `c`, `llvm`, `ocaml`, `cakeml`, `lean`, `fsharp`, `eval`); the typed pipeline of the Rust and Elm commands does not run them. Their correctness rests on axioms ([middleend.md](middleend.md#optional-passes)).
+`--specialize-instances` and `--cse` are off by default and act only on untyped targets (`wasm`, `c`, `llvm`, `ocaml`, `cakeml`, `lean`, `fsharp`, `koka`, `eval`); the typed pipeline of the Rust and Elm commands does not run them. Their correctness rests on axioms ([middleend.md](middleend.md#optional-passes)).
 
 ## `validate` command
 ```

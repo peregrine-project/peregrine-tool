@@ -223,6 +223,13 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # For the tests of the Koka backend (experimental)
+      - name: Set up Koka (Koka backend, experimental)
+        run: |
+          mkdir -p "$HOME/koka"
+          curl -sSfL --retry 5 https://github.com/koka-lang/koka/releases/download/v3.2.9/koka-v3.2.9-linux-x64.tar.gz | tar xz -C "$HOME/koka"
+          echo "$HOME/koka/bin" >> "$GITHUB_PATH"
+
       - name: Test extraction
         env:
           CLANG: clang-15

@@ -13,6 +13,7 @@ From Peregrine Require WasmBackend.
 From Peregrine Require LeanBackend.
 From Peregrine Require LLVMBackend.
 From Peregrine Require FSharpBackend.
+From Peregrine Require KokaBackend.
 From Peregrine Require EvalBackend.
 From Peregrine Require ASTBackend.
 From Peregrine Require NameSanitize.
@@ -77,7 +78,7 @@ Definition check_wf (p : PAst) : result' unit :=
 Definition needs_typed (c : config) : bool :=
   match c.(backend_opts) with
   | Rust _ | Elm _ => true
-  | C _ | Wasm _ | LLVM _ | OCaml _ | CakeML _ | Lean _ | FSharp _ | Eval _ => false
+  | C _ | Wasm _ | LLVM _ | OCaml _ | CakeML _ | Lean _ | FSharp _ | Koka _ | Eval _ => false
   | AST c =>
     match c.(ast_type) with
     | LambdaBoxTyped => true
@@ -140,6 +141,7 @@ Inductive extracted_program :=
 | CakeMLProgram : (list string * string) -> extracted_program
 | LeanProgram : string -> extracted_program
 | FSharpProgram : string -> extracted_program
+| KokaProgram : string -> extracted_program
 | EvalProgram : string -> extracted_program
 | ASTProgram : string -> extracted_program.
 
@@ -200,6 +202,16 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       f
       p';;
     Ok (FSharpProgram res)
+
+  | Koka opts =>
+    p' <- PAst_to_EAst p;;
+    res <- KokaBackend.extract_koka
+      const_remaps
+      custom_attr
+      opts
+      f
+      p';;
+    Ok (KokaProgram res)
 
   | C opts =>
     p' <- PAst_to_EAst p;;
@@ -314,7 +326,7 @@ Definition check_lowered (c : config) (p : PAst) : result' unit :=
     | OCaml _ => Some "OCaml"
     | CakeML _ => Some "CakeML"
     | Eval _ => Some "eval"
-    | Rust _ | Elm _ | Lean _ | FSharp _ | AST _ => None
+    | Rust _ | Elm _ | Lean _ | FSharp _ | Koka _ | AST _ => None
     end in
   match backend, p with
   | Some b, Untyped env (Some t) => check_lowered_program b (env, t)

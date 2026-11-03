@@ -60,6 +60,14 @@ Section BackendConfig.
     fsharp_print_full_names : bool;
   }.
 
+  (* Koka backend (experimental).  [koka_module] is printed as the
+     [module] declaration when it is not empty; Koka requires it to match
+     the file name. *)
+  Record koka_config := {
+    koka_module            : string;
+    koka_print_full_names  : bool;
+  }.
+
   Definition cakeml_config : Type := unit.
 
   Record eval_config := {
@@ -87,6 +95,7 @@ Section BackendConfig.
   | CakeML : cakeml_config -> backend_config
   | Lean   : lean_config -> backend_config
   | FSharp : fsharp_config -> backend_config
+  | Koka   : koka_config -> backend_config
   | Eval   : eval_config -> backend_config
   | AST    : ast_config -> backend_config.
 
