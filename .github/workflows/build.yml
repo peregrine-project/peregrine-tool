@@ -238,6 +238,14 @@ jobs:
           eval $(opam env) && cd test && npm install && npm run test
           echo "::endgroup::"
 
+      - name: Upload the Koka test programs (temporary)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: koka-test-programs
+          path: /tmp/peregrine/koka/**/prog.kk
+          if-no-files-found: ignore
+
       - name: IO example (OCaml and C)
         run: |
           opam exec -- make -C examples/io check

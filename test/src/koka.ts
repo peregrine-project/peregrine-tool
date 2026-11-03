@@ -77,13 +77,18 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
 export function compile_koka(file: string, test: TestCase, timeout: number): { exe: string, checked: boolean } | ExecFailure {
   const source = readFileSync(file, "utf8");
   // The entry point: pg_<main>, or for the typed backend the full name ending in it
-  // (a Lean name keeps its dots, which the sanitizer escapes as _UU2e)
-  const main_re = test.main.replace(/_/g, "(?:_|_UU2e)");
+  // (a Lean name separates its components with "Ֆdot", which the sanitizer
+  // escapes as _UU000556dot)
+  const main_re = test.main.replace(/_/g, "(?:_|_UU[0-9a-f]{6}dot|_UU2e)");
   const found = source.match(new RegExp(`^(val|fun) (pg_\\w*?${main_re})\\b(\\(\\))?`, "m"));
   // failing that, a name ending in the last component of the entry point
   const last = test.main.split("_").pop();
   const fallback = found === null ? source.match(new RegExp(`^(val|fun) (pg_\\w*_${last})\\b(\\(\\))?`, "m")) : null;
   const entry = found ?? fallback;
+  if (entry === null) {
+    const names = [...source.matchAll(/^(?:val|fun) (pg_\w+)/gm)].map((m) => m[1]);
+    console.log(`  no entry point for ${test.main} among: ${names.slice(-8).join(" ")}`);
+  }
   const main = entry === null ? `pg_${test.main}` : entry[2];
   const isDelayed = new RegExp(`^val ${main} : delayed`, "m").test(source);
   const isNullaryFun = entry !== null && entry[1] === "fun" && entry[3] !== undefined;
@@ -126,7 +131,7 @@ export function run_koka(exe: string, test: TestCase, checked: boolean, timeout:
   } catch (e) {
     if (e.signal == "SIGTERM") return { type: "error", reason: "timeout" };
     const out = (e.stderr ? e.stderr.toString() : "") || (e.stdout ? e.stdout.toString() : "");
-    return { type: "error", reason: "runtime error", error: out.slice(-2000) || `${e}` };
+    return { type: "error", reason: "runtime error", error: `status ${e.status}, signal ${e.signal}: ${out.slice(-2000)}` };
   }
   const time = Date.now() - start;
   if (!checked || test.expected_output === undefined || test.output_type === SimpleType.Other) {
