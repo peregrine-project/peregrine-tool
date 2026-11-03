@@ -79,7 +79,11 @@ let erasure_opts_t =
     let doc = "Eliminate common subexpressions, restoring sharing that erasure drops." in
     Arg.(value & opt (some bool) None & info ["cse"] ~doc)
   in
-  Term.(const mk_erasure_opts $ betared_arg $ unbox_arg $ dearg_ctors_arg $ dearg_consts_arg $ specialize_instances_arg $ cse_arg)
+  let lower_cofix_arg =
+    let doc = "Translate cofixpoints, lazy and force to fixpoints and thunks. The correctness proofs of these passes are incomplete." in
+    Arg.(value & opt (some bool) None & info ["lower-cofix"] ~doc)
+  in
+  Term.(const mk_erasure_opts $ betared_arg $ unbox_arg $ dearg_ctors_arg $ dearg_consts_arg $ specialize_instances_arg $ cse_arg $ lower_cofix_arg)
 
 
 let sdocs = Manpage.s_common_options
