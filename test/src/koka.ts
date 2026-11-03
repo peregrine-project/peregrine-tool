@@ -93,7 +93,14 @@ export function compile_koka(file: string, test: TestCase, timeout: number): { e
   } catch (e) {
     if (e.signal == "SIGTERM") return { type: "error", reason: "timeout" };
     const out = (e.stdout ? e.stdout.toString() : "") + (e.stderr ? e.stderr.toString() : "");
-    return { type: "error", reason: "compile error", compiler: "koka", code: e.status, error: out.split("\n").filter((l) => /error/.test(l)).join("\n") || out.slice(-2000) };
+    const errors = out.split("\n").filter((l) => /error/.test(l));
+    // The lines the errors point at, as the generated program is not kept.
+    const lines = readFileSync(path.join(dir, "prog.kk"), "utf8").split("\n");
+    const context = errors.flatMap((l) => {
+      const m = l.match(/prog\.kk\((\d+),\s*(\d+)\)/);
+      return m === null ? [] : [`  line ${m[1]}: ${lines[Number(m[1]) - 1].slice(Math.max(0, Number(m[2]) - 200), Number(m[2]) + 200)}`];
+    });
+    return { type: "error", reason: "compile error", compiler: "koka", code: e.status, error: [...errors, ...context].join("\n") || out.slice(-2000) };
   }
   return { exe, checked: pp !== undefined };
 }
