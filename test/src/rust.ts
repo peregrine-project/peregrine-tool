@@ -13,6 +13,11 @@ export function prepare_cargo(tmpdir: string): string {
   // Copy cargo project definition
   copyFileSync("src/rust/Cargo.toml", path.join(tmpdir, "rust/Cargo.toml"));
 
+  // Build the dependencies once, through an empty binary, so that the first
+  // test does not spend its compile timeout on them (rug builds GMP)
+  writeFileSync(path.join(dir, "_deps.rs"), "fn main() {}\n");
+  execSync("cargo build --bin _deps", { stdio: "pipe", timeout: 1800000, cwd: path.join(tmpdir, "rust") });
+
   return dir;
 }
 
