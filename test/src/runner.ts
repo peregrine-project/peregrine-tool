@@ -7,7 +7,7 @@ import { existsSync, mkdirSync } from "fs";
 import { lang_to_ext, lang_to_peregrine_arg, print_line, replace_ext } from "./utils";
 import { compile_c, set_c_env } from "./c";
 import { compile_ocaml, compile_types } from "./ocaml";
-import { compile_cakeml, get_cake } from "./cakeml";
+import { cakeml_output_checked, compile_cakeml, get_cake } from "./cakeml";
 import { compile_rust, make_printable, prepare_cargo, run_rust } from "./rust";
 import { prepare_elm_project, run_elm } from "./elm";
 import { prepare_lean_project, run_lean } from "./lean";
@@ -226,7 +226,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // Run executable
-        const res = run_exec(f_exec, test, true); //TODO: support checking that output is correct
+        const res = run_exec(f_exec, test, !cakeml_output_checked(test));
 
         // Report result
         print_result(res, test.src);
