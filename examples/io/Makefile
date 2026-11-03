@@ -9,7 +9,12 @@ CC        ?= gcc
 RUNTIME   ?= $(shell $(COQC) -where)/user-contrib/CertiRocq/Plugin/runtime
 EXPECTED  := 3 4 result 6
 
-all: build/ocaml/freeio build/c/freeio
+# SEIO*'s own OCaml realization of its IO operations, at the revision the
+# Peregrine CI checks SEIO* against
+SEIO_REV  := 23d998f1b108f898f63f686ef9a596f7340cf48f
+SEIO_AXIOMS := https://raw.githubusercontent.com/andricicezar/fstar-io/$(SEIO_REV)/seiostar/lambdabox/axioms.ml
+
+all: build/ocaml/freeio build/c/freeio build/seio/ocaml/echo build/seio/c/echo
 .PHONY: all check clean
 
 build/FreeIO.ast: FreeIO.v
@@ -31,7 +36,31 @@ build/c/freeio: build/FreeIO.ast c/config.sexp c/freeio_prims.c c/freeio_prims.h
 	$(CC) -O2 -I$(RUNTIME) -Ic -Ibuild/c -o $@ build/c/freeio.c c/freeio_prims.c c/main.c \
 	  $(RUNTIME)/gc_stack.c $(RUNTIME)/prim_int63.c
 
+build/Echo.ast: seio/Runtime.v seio/Echo.v
+	mkdir -p build
+	cd seio && $(COQC) -Q . "" Runtime.v && $(COQC) -Q . "" Echo.v
+
+build/seio/ocaml/echo: build/Echo.ast seio/driver.ml
+	mkdir -p build/seio/ocaml
+	curl -sSfL --retry 5 $(SEIO_AXIOMS) -o build/seio/ocaml/axioms.ml
+	cp seio/driver.ml build/seio/ocaml/
+	$(PEREGRINE) ocaml build/Echo.ast -o build/seio/ocaml/Echo.mlf $(PEREGRINE_FLAGS)
+	cd build/seio/ocaml && echo 'val main : Obj.t' > Echo.mli && ocamlfind ocamlopt -c Echo.mli \
+	  && ocamlfind ocamlopt -package unix -c axioms.ml && malfunction cmx Echo.mlf \
+	  && ocamlfind ocamlopt -c driver.ml && ocamlfind ocamlopt -package unix -linkpkg -o echo axioms.cmx Echo.cmx driver.cmx
+
+build/seio/c/echo: build/Echo.ast seio/config.sexp seio/runtime_prims.c seio/runtime_prims.h seio/main.c
+	mkdir -p build/seio/c
+	cd build/seio/c && $(PEREGRINE) compile ../../Echo.ast ../../../seio/config.sexp -o echo.c
+	$(CC) -O2 -I$(RUNTIME) -Iseio -Ibuild/seio/c -o $@ build/seio/c/echo.c seio/runtime_prims.c seio/main.c \
+	  $(RUNTIME)/gc_stack.c $(RUNTIME)/prim_int63.c $(RUNTIME)/prim_string.c
+
 check: all
+	@for b in ocaml c; do \
+	  got=$$(echo hello | build/seio/$$b/echo | tr '\n' ' ' | sed 's/ $$//'); \
+	  if [ "$$got" = "hello hello" ]; then echo "ok   seio $$b: $$got"; \
+	  else echo "FAIL seio $$b: got '$$got', expected 'hello hello'"; exit 1; fi; \
+	done
 	@for b in ocaml c; do \
 	  got=$$(echo 3 | build/$$b/freeio | tr '\n' ' ' | sed 's/ $$//'); \
 	  if [ "$$got" = "$(EXPECTED)" ]; then echo "ok   $$b: $$got"; \
@@ -39,4 +68,4 @@ check: all
 	done
 
 clean:
-	rm -rf build FreeIO.vo FreeIO.vok FreeIO.vos FreeIO.glob .FreeIO.aux
+	rm -rf build *.vo *.vok *.vos *.glob .*.aux seio/*.vo seio/*.vok seio/*.vos seio/*.glob seio/.*.aux

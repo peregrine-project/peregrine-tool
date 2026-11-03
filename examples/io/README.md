@@ -31,3 +31,18 @@ also runs natively. It is erased by lean-to-lambdabox (`#erase_lcnf`, or
 `#erase`, with `extern := .preferAxiom` and `nat := .machine`); the OCaml
 primitives are then `def__FreeIO_primPutNat`, `def__FreeIO_primGetNat` and
 `def__Nat_add`.
+
+## SEIO* operations and strings
+
+`seio/` uses the IO operations of SEIO\* (`io_read`, `io_write`, `io_open`,
+`io_close` in `seio/Runtime.v`, with SEIO\*'s names and types) and primitive
+strings. Because the names and the value conventions agree, the OCaml build
+links SEIO\*'s own `axioms.ml`, fetched at the revision the Peregrine CI checks
+SEIO\* against; only the C backend has its own realization,
+`seio/runtime_prims.c`. `seio/Echo.v` reads standard input to its end and
+writes it twice.
+
+These operations take no world argument. The order of their calls is kept
+because `interp` performs an operation before it applies the continuation to
+the result, and the calls happen inside `interp` on variables, so no
+middle-end pass sees two equal closed calls that it could merge.
