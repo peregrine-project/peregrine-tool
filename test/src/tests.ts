@@ -345,8 +345,9 @@ var rocq_tests: TestCase[] =
                 "Cons (S O) (Cons O Nil)"
             ],
             parameters: [],
-            // The typed backends reject primitive types, and Wasm strings
-            skip: [Lang.Rust, Lang.Elm, Lang.Wasm]
+            // The typed backends reject primitive types, Wasm primitive strings,
+            // and cake does not parse the CakeML backend's primitive literals
+            skip: [Lang.Rust, Lang.Elm, Lang.Wasm, Lang.CakeML]
         },
         {
             src: "rocq/extraction/Demo.ast",
