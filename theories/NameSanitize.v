@@ -394,6 +394,18 @@ Definition lean_sanitizer (s : utf8_string) : string := ocaml_sanitizer s.
    OCaml sanitizer's output is a strict subset of the legal F#
    identifiers.  The printer separately capitalizes union cases. *)
 Definition fsharp_sanitizer (s : utf8_string) : string := ocaml_sanitizer s.
+(* The Koka printer prefixes every name ([pg_], [v_], [t_], [C_]), so the
+   OCaml sanitizer's output only has to be ASCII.  Koka rejects a prime
+   inside an identifier, which OCaml admits, so primes become [_q]. *)
+Fixpoint replace_primes (s : string) : string :=
+  match s with
+  | String.EmptyString => String.EmptyString
+  | String.String b rest =>
+    if eqb_byte "'" b then String.append "_q" (replace_primes rest)
+    else String.String b (replace_primes rest)
+  end.
+
+Definition koka_sanitizer (s : utf8_string) : string := replace_primes (ocaml_sanitizer s).
 
 
 Definition rust_delim : utf8_codepoint :=
@@ -514,6 +526,7 @@ Definition get_sanitizer (o : Config.config) : utf8_string -> string :=
   | Config.Wasm _ => wasm_sanitizer
   | Config.Lean _ => lean_sanitizer
   | Config.FSharp _ => fsharp_sanitizer
+  | Config.Koka _ => koka_sanitizer
   (* Name sanitizing not necessary here *)
   | Config.Eval _ => skip_sanitize
   | Config.AST _ => skip_sanitize

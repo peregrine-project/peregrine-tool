@@ -103,6 +103,18 @@ Instance Deserialize_fsharp_config' : Deserialize fsharp_config' :=
       [ ("fsharp_config", Deser.con2_ Build_fsharp_config') ]
       l e.
 
+Instance Deserialize_koka_config : Deserialize koka_config :=
+  fun l e =>
+    Deser.match_con "koka_config" []
+      [ ("koka_config", Deser.con2_ Build_koka_config) ]
+      l e.
+
+Instance Deserialize_koka_config' : Deserialize koka_config' :=
+  fun l e =>
+    Deser.match_con "koka_config" []
+      [ ("koka_config", Deser.con2_ Build_koka_config') ]
+      l e.
+
 Instance Deserialize_eval_config : Deserialize eval_config :=
   fun l e =>
     Deser.match_con "eval_config" []
@@ -161,6 +173,7 @@ Instance Deserialize_backend_config : Deserialize backend_config :=
         ("CakeML", Deser.con_ CakeML);
         ("Lean", Deser.con_ Lean);
         ("FSharp", Deser.con_ FSharp);
+        ("Koka", Deser.con_ Koka);
         ("Eval", Deser.con_ Eval);
         ("AST", Deser.con_ AST)
       ]
@@ -178,6 +191,7 @@ Instance Deserialize_backend_config' : Deserialize backend_config' :=
         ("CakeML", Deser.con_ CakeML');
         ("Lean", Deser.con_ Lean');
         ("FSharp", Deser.con_ FSharp');
+        ("Koka", Deser.con_ Koka');
         ("Eval", Deser.con_ Eval');
         ("AST", Deser.con_ AST')
       ]
@@ -319,6 +333,12 @@ Definition fsharp_config_of_string (s : string) : error + fsharp_config :=
 
 Definition fsharp_config'_of_string (s : string) : error + fsharp_config' :=
   @from_string fsharp_config' Deserialize_fsharp_config' s.
+
+Definition koka_config_of_string (s : string) : error + koka_config :=
+  @from_string koka_config Deserialize_koka_config s.
+
+Definition koka_config'_of_string (s : string) : error + koka_config' :=
+  @from_string koka_config' Deserialize_koka_config' s.
 
 Definition eval_config_of_string (s : string) : error + eval_config :=
   @from_string eval_config Deserialize_eval_config s.

@@ -23,6 +23,8 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Lean, "", ""],
     // The F# backend is experimental
     [Lang.FSharp, "experimental", ""],
+    // The Koka backend is experimental
+    [Lang.Koka, "experimental", ""],
     // The two optional middle-end passes, which only the untyped pipeline runs
     [Lang.OCaml, "passes", "--specialize-instances true --cse true"],
     // The lowering of cofixpoints, which only the programs using them run
@@ -363,7 +365,7 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Remap.ast",
             // Only the Lean and F# tests supply remappings of these constants
-            skip: [Lang.OCaml, Lang.C, Lang.Wasm, Lang.LLVM, Lang.Rust, Lang.Elm, Lang.CakeML],
+            skip: [Lang.OCaml, Lang.C, Lang.Wasm, Lang.LLVM, Lang.Rust, Lang.Elm, Lang.CakeML, Lang.Koka],
             configs: { [Lang.Lean]: "src/lean/remap.sexp", [Lang.FSharp]: "src/fsharp/remap.sexp" },
             main: "Remap_test",
             output_type: SimpleType.Nat,

@@ -12,6 +12,7 @@ import { compile_rust, make_printable, prepare_cargo, run_rust } from "./rust";
 import { prepare_elm_project, run_elm } from "./elm";
 import { prepare_lean_project, run_lean } from "./lean";
 import { build_fsharp, has_dotnet, prepare_fsharp_project, run_fsharp } from "./fsharp";
+import { compile_koka, has_koka, run_koka } from "./koka";
 import { test_configurations, tests } from "./tests";
 
 
@@ -438,6 +439,32 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         const res = build_failures.get(i) ?? run_fsharp(fsharpdir, i, c.test, exec_timeout);
         print_result(res, c.test.src);
       }
+      break;
+
+    case Lang.Koka:
+      // The Koka backend is experimental, and its tests are skipped without koka
+      if (!has_koka()) {
+        print_line("  skipped: koka not found");
+        break;
+      }
+      tests.forEach((test, k) => {
+        if (test.src === undefined) return;
+        process.stdout.write(`  ${test.src}: `);
+        // Each test gets its own directory, as several tests share a file name.
+        const outdir = path.join(tmpdir, "koka", `${k}`);
+        mkdirSync(outdir, { recursive: true });
+        const f_kk = compile_box(test.src, outdir, Lang.Koka, opts, test.configs?.[Lang.Koka]);
+        if (typeof f_kk !== "string") {
+          print_result(f_kk, test.src);
+          return;
+        }
+        const built = compile_koka(f_kk, test, compile_timeout * 4);
+        if ("type" in built) {
+          print_result(built, test.src);
+          return;
+        }
+        print_result(run_koka(built.exe, test, built.checked, exec_timeout), test.src);
+      });
       break;
 
     default:

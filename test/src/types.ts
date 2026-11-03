@@ -38,7 +38,8 @@ export enum Lang {
   Elm = "Elm",
   CakeML = "CakeML",
   Lean = "Lean",
-  FSharp = "FSharp"
+  FSharp = "FSharp",
+  Koka = "Koka"
 }
 
 export type TestCase = {
