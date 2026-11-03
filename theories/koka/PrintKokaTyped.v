@@ -147,9 +147,11 @@ Section Printer.
     end.
 
   (* The body of a constant: a top-level fixpoint is the function itself. *)
+  (* The body of a constant: a top-level fixpoint is (a copy of) its member. *)
   Definition const_body (b : EAst.term) : EAst.term :=
     match b with
-    | EAst.tFix [d] 0 => EAst.dbody d
+    | EAst.tFix mfix i =>
+      match nth_error mfix i with Some d => EAst.dbody d | None => b end
     | _ => b
     end.
 
@@ -274,10 +276,11 @@ Section Printer.
         Ok (apply_unary ("(match " ++ d' ++ " { " ++ concat_with "; " brs' ++ " })") pending)
       end
     | EAst.tFix mfix idx =>
-      (* One fixpoint is a local function.  Koka's local functions cannot be
-         mutually recursive, so a group of several is one local function
-         [pg_gN] that returns the tuple of its members, each of which reaches
-         the others through it. *)
+      (* One fixpoint is a local function.  A nested group of several is
+         rejected: Koka's local functions cannot be mutually recursive, and an
+         encoding as a recursive local function returning the tuple of the
+         members computed wrong results with Koka 3.2.9.  A top-level group is
+         lifted to top-level functions ([print_group]). *)
       let single := match mfix with [_] => true | _ => false end in
       let g := "pg_g" ++ string_of_nat depth in
       let ms := mapi (fun j _ => "pg_m" ++ string_of_nat j) mfix in
@@ -311,7 +314,7 @@ Section Printer.
       match nth_error names idx, nth_error arities idx with
       | Some n, Some k =>
         if single then Ok ("(fn() { " ++ concat_with "; " defs ++ "; " ++ call_known n k pending ++ " })()")
-        else Ok ("(fn() { fun " ++ g ++ "(pg_u) { (" ++ concat_with ", " defs ++ ") }; " ++ call_known n k pending ++ " })()")
+        else Err "a nested group of mutual fixpoints"
       | _, _ => Err "fixpoint index out of range"
       end
     | EAst.tVar _ => Err "tVar"
@@ -326,11 +329,33 @@ Section Printer.
 
   Definition tvars_of (n : nat) : list string := map kty_var (seq 0 n).
 
+  (* A constant whose body is a group of mutual fixpoints gets the members as
+     top-level functions [pg_<constant>__mJ], which Koka lets call each other,
+     and the constant itself calls its member.  Koka infers their types. *)
+  Definition print_group (kn : kername) (mfix : EAst.mfixpoint EAst.term) : kres (list string * list (string * option nat)) :=
+    let names := mapi (fun j _ => fun_name kn ++ "__m" ++ string_of_nat j) mfix in
+    let arities := map (fun d => List.length (fst (lambdas (EAst.dbody d)))) mfix in
+    let Γg := List.rev (combine names (map Some arities)) in
+    defs <- monad_map (fun '(n, d) =>
+        let '(params, inner) := lambdas (EAst.dbody d) in
+        let pvars := mapi (fun j na => var (name_ident na) (List.length Γg + j)) params in
+        body' <- print_term (List.app (List.rev (map (fun v => (v, None)) pvars)) Γg) inner [];;
+        match pvars with
+        | [] => Err "a fixpoint without parameters"
+        | _ => Ok ("fun " ++ n ++ "(" ++ concat_with ", " pvars ++ ") { " ++ body' ++ " }")
+        end) (combine names mfix);;
+    Ok (defs, Γg).
+
   Definition print_constant (kn : kername) (ty : list name * box_type) (b : EAst.term)
     : kres string :=
     let Γt := tvars_of (List.length (fst ty)) in
     let body := const_body b in
     let '(params, inner) := lambdas body in
+    group <- match b with
+             | EAst.tFix mfix _ =>
+               if Nat.ltb 1 (List.length mfix) then g <- print_group kn mfix;; Ok (Some g) else Ok None
+             | _ => Ok None
+             end;;
     let self := match b with EAst.tFix [_] 0 => [(fun_name kn, Some (List.length params))] | _ => [] end in
     match split_arrows (List.length params) (snd ty) with
     | None => Err ("the type of " ++ string_of_kername kn ++ " has fewer arrows than its body has lambdas")
@@ -339,14 +364,23 @@ Section Printer.
       res' <- print_type Γt res;;
       let base := List.length self in
       let pvars := mapi (fun j na => var (name_ident na) (base + j)) params in
-      body' <- print_term (List.app (List.rev (map (fun v => (v, None)) pvars)) self) inner [];;
+      body' <- match group, b with
+               | Some (_, Γg), EAst.tFix _ i =>
+                 (* the constant is its member [i] *)
+                 match nth_error (List.rev Γg) i with
+                 | Some (n, Some k) => Ok (call_known n k pvars)
+                 | _ => Err "fixpoint index out of range"
+                 end
+               | _, _ => print_term (List.app (List.rev (map (fun v => (v, None)) pvars)) self) inner []
+               end;;
+      let pre := match group with Some (defs, _) => concat_with kt_nl defs ++ kt_nl | None => "" end in
       match pvars with
       | [] =>
         if is_thunk kn then
-          Ok ("val " ++ fun_name kn ++ " : delayed<pure," ++ res' ++ "> = delay(fn() { " ++ body' ++ " })")
-        else Ok ("fun " ++ fun_name kn ++ "() : pure " ++ res' ++ " { " ++ body' ++ " }")
+          Ok (pre ++ "val " ++ fun_name kn ++ " : delayed<pure," ++ res' ++ "> = delay(fn() { " ++ body' ++ " })")
+        else Ok (pre ++ "fun " ++ fun_name kn ++ "() : pure " ++ res' ++ " { " ++ body' ++ " }")
       | _ =>
-        Ok ("fun " ++ fun_name kn ++ "(" ++
+        Ok (pre ++ "fun " ++ fun_name kn ++ "(" ++
             concat_with ", " (map (fun '(v, t) => v ++ " : " ++ t) (combine pvars doms')) ++
             ") : pure " ++ res' ++ " { " ++ body' ++ " }")
       end
