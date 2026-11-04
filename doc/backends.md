@@ -97,7 +97,7 @@ By default the generated program allocates every value and closure in a [bumpalo
 * every use of a variable clones it (a reference-count increment), a `match` borrows its scrutinee and clones the fields a branch binds, and a closure clones the variables it captures;
 * a local fixpoint is a closure stored in an `Rc<OnceCell<..>>` that the closure itself holds, a cycle that is never freed.
 
-The output depends on no crate. The memory freed is that of values no longer referenced; the clones are not elided, and the drop of a long list recurses once per element. The remapping strings of the numeric verbs assume the arena, so `rust-rc` uses none.
+The output depends on no crate. The memory freed is that of values no longer referenced; the clones are not elided, and the drop of a long list recurses once per element; `__with_stack(bytes, f)` in the preamble runs `f` on a thread with a stack of that size. The remapping strings of the numeric verbs assume the arena, so `rust-rc` uses none.
 
 ## Elm
 

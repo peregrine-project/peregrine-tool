@@ -91,6 +91,13 @@ Definition rust_rc_top_preamble := [
   "";
   "fn __app<'b, TArg, TRet>(f: Rc<dyn Fn(TArg) -> TRet + 'b>, a: TArg) -> TRet {";
   "  (*f)(a)";
+  "}";
+  "";
+  "// Runs f on a thread with a stack of the given size.  Unary nat recursion,";
+  "// and dropping a long Rc chain, recurse once per cell:";
+  "// __with_stack(2 << 30, || { let p = Program::new(); ... })";
+  "pub fn __with_stack<R: Send>(bytes: usize, f: impl FnOnce() -> R + Send) -> R {";
+  "  std::thread::scope(|s| std::thread::Builder::new().stack_size(bytes).spawn_scoped(s, f).unwrap().join().unwrap())";
   "}"
 ].
 
