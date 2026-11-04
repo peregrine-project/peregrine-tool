@@ -538,7 +538,10 @@ var source_tests: TestCase[] =
         {
             src: "rocq/theories/Demo.v",
             tsrc: "rocq/theories/Demo.v",
-            compiler_args: "--entry test",
+            // The load path of rocq/_CoqProject, without its plugin paths: they
+            // name the plugin of the source tree, which CI does not build
+            // (CI compiles rocq/ with _CoqProject.ci)
+            compiler_args: "--entry test --frontend-arg=-Q --frontend-arg=rocq/theories --frontend-arg=Peregrine.Tests",
             rust_i64_output: "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
             main: "Demo_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
