@@ -46,3 +46,23 @@ These operations take no world argument. The order of their calls is kept
 because `interp` performs an operation before it applies the continuation to
 the result, and the calls happen inside `interp` on variables, so no
 middle-end pass sees two equal closed calls that it could merge.
+
+## Wasm: a host-driven interpreter
+
+The Wasm module that Peregrine emits has no imports, so the primitives cannot
+be functions that the module calls. `wasm/WasmIO.v` therefore extracts the
+free-monad tree itself (`main : free nat`, the program of `FreeIO.v` on
+`nat`), and the host interprets it: `wasm/host.mjs` runs `main_function`,
+reads the value from the exported global `result`, and while it is `Op o k`
+performs `o`, writes the response into the module's memory at `mem_ptr`, and
+calls the code of the closure `k` on its environment and the response. The
+module exports every function, its memory and the globals `mem_ptr` and
+`result`; the host reads the function index of each export from the binary's
+export section, since the closure holds a table index and the module's table
+maps index *i* to function *i*.
+
+The host relies on the value layout of CertiRocq's Wasm backend (unboxed
+constructors as `2 * ordinal + 1`, boxed ones as a pointer to the ordinal and
+the arguments, closures as blocks holding a table index and an environment)
+and is trusted, as the OCaml and C primitives are. `make check` runs it with
+Node on input 3.

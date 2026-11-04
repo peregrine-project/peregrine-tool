@@ -238,7 +238,7 @@ jobs:
           eval $(opam env) && cd test && npm install && npm run test
           echo "::endgroup::"
 
-      - name: IO example (OCaml and C)
+      - name: IO example (OCaml, C and Wasm)
         run: |
           opam exec -- make -C examples/io check
           # the optional passes must keep the order of the primitive calls
