@@ -24,6 +24,20 @@ env:
   JOBS: 4
   TMPDIR: /tmp
 jobs:
+  # Every expected failure of the test suite names an open issue
+  issues:
+    name: Issues of the expected failures
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check that the issues named in test/src/tests.ts are open
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: test/check-issues.sh
+
   build:
     name: OCaml ${{ matrix.ocaml_version }} build
     runs-on: ${{ matrix.os }}

@@ -35,6 +35,9 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Wasm, "cofix", "--lower-cofix true"]
 ];
 
+// Known failures shared by several tests, by configuration
+const on = (configs: string[], reason: string) => Object.fromEntries(configs.map((c) => [c, reason]));
+
 // Agda Tests
 var agda_tests: TestCase[] =
     [
@@ -129,8 +132,8 @@ var agda_tests: TestCase[] =
         {
             src: "agda/Lvls.ast",
             xfail: {
-                "Rust-untyped": "#79: the projection of the erased field ℓ is printed as a unit, which is then applied",
-                "Elm-untyped": "#79: Elm prints the local definition toNat as _50_Lvls_toNat, which Elm rejects"
+                "Rust-untyped": "#TBD-rust-erased-projection: the projection of the erased field ℓ is printed as a unit, which is then applied (E0618)",
+                "Elm-untyped": "#TBD-agda-module-path-order: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Lvls_toNat, which Elm rejects"
             },
             main: "Lvls_test",
             output_type: SimpleType.Nat,
@@ -194,13 +197,6 @@ var agda_tests: TestCase[] =
             expected_output: ["(cons (S (S (S O))) nil)", ""],
             parameters: []
         },
-        /*     {
-                tsrc: "agda/SchemeTyped.ast",
-                main: "SchemeTyped_demo",
-                output_type: SimpleType.Nat, // TODO
-                expected_output: ["", ""], // TODO
-                parameters: []
-            }, */ // No main to test
         {
             src: "agda/STLC.ast",
             // The type of the result of eval depends on the type of the term
@@ -210,20 +206,6 @@ var agda_tests: TestCase[] =
             expected_output: ["(S (S O))", "", ""],
             parameters: []
         },
-        /*     {
-                tsrc: "agda/Test.ast",
-                main: "Test_demo",
-                output_type: SimpleType.Nat, // TODO
-                expected_output: ["", ""], // TODO
-                parameters: []
-            }, */ // No main to test
-        /*     {
-                tsrc: "agda/Types.ast",
-                main: "Types_demo",
-                output_type: SimpleType.Nat, // TODO
-                expected_output: ["", ""], // TODO
-                parameters: []
-            }, */ // No main to test
         {
             src: "agda/Unicode.ast",
             xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
@@ -283,9 +265,9 @@ var rocq_tests: TestCase[] =
             ],
             parameters: [],
             cofix: true,
-            // The typed backends do not support cofixpoints, and there is no
-            // typed source
-            rejected: true
+            tsrc: "rocq/extraction/CoStream_typed.ast",
+            rejected: "#TBD-typed-cofix: the Rust and Elm printers do not support cofixpoints, so neither does type inference",
+            xfail: on(["Rust", "Elm", "Rust-verb"], "#TBD-typed-cofix: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)")
         },
         {
             src: "rocq/extraction/Prims.ast",
@@ -297,13 +279,13 @@ var rocq_tests: TestCase[] =
                 "Cons (S O) (Cons O Nil)"
             ],
             parameters: [],
-            // The typed backends do not support primitive values, and there is
-            // no typed source
-            rejected: true,
-            unsupported: {
-                "WebAssembly": "the Wasm backend does not support primitive strings",
-                "WebAssembly-cps": "the Wasm backend does not support primitive strings",
-                "CakeML": "the CakeML backend does not support primitive values: it prints them as a raise"
+            tsrc: "rocq/extraction/Prims_typed.ast",
+            rejected: "#TBD-typed-prims: the Rust and Elm printers do not support primitive values, so neither does type inference",
+            xfail: {
+                ...on(["Rust", "Elm", "Rust-verb"], "#TBD-typed-prims: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
+                "WebAssembly": "#TBD-wasm-prims: the Wasm backend does not support primitive strings",
+                "WebAssembly-cps": "#TBD-wasm-prims: the Wasm backend does not support primitive strings",
+                "CakeML": "#TBD-cakeml-prims: the CakeML backend prints every primitive literal as a raise"
             }
         },
         {
@@ -335,9 +317,27 @@ var rocq_tests: TestCase[] =
         },
         {
             src: "rocq/extraction/Remap.ast",
-            unsupported: Object.fromEntries(["OCaml", "OCaml-passes", "C", "WebAssembly", "WebAssembly-cps", "LLVM",
-                "Rust-untyped", "Elm-untyped", "CakeML", "Koka-experimental"].map((c) => [c, "the axiom ext_id needs a remapping, which the test supplies for Lean and F# only"])),
-            configs: { [Lang.Lean]: "src/lean/remap.sexp", [Lang.FSharp]: "src/fsharp/remap.sexp" },
+            tsrc: "rocq/extraction/Remap_typed.ast",
+            attributes: {
+                [Lang.OCaml]: "src/ocaml/remap.sexp",
+                [Lang.C]: "src/c/remap.sexp",
+                [Lang.LLVM]: "src/c/remap.sexp",
+                [Lang.Wasm]: "src/c/remap.sexp",
+                [Lang.Rust]: "src/rust/remap.sexp",
+                [Lang.Elm]: "src/elm/remap.sexp",
+                [Lang.Lean]: "src/lean/remap.sexp",
+                [Lang.FSharp]: "src/fsharp/remap.sexp",
+                [Lang.Koka]: "src/koka/remap.sexp"
+            },
+            xfail: {
+                ...on(["WebAssembly", "WebAssembly-cps"], "#TBD-wasm-remap: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
+                "LLVM": "#TBD-llvm-remap: the LLVM backend calls a remapped constant without declaring it (use of undefined value '@remap_id')",
+                "CakeML": "#TBD-cakeml-remap: the CakeML backend takes no constant remappings, so the axiom ext_id is printed as a raise, which cake does not parse",
+                ...on(["Rust", "Rust-verb"], "#TBD-typed-remap-dearg: the typed pipeline removes the unused parameter of shadowed, so the call no longer matches its remapping"),
+                "Rust-untyped": "#79: inference prints no method for the axiom ext_id, and gives the unused parameter of shadowed the type ()",
+                "Elm": "#TBD-typed-remap-dearg, #TBD-elm-remap-body: the typed pipeline removes the unused parameter of shadowed, and Elm prints its body under the remapped name",
+                "Elm-untyped": "#TBD-elm-remap-body: Elm prints shadowed, with its body, under the remapped name identity, so the program calls it instead of Basics.identity"
+            },
             main: "Remap_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S O)))", "(S () (S () (S () (O))))", "S (S (S O))"],
@@ -438,10 +438,10 @@ var rocq_tests: TestCase[] =
             src: "rocq/extraction/Phantom.ast",
             tsrc: "rocq/extraction/Phantom_typed.ast",
             xfail: {
-                "Rust": "rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
-                "Rust-verb": "rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
-                "Rust-i64": "rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
-                "Rust-hybrid": "rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor"
+                "Rust": "peregrine-project/rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
+                "Rust-verb": "peregrine-project/rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
+                "Rust-i64": "peregrine-project/rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
+                "Rust-hybrid": "peregrine-project/rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor"
             },
             rust_i64_output: "1",
             main: "Phantom_test",
