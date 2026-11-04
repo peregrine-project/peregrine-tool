@@ -31,7 +31,7 @@ Every test either passes, or fails as an expected failure that an open issue tra
 
 ## Configurations
 
-The Rust and Elm backends take typed programs, so the `Rust` and `Elm` configurations only run the tests that have a `tsrc`, currently the Rocq ones.
+The Rust and Elm backends take typed programs, so the `Rust` and `Elm` configurations only run the tests that have a `tsrc`: the Rocq ones, and the Agda programs compiled with `--typed`.
 The `Rust-untyped` and `Elm-untyped` configurations give the same backends the untyped `src` of every test, whose types peregrine then infers, and expect the outputs of the typed sources.
 A test marked as `rejected` is a program whose types cannot be inferred, or that uses a feature the typed backends lack: there peregrine must fail with `Could not infer types`.
 All four compile with `peregrine compile` and the pipeline configurations [src/rust/config.sexp](src/rust/config.sexp) and [src/elm/config.sexp](src/elm/config.sexp).
@@ -47,6 +47,8 @@ The `FSharp-experimental` configuration compiles every test with the experimenta
 ## Agda frontend tests
 These tests are Agda programs compiled to $\lambda_\square$ with the [agda2lambox](https://github.com/agda/agda2lambox/tree/master) tool.
 The tests are from the [agda2lambox test suite](https://github.com/agda/agda2lambox/tree/master/test).
+
+The programs of agda2lambox's `test/untyped` are compiled to untyped $\lambda_\square$, those of `test/typed` and `test/agda2rust` to typed $\lambda_\square^T$ (`--typed`); all are `.ast` files in `agda/`. The typed ones are the `tsrc` of their tests, and the untyped backends take the same file. The tests of the agda2lambox programs whose entry point `test` is a natural number check it on every backend. `agda2rust/Postulates` is left out: its result depends on postulates that nothing realises.
 
 CI builds agda2lambox at the commit named in [.github/workflows/build.yml](../.github/workflows/build.yml) and runs its test suite, which compiles every test program to `test/dist/` and checks each one with `peregrine validate`. To reproduce the files, with `peregrine` on the `PATH`:
 ```bash

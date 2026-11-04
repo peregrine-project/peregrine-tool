@@ -35,8 +35,41 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Wasm, "cofix", "--lower-cofix true"]
 ];
 
+// The expected outputs of an Agda program that computes the natural number n,
+// as the OCaml, C and Wasm drivers, the Rust driver and the Elm driver print it
+function agda_nat(n: number): string[] {
+    return [
+        "(S ".repeat(n) + "O" + ")".repeat(n),
+        "(suc () ".repeat(n) + "(zero)" + ")".repeat(n),
+        n === 0 ? "Zero" : "Suc (".repeat(n - 1) + "Suc Zero" + ")".repeat(n - 1)
+    ];
+}
+
+// An Agda program of the agda2lambox test suite whose entry point `test`
+// computes the natural number n. The programs of test/typed and
+// test/agda2rust are compiled with --typed, and the untyped backends take
+// the same file.
+function agda_nat_test(name: string, n: number, typed: boolean): TestCase {
+    return {
+        src: `agda/${name}.ast`,
+        tsrc: typed ? `agda/${name}.ast` : undefined,
+        main: `${name}_test`,
+        output_type: SimpleType.Nat,
+        expected_output: agda_nat(n),
+        rust_i64_output: typed ? agda_nat(n)[1] : undefined,
+        parameters: []
+    };
+}
+
 // Known failures shared by several tests, by configuration
 const on = (configs: string[], reason: string) => Object.fromEntries(configs.map((c) => [c, reason]));
+const elm = (reason: string) => on(["Elm", "Elm-untyped"], reason);
+const rust = (reason: string) => on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"], reason);
+const elm_operator = elm("#79: Elm prints the names of operators and of other symbols ([], _∷_, ×, ℕ) with a leading underscore, which Elm rejects");
+const elm_ctor_clash = elm("#99: Elm prints the constructors of different types under the same name");
+const elm_module_clash = elm("#94: the Elm module is named after the file, which clashes with a module of the Elm core or test library");
+const lean_name_clash = on(["Lean", "FSharp-experimental", "Koka-experimental"],
+    "#93, #TBD-agda-module-path-order: two definitions whose module paths differ only in their last component (where-modules, record modules) get the same name: agda2lambox writes module paths outermost first, and the backend keeps only one component");
 
 // Agda Tests
 var agda_tests: TestCase[] =
@@ -222,6 +255,61 @@ var agda_tests: TestCase[] =
             expected_output: ["(cons true nil)", "", ""],
             parameters: []
         },
+        // Untyped
+        agda_nat_test("ErasedRecursion", 2, false),
+        { ...agda_nat_test("Fannkuch", 7, false), xfail: elm_operator },
+        {
+            ...agda_nat_test("InductionRecursion", 3, false),
+            // An ML type exists, but inference gives the first argument of the
+            // constructor _∷_⊣_ (the index αs) the type box
+            rejected: "#79: type inference cannot unify the type of _∷_⊣_ with its application to a list"
+        },
+        { ...agda_nat_test("Params", 25, false), xfail: elm_operator },
+        { ...agda_nat_test("Prelude", 42, false), xfail: elm_operator },
+        agda_nat_test("RecursiveInline", 6, false),
+        agda_nat_test("StrictLet", 3, false),
+        { ...agda_nat_test("Terminating", 6, false), xfail: elm("#TBD-agda-module-path-order: agda2lambox writes the module path of a where-bound lambda outermost first, so Elm prints it as _14_Terminating__UU2eextendedlambda1, which Elm rejects") },
+        { ...agda_nat_test("WhereNames", 6, false), xfail: { ...elm_operator, ...lean_name_clash } },
+        // Typed: test/typed
+        { ...agda_nat_test("Scheme", 42, true), xfail: elm_operator },
+        { ...agda_nat_test("Test", 42, true), xfail: elm_module_clash },
+        { ...agda_nat_test("Types", 42, true), xfail: elm_operator },
+        // Typed: test/agda2rust
+        agda_nat_test("Bool00", 168, true),
+        agda_nat_test("Bool", 84, true),
+        { ...agda_nat_test("ConsImplicitArgs", 168, true), xfail: elm_ctor_clash },
+        agda_nat_test("Curry", 168, true),
+        { ...agda_nat_test("Either", 42, true), xfail: { ...rust("#TBD-rust-ctor-type-args: rustc cannot infer the parameter B of Either at the constructor Left (E0283)"), ...elm_ctor_clash } },
+        agda_nat_test("ErasedFields", 168, true),
+        agda_nat_test("EtaExpansion", 672, true),
+        agda_nat_test("ExactSplit", 0, true),
+        { ...agda_nat_test("Exp", 168, true), xfail: { ...rust("#TBD-rust-indexed-cast: the branches of geval have different types (GExp is indexed by the type of its value), and the Rust printer has no cast (E0308)"), ...elm_ctor_clash } },
+        agda_nat_test("Identity", 42, true),
+        { ...agda_nat_test("Levels", 294, true), xfail: elm("#TBD-agda-module-path-order: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Levels_toNat, which Elm rejects") },
+        agda_nat_test("List0", 42, true),
+        { ...agda_nat_test("List", 42, true), xfail: elm_module_clash },
+        { ...agda_nat_test("Maybe", 42, true), xfail: elm_module_clash },
+        agda_nat_test("MultiArgFun", 630, true),
+        agda_nat_test("Newtype", 42, true),
+        agda_nat_test("Numbers", 42, true),
+        agda_nat_test("OpenModule", 210, true),
+        { ...agda_nat_test("OverloadedFields", 168, true), xfail: { ...elm_ctor_clash, ...lean_name_clash } },
+        { ...agda_nat_test("PartialApp", 378, true), xfail: elm_operator },
+        agda_nat_test("PartialAppConst", 84, true),
+        agda_nat_test("PartialAppId", 336, true),
+        { ...agda_nat_test("PartialAppM", 378, true), xfail: elm_operator },
+        agda_nat_test("PartialAppSwap", 210, true),
+        agda_nat_test("PointFree", 126, true),
+        agda_nat_test("Prim", 42, true),
+        { ...agda_nat_test("Product", 42, true), xfail: elm_operator },
+        { ...agda_nat_test("RecordFields", 168, true), xfail: elm_ctor_clash },
+        { ...agda_nat_test("RunTimeIrrelevance", 336, true), xfail: elm("#94, #99: with the elm_false_elim_def of the test configuration, an absurd clause is printed as an empty branch, and the constructors Mk of two types clash") },
+        agda_nat_test("Simplification", 42, true),
+        agda_nat_test("Singleton", 42, true),
+        agda_nat_test("Top", 42, true),
+        { ...agda_nat_test("TypeAliases", 168, true), xfail: elm_operator },
+        agda_nat_test("UnusedArgs", 84, true),
+        { ...agda_nat_test("Where", 210, true), xfail: { ...elm_operator, ...lean_name_clash } },
     ];
 
 // Rocq Tests

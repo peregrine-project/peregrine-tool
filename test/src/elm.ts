@@ -1,6 +1,6 @@
 import path from "path";
 import { ExecResult, SimpleType, TestCase } from "./types";
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync } from "fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "fs";
 import { execSync } from "child_process";
 import { find_entry_point } from "./utils";
 
@@ -63,5 +63,9 @@ export function run_elm(file: string, tmpdir: string, test: TestCase, timeout: n
     }
 
     return { type: "error", reason: "runtime error", error: e }; // TODO
+  } finally {
+    // The module would stay in the project and could clash with the modules
+    // that the next tests import
+    rmSync(file, { force: true });
   }
 }
