@@ -13,6 +13,11 @@ export function prepare_cargo(tmpdir: string): string {
   // Copy cargo project definition
   copyFileSync("src/rust/Cargo.toml", path.join(tmpdir, "rust/Cargo.toml"));
 
+  // Build the dependencies once, through an empty binary, so that the first
+  // test does not spend its compile timeout on them (rug builds GMP)
+  writeFileSync(path.join(dir, "_deps.rs"), "fn main() {}\n");
+  execSync("cargo build --bin _deps", { stdio: "pipe", timeout: 1800000, cwd: path.join(tmpdir, "rust") });
+
   return dir;
 }
 
@@ -22,7 +27,11 @@ export function prepare_cargo(tmpdir: string): string {
 // S-expression printer
 export function make_printable(file: string) {
   const src = readFileSync(file, "utf8").split("#[derive(Debug, Clone)]").join("#[derive(Debug, Clone, Serialize)]");
-  writeFileSync(file, src + "\nuse lexpr::{to_string}; use serde_derive::{Serialize}; use serde_lexpr::{to_value};\n");
+  // rust-hybrid's numbers: an i64, or a GMP integer printed as a string
+  const num = src.includes("pub enum Num<'a>")
+    ? "\nimpl<'a> serde::Serialize for Num<'a> { fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> { match self { Num::S(v) => s.serialize_i64(*v), Num::B(b) => s.serialize_str(&b.to_string()) } } }\n"
+    : "";
+  writeFileSync(file, src + num + "\nuse lexpr::{to_string}; use serde_derive::{Serialize}; use serde_lexpr::{to_value};\n");
 }
 
 // Add main function to `file` that calls `main_fn` and

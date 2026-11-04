@@ -19,6 +19,8 @@ export var test_configurations: TestConfiguration[] = [
     // src/rust/config.sexp, so the rust verb expects the outputs of the Rust tests.
     [Lang.Rust, "verb", "--dearg-ctors false --dearg-consts false", false, "rust"],
     [Lang.Rust, "i64", "--dearg-ctors false --dearg-consts false", false, "rust-i64"],
+    // i64 or GMP per value: prints as rust-i64 does
+    [Lang.Rust, "hybrid", "--dearg-ctors false --dearg-consts false", false, "rust-hybrid"],
     [Lang.CakeML, "", ""],
     [Lang.Lean, "", ""],
     // The F# backend is experimental
