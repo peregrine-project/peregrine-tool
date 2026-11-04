@@ -530,6 +530,62 @@ var lean_tests: TestCase[] =
         }, // Generates invalid identifier names in C backend
     ];
 
+// The Demo programs given to peregrine as proof-assistant sources: peregrine
+// runs the frontend, which must be installed, and asks it for typed lambda
+// box for the typed backends. They expect the outputs of the Demo tests above.
+var source_tests: TestCase[] =
+    [
+        {
+            src: "rocq/theories/Demo.v",
+            tsrc: "rocq/theories/Demo.v",
+            // The load path of rocq/_CoqProject, without its plugin paths: they
+            // name the plugin of the source tree, which CI does not build
+            // (CI compiles rocq/ with _CoqProject.ci)
+            compiler_args: "--entry test --frontend-arg=-Q --frontend-arg=rocq/theories --frontend-arg=Peregrine.Tests",
+            rust_i64_output: "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
+            main: "Demo_test",
+            output_type: { type: "list", a_t: SimpleType.Bool },
+            expected_output: [
+                "(cons true (cons false (cons true (cons false nil))))",
+                "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
+                "Cons True (Cons False (Cons True (Cons False Empty)))"
+            ],
+            parameters: []
+        },
+        {
+            src: "agda-src/Demo.agda",
+            // The typed backends get typed lambda box from agda2lambox. The
+            // commit of agda2lambox that CI builds emits a typed program that
+            // the Rust and Elm printers reject (`unbound TVar 0`) with the
+            // dearg passes off, as in src/rust/config.sexp; agda2lambox
+            // master does not
+            skip: [Lang.Rust, Lang.Elm],
+            main: "Demo_test",
+            output_type: { type: "list", a_t: SimpleType.Bool },
+            expected_output: [
+                "(cons true (cons false (cons true (cons false nil))))",
+                "(cons () (rՖhshtrue) (cons () (rՖhshfalse) (cons () (rՖhshtrue) (cons () (rՖhshfalse) (empty)))))",
+                "Cons R_UU23true (Cons R_UU23false (Cons R_UU23true (Cons R_UU23false Empty)))"
+            ],
+            parameters: []
+        },
+        {
+            // Lean has no typed output: the typed backends infer the types
+            src: "lean/source/Demo.lean",
+            tsrc: "lean/source/Demo.lean",
+            compiler_args: "--entry test",
+            skip: [Lang.Elm],
+            main: "Demo_test",
+            output_type: { type: "list", a_t: SimpleType.Bool },
+            expected_output: [
+                "(cons true (cons false (cons true (cons false nil))))",
+                "(List_Ֆdotcons () (Bool_Ֆdottrue) (List_Ֆdotcons () (Bool_Ֆdotfalse) (List_Ֆdotcons () (Bool_Ֆdottrue) (List_Ֆdotcons () (Bool_Ֆdotfalse) (List_Ֆdotempty)))))",
+                "Cons True (Cons False (Cons True (Cons False Empty)))"
+            ],
+            parameters: []
+        },
+    ];
+
 // List of programs to be tested
 export var tests: TestCase[] =
-    [...agda_tests, ...rocq_tests, ...lean_tests];
+    [...agda_tests, ...rocq_tests, ...lean_tests, ...source_tests];
