@@ -25,6 +25,8 @@ All four compile with `peregrine compile` and the pipeline configurations [src/r
 The `Rust-verb` and `Rust-i64` configurations compile the typed sources with the `rust` and `rust-i64` commands instead; `rust-i64` represents numbers as `i64`, so its tests have their own expected outputs (`rust_i64_output`). The `rust-gmp` command is not tested here: its `rug` crate builds GMP from source, which takes longer than the compile timeout.
 The `LLVM` configuration links the emitted `.ll` module with CertiRocq's C runtime and the C glue, as the `C` configuration does.
 The `OCaml-passes` configuration runs the OCaml tests with the optional `--specialize-instances` and `--cse` passes enabled and expects the same outputs.
+The tests `rocq/theories/Demo.v`, `agda-src/Demo.agda` and `lean/source/Demo.lean` give peregrine the source of a Demo program instead of a `.ast` file: peregrine runs the frontend, so `rocq` with the Peregrine plugin, `agda2lambox` and `lake` must be installed, and `test/lean` must be built.
+The `CLI` configuration ([src/cli.ts](src/cli.ts)) checks the choice of the frontend from the extension of the input, and the errors of the frontend options, without running any frontend.
 The `FSharp-experimental` configuration compiles every test with the experimental `fsharp` command, builds all the generated programs as one .NET project and runs each of them; it checks the outputs that the universal printers of [src/fsharp/TestPrinters.fs](src/fsharp/TestPrinters.fs) can print (booleans, natural numbers and lists of them).
 
 
