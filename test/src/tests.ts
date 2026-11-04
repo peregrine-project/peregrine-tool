@@ -568,8 +568,8 @@ var source_tests: TestCase[] =
         },
         {
             // Lean has no typed output: the typed backends infer the types
-            src: "lean/src/DemoSource.lean",
-            tsrc: "lean/src/DemoSource.lean",
+            src: "lean/source/Demo.lean",
+            tsrc: "lean/source/Demo.lean",
             compiler_args: "--entry test",
             skip: [Lang.Elm],
             main: "Demo_test",
