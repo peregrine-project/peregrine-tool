@@ -25,7 +25,12 @@
     temporaries are owned values and are freed when the operation returns.
     Eliminators are [macro_rules!] (no [self]); a big predecessor is
     [Box::leak]ed, as in [RustGMPRemaps.v], and a small one is a plain value.
-    Nothing about the remapped operations is verified.
+    [RustHybridCoherence.v] proves, for a model over [Z], that the fast paths,
+    floor division, the comparisons, the eliminators and every entry of the
+    remap table compute what the Rocq functions compute; that the Rust strings
+    implement the model is trusted.  The only [unsafe] code dereferences an
+    even word, and the private field of [Num] in [mod __hybrid] makes
+    [of_big] the only source of even words.
     Cargo dependencies: [rug = "1"], [bumpalo = "3"]. *)
 
 From MetaRocq.Common Require Import Kernames.
@@ -148,27 +153,43 @@ Definition hybrid_top_preamble : string :=
   "use rug::Integer;";
   "use rug::Assign;";
   "use rug::ops::{DivRounding, RemRounding, Pow};";
-  "#[derive(Clone, Copy)]";
-  "pub struct Num<'a>(i64, std::marker::PhantomData<&'a rug::Integer>);";
-  "type Int<'a> = Num<'a>;";
-  "const __SMIN: i64 = -(1i64 << 62);";
-  "const __SMAX: i64 = (1i64 << 62) - 1;";
-  "impl<'a> Num<'a> {";
-  "  #[inline(always)] pub const fn S(v: i64) -> Num<'a> { Num((v << 1) | 1, std::marker::PhantomData) }";
-  "  #[inline(always)] fn small(self) -> Option<i64> { if self.0 & 1 == 1 { Some(self.0 >> 1) } else { None } }";
-  "  #[inline(always)] fn big(self) -> &'a rug::Integer { unsafe { &*(self.0 as usize as *const rug::Integer) } }";
-  "  #[inline(always)] fn of_big(b: &'a rug::Integer) -> Num<'a> { Num(b as *const rug::Integer as usize as i64, std::marker::PhantomData) }";
+  "mod __hybrid {";
+  "  // The only code that reads or builds the word of a Num.  Invariant: an odd";
+  "  // word is 2v+1 for a small v; an even word is the address of a rug::Integer";
+  "  // that lives for 'a (of_big takes a &'a reference; Integer is 8-aligned).";
+  "  // The field is private, so no other code can build an even word, and";
+  "  // view() dereferences only even words.";
+  "  #[derive(Clone, Copy)]";
+  "  pub struct Num<'a>(i64, std::marker::PhantomData<&'a rug::Integer>);";
+  "  pub enum View<'a> { S(i64), B(&'a rug::Integer) }";
+  "  pub const SMIN: i64 = -(1i64 << 62);";
+  "  pub const SMAX: i64 = (1i64 << 62) - 1;";
+  "  impl<'a> Num<'a> {";
+  "    /// A small number; v must be in [SMIN, SMAX] (out of range gives a wrong small value, never an invalid address).";
+  "    #[inline(always)] pub const fn S(v: i64) -> Num<'a> { Num(v.wrapping_shl(1) | 1, std::marker::PhantomData) }";
+  "    #[inline(always)] pub fn of_big(b: &'a rug::Integer) -> Num<'a> { Num(b as *const rug::Integer as usize as i64, std::marker::PhantomData) }";
+  "    #[inline(always)] pub fn small(self) -> Option<i64> { if self.0 & 1 == 1 { Some(self.0 >> 1) } else { None } }";
+  "    #[inline(always)] pub fn view(self) -> View<'a> { if self.0 & 1 == 1 { View::S(self.0 >> 1) } else { View::B(unsafe { &*(self.0 as usize as *const rug::Integer) }) } }";
+  "    /// Fast paths on two small numbers: None when an argument is big or the result leaves the small range.";
+  "    #[inline(always)] pub fn add_small(a: Num<'a>, b: Num<'a>) -> Option<Num<'a>> { if a.0 & b.0 & 1 == 1 { a.0.checked_add(b.0 - 1).map(|r| Num(r, std::marker::PhantomData)) } else { None } }";
+  "    #[inline(always)] pub fn sub_small(a: Num<'a>, b: Num<'a>) -> Option<Num<'a>> { if a.0 & b.0 & 1 == 1 { a.0.checked_sub(b.0 - 1).map(|r| Num(r, std::marker::PhantomData)) } else { None } }";
+  "    #[inline(always)] pub fn mul_small(a: Num<'a>, b: Num<'a>) -> Option<Num<'a>> { if a.0 & b.0 & 1 == 1 { (a.0 - 1).checked_mul(b.0 >> 1).map(|r| Num(r + 1, std::marker::PhantomData)) } else { None } }";
+  "  }";
   "}";
+  "use __hybrid::{Num, View};";
+  "type Int<'a> = Num<'a>;";
+  "const __SMIN: i64 = __hybrid::SMIN;";
+  "const __SMAX: i64 = __hybrid::SMAX;";
   "#[inline(always)] fn __fits(v: i64) -> bool { v >= __SMIN && v <= __SMAX }";
-  "fn __big(x: Num) -> rug::Integer { match x.small() { Some(v) => rug::Integer::from(v), None => x.big().clone() } }";
-  "fn __bref<'t>(x: Num<'t>, tmp: &'t mut rug::Integer) -> &'t rug::Integer { match x.small() { Some(v) => { tmp.assign(v); tmp } None => x.big() } }";
+  "fn __big(x: Num) -> rug::Integer { match x.view() { View::S(v) => rug::Integer::from(v), View::B(b) => b.clone() } }";
+  "fn __bref<'t>(x: Num<'t>, tmp: &'t mut rug::Integer) -> &'t rug::Integer { match x.view() { View::S(v) => { tmp.assign(v); tmp } View::B(b) => b } }";
   "fn __leak(x: rug::Integer) -> Num<'static> { match x.to_i64() { Some(v) if __fits(v) => Num::S(v), _ => Num::of_big(Box::leak(Box::new(x))) } }";
   "fn __leak_i64(v: i64) -> Num<'static> { if __fits(v) { Num::S(v) } else { __leak(rug::Integer::from(v)) } }";
-  "impl<'a> PartialEq for Num<'a> { fn eq(&self, o: &Self) -> bool { match (self.small(), o.small()) { (Some(a), Some(b)) => a == b, (None, None) => self.big() == o.big(), _ => false } } }";
+  "impl<'a> PartialEq for Num<'a> { fn eq(&self, o: &Self) -> bool { match (self.view(), o.view()) { (View::S(a), View::S(b)) => a == b, (View::B(a), View::B(b)) => a == b, _ => false } } }";
   "impl<'a> Eq for Num<'a> {}";
-  "impl<'a> Ord for Num<'a> { fn cmp(&self, o: &Self) -> std::cmp::Ordering { match (self.small(), o.small()) { (Some(a), Some(b)) => a.cmp(&b), (Some(_), None) => o.big().cmp0().reverse(), (None, Some(_)) => self.big().cmp0(), (None, None) => self.big().cmp(o.big()) } } }";
+  "impl<'a> Ord for Num<'a> { fn cmp(&self, o: &Self) -> std::cmp::Ordering { match (self.view(), o.view()) { (View::S(a), View::S(b)) => a.cmp(&b), (View::S(_), View::B(b)) => b.cmp0().reverse(), (View::B(a), View::S(_)) => a.cmp0(), (View::B(a), View::B(b)) => a.cmp(b) } } }";
   "impl<'a> PartialOrd for Num<'a> { fn partial_cmp(&self, o: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(o)) } }";
-  "impl<'a> std::fmt::Display for Num<'a> { fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { match self.small() { Some(v) => write!(f, ""{}"", v), None => write!(f, ""{}"", self.big()) } } }";
+  "impl<'a> std::fmt::Display for Num<'a> { fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { match self.view() { View::S(v) => write!(f, ""{}"", v), View::B(b) => write!(f, ""{}"", b) } } }";
   "impl<'a> std::fmt::Debug for Num<'a> { fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { std::fmt::Display::fmt(self, f) } }";
   "macro_rules! __gmp1 { ($a:expr, |$x:ident| $e:expr) => { { let mut __t1 = rug::Integer::new(); let $x = __bref($a, &mut __t1); $e } } }";
   "macro_rules! __gmp2 { ($a:expr, $b:expr, |$x:ident, $y:ident| $e:expr) => { { let (mut __t1, mut __t2) = (rug::Integer::new(), rug::Integer::new()); let $x = __bref($a, &mut __t1); let $y = __bref($b, &mut __t2); $e } } }";
@@ -181,18 +202,18 @@ Definition hybrid_top_preamble : string :=
   "macro_rules! __nat_elim {";
   "  ($zcase:expr, $pred:ident, $scase:expr, $val:expr) => {";
   "    { let v: Num = $val;";
-  "      match v.small() { Some(0) => $zcase,";
-  "        Some(n) => { let $pred: Num = Num::S(n - 1); $scase },";
-  "        None => { let $pred: Num = __leak(rug::Integer::from(v.big() - 1u32)); $scase } } }";
+  "      match v.view() { View::S(0) => $zcase,";
+  "        View::S(n) => { let $pred: Num = Num::S(n - 1); $scase },";
+  "        View::B(b) => { let $pred: Num = __leak(rug::Integer::from(b - 1u32)); $scase } } }";
   "  }";
   "}";
   "";
   "macro_rules! __pos_elim {";
   "  ($p:ident, $onebcase:expr, $p2:ident, $zerobcase:expr, $onecase:expr, $val:expr) => {";
   "    { let v: Num = $val;";
-  "      match v.small() { Some(1) => $onecase,";
-  "        Some(n) => if n & 1 == 1 { let $p: Num = Num::S(n >> 1); $onebcase } else { let $p2: Num = Num::S(n >> 1); $zerobcase },";
-  "        None => { let b = v.big(); if b.is_odd() { let $p: Num = __leak(rug::Integer::from(b >> 1u32)); $onebcase } else { let $p2: Num = __leak(rug::Integer::from(b >> 1u32)); $zerobcase } } } }";
+  "      match v.view() { View::S(1) => $onecase,";
+  "        View::S(n) => if n & 1 == 1 { let $p: Num = Num::S(n >> 1); $onebcase } else { let $p2: Num = Num::S(n >> 1); $zerobcase },";
+  "        View::B(b) => { if b.is_odd() { let $p: Num = __leak(rug::Integer::from(b >> 1u32)); $onebcase } else { let $p2: Num = __leak(rug::Integer::from(b >> 1u32)); $zerobcase } } } }";
   "  }";
   "}";
   "";
@@ -206,7 +227,7 @@ Definition hybrid_top_preamble : string :=
   "  ($zero_case:expr, $p:ident, $pos_case:expr, $p2:ident, $neg_case:expr, $val:expr) => {";
   "    { let n: Num = $val;";
   "      if n == Num::S(0) { $zero_case }";
-  "      else if n < Num::S(0) { let $p2: Num = match n.small() { Some(v) => __leak_i64(-v), None => __leak(-__big(n)) }; $neg_case }";
+  "      else if n < Num::S(0) { let $p2: Num = match n.view() { View::S(v) => __leak_i64(-v), View::B(b) => __leak(rug::Integer::from(-b)) }; $neg_case }";
   "      else { let $p: Num = n; $pos_case } }";
   "  }";
   "}"
@@ -221,9 +242,9 @@ Definition hybrid_program_preamble : string :=
   String.concat MRString.nl [
   "fn __int(&'a self, v: i64) -> Num<'a> { if __fits(v) { Num::S(v) } else { Num::of_big(self.alloc(rug::Integer::from(v))) } }";
   "fn __num(&'a self, x: rug::Integer) -> Num<'a> { match x.to_i64() { Some(v) if __fits(v) => Num::S(v), _ => Num::of_big(self.alloc(x)) } }";
-  "fn __add(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if a.0 & b.0 & 1 == 1 { if let Some(r) = a.0.checked_add(b.0 - 1) { return Num(r, std::marker::PhantomData) } } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x + y))) }";
-  "fn __sub(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if a.0 & b.0 & 1 == 1 { if let Some(r) = a.0.checked_sub(b.0 - 1) { return Num(r, std::marker::PhantomData) } } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x - y))) }";
-  "fn __mul(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if a.0 & b.0 & 1 == 1 { if let Some(r) = (a.0 - 1).checked_mul(b.0 >> 1) { return Num(r | 1, std::marker::PhantomData) } } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x * y))) }";
+  "fn __add(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if let Some(r) = Num::add_small(a, b) { return r } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x + y))) }";
+  "fn __sub(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if let Some(r) = Num::sub_small(a, b) { return r } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x - y))) }";
+  "fn __mul(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if let Some(r) = Num::mul_small(a, b) { return r } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x * y))) }";
   "fn __neg(&'a self, a: Num<'a>) -> Num<'a> { if let Some(x) = a.small() { return self.__int(-x) } self.__num(__gmp1!(a, |x| rug::Integer::from(-x))) }";
   "fn __abs(&'a self, a: Num<'a>) -> Num<'a> { if let Some(x) = a.small() { return self.__int(x.abs()) } self.__num(__gmp1!(a, |x| rug::Integer::from(x.abs_ref()))) }";
   "fn __divf(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> {";
