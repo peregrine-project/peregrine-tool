@@ -44,6 +44,29 @@ Definition wasm_pipeline prs (p : EAst.program) :=
 Definition print_wasm p : string :=
   String.parse (binary_of_module p).
 
+(* The Int63 operations that CertiCoq-Wasm compiles natively ([primop_map] of
+   LambdaANF_to_Wasm_primints, proved correct there).  They are constants without a
+   body, so the pipeline's axiom check needs them registered; the code generator
+   finds the operation by its name, and the target is not used. *)
+Definition int63_mod : Kernames.modpath :=
+  Kernames.MPfile ["PrimInt63"; "Int63"; "Cyclic"; "Numbers"; "Corelib"].
+
+Definition int63_prims : primitives :=
+  map (fun '(op, arity, alloc) =>
+         {| prim_name := (int63_mod, op); prim_target := op; prim_arity := arity; prim_alloc := alloc |})
+      [("add", 2, false); ("sub", 2, false); ("mul", 2, false); ("div", 2, false); ("mod", 2, false);
+       ("lsl", 2, false); ("lsr", 2, false); ("land", 2, false); ("lor", 2, false); ("lxor", 2, false);
+       ("eqb", 2, false); ("ltb", 2, false); ("leb", 2, false); ("compare", 2, false);
+       ("addc", 2, true); ("addcarryc", 2, true); ("subc", 2, true); ("subcarryc", 2, true);
+       ("mulc", 2, true); ("head0", 1, false); ("tail0", 1, false); ("diveucl", 2, true);
+       ("diveucl_21", 3, true); ("addmuldiv", 3, false)].
+
+(* A user's remapping of an operation comes first and wins. *)
+Definition wasm_prims (remaps : constant_remappings) : primitives :=
+  let user := mk_prims remaps in
+  let is_user (pr : primitive) := existsb (fun u => Kernames.eq_kername u.(prim_name) pr.(prim_name)) user in
+  List.app user (filter (fun pr => negb (is_user pr)) int63_prims).
+
 Definition extract_wasm (remaps : constant_remappings)
                         (custom_attr : custom_attributes)
                         (opts : wasm_config)
@@ -51,7 +74,7 @@ Definition extract_wasm (remaps : constant_remappings)
                         (p : EAst.program)
                         : result' string :=
   let config := mk_opts opts in
-  let prs := mk_prims remaps in
+  let prs := wasm_prims remaps in
   let (res, _) := run_pipeline EAst.program _ config p (wasm_pipeline prs) in
   match res with
   | compM.Ret m => Ok (print_wasm m)
