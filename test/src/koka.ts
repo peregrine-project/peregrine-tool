@@ -17,7 +17,7 @@ export function has_koka(): boolean {
 // The constructors of the program's types: for each `type t { C1; C2( f0 : any ) }`
 // the type name and, per constructor, its name and number of fields. The printer
 // names a constructor `C_<type>_<index>_<source name>`.
-type KokaType = { name: string, ctors: { name: string, short: string, nargs: number }[] };
+type KokaType = { name: string, base: string, ctors: { name: string, short: string, nargs: number, first?: string }[] };
 
 function program_types(source: string): KokaType[] {
   const types: KokaType[] = [];
@@ -28,18 +28,22 @@ function program_types(source: string): KokaType[] {
       const name = c.split("(")[0].trim();
       const short = name.replace(/^C_.*?_\d+_/, "");
       const nargs = c.includes("(") ? c.split(",").length : 0;
-      return { name, short, nargs };
+      const first = c.match(/\(\s*f0 : ([^,)]*)/)?.[1].trim();
+      return { name, short, nargs, first };
     });
-    types.push({ name: arity === 0 ? m[1] : `${m[1]}<${Array(arity).fill("any").join(", ")}>`, ctors });
+    types.push({ name: arity === 0 ? m[1] : `${m[1]}<${Array(arity).fill("any").join(", ")}>`, base: m[1], ctors });
   }
   return types;
 }
 
 // The type whose constructors have the given source names (any of the
 // alternatives at each position) and arities, in this order.
-function find_type(types: KokaType[], shape: [string[], number][]): KokaType | undefined {
-  return types.find((t) => t.ctors.length === shape.length
+function find_types(types: KokaType[], shape: [string[], number][]): KokaType[] {
+  return types.filter((t) => t.ctors.length === shape.length
     && t.ctors.every((c, i) => shape[i][0].includes(c.short) && c.nargs === shape[i][1]));
+}
+function find_type(types: KokaType[], shape: [string[], number][]): KokaType | undefined {
+  return find_types(types, shape)[0];
 }
 
 // A Koka function `pp<id>` printing a value of `type` in the format of the
@@ -49,7 +53,10 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
   const name = `pp${id}`;
   const cast = (t: KokaType) => `(pg_cast(x) : ${t.name})`;
   if (type === SimpleType.Nat) {
-    const t = find_type(types, [[["O", "zero"], 0], [["S", "succ", "suc"], 1]]);
+    // a typed program may have other zero/succ-shaped types (Even with a
+    // successor into Odd): prefer the one whose successor takes itself
+    const ts = find_types(types, [[["O", "zero"], 0], [["S", "succ", "suc"], 1]]);
+    const t = ts.find((u) => u.ctors[1].first === u.base) ?? ts[0];
     if (t === undefined) return undefined;
     const [z, s] = t.ctors;
     return { name, decls: [`fun ${name}( x : any ) : div string { match ${cast(t)} { ${z.name} -> "O"; ${s.name}(n) -> "(S " ++ ${name}(pg_cast(n)) ++ ")" } }`] };
@@ -83,7 +90,7 @@ export function compile_koka(file: string, test: TestCase, timeout: number): { e
   const found = source.match(new RegExp(`^(val|fun) (pg_\\w*?${main_re})\\b(\\(\\))?`, "m"));
   // failing that, a name ending in the last component of the entry point
   const last = test.main.split("_").pop();
-  const fallback = found === null ? source.match(new RegExp(`^(val|fun) (pg_\\w*_${last})\\b(\\(\\))?`, "m")) : null;
+  const fallback = found === null ? source.match(new RegExp(`^(val|fun) (pg_(?:\\w*_)?${last})\\b(\\(\\))?`, "m")) : null;
   const entry = found ?? fallback;
   if (entry === null) {
     const names = [...source.matchAll(/^(?:val|fun) (pg_\w+)/gm)].map((m) => m[1]);

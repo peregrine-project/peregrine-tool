@@ -82,12 +82,16 @@ Section Printer.
   Definition ctor_name_of (tname : string) (i : nat) (cname : ident) : string :=
     "C_" ++ tname ++ "_" ++ string_of_nat i ++ "_" ++ cname.
 
-  Definition ctor_info (ind : inductive) (i : nat) : kres (string * nat) :=
+  Definition is_tbox (t : box_type) : bool := match t with TBox => true | _ => false end.
+
+  (* The constructor's name, and per field whether its type is [□]. *)
+  Definition ctor_info (ind : inductive) (i : nat) : kres (string * list bool) :=
     match lookup_oib ind with
     | Some oib =>
       match nth_error (ind_ctors oib) i with
       | Some (cname, data, _) =>
-        Ok (ctor_name_of (type_name (fst (inductive_mind ind), ind_name oib)) i cname, List.length data)
+        Ok (ctor_name_of (type_name (fst (inductive_mind ind), ind_name oib)) i cname,
+            map (fun '(_, t) => is_tbox t) data)
       | None => Err ("inductive " ++ ind_name oib ++ " has no constructor " ++ string_of_nat i)
       end
     | None => Err ("unknown inductive " ++ string_of_kername (inductive_mind ind))
@@ -247,8 +251,16 @@ Section Printer.
         end
       end
     | EAst.tConstruct ind i [] =>
-      '(cn, n) <- ctor_info ind i;;
-      if Nat.eqb n 0 then Ok (apply_unary cn pending) else Ok (call_known cn n pending)
+      '(cn, boxes) <- ctor_info ind i;;
+      (* a field of type [□] gets [()], whatever the argument: type inference
+         gives a value parameter of an inductive the type [□] *)
+      let fix boxed (bs : list bool) (args : list string) : list string :=
+        match bs, args with
+        | b :: bs', a :: args' => (if b then "()" else a) :: boxed bs' args'
+        | _, _ => args
+        end in
+      let n := List.length boxes in
+      if Nat.eqb n 0 then Ok (apply_unary cn pending) else Ok (call_known cn n (boxed boxes pending))
     | EAst.tConstruct _ _ (_ :: _) => Err "constructors as blocks"
     | EAst.tCase (ind, npars) d brs =>
       d' <- print_term Γ d [];;
