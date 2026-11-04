@@ -73,14 +73,18 @@ let subst re by s = Str.global_replace (Str.regexp re) by s
    extracted names are those of a module of that name. *)
 let rocq opts fo ~typed input d =
   let entry = entry "Rocq" fo in
-  let base = Filename.basename (Filename.chop_suffix input ".v") in
+  let base = Filename.basename (Filename.remove_extension input) in
   let base = if Str.string_match (Str.regexp "[A-Za-z_][A-Za-z0-9_']*$") base 0 then base else "Input" in
   let driver = Filename.concat d (base ^ ".v") in
   let out = Filename.concat d (base ^ ".ast") in
   let str s = "\"" ^ subst "\"" "\"\"" s ^ "\"" in
+  (* Load reads only files ending in .v *)
+  let source =
+    if Filename.check_suffix input ".v" then absolute input
+    else let c = Filename.concat d (base ^ "_source.v") in copy input c; c in
   write_file driver (Printf.sprintf
     "Load %s.\nFrom Peregrine.Plugin Require Import Loader.\nPeregrine Extract%s %s %s.\n"
-    (str (absolute input)) (if typed then " Typed" else "") (str out) entry);
+    (str source) (if typed then " Typed" else "") (str out) entry);
   run opts "rocq" ("compile" :: fo.frontend_args @ [driver])
     "install Rocq and the Peregrine plugin with `opam install rocq-peregrine`";
   out, []

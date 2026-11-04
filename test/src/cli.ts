@@ -40,7 +40,9 @@ export function run_cli_tests(exec: string, dir: string): string[] {
         }
     };
     for (const [args, code, msg] of cli_tests) check(args, code, msg);
-    // A frontend tool that is not on the PATH: only peregrine is
-    check(["c", "x.agda"], 30, "agda2lambox not found", { ...process.env, PATH: path.dirname(exec) });
+    // Frontend tools that are not on the PATH, which here has no programs
+    const no_tools = { ...process.env, PATH: dir };
+    check(["c", "x.agda"], 30, "agda2lambox not found", no_tools);
+    check(["c", "x.lean", "--from", "rocq", "--entry", "f"], 30, "rocq not found", no_tools);
     return failed;
 }
