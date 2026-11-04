@@ -421,16 +421,15 @@ Section Printer.
             end
           else body' <- print_term Γp inner [];; Ok ("", body')
         | _, (EAst.tFix mfix i, args) =>
-          if Nat.ltb 1 (List.length mfix) then
-            let closed := forallb (fun d => ELiftSubst.closedn (List.length mfix) (EAst.dbody d)) mfix in
-            let lifted := if closed then [] else pvars in
-            '(defs, Γg) <- print_group kn lifted Γp mfix;;
-            args' <- monad_map (fun a => print_term Γp a []) args;;
-            match nth_error (List.rev Γg) i with
-            | Some (n, Some (k, pre)) => Ok (concat_with kt_nl defs ++ kt_nl, call_known n k (List.app pre args'))
-            | _ => Err "fixpoint index out of range"
-            end
-          else body' <- print_term Γp inner [];; Ok ("", body')
+          (* also for a single fixpoint: Koka honours [^] only on top-level functions *)
+          let closed := forallb (fun d => ELiftSubst.closedn (List.length mfix) (EAst.dbody d)) mfix in
+          let lifted := if closed then [] else pvars in
+          '(defs, Γg) <- print_group kn lifted Γp mfix;;
+          args' <- monad_map (fun a => print_term Γp a []) args;;
+          match nth_error (List.rev Γg) i with
+          | Some (n, Some (k, pre)) => Ok (concat_with kt_nl defs ++ kt_nl, call_known n k (List.app pre args'))
+          | _ => Err "fixpoint index out of range"
+          end
         | _, _ => body' <- print_term Γp inner [];; Ok ("", body')
         end;;
       match pvars with
@@ -524,8 +523,7 @@ Section Printer.
         {| fd_id := me; fd_arity := n; fd_body := calls mi; fd_ctx := [VFun mi n]; fd_group := [me] |} :: gs
       | _ =>
         let gs := match EAstUtils.decompose_app inner with
-                  | (EAst.tFix mfix _, _) =>
-                    if Nat.ltb 1 (List.length mfix) then group_fns kn n mfix else []
+                  | (EAst.tFix mfix _, _) => group_fns kn n mfix
                   | _ => []
                   end in
         {| fd_id := me; fd_arity := n; fd_body := inner; fd_ctx := []; fd_group := [me] |} :: gs
