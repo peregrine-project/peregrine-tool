@@ -28,8 +28,8 @@ export function prepare_cargo(tmpdir: string): string {
 export function make_printable(file: string) {
   const src = readFileSync(file, "utf8").split("#[derive(Debug, Clone)]").join("#[derive(Debug, Clone, Serialize)]");
   // rust-hybrid's numbers: an i64, or a GMP integer printed as a string
-  const num = src.includes("pub enum Num<'a>")
-    ? "\nimpl<'a> serde::Serialize for Num<'a> { fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> { match self { Num::S(v) => s.serialize_i64(*v), Num::B(b) => s.serialize_str(&b.to_string()) } } }\n"
+  const num = src.includes("pub struct Num<'a>")
+    ? "\nimpl<'a> serde::Serialize for Num<'a> { fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> { match self.small() { Some(v) => s.serialize_i64(v), None => s.serialize_str(&self.big().to_string()) } } }\n"
     : "";
   writeFileSync(file, src + num + "\nuse lexpr::{to_string}; use serde_derive::{Serialize}; use serde_lexpr::{to_value};\n");
 }

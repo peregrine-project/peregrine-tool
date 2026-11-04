@@ -1,19 +1,28 @@
 (** The HYBRID numeric representation of the Rust backend: one representation
     with a fast path, as Lean's [Nat] and OCaml's Zarith have.
 
-    A number is a [Num<'a>]: [Num::S(v)] holds a value that fits in [i64], and
-    [Num::B(b)] holds any other value as an arena-allocated [&'a rug::Integer].
-    The representation is canonical: a value that fits in [i64] is always
-    [Num::S].  [Num] is [Copy], so it fits the backend's [<A: Copy>] discipline
-    without an arena allocation for small values.
+    A number is a [Num<'a>], one tagged 64-bit word as in OCaml: an odd word
+    [2v+1] holds a small value [v] in [-2^62, 2^62), and an even word is the
+    address of an arena-allocated [rug::Integer] holding any other value.  The
+    representation is canonical: a value in the small range is always small.
+    [Num] is [Copy] and 8 bytes, the size of an [i64], so it fits the backend's
+    [<A: Copy>] discipline and a constructor field holding a number is as large
+    as in [rust-i64].  [Num::S(v)] builds a small number from a [v] known to be
+    in range (literals, a predecessor, a halving); [__int] range-checks.
 
-    Every operation computes on [i64] when its arguments are small, with
-    [checked_*] arithmetic; on overflow, or when an argument is big, it computes
-    with GMP and normalizes the result back to [Num::S] when it fits.  So, unlike
+    Every operation computes on the tagged words when its arguments are small:
+    addition and subtraction add [2y] to [2x+1], multiplication multiplies
+    [2x] by [y], each with [checked_*] arithmetic, whose overflow is exactly
+    the overflow of the small range.  On overflow, or when an argument is big,
+    it computes with GMP on references to the arguments (a small argument is
+    converted into a stack temporary) and normalizes the result.  So, unlike
     [rust-i64] (which wraps around silently) and [rust-mixed] (which panics on a
     big argument and allocates a GMP integer for every result), the result is
     always the exact one, and a small result allocates nothing.
 
+    Memory: the arena frees nothing before the program ends, and it does not run
+    destructors, so the limbs of a big number live as long as the arena.  GMP
+    temporaries are owned values and are freed when the operation returns.
     Eliminators are [macro_rules!] (no [self]); a big predecessor is
     [Box::leak]ed, as in [RustGMPRemaps.v], and a small one is a plain value.
     Nothing about the remapped operations is verified.
@@ -128,22 +137,41 @@ Definition hybrid_const_remaps : constant_remappings := [
 ].
 
 (** Outside [impl<'a> Program]: the [Num] type, its comparisons and the
-    eliminators.  [__big] converts to a GMP integer, [__leak] builds the
-    canonical [Num] of a GMP integer outside the arena (for the eliminators). *)
+    eliminators.  [__big] converts to an owned GMP integer, [__bref] to a
+    reference (a small value is assigned to the caller's temporary), and
+    [__leak] builds the canonical [Num] of a GMP integer outside the arena (for
+    the eliminators).  [__gmp1]/[__gmp2] bind GMP references to the arguments
+    for the slow path.  Comparisons use canonicity: a small and a big number
+    differ, and the big one is beyond the small range on the side of its sign. *)
 Definition hybrid_top_preamble : string :=
   String.concat MRString.nl [
   "use rug::Integer;";
+  "use rug::Assign;";
   "use rug::ops::{DivRounding, RemRounding, Pow};";
-  "#[derive(Debug, Clone, Copy)]";
-  "pub enum Num<'a> { S(i64), B(&'a rug::Integer) }";
+  "#[derive(Clone, Copy)]";
+  "pub struct Num<'a>(i64, std::marker::PhantomData<&'a rug::Integer>);";
   "type Int<'a> = Num<'a>;";
-  "fn __big(x: Num) -> rug::Integer { match x { Num::S(v) => rug::Integer::from(v), Num::B(b) => b.clone() } }";
-  "fn __leak(x: rug::Integer) -> Num<'static> { match x.to_i64() { Some(v) => Num::S(v), None => Num::B(Box::leak(Box::new(x))) } }";
-  "impl<'a> PartialEq for Num<'a> { fn eq(&self, o: &Self) -> bool { match (self, o) { (Num::S(a), Num::S(b)) => a == b, (Num::S(_), Num::B(_)) | (Num::B(_), Num::S(_)) => false, (Num::B(a), Num::B(b)) => a == b } } }";
+  "const __SMIN: i64 = -(1i64 << 62);";
+  "const __SMAX: i64 = (1i64 << 62) - 1;";
+  "impl<'a> Num<'a> {";
+  "  #[inline(always)] pub const fn S(v: i64) -> Num<'a> { Num((v << 1) | 1, std::marker::PhantomData) }";
+  "  #[inline(always)] fn small(self) -> Option<i64> { if self.0 & 1 == 1 { Some(self.0 >> 1) } else { None } }";
+  "  #[inline(always)] fn big(self) -> &'a rug::Integer { unsafe { &*(self.0 as usize as *const rug::Integer) } }";
+  "  #[inline(always)] fn of_big(b: &'a rug::Integer) -> Num<'a> { Num(b as *const rug::Integer as usize as i64, std::marker::PhantomData) }";
+  "}";
+  "#[inline(always)] fn __fits(v: i64) -> bool { v >= __SMIN && v <= __SMAX }";
+  "fn __big(x: Num) -> rug::Integer { match x.small() { Some(v) => rug::Integer::from(v), None => x.big().clone() } }";
+  "fn __bref<'t>(x: Num<'t>, tmp: &'t mut rug::Integer) -> &'t rug::Integer { match x.small() { Some(v) => { tmp.assign(v); tmp } None => x.big() } }";
+  "fn __leak(x: rug::Integer) -> Num<'static> { match x.to_i64() { Some(v) if __fits(v) => Num::S(v), _ => Num::of_big(Box::leak(Box::new(x))) } }";
+  "fn __leak_i64(v: i64) -> Num<'static> { if __fits(v) { Num::S(v) } else { __leak(rug::Integer::from(v)) } }";
+  "impl<'a> PartialEq for Num<'a> { fn eq(&self, o: &Self) -> bool { match (self.small(), o.small()) { (Some(a), Some(b)) => a == b, (None, None) => self.big() == o.big(), _ => false } } }";
   "impl<'a> Eq for Num<'a> {}";
-  "impl<'a> Ord for Num<'a> { fn cmp(&self, o: &Self) -> std::cmp::Ordering { match (self, o) { (Num::S(a), Num::S(b)) => a.cmp(b), _ => __big(*self).cmp(&__big(*o)) } } }";
+  "impl<'a> Ord for Num<'a> { fn cmp(&self, o: &Self) -> std::cmp::Ordering { match (self.small(), o.small()) { (Some(a), Some(b)) => a.cmp(&b), (Some(_), None) => o.big().cmp0().reverse(), (None, Some(_)) => self.big().cmp0(), (None, None) => self.big().cmp(o.big()) } } }";
   "impl<'a> PartialOrd for Num<'a> { fn partial_cmp(&self, o: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(o)) } }";
-  "impl<'a> std::fmt::Display for Num<'a> { fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { match self { Num::S(v) => write!(f, ""{}"", v), Num::B(b) => write!(f, ""{}"", b) } } }";
+  "impl<'a> std::fmt::Display for Num<'a> { fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { match self.small() { Some(v) => write!(f, ""{}"", v), None => write!(f, ""{}"", self.big()) } } }";
+  "impl<'a> std::fmt::Debug for Num<'a> { fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { std::fmt::Display::fmt(self, f) } }";
+  "macro_rules! __gmp1 { ($a:expr, |$x:ident| $e:expr) => { { let mut __t1 = rug::Integer::new(); let $x = __bref($a, &mut __t1); $e } } }";
+  "macro_rules! __gmp2 { ($a:expr, $b:expr, |$x:ident, $y:ident| $e:expr) => { { let (mut __t1, mut __t2) = (rug::Integer::new(), rug::Integer::new()); let $x = __bref($a, &mut __t1); let $y = __bref($b, &mut __t2); $e } } }";
   "";
   "macro_rules! __andb { ($b1:expr, $b2:expr) => { $b1 && $b2 } }";
   "macro_rules! __orb { ($b1:expr, $b2:expr) => { $b1 || $b2 } }";
@@ -153,18 +181,18 @@ Definition hybrid_top_preamble : string :=
   "macro_rules! __nat_elim {";
   "  ($zcase:expr, $pred:ident, $scase:expr, $val:expr) => {";
   "    { let v: Num = $val;";
-  "      match v { Num::S(0) => $zcase,";
-  "        Num::S(n) => { let $pred: Num = Num::S(n - 1); $scase },";
-  "        Num::B(b) => { let $pred: Num = __leak(rug::Integer::from(b - 1)); $scase } } }";
+  "      match v.small() { Some(0) => $zcase,";
+  "        Some(n) => { let $pred: Num = Num::S(n - 1); $scase },";
+  "        None => { let $pred: Num = __leak(rug::Integer::from(v.big() - 1u32)); $scase } } }";
   "  }";
   "}";
   "";
   "macro_rules! __pos_elim {";
   "  ($p:ident, $onebcase:expr, $p2:ident, $zerobcase:expr, $onecase:expr, $val:expr) => {";
   "    { let v: Num = $val;";
-  "      match v { Num::S(1) => $onecase,";
-  "        Num::S(n) => if n & 1 == 1 { let $p: Num = Num::S(n >> 1); $onebcase } else { let $p2: Num = Num::S(n >> 1); $zerobcase },";
-  "        Num::B(b) => if b.is_odd() { let $p: Num = __leak(rug::Integer::from(b >> 1u32)); $onebcase } else { let $p2: Num = __leak(rug::Integer::from(b >> 1u32)); $zerobcase } } }";
+  "      match v.small() { Some(1) => $onecase,";
+  "        Some(n) => if n & 1 == 1 { let $p: Num = Num::S(n >> 1); $onebcase } else { let $p2: Num = Num::S(n >> 1); $zerobcase },";
+  "        None => { let b = v.big(); if b.is_odd() { let $p: Num = __leak(rug::Integer::from(b >> 1u32)); $onebcase } else { let $p2: Num = __leak(rug::Integer::from(b >> 1u32)); $zerobcase } } } }";
   "  }";
   "}";
   "";
@@ -178,38 +206,38 @@ Definition hybrid_top_preamble : string :=
   "  ($zero_case:expr, $p:ident, $pos_case:expr, $p2:ident, $neg_case:expr, $val:expr) => {";
   "    { let n: Num = $val;";
   "      if n == Num::S(0) { $zero_case }";
-  "      else if n < Num::S(0) { let $p2: Num = match n { Num::S(v) if v != i64::MIN => Num::S(-v), _ => __leak(-__big(n)) }; $neg_case }";
+  "      else if n < Num::S(0) { let $p2: Num = match n.small() { Some(v) => __leak_i64(-v), None => __leak(-__big(n)) }; $neg_case }";
   "      else { let $p: Num = n; $pos_case } }";
   "  }";
   "}"
   ].
 
-(** Inside [impl<'a> Program]: the constructors and the arithmetic.  [__num]
-    builds the canonical [Num] of a GMP integer, in the arena.  Each operation
-    takes the [i64] path when both arguments are small and the [checked_*]
-    operation does not overflow.  [__divf] and [__modf] are floor division and
-    its remainder (Rocq's [Z.div] and [Z.modulo]; on naturals they are the
-    truncating ones), with [x / 0 = 0] and [x mod 0 = x]. *)
+(** Inside [impl<'a> Program]: the constructors and the arithmetic.  [__int]
+    and [__num] build the canonical [Num] of an [i64] and of a GMP integer, in
+    the arena.  [__divf] and [__modf] are floor division and its remainder
+    (Rocq's [Z.div] and [Z.modulo]; on naturals they are the truncating ones),
+    with [x / 0 = 0] and [x mod 0 = x]. *)
 Definition hybrid_program_preamble : string :=
   String.concat MRString.nl [
-  "fn __num(&'a self, x: rug::Integer) -> Num<'a> { match x.to_i64() { Some(v) => Num::S(v), None => Num::B(self.alloc(x)) } }";
-  "fn __add(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if let (Num::S(x), Num::S(y)) = (a, b) { if let Some(r) = x.checked_add(y) { return Num::S(r) } } self.__num(__big(a) + __big(b)) }";
-  "fn __sub(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if let (Num::S(x), Num::S(y)) = (a, b) { if let Some(r) = x.checked_sub(y) { return Num::S(r) } } self.__num(__big(a) - __big(b)) }";
-  "fn __mul(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if let (Num::S(x), Num::S(y)) = (a, b) { if let Some(r) = x.checked_mul(y) { return Num::S(r) } } self.__num(__big(a) * __big(b)) }";
-  "fn __neg(&'a self, a: Num<'a>) -> Num<'a> { if let Num::S(x) = a { if let Some(r) = x.checked_neg() { return Num::S(r) } } self.__num(-__big(a)) }";
-  "fn __abs(&'a self, a: Num<'a>) -> Num<'a> { if let Num::S(x) = a { if let Some(r) = x.checked_abs() { return Num::S(r) } } self.__num(__big(a).abs()) }";
+  "fn __int(&'a self, v: i64) -> Num<'a> { if __fits(v) { Num::S(v) } else { Num::of_big(self.alloc(rug::Integer::from(v))) } }";
+  "fn __num(&'a self, x: rug::Integer) -> Num<'a> { match x.to_i64() { Some(v) if __fits(v) => Num::S(v), _ => Num::of_big(self.alloc(x)) } }";
+  "fn __add(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if a.0 & b.0 & 1 == 1 { if let Some(r) = a.0.checked_add(b.0 - 1) { return Num(r, std::marker::PhantomData) } } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x + y))) }";
+  "fn __sub(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if a.0 & b.0 & 1 == 1 { if let Some(r) = a.0.checked_sub(b.0 - 1) { return Num(r, std::marker::PhantomData) } } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x - y))) }";
+  "fn __mul(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if a.0 & b.0 & 1 == 1 { if let Some(r) = (a.0 - 1).checked_mul(b.0 >> 1) { return Num(r | 1, std::marker::PhantomData) } } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x * y))) }";
+  "fn __neg(&'a self, a: Num<'a>) -> Num<'a> { if let Some(x) = a.small() { return self.__int(-x) } self.__num(__gmp1!(a, |x| rug::Integer::from(-x))) }";
+  "fn __abs(&'a self, a: Num<'a>) -> Num<'a> { if let Some(x) = a.small() { return self.__int(x.abs()) } self.__num(__gmp1!(a, |x| rug::Integer::from(x.abs_ref()))) }";
   "fn __divf(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> {";
   "  if b == Num::S(0) { return Num::S(0) }";
-  "  if let (Num::S(x), Num::S(y)) = (a, b) { if let (Some(q), Some(r)) = (x.checked_div(y), x.checked_rem(y)) { return Num::S(if r != 0 && ((r < 0) != (y < 0)) { q - 1 } else { q }) } }";
-  "  self.__num(__big(a).div_floor(__big(b))) }";
+  "  if let (Some(x), Some(y)) = (a.small(), b.small()) { let (q, r) = (x / y, x % y); return self.__int(if r != 0 && ((r < 0) != (y < 0)) { q - 1 } else { q }) }";
+  "  self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x.div_floor(y)))) }";
   "fn __modf(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> {";
   "  if b == Num::S(0) { return a }";
-  "  if let (Num::S(x), Num::S(y)) = (a, b) { if let Some(r) = x.checked_rem(y) { return Num::S(if r != 0 && ((r < 0) != (y < 0)) { r + y } else { r }) } }";
-  "  self.__num(__big(a).rem_floor(__big(b))) }";
+  "  if let (Some(x), Some(y)) = (a.small(), b.small()) { let r = x % y; return Num::S(if r != 0 && ((r < 0) != (y < 0)) { r + y } else { r }) }";
+  "  self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x.rem_floor(y)))) }";
   "fn __pow(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> {";
-  "  let e: u32 = match b { Num::S(v) if v >= 0 && v <= u32::MAX as i64 => v as u32, _ => panic!(""exponent out of range"") };";
-  "  if let Num::S(x) = a { if let Some(r) = x.checked_pow(e) { return Num::S(r) } }";
-  "  self.__num(__big(a).pow(e)) }";
+  "  let e: u32 = match b.small() { Some(v) if v >= 0 && v <= u32::MAX as i64 => v as u32, _ => panic!(""exponent out of range"") };";
+  "  if let Some(x) = a.small() { if let Some(r) = x.checked_pow(e) { return self.__int(r) } }";
+  "  self.__num(__gmp1!(a, |x| rug::Integer::from(x.pow(e)))) }";
   "fn __nat_zero(&'a self) -> Num<'a> { Num::S(0) }";
   "fn __nat_succ(&'a self, x: Num<'a>) -> Num<'a> { self.__add(x, Num::S(1)) }";
   "fn __pos_one(&'a self) -> Num<'a> { Num::S(1) }";
