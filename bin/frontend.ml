@@ -227,8 +227,8 @@ let lean opts fo ~typed:_ input d =
 let load opts fo ~typed input =
   let fe, stem = infer input in
   if fo.from = None && fe <> LambdaBox then
-    note opts "automatically detected: %s is a %s source, from its extension" input
-      (match fe with Rocq -> "Rocq" | Agda -> "Agda" | _ -> "Lean");
+    note opts "automatically detected: %s is %s source, from its extension" input
+      (match fe with Rocq -> "a Rocq" | Agda -> "an Agda" | _ -> "a Lean");
   let fe = Option.value fo.from ~default:fe in
   if fo.lean_config <> None && fe <> Lean then
     fail unsupported "--lean-config applies only to a Lean source";
