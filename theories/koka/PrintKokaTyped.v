@@ -58,7 +58,9 @@ Definition nonempty {A} (l : list A) : bool := match l with [] => false | _ => t
 
 Section Printer.
   Context (Σ : global_env).
-  Context (remap : kername -> option string).
+  (* A remapped constant: the Koka expression and its arity.  An inductive whose
+     name is remapped is a natural number on Koka's [int] ([is_native]). *)
+  Context (remap : kername -> option (string * nat)).
   (* Borrowed parameters ([EBorrow]), printed [^x]. *)
   Context (bms : modes).
 
@@ -74,7 +76,11 @@ Section Printer.
     | None => None
     end.
 
+  Definition is_native (ind : inductive) : bool :=
+    match remap (inductive_mind ind) with Some _ => true | None => false end.
+
   Definition ind_type_name (ind : inductive) : kres string :=
+    if is_native ind then Ok "int" else
     match lookup_oib ind with
     | Some oib => Ok (type_name (fst (inductive_mind ind), ind_name oib))
     | None => Err ("unknown inductive " ++ string_of_kername (inductive_mind ind))
@@ -224,6 +230,15 @@ Section Printer.
       apply_unary (f ++ "(" ++ concat_with ", " (firstn n args) ++ ")") (skipn n args)
     else curry f args (n - List.length args).
 
+  (* A literal of a native natural number: [S (S .. O)] *)
+  Fixpoint native_literal (t : EAst.term) : option nat :=
+    match t with
+    | EAst.tConstruct ind 0 [] => if is_native ind then Some 0 else None
+    | EAst.tApp (EAst.tConstruct ind 1 []) a =>
+      if is_native ind then option_map S (native_literal a) else None
+    | _ => None
+    end.
+
   (* The local context: names of de Bruijn variables, with the arity of the
      functions bound by a fixpoint and the arguments every call to them
      passes first (the parameters a lifted group is closed over). *)
@@ -238,8 +253,12 @@ Section Printer.
     let depth := List.length Γ in
     match t with
     | EAst.tApp f a =>
-      a' <- print_term Γ a [];;
-      print_term Γ f (a' :: pending)
+      match native_literal t with
+      | Some n => Ok (apply_unary (string_of_nat n) pending)
+      | None =>
+        a' <- print_term Γ a [];;
+        print_term Γ f (a' :: pending)
+      end
     (* [□] absorbs its arguments *)
     | EAst.tBox => Ok "()"
     | EAst.tRel n =>
@@ -259,7 +278,8 @@ Section Printer.
       Ok (apply_unary ("(fn() { val " ++ x ++ " = " ++ v' ++ "; " ++ b' ++ " })()") pending)
     | EAst.tConst kn =>
       match remap kn with
-      | Some s => Ok (apply_unary ("(" ++ s ++ ")") pending)
+      | Some (s, 0) => Ok (apply_unary ("(" ++ s ++ ")") pending)
+      | Some (s, n) => Ok (call_known ("(" ++ s ++ ")") n pending)
       | None =>
         if andb (erased_type kn) (nonempty pending) then Ok "()" else
         match const_arity kn with
@@ -271,6 +291,13 @@ Section Printer.
         end
       end
     | EAst.tConstruct ind i [] =>
+      if is_native ind then
+        match i, pending with
+        | 0, _ => Ok (apply_unary "0" pending)
+        | _, a :: rest => Ok (apply_unary ("(" ++ a ++ " + 1)") rest)
+        | _, [] => Ok "fn(pg_x) { pg_x + 1 }"
+        end
+      else
       '(cn, boxes) <- ctor_info ind i;;
       (* a field of type [□] gets [()], whatever the argument: type inference
          gives a value parameter of an inductive the type [□] *)
@@ -284,6 +311,17 @@ Section Printer.
     | EAst.tConstruct _ _ (_ :: _) => Err "constructors as blocks"
     | EAst.tCase (ind, npars) d brs =>
       d' <- print_term Γ d [];;
+      if is_native ind then
+        match brs with
+        | [(_, b0); ([na], b1)] =>
+          let v := var (name_ident na) depth in
+          let n := "pg_n" ++ string_of_nat depth in
+          b0' <- print_term Γ b0 [];;
+          b1' <- print_term ((v, None) :: Γ) b1 [];;
+          Ok (apply_unary ("(match " ++ d' ++ " { 0 -> " ++ b0' ++ "; " ++ n ++ " -> { val " ++ v ++ " = " ++ n ++ " - 1; " ++ b1' ++ " } })") pending)
+        | _ => Err "a match on a native natural number needs its two branches"
+        end
+      else
       match brs with
       | [] => Ok (apply_unary ("(fn() { val pg_d = " ++ d' ++ "; pg_absurd() })()") pending)
       | _ =>
@@ -565,7 +603,7 @@ Definition preamble (module : string) : string :=
     ++ "fun pg_force( d : delayed<pure,a> ) : pure a { unsafe-total(fn() { force(d) }) }" ++ kt_nl
     ++ "fun pg_absurd() : pure a { throw(""peregrine: absurd case"") }" ++ kt_nl.
 
-Definition print_program (remap : kername -> option string) (module : string) (Σ : global_env)
+Definition print_program (remap : kername -> option (string * nat)) (module : string) (Σ : global_env)
   : kres string :=
   let fns := fn_table Σ remap in
   let bms := borrow_modes (const_fn Σ remap) koka_reuse fns in

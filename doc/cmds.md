@@ -28,6 +28,7 @@ Valid values for `BACKEND` are:
 * `fsharp` (experimental)
 * `koka` (experimental)
 * `koka-typed` (experimental)
+* `koka-typed-int` (experimental): typed Koka with `nat` on Koka's `int`
 * `ast`
 * `eval`
 

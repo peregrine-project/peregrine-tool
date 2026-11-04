@@ -8,6 +8,7 @@ module RustGMPRemaps = Peregrine.RustGMPRemaps
 module RustNativeRemaps = Peregrine.RustNativeRemaps
 module RustMixedRemaps = Peregrine.RustMixedRemaps
 module RustHybridRemaps = Peregrine.RustHybridRemaps
+module KokaIntRemaps = Peregrine.KokaIntRemaps
 module Pipeline = Peregrine.Pipeline2
 module ResultMonad = Peregrine.ResultMonad
 module Anf_term = Peregrine.Term0
@@ -292,6 +293,10 @@ let compile_koka opts eopts f_prog =
 let compile_koka_typed opts eopts f_prog =
   let b_opts = ConfigUtils.KokaTyped' ConfigUtils.empty_koka_config' in
   compile_backend b_opts opts eopts f_prog
+
+let compile_koka_typed_int opts eopts f_prog =
+  let b_opts = ConfigUtils.KokaTyped' ConfigUtils.empty_koka_config' in
+  compile_backend ~const_remaps:KokaIntRemaps.koka_int_remaps b_opts opts eopts f_prog
 
 let compile_c opts copts eopts f_prog =
   let b_opts = ConfigUtils.C' (mk_certirocq_config copts) in

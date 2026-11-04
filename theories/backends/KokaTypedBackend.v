@@ -26,8 +26,8 @@ Definition koka_typed_phases := {|
   cse_c            := Compatible false;
 |}.
 
-Definition mk_remaps (rs : constant_remappings) : Kernames.kername -> option string :=
-  fun kn => option_map (fun '(_, r) => r.(re_const_s))
+Definition mk_remaps (rs : constant_remappings) : Kernames.kername -> option (string * nat) :=
+  fun kn => option_map (fun '(_, r) => (r.(re_const_s), r.(re_const_arity)))
                        (List.find (fun '(kn', _) => Kernames.eq_kername kn kn') rs).
 
 Definition extract_koka_typed (remaps : constant_remappings)

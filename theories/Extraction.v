@@ -5,6 +5,7 @@ From Peregrine Require RustGMPRemaps.
 From Peregrine Require RustNativeRemaps.
 From Peregrine Require RustMixedRemaps.
 From Peregrine Require RustHybridRemaps.
+From Peregrine Require KokaIntRemaps.
 From Peregrine Require SerializePrimitives.
 From Peregrine Require DeserializePrimitives.
 From Stdlib Require Import ExtrOcamlBasic.
@@ -105,6 +106,7 @@ Separate Extraction Pipeline.peregrine_pipeline Pipeline.peregrine_validate
                     RustNativeRemaps.native_const_remaps RustNativeRemaps.native_ind_remaps RustNativeRemaps.native_rust_config'
                     RustMixedRemaps.mixed_const_remaps RustMixedRemaps.mixed_const_remaps2 RustMixedRemaps.mixed_ind_remaps RustMixedRemaps.mixed_rust_config'
                     RustHybridRemaps.hybrid_const_remaps RustHybridRemaps.hybrid_ind_remaps RustHybridRemaps.hybrid_rust_config'
+                    KokaIntRemaps.koka_int_remaps
                     Floats.Float32.to_bits Floats.Float.to_bits
                     Floats.Float32.of_bits Floats.Float.of_bits
                     Csyntax
