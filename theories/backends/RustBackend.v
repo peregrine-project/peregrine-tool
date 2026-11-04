@@ -176,7 +176,7 @@ Definition mk_remaps (rs : constant_remappings) (is : inductive_remappings) : re
 (* TODO: support external remapping in Rust backend *)
 
 (* The parameters of the methods the printer prints, as [print_constant] peels
-   them: the leading lambdas of [top_body], as far as the type has arrows. *)
+   them: the leading lambdas of [native_rec_body], as far as the type has arrows. *)
 Fixpoint peel_params (t : EAst.term) (ty : ExAst.box_type) : nat * EAst.term :=
   match t, ty with
   | EAst.tLambda _ b, ExAst.TArr _ c => let '(n, i) := peel_params b c in (S n, i)
@@ -189,7 +189,7 @@ Definition rust_fn_table (remaps : remaps) (Σ : ExAst.global_env) : list EBorro
     | ExAst.ConstantDecl {| ExAst.cst_type := (_, ty); ExAst.cst_body := Some b |} =>
       match remap_constant remaps kn, remap_inline_constant remaps kn with
       | None, None =>
-        let '(n, i) := peel_params (top_body kn b) ty in
+        let '(n, i) := peel_params (native_rec_body (fst (ExAst.decompose_arr ty)) kn b) ty in
         match n with
         | 0 => []
         | _ =>
@@ -206,7 +206,7 @@ Definition rust_const_fn (remaps : remaps) (Σ : ExAst.global_env) (kn : Kername
   : option (EBorrow.fid * nat) :=
   match remap_constant remaps kn, remap_inline_constant remaps kn, ExAst.lookup_constant Σ kn with
   | None, None, Some {| ExAst.cst_type := (_, ty); ExAst.cst_body := Some b |} =>
-    match fst (peel_params (top_body kn b) ty) with
+    match fst (peel_params (native_rec_body (fst (ExAst.decompose_arr ty)) kn b) ty) with
     | 0 => None
     | n => Some (Kernames.string_of_kername kn, n)
     end
