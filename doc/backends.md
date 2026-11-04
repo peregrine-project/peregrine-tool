@@ -141,6 +141,8 @@ Output
 
 `peregrine koka-typed` prints typed lambda-box as Koka with its types: each inductive becomes a Koka type with type parameters and typed fields, and each constant a function with its type scheme, so the program needs no casts and Koka's own optimizations see the real types. Untyped input is typed by Hindley-Milner inference first, as for Rust and Elm. The printer is [`theories/koka/PrintKokaTyped.v`](/theories/koka/PrintKokaTyped.v).
 
+This is the Koka backend to use; the untyped `koka` verb is the fallback for the programs it rejects. On the twelve timed programs of the benchmark suite (directional timings), typed output ran in 0.96 times the time of the Lean backend's and 0.43 times that of the untyped Koka output (geometric means).
+
 * Functions take as many arguments as their body has leading lambdas; a saturated call is a direct call, and any other use builds curried closures, which the arrow types denote. Every function returns `pure`.
 * A monomorphic nullary constant is a `delayed` value; a polymorphic one is a nullary function.
 * The backend rejects a program with a type it cannot express (`TAny`, a type variable applied to arguments), primitive values, projections, cofixpoints and `lazy`; the untyped `koka` verb compiles those.
