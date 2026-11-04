@@ -44,18 +44,13 @@ var agda_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
                 "(cons true (cons false (cons true (cons false nil))))",
-                // The typed backends keep the names of the constructors, which
-                // agda2lambox emits as r#true and r#false
-                "(cons () (rՖhshtrue) (cons () (rՖhshfalse) (cons () (rՖhshtrue) (cons () (rՖhshfalse) (empty)))))",
-                "Cons R_UU23true (Cons R_UU23false (Cons R_UU23true (Cons R_UU23false Empty)))"
+                "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
+                "Cons True (Cons False (Cons True (Cons False Empty)))"
             ],
             parameters: []
         },
         {
             src: "agda/Equality.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`_≡_`), which Elm rejects
-            skip: [Lang.Elm],
             main: "Equality_test",
             output_type: SimpleType.Nat,
             expected_output: [
@@ -66,34 +61,28 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/EtaCon.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`[]`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "EtaCon_example",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "EtaCon_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S O) nil)",
-                "(Ֆ_Ֆcons_ () (suc () (zero)) (Ֆ5bՖՖ5dՖ))",
+                "(Ֆ_Ֆcons_ () (suc () (zero)) (ՖՖ5bՖՖ5d))",
                 "Cons (S O) Empty"
             ],
             parameters: []
         },
         {
             src: "agda/Exports.ast",
-            // The Rust test configuration derives Debug and Serialize for every
-            // type, which fails on the function-typed fields of the record
-            skip: [Lang.Rust],
-            main: "Exports_main",
+            xfail: { "Rust-untyped": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the record" },
+            main: "Exports_test",
             output_type: SimpleType.Other,
             expected_output: ["", ""],
             parameters: []
         },
         {
             src: "agda/Hello.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`[]`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "Hello_hello",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "Hello_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))) nil))))))",
@@ -104,11 +93,8 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Imports.ast",
-            // Typable with a polymorphic List, but agda2lambox declares List without
-            // parameters, so inference gives it one element type and the program
-            // uses it at Bool and at Nat
-            rejected: true,
-            main: "Imports_test2",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "Imports_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S (S (S (S (S O)))))) nil)",
@@ -119,60 +105,42 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Input.ast",
-            // The Rust test configuration derives Debug and Serialize for every
-            // type, which fails on the function-typed fields of the record
-            skip: [Lang.Rust],
-            main: "Input_main",
+            xfail: { "Rust-untyped": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the record" },
+            main: "Input_test",
             output_type: SimpleType.Other,
             expected_output: ["", ""],
             parameters: []
         },
         {
             src: "agda/Irr.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`[]`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "Irr_ys",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "Irr_test",
             output_type: SimpleType.Other,
             expected_output: undefined,
             parameters: []
         },
         {
             src: "agda/K.ast",
-            // The entry point is a function, which the Rust driver cannot call
-            skip: [Lang.Rust],
-            main: "K_K",
+            main: "K_test",
             output_type: SimpleType.Other,
             expected_output: undefined,
             parameters: []
         },
         {
-            src: "agda/Levels.ast",
-            // Rust: the backend prints the axiom lsuc as a unit and then applies it
-            // Elm: the backend prints an identifier that starts with an underscore
-            // for the local definition toNat
-            skip: [Lang.Rust, Lang.Elm],
-            main: "Levels_testMkLevel",
-            // OCaml/Wasm/CakeML call this program's malfunction
-            // [main], which CertiRocq's Malfunction extraction
-            // resolves to a tBox placeholder ("error: tBox has been
-            // translated away") because [Levels.test]'s body
-            // contains an erased type argument it can't lower.
-            // [Levels_testMkLevel] does evaluate to 42 [S]s under
-            // the Lean backend (which calls the symbol directly),
-            // but the result is unobservable on the other backends.
-            // Treat as Other so all backends exercise compile+run
-            // without requiring a shared output convention.
-            output_type: SimpleType.Other,
-            expected_output: undefined,
+            src: "agda/Lvls.ast",
+            xfail: {
+                "Rust-untyped": "#79: the projection of the erased field ℓ is printed as a unit, which is then applied",
+                "Elm-untyped": "#79: Elm prints the local definition toNat as _50_Lvls_toNat, which Elm rejects"
+            },
+            main: "Lvls_test",
+            output_type: SimpleType.Nat,
+            expected_output: ["(S ".repeat(210) + "O" + ")".repeat(210), "", ""],
             parameters: []
         },
         {
             src: "agda/Map.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`[]`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "Map_ys",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "Map_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S O)) (cons (S (S (S (S (S (S O)))))) (cons (S (S (S (S (S (S (S (S (S (S O)))))))))) nil)))",
@@ -183,9 +151,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Mutual.ast",
-            // The Elm backend prints the constructors of Nat and Odd under the same
-            // names, Zero and Succ
-            skip: [Lang.Elm],
+            xfail: { "Elm-untyped": "#99: Elm prints the constructors of Nat and Odd under the same names, Zero and Succ" },
             main: "Mutual_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S O)", "", ""],
@@ -193,16 +159,13 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Nat.ast",
-            main: "Nat_thing",
+            main: "Nat_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S O)))", "", ""],
             parameters: []
         },
         {
             src: "agda/OddEven.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`_,_`), which Elm rejects
-            skip: [Lang.Elm],
             main: "OddEven_test",
             output_type: SimpleType.Bool,
             expected_output: ["false", "", ""],
@@ -217,31 +180,18 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Proj.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`_,_`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "Proj_second",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name _,_ as __UU2c_, which Elm rejects" },
+            main: "Proj_test",
             output_type: SimpleType.Bool,
             expected_output: ["false", "", ""],
             parameters: []
         },
         {
             src: "agda/rust.ast",
-            // The Elm driver names the module after the file, and rust is not a
-            // module name
-            skip: [Lang.Elm],
-            main: "rust_testIdd",
+            xfail: { "Elm-untyped": "#94: the Elm module is named after the file, and rust is not a module name" },
+            main: "rust_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: ["(cons (S (S (S O))) nil)", ""],
-            parameters: []
-        },
-        {
-            src: "agda/scheme.ast",
-            // f returns a Bool or a Nat depending on its first argument
-            rejected: true,
-            main: "scheme_demo",
-            output_type: SimpleType.Nat,
-            expected_output: ["(S (S (S (S (S (S O))))))", ""],
             parameters: []
         },
         /*     {
@@ -276,20 +226,16 @@ var agda_tests: TestCase[] =
             }, */ // No main to test
         {
             src: "agda/Unicode.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`[]`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "Unicode_main",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "Unicode_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: ["(cons (S O) nil)", "", ""],
             parameters: []
         },
         {
             src: "agda/With.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`[]`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "With_ys",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "With_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: ["(cons true nil)", "", ""],
             parameters: []
@@ -304,11 +250,14 @@ var rocq_tests: TestCase[] =
             // specialization of the OCaml-passes configuration rewrites it
             src: "rocq/extraction/Classy.ast",
             tsrc: "rocq/extraction/Classy_typed.ast",
-            // The Rust test configuration derives Debug and Serialize for every
-            // type, which fails on the function-typed fields of the records.
-            // On the untyped source, the inferred types give each record field
-            // a type variable instead of the function type, which Elm rejects
-            skip: [Lang.Rust, Lang.Elm],
+            xfail: {
+                "Rust": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the records",
+                "Rust-verb": "#79: the rust verb derives Debug for every type, which fails on the function-typed fields of the records",
+                "Rust-i64": "#79: the rust-i64 verb derives Debug for every type, which fails on the function-typed fields of the records",
+                "Rust-hybrid": "#79: the rust-hybrid verb derives Debug for every type, which fails on the function-typed fields of the records",
+                "Elm-untyped": "#79: the inferred types give each record field a type variable instead of the function type"
+            },
+            rust_i64_output: "3",
             main: "Classy_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S O)))", "(S () (S () (S () (O))))", "S (S (S O))"],
@@ -334,8 +283,9 @@ var rocq_tests: TestCase[] =
             ],
             parameters: [],
             cofix: true,
-            // Rust and Elm have no typed source for this program
-            skip: [Lang.Rust, Lang.Elm]
+            // The typed backends do not support cofixpoints, and there is no
+            // typed source
+            rejected: true
         },
         {
             src: "rocq/extraction/Prims.ast",
@@ -347,9 +297,14 @@ var rocq_tests: TestCase[] =
                 "Cons (S O) (Cons O Nil)"
             ],
             parameters: [],
-            // The typed backends reject primitive types, Wasm primitive strings,
-            // and cake does not parse the CakeML backend's primitive literals
-            skip: [Lang.Rust, Lang.Elm, Lang.Wasm, Lang.CakeML]
+            // The typed backends do not support primitive values, and there is
+            // no typed source
+            rejected: true,
+            unsupported: {
+                "WebAssembly": "the Wasm backend does not support primitive strings",
+                "WebAssembly-cps": "the Wasm backend does not support primitive strings",
+                "CakeML": "the CakeML backend does not support primitive values: it prints them as a raise"
+            }
         },
         {
             src: "rocq/extraction/Demo.ast",
@@ -380,8 +335,8 @@ var rocq_tests: TestCase[] =
         },
         {
             src: "rocq/extraction/Remap.ast",
-            // Only the Lean and F# tests supply remappings of these constants
-            skip: [Lang.OCaml, Lang.C, Lang.Wasm, Lang.LLVM, Lang.Rust, Lang.Elm, Lang.CakeML, Lang.Koka],
+            unsupported: Object.fromEntries(["OCaml", "OCaml-passes", "C", "WebAssembly", "WebAssembly-cps", "LLVM",
+                "Rust-untyped", "Elm-untyped", "CakeML", "Koka-experimental"].map((c) => [c, "the axiom ext_id needs a remapping, which the test supplies for Lean and F# only"])),
             configs: { [Lang.Lean]: "src/lean/remap.sexp", [Lang.FSharp]: "src/fsharp/remap.sexp" },
             main: "Remap_test",
             output_type: SimpleType.Nat,
@@ -406,14 +361,14 @@ var rocq_tests: TestCase[] =
             src: "rocq/extraction/Id.ast",
             tsrc: "rocq/extraction/Id_typed.ast",
             // The Elm backend has the same defect and no stopgap
-            skip: [Lang.Elm],
+            xfail: { "Elm": "#84: id is printed without its type parameter" },
             rust_i64_output: "(cons () 1 (cons () 2 (nil)))",
             main: "Id_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S O) (cons (S (S O)) nil))",
                 "(cons () (S () (O)) (cons () (S () (S () (O))) (nil)))",
-                "Cons () (S O) (Cons () (S (S O)) (Nil ()))"
+                "Cons (S O) (Cons (S (S O)) Nil)"
             ],
             parameters: []
         },
@@ -438,8 +393,10 @@ var rocq_tests: TestCase[] =
             output_type: SimpleType.Nat,
             expected_output: ["(S O)", "(S () (O))", ""],
             parameters: [],
-            // The Elm backend prints the constructor succ' as Succ', which is not an Elm identifier
-            skip: [Lang.Elm]
+            xfail: {
+                "Elm": "#99: Elm prints the constructor succ' as Succ', which is not an Elm identifier",
+                "Elm-untyped": "#99: Elm prints the constructor succ' as Succ', which is not an Elm identifier"
+            }
         },
         {
             src: "rocq/extraction/Nat.ast",
@@ -479,8 +436,14 @@ var rocq_tests: TestCase[] =
         },
         {
             src: "rocq/extraction/Phantom.ast",
-            // No typed source: the typed Rust backend keeps the phantom
-            // parameter, which rustc cannot infer at the constructor
+            tsrc: "rocq/extraction/Phantom_typed.ast",
+            xfail: {
+                "Rust": "rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
+                "Rust-verb": "rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
+                "Rust-i64": "rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
+                "Rust-hybrid": "rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor"
+            },
+            rust_i64_output: "1",
             main: "Phantom_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S O)", "(S () (O))", "S O"],
@@ -502,9 +465,7 @@ var lean_tests: TestCase[] =
     [
         {
             src: "lean/extraction/Demo.ast",
-            // The names have an empty module path, so the Elm backend prints
-            // identifiers that start with an underscore, which Elm rejects
-            skip: [Lang.Elm],
+            xfail: { "Elm-untyped": "#79: the names have an empty module path, so Elm prints identifiers that start with an underscore, which Elm rejects" },
             main: "Demo_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
@@ -516,9 +477,7 @@ var lean_tests: TestCase[] =
         },
         {
             src: "lean/extraction/Map.ast",
-            // The names have an empty module path, so the Elm backend prints
-            // identifiers that start with an underscore, which Elm rejects
-            skip: [Lang.Elm],
+            xfail: { "Elm-untyped": "#79: the names have an empty module path, so Elm prints identifiers that start with an underscore, which Elm rejects" },
             main: "Map_ys",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [

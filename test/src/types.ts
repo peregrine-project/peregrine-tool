@@ -42,6 +42,10 @@ export enum Lang {
   Koka = "Koka"
 }
 
+// Reasons keyed by the name of a test configuration, as the runner prints it
+// (e.g. "Rust", "Rust-untyped", "WebAssembly-cps")
+export type Expectations = { [config: string]: string };
+
 export type TestCase = {
   // Path to file containing the program lambda box source
   src?: string,
@@ -64,10 +68,16 @@ export type TestCase = {
   // Pipeline configuration files per backend, for backends compiled with
   // `peregrine compile` on this test
   configs?: Partial<Record<Lang, string>>,
-  // Backends on which the test is known to fail and is not run
-  skip?: Lang[],
-  // The types of the untyped source cannot be inferred: the typed backends
-  // (Rust, Elm) must reject `src` with "Could not infer types"
+  // Known failures, with the reason and its issue, per configuration. The
+  // test runs and must fail: if it passes, the suite fails, so that the mark
+  // is removed
+  xfail?: Expectations,
+  // Configurations that cannot run the test by design, with the reason. The
+  // test is not run, and the runner says so
+  unsupported?: Expectations,
+  // The types of the untyped source cannot be inferred, or it uses a feature
+  // that the typed backends lack: the typed backends (Rust, Elm) must reject
+  // `src` with "Could not infer types"
   rejected?: boolean,
   // The program has cofixpoints: only a configuration passing --lower-cofix runs
   // it, and C, Wasm, OCaml and CakeML must reject it without that option

@@ -16,11 +16,14 @@ The test suite depends on the following:
 * gcc
 * clang 15 or later, for the LLVM tests (`CLANG` names another binary, e.g. `CLANG=clang-15`)
 * [Lean](https://lean-lang.org/install/) (`lake`, installed with elan)
-* [.NET SDK](https://dotnet.microsoft.com/) 10 or later (`dotnet`), for the F# backend (experimental); without it the `FSharp-experimental` configuration is skipped
+* [.NET SDK](https://dotnet.microsoft.com/) 10 or later (`dotnet`), for the F# backend (experimental); without it the `FSharp-experimental` configuration fails
+* [Koka](https://koka-lang.github.io/) 3.2.9 (`koka`), for the Koka backend (experimental); without it the `Koka-experimental` configuration fails
+
+No test is skipped. A test marked `xfail` for a configuration is a known failure: it runs, the runner reports it as an expected failure with its reason (which names the issue), and if it passes the suite fails, so that the mark is removed. A test marked `unsupported` for a configuration needs something that configuration cannot do by design; it is not run, and the runner prints it with the reason. Both are keyed by the configuration names that the runner prints.
 
 The Rust and Elm backends take typed programs, so the `Rust` and `Elm` configurations only run the tests that have a `tsrc`, currently the Rocq ones.
 The `Rust-untyped` and `Elm-untyped` configurations give the same backends the untyped `src` of every test, whose types peregrine then infers, and expect the outputs of the typed sources.
-A test marked as `rejected` is a program whose types cannot be inferred: there peregrine must fail with `Could not infer types`.
+A test marked as `rejected` is a program whose types cannot be inferred, or that uses a feature the typed backends lack (cofixpoints, primitive values): there peregrine must fail with `Could not infer types`.
 All four compile with `peregrine compile` and the pipeline configurations [src/rust/config.sexp](src/rust/config.sexp) and [src/elm/config.sexp](src/elm/config.sexp).
 The `Rust-verb` and `Rust-i64` configurations compile the typed sources with the `rust` and `rust-i64` commands instead; `rust-i64` represents numbers as `i64`, so its tests have their own expected outputs (`rust_i64_output`). The `rust-gmp` command is not tested here: its `rug` crate builds GMP from source, which takes longer than the compile timeout.
 The `LLVM` configuration links the emitted `.ll` module with CertiRocq's C runtime and the C glue, as the `C` configuration does.
@@ -32,28 +35,12 @@ The `FSharp-experimental` configuration compiles every test with the experimenta
 These tests are Agda programs compiled to $\lambda_\square$ with the [agda2lambox](https://github.com/agda/agda2lambox/tree/master) tool.
 The tests are from the [agda2lambox test suite](https://github.com/agda/agda2lambox/tree/master/test).
 
-The untyped programs (`*.ast`) were compiled with default configuration.
-
-The type programs (`*.tast`) were compiled with `--typed --no-block` flags.
-
-To reproduce the files run:
+CI builds agda2lambox at the commit named in [.github/workflows/build.yml](../.github/workflows/build.yml) and runs its test suite, which compiles every test program to `test/dist/` and checks each one with `peregrine validate`. To reproduce the files, with `peregrine` on the `PATH`:
 ```bash
-#!/bin/bash
-git clone git@github.com:agda/agda2lambox.git
+git clone https://github.com/agda/agda2lambox.git
 cd agda2lambox
-cabal install
-
-for f in test/*.agda; do
-  agda2lambox $f -o dist/
-  agda2lambox --typed --no-block $f -o dist-typed/
-done
-
-for f in dist-typed/*.ast; do
-    mv "$f" "${f%.ast}.tast"
-done
-
-find dist/. -type f -name "*.txt" -delete
-find dist-typed/. -type f -name "*.txt" -delete
+make test
+mv test/dist/ ../peregrine-tool/test/agda/
 ```
 
 ## Directory

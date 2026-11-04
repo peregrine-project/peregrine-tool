@@ -1,5 +1,5 @@
 import { exit } from "process";
-import { Lang, TestCase, TestConfiguration, ExecResult, SimpleType, ExecFailure } from "./types";
+import { Lang, TestCase, TestConfiguration, ExecResult, SimpleType, ExecFailure, Expectations } from "./types";
 import { run_wasm } from "./wasm";
 import { execSync } from "child_process";
 import path from "path";
@@ -24,6 +24,10 @@ var remove_output = true;
 
 // List of failed tests
 var failed_tests: string[] = [];
+
+// The known failures of the configuration being run (see TestCase.xfail),
+// by the source file the runner names in its report
+var xfails = new Map<string, string>();
 
 var tmpdir = process.env.TMPDIR;
 
@@ -125,6 +129,16 @@ function run_exec(file: string, test: TestCase, skip_output_check: boolean): Exe
 
 // Print result of execution
 function print_result(res: ExecResult, test: string): boolean {
+  const xfail = xfails.get(test);
+  if (xfail !== undefined) {
+    if (res.type === "error") {
+      print_line(`expected failure (${xfail})`);
+      return false;
+    }
+    failed_tests.push(test);
+    print_line(`passed, but is marked as an expected failure (${xfail}): remove the mark`);
+    return true;
+  }
   switch (res.type) {
     case "error":
       // Add failed test program to list of failed tests
@@ -158,16 +172,21 @@ function print_result(res: ExecResult, test: string): boolean {
 async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[], untyped: boolean, rust_verb?: string) {
   // Source that the typed backends compile
   const typed_src = (t: TestCase) => untyped ? t.src : t.tsrc;
-  print_line(`Running ${lang}${n.length > 0 ? "-"+n : ""} tests:`);
-  tests = tests.filter((t) => {
-    if (!t.skip?.includes(lang)) return true;
-    // The typed backends would not run a test without a source for them
-    if ((lang === Lang.Rust || lang === Lang.Elm) && typed_src(t) === undefined) return false;
-    print_line(`  ${typed_src(t) ?? t.src ?? t.tsrc}: skipped (known failure)`);
-    return false;
-  });
+  // Source that this configuration compiles
+  const source = (t: TestCase) => lang === Lang.Rust || lang === Lang.Elm ? typed_src(t) : t.src;
+  const name = `${lang}${n.length > 0 ? "-"+n : ""}`;
+  const reason = (e?: Expectations) => e?.[name];
+  print_line(`Running ${name} tests:`);
   // A configuration lowering cofixpoints only runs the programs that use them
   if (opts.includes("--lower-cofix")) tests = tests.filter((t) => t.cofix);
+  tests = tests.filter((t) => {
+    const r = reason(t.unsupported);
+    if (r === undefined) return true;
+    if (source(t) !== undefined) print_line(`  ${source(t)}: not run, unsupported (${r})`);
+    return false;
+  });
+  xfails = new Map(tests.filter((t) => source(t) !== undefined && reason(t.xfail) !== undefined)
+    .map((t) => [source(t), reason(t.xfail)] as [string, string]));
   switch (lang) {
     case Lang.OCaml:
       compile_types(compile_timeout);
@@ -413,9 +432,9 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       }
       break;
     case Lang.FSharp:
-      // The F# backend is experimental, and its tests are skipped without the .NET SDK
       if (!has_dotnet()) {
-        print_line("  skipped: dotnet not found");
+        failed_tests.push(name);
+        print_line("  error: dotnet not found");
         break;
       }
       var fsharpdir = prepare_fsharp_project(tmpdir, compile_timeout);
@@ -444,9 +463,9 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       break;
 
     case Lang.Koka:
-      // The Koka backend is experimental, and its tests are skipped without koka
       if (!has_koka()) {
-        print_line("  skipped: koka not found");
+        failed_tests.push(name);
+        print_line("  error: koka not found");
         break;
       }
       tests.forEach((test, k) => {

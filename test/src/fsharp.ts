@@ -20,7 +20,7 @@ function exec_output(e): string {
   return stderr || stdout;
 }
 
-// The F# tests need the .NET SDK; without it they are skipped.
+// The F# tests need the .NET SDK; without it they fail.
 export function has_dotnet(): boolean {
   try {
     execSync("dotnet --version", { stdio: "pipe", env: dotnet_env });

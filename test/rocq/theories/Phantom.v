@@ -1,6 +1,6 @@
-(* An inductive with a phantom type parameter. Only the untyped source is
-   tested: the typed Rust backend keeps the parameter, and rustc cannot infer
-   it at the constructor's PhantomData argument. *)
+(* An inductive with a phantom type parameter. The typed Rust backend keeps
+   the parameter, and rustc cannot infer it at the constructor's PhantomData
+   argument (peregrine-project/rocq-typed-extraction#19). *)
 
 Inductive Proxy (A : Type) : Type := proxy : Proxy A.
 

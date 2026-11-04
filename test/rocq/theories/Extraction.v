@@ -73,6 +73,7 @@ Peregrine Extract Typed "extraction/Params_typed.ast" Params.test.
 
 (* Phantom.v *)
 Peregrine Extract "extraction/Phantom.ast" Phantom.test.
+Peregrine Extract Typed "extraction/Phantom_typed.ast" Phantom.test.
 
 (* Remap.v *)
 Peregrine Extract "extraction/Remap.ast" Remap.test.
