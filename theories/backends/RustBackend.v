@@ -2,6 +2,8 @@ From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Utils Require Import ResultMonad.
 From Peregrine Require Import Config.
+From Peregrine Require EBorrow.
+From MetaRocq.Erasure Require EAst EAstUtils.
 From Peregrine Require Import Utils.
 From TypedExtraction Require Import PrettyPrinterMonad.
 From TypedExtraction Require Import Printing.
@@ -173,12 +175,72 @@ Definition mk_remaps (rs : constant_remappings) (is : inductive_remappings) : re
 |}.
 (* TODO: support external remapping in Rust backend *)
 
-Definition mk_config (o : rust_config) : RustPrintConfig := {|
+(* The parameters of the methods the printer prints, as [print_constant] peels
+   them: the leading lambdas of [top_body], as far as the type has arrows. *)
+Fixpoint peel_params (t : EAst.term) (ty : ExAst.box_type) : nat * EAst.term :=
+  match t, ty with
+  | EAst.tLambda _ b, ExAst.TArr _ c => let '(n, i) := peel_params b c in (S n, i)
+  | _, _ => (0, t)
+  end.
+
+Definition rust_fn_table (remaps : remaps) (Σ : ExAst.global_env) : list EBorrow.fn_def :=
+  flat_map (fun '(kn, _, d) =>
+    match d with
+    | ExAst.ConstantDecl {| ExAst.cst_type := (_, ty); ExAst.cst_body := Some b |} =>
+      match remap_constant remaps kn, remap_inline_constant remaps kn with
+      | None, None =>
+        let '(n, i) := peel_params (top_body kn b) ty in
+        match n with
+        | 0 => []
+        | _ =>
+          let id := Kernames.string_of_kername kn in
+          [{| EBorrow.fd_id := id; EBorrow.fd_arity := n; EBorrow.fd_body := i;
+              EBorrow.fd_ctx := []; EBorrow.fd_group := [id] |}]
+        end
+      | _, _ => []
+      end
+    | _ => []
+    end) Σ.
+
+Definition rust_const_fn (remaps : remaps) (Σ : ExAst.global_env) (kn : Kernames.kername)
+  : option (EBorrow.fid * nat) :=
+  match remap_constant remaps kn, remap_inline_constant remaps kn, ExAst.lookup_constant Σ kn with
+  | None, None, Some {| ExAst.cst_type := (_, ty); ExAst.cst_body := Some b |} =>
+    match fst (peel_params (top_body kn b) ty) with
+    | 0 => None
+    | n => Some (Kernames.string_of_kername kn, n)
+    end
+  | _, _, _ => None
+  end.
+
+(* Perceus-style reuse: a branch binding [k > 0] fields that applies a constructor
+   to [k] arguments gains from owning the matched cell. *)
+Fixpoint allocates (k : nat) (t : EAst.term) {struct t} : bool :=
+  match t with
+  | EAst.tApp f a =>
+    orb (match EAstUtils.decompose_app t with
+         | (EAst.tConstruct _ _ [], args) => Nat.eqb (List.length args) k
+         | _ => false
+         end) (orb (allocates k f) (allocates k a))
+  | EAst.tLambda _ b => allocates k b
+  | EAst.tLetIn _ v b => orb (allocates k v) (allocates k b)
+  | EAst.tCase _ d brs => orb (allocates k d) (existsb (fun br => allocates k (snd br)) brs)
+  | EAst.tFix mfix _ => existsb (fun d => allocates k (EAst.dbody d)) mfix
+  | _ => false
+  end.
+
+Definition rc_borrowed_modes (remaps : remaps) (Σ : ExAst.global_env) : Kernames.kername -> nat -> bool :=
+  let ms := EBorrow.borrow_modes (rust_const_fn remaps Σ)
+              (fun k b => andb (Nat.ltb 0 k) (allocates k b)) (rust_fn_table remaps Σ) in
+  fun kn j => EBorrow.borrowed ms (Kernames.string_of_kername kn) j.
+
+Definition mk_config (o : rust_config) (borrowed : Kernames.kername -> nat -> bool) : RustPrintConfig := {|
   term_box_symbol := o.(rust_term_box_symbol);
   type_box_symbol := o.(rust_type_box_symbol);
   any_type_symbol := o.(rust_any_type_symbol);
   print_full_names := o.(rust_print_full_names);
   memory_mode := if o.(rust_refcount) then RcMode else ArenaMode;
+  rc_borrowed := borrowed;
 |}.
 
 
@@ -247,9 +309,10 @@ Definition extract_rust (const_remaps : constant_remappings)
                         : result' (list string) :=
   let remaps := mk_remaps (const_remaps ++ default_const_remaps opts.(rust_refcount) p)%list ind_remaps in
   let attrs := mk_attributes custom_attr opts in
-  let config := mk_config opts in
   let preamble := mk_preamble opts in
   let p := eta_remapped_bodies remaps p in
+  let config := mk_config opts (if opts.(rust_refcount) then rc_borrowed_modes remaps p
+                                else fun _ _ => false) in
   let p := @print_program p remaps config attrs preamble in
   '(_, s) <- finish_print_lines p;;
   Ok s.
