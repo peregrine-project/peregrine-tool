@@ -69,7 +69,7 @@ const elm_operator = elm("#79: Elm prints the names of operators and of other sy
 const elm_ctor_clash = elm("#99: Elm prints the constructors of different types under the same name");
 const elm_module_clash = elm("#94: the Elm module is named after the file, which clashes with a module of the Elm core or test library");
 const lean_name_clash = on(["Lean", "FSharp-experimental", "Koka-experimental"],
-    "#93, #TBD-agda-module-path-order: two definitions whose module paths differ only in their last component (where-modules, record modules) get the same name: agda2lambox writes module paths outermost first, and the backend keeps only one component");
+    "#93, #99: two definitions whose module paths differ only in their last component (where-modules, record modules) get the same name: agda2lambox writes module paths outermost first, and the backend keeps only one component");
 
 // Agda Tests
 var agda_tests: TestCase[] =
@@ -166,7 +166,7 @@ var agda_tests: TestCase[] =
             src: "agda/Lvls.ast",
             xfail: {
                 "Rust-untyped": "#127: the projection of the erased field ℓ is printed as a unit, which is then applied (E0618)",
-                "Elm-untyped": "#TBD-agda-module-path-order: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Lvls_toNat, which Elm rejects"
+                "Elm-untyped": "#99: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Lvls_toNat, which Elm rejects"
             },
             main: "Lvls_test",
             output_type: SimpleType.Nat,
@@ -268,7 +268,7 @@ var agda_tests: TestCase[] =
         { ...agda_nat_test("Prelude", 42, false), xfail: elm_operator },
         agda_nat_test("RecursiveInline", 6, false),
         agda_nat_test("StrictLet", 3, false),
-        { ...agda_nat_test("Terminating", 6, false), xfail: elm("#TBD-agda-module-path-order: agda2lambox writes the module path of a where-bound lambda outermost first, so Elm prints it as _14_Terminating__UU2eextendedlambda1, which Elm rejects") },
+        { ...agda_nat_test("Terminating", 6, false), xfail: elm("#99: agda2lambox writes the module path of a where-bound lambda outermost first, so Elm prints it as _14_Terminating__UU2eextendedlambda1, which Elm rejects") },
         { ...agda_nat_test("WhereNames", 6, false), xfail: { ...elm_operator, ...lean_name_clash } },
         // Typed: test/typed
         { ...agda_nat_test("Scheme", 42, true), xfail: elm_operator },
@@ -285,7 +285,7 @@ var agda_tests: TestCase[] =
         agda_nat_test("ExactSplit", 0, true),
         { ...agda_nat_test("Exp", 168, true), xfail: { ...rust("#127: the branches of geval have different types (GExp is indexed by the type of its value), and the Rust printer has no cast (E0308)"), ...elm_ctor_clash } },
         agda_nat_test("Identity", 42, true),
-        { ...agda_nat_test("Levels", 294, true), xfail: elm("#TBD-agda-module-path-order: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Levels_toNat, which Elm rejects") },
+        { ...agda_nat_test("Levels", 294, true), xfail: elm("#99: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Levels_toNat, which Elm rejects") },
         agda_nat_test("List0", 42, true),
         { ...agda_nat_test("List", 42, true), xfail: elm_module_clash },
         { ...agda_nat_test("Maybe", 42, true), xfail: elm_module_clash },
