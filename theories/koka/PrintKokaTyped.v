@@ -3,7 +3,8 @@ From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Utils Require Import ResultMonad.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import BasicAst.
-From MetaRocq.Erasure Require EAst ELiftSubst.
+From MetaRocq.Erasure Require EAst ELiftSubst EAstUtils.
+From Peregrine Require Import EBorrow.
 From MetaRocq.Erasure.Typed Require Import ExAst.
 From Stdlib Require Import List.
 
@@ -58,6 +59,8 @@ Definition nonempty {A} (l : list A) : bool := match l with [] => false | _ => t
 Section Printer.
   Context (Σ : global_env).
   Context (remap : kername -> option string).
+  (* Borrowed parameters ([EBorrow]), printed [^x]. *)
+  Context (bms : modes).
 
   Definition lookup_mind (kn : kername) : option mutual_inductive_body :=
     match lookup_env Σ kn with
@@ -150,9 +153,26 @@ Section Printer.
     | _ => ([], t)
     end.
 
-  (* The body of a constant: a top-level fixpoint is the function itself. *)
+  (* [fun x1 .. xk => (fix f ..) x1 .. xk] with a closed fixpoint is the
+     fixpoint: the constant is then printed as the top-level function of its
+     member, with the member's arity, instead of a function of [k] arguments
+     that builds a local function and a closure for the rest. *)
+  Definition eta_fix (b : EAst.term) : EAst.term :=
+    let '(ps, inner) := lambdas b in
+    let k := List.length ps in
+    match EAstUtils.decompose_app inner with
+    | (EAst.tFix mfix i, args) =>
+      if andb (Nat.ltb 0 k) (andb (Nat.eqb (List.length args) k)
+           (andb (forallb (fun '(j, a) => match a with EAst.tRel n => Nat.eqb n (k - 1 - j) | _ => false end)
+                          (combine (seq 0 k) args))
+                 (forallb (fun d => ELiftSubst.closedn (List.length mfix) (EAst.dbody d)) mfix)))
+      then EAst.tFix mfix i else b
+    | _ => b
+    end.
+
   (* The body of a constant: a top-level fixpoint is (a copy of) its member. *)
-  Definition const_body (b : EAst.term) : EAst.term :=
+  Definition const_body (b0 : EAst.term) : EAst.term :=
+    let b := eta_fix b0 in
     match b with
     | EAst.tFix mfix i =>
       match nth_error mfix i with Some d => EAst.dbody d | None => b end
@@ -340,6 +360,10 @@ Section Printer.
 
   (* ----- Declarations ---------------------------------------------- *)
 
+  (* Parameter [j] of the top-level function [f], [^v] when borrowed. *)
+  Definition param (f : string) (j : nat) (v : string) : string :=
+    (if borrowed bms f j then "^" else "") ++ v.
+
   Definition tvars_of (n : nat) : list string := map kty_var (seq 0 n).
 
   Fixpoint app_spine (t : EAst.term) (args : list EAst.term) : EAst.term * list EAst.term :=
@@ -364,14 +388,15 @@ Section Printer.
         let '(params, inner) := lambdas (EAst.dbody d) in
         let pvars := mapi (fun j na => var (name_ident na) (base + j)) params in
         body' <- print_term (List.app (List.rev (map (fun v => (v, None)) pvars)) (List.app Γg Γp)) inner [];;
-        match List.app pre pvars with
+        match List.app pre (mapi (param n) pvars) with
         | [] => Err "a fixpoint without parameters"
         | ps => Ok ("fun " ++ n ++ "(" ++ concat_with ", " ps ++ ") { " ++ body' ++ " }")
         end) (combine names mfix);;
     Ok (defs, Γg).
 
-  Definition print_constant (kn : kername) (ty : list name * box_type) (b : EAst.term)
+  Definition print_constant (kn : kername) (ty : list name * box_type) (b0 : EAst.term)
     : kres string :=
+    let b := eta_fix b0 in
     let Γt := tvars_of (List.length (fst ty)) in
     let body := const_body b in
     let '(params, inner) := lambdas body in
@@ -415,7 +440,7 @@ Section Printer.
         else Ok (pre ++ "fun " ++ fun_name kn ++ "() : pure " ++ res' ++ " { " ++ body' ++ " }")
       | _ =>
         Ok (pre ++ "fun " ++ fun_name kn ++ "(" ++
-            concat_with ", " (map (fun '(v, t) => v ++ " : " ++ t) (combine pvars doms')) ++
+            concat_with ", " (mapi (fun j '(v, t) => param (fun_name kn) j v ++ " : " ++ t) (combine pvars doms')) ++
             ") : pure " ++ res' ++ " { " ++ body' ++ " }")
       end
     end.
@@ -456,7 +481,84 @@ Section Printer.
     | TypeAliasDecl None => Ok None
     end.
 
+  (* ----- The functions, for borrow inference ----------------------- *)
+
+  (* A constant called as a known function of its arity. *)
+  Definition const_fn (kn : kername) : option (fid * nat) :=
+    match remap kn with
+    | Some _ => None
+    | None =>
+      if is_thunk kn then None else
+      match const_arity kn with
+      | Some (S _ as n) => Some (fun_name kn, n)
+      | _ => None
+      end
+    end.
+
+  Definition group_fns (kn : kername) (outer : nat) (mfix : EAst.mfixpoint EAst.term) : list fn_def :=
+    let names := mapi (fun j _ => fun_name kn ++ "__m" ++ string_of_nat j) mfix in
+    let ars := map (fun d => List.length (fst (lambdas (EAst.dbody d)))) mfix in
+    let funs := List.rev (map (fun '(n, a) => VFun n a) (combine names ars)) in
+    map (fun '(n, d) =>
+      let '(ps, inner) := lambdas (EAst.dbody d) in
+      {| fd_id := n; fd_arity := List.length ps; fd_body := inner;
+         fd_ctx := List.app funs (repeat VOther outer); fd_group := names |})
+      (combine names mfix).
+
+  (* The top-level functions [print_constant] prints for a constant. *)
+  Definition const_fns (kn : kername) (b0 : EAst.term) : list fn_def :=
+    let b := eta_fix b0 in
+    let '(params, inner) := lambdas (const_body b) in
+    let n := List.length params in
+    let me := fun_name kn in
+    let calls (f : string) := EAst.mkApps (EAst.tRel n) (map EAst.tRel (List.rev (seq 0 n))) in
+    match n with
+    | 0 => []
+    | _ =>
+      match b with
+      | EAst.tFix [_] 0 =>
+        [{| fd_id := me; fd_arity := n; fd_body := inner; fd_ctx := [VFun me n]; fd_group := [me] |}]
+      | EAst.tFix mfix i =>
+        let gs := group_fns kn 0 mfix in
+        let mi := fun_name kn ++ "__m" ++ string_of_nat i in
+        {| fd_id := me; fd_arity := n; fd_body := calls mi; fd_ctx := [VFun mi n]; fd_group := [me] |} :: gs
+      | _ =>
+        let gs := match EAstUtils.decompose_app inner with
+                  | (EAst.tFix mfix _, _) =>
+                    if Nat.ltb 1 (List.length mfix) then group_fns kn n mfix else []
+                  | _ => []
+                  end in
+        {| fd_id := me; fd_arity := n; fd_body := inner; fd_ctx := []; fd_group := [me] |} :: gs
+      end
+    end.
+
+  Definition fn_table : list fn_def :=
+    List.concat (map (fun '(kn, _, decl) =>
+      match decl with
+      | ConstantDecl {| cst_body := Some b |} =>
+        match remap kn with Some _ => [] | None => const_fns kn b end
+      | _ => []
+      end) Σ).
+
 End Printer.
+
+(* Koka reuses a matched cell for a constructor of the same size: a branch
+   binding [k > 0] fields that applies a constructor to [k] arguments. *)
+Fixpoint allocates (k : nat) (t : EAst.term) {struct t} : bool :=
+  match t with
+  | EAst.tApp f a =>
+    orb (match EAstUtils.decompose_app t with
+         | (EAst.tConstruct _ _ [], args) => Nat.eqb (List.length args) k
+         | _ => false
+         end) (orb (allocates k f) (allocates k a))
+  | EAst.tLambda _ b => allocates k b
+  | EAst.tLetIn _ v b => orb (allocates k v) (allocates k b)
+  | EAst.tCase _ d brs => orb (allocates k d) (existsb (fun br => allocates k (snd br)) brs)
+  | EAst.tFix mfix _ => existsb (fun d => allocates k (EAst.dbody d)) mfix
+  | _ => false
+  end.
+
+Definition koka_reuse (k : nat) (b : EAst.term) : bool := andb (Nat.ltb 0 k) (allocates k b).
 
 Definition preamble (module : string) : string :=
   (match module with "" => "" | _ => "module " ++ module ++ kt_nl end)
@@ -467,6 +569,8 @@ Definition preamble (module : string) : string :=
 
 Definition print_program (remap : kername -> option string) (module : string) (Σ : global_env)
   : kres string :=
-  decls <- monad_map (print_decl Σ remap) (List.rev Σ);;
+  let fns := fn_table Σ remap in
+  let bms := borrow_modes (const_fn Σ remap) koka_reuse fns in
+  decls <- monad_map (print_decl Σ remap bms) (List.rev Σ);;
   let present := fold_right (fun o acc => match o with Some s => s :: acc | None => acc end) [] decls in
   Ok (preamble module ++ kt_nl ++ concat_with kt_nl present ++ kt_nl).
