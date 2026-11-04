@@ -98,23 +98,28 @@ Peregrine picks the frontend from the extension of `INPUT`:
 
 The tool runs in a temporary directory, which is removed afterwards. With `-d` it is kept, and its path is printed. With `-v` the command line of the tool is printed. The output of the tool (warnings, progress) is shown as is.
 
+Peregrine prints on standard error one line for each choice it makes by itself: the frontend picked from the extension, typed or untyped $\lambda_\square$, the Rocq project file and its options, the logical path of a Rocq input (or that it has none), the Lake project, and the Lean inlinings passed as attributes. `-q` hides these lines.
+
 ### Frontend options
 
 * `--from FRONTEND`: use `FRONTEND` (`rocq`, `agda`, `lean` or `lambdabox`) whatever the extension.
 * `--entry NAME`: the definition to extract. Required for Rocq and Lean. Agda does not accept it: agda2lambox extracts the definitions marked with `{-# COMPILE AGDA2LAMBOX NAME #-}`, and the first of them is the main term.
 * `--frontend-arg ARG`: pass `ARG` to the tool. Repeat it for several arguments, and write an argument that starts with `-` as `--frontend-arg=ARG`, e.g. `--frontend-arg=-Q --frontend-arg=theories --frontend-arg=MyLib`.
+* `--lean-config TERM`: the configuration of the Lean frontend, a Lean term of type `Erasure.ErasureConfig`, given to `#erase NAME config TERM`, e.g. `--lean-config '{nat := .peano}'`. An error with any other frontend.
 * `--keep-ast FILE`: also write the $\lambda_\square$ program of the frontend to `FILE`, and for Lean the attribute file to `FILE.inlinings`.
 * `--typed`: ask the frontend for typed $\lambda_\square^T$. Without it, peregrine asks for typed output when the backend needs it (`rust`, `elm`, `ast typed`, or `compile` with such a backend) and the frontend has it (Rocq, Agda). Lean has no typed output: `--typed` with Lean is an error, and the typed backends infer the types of its untyped output.
 
-`--entry`, `--typed` and `--frontend-arg` are errors on a $\lambda_\square$ input.
+`--entry`, `--typed`, `--frontend-arg` and `--lean-config` are errors on a $\lambda_\square$ input.
 
 ### Rocq
 
 Needs Rocq and the Peregrine plugin, both installed by `opam install rocq-peregrine`.
 
-Peregrine writes a driver file in the temporary directory. The driver `Load`s `INPUT` (or a copy of it whose name ends in `.v`, which `Load` requires), then runs `Peregrine Extract` (or `Peregrine Extract Typed`) on `NAME`, and is compiled with `rocq compile ARG… Driver.v`. `NAME` is resolved at the end of `INPUT`, so it can be any name visible there, qualified or not. The driver takes the base name of `INPUT`, so the extracted names are those of a module of that name, e.g. `Prog.main`. Inside a Rocq project the file may have a longer logical path; that path is not used.
+**Load path.** The load path is that of the `-Q`, `-R` and `-I` options in `--frontend-arg`, written as for `rocq compile`: `--frontend-arg=-Q --frontend-arg=DIR --frontend-arg=Lib`. Relative paths are relative to the current directory. When `--frontend-arg` has none of these options, peregrine looks for the nearest `_RocqProject` or `_CoqProject`, from the directory of `INPUT` upwards (preferring `_RocqProject` in the same directory). It takes the `-Q`, `-R`, `-I` and `-arg` options of that file, with paths relative to the file, and ignores the file lists and other options. It prints the file and the options it took.
 
-The libraries that `INPUT` requires must be compiled. Their load paths go to `--frontend-arg`, as for `rocq compile`: `--frontend-arg=-Q --frontend-arg=DIR --frontend-arg=Lib`, or `-R`, or `-I` for OCaml plugins. Relative paths are relative to the current directory. Peregrine does not read `_CoqProject` or `_RocqProject`.
+**Names.** When the load path gives `INPUT` a logical path (`theories/Sub/Main.v` under `-Q theories Foo` is `Foo.Sub.Main`), peregrine compiles a copy of `INPUT` that ends with `From Peregrine.Plugin Require Import Loader.` and `Peregrine Extract NAME` (or `Peregrine Extract Typed`), under that logical path, in the temporary directory. The extracted names are then those that `Peregrine Extract` gives inside the project, e.g. `Foo.Sub.Main.main`. Nothing is written to the project. Otherwise (no load path covers `INPUT`, or its name does not end in `.v`), peregrine compiles a driver that `Load`s `INPUT` (or a `.v` copy of it) and then runs `Peregrine Extract`. The driver takes the base name of `INPUT`, so the names are those of a module of that name, e.g. `Main.main`, and peregrine says so.
+
+In both cases `NAME` is resolved at the end of `INPUT`, so it can be any name visible there, qualified or not. In the first case, error positions refer to the copy, which has the same lines as `INPUT`. The modules that `INPUT` requires must already be compiled (`.vo` files in the project, e.g. by its `make`). Peregrine compiles `INPUT` only.
 
 The same extraction is available inside Rocq ([frontends.md](frontends.md#rocq)):
 ```coq
@@ -150,7 +155,7 @@ Peregrine finds the Lake project in the nearest directory, from that of `INPUT` 
 
 `#erase` also writes an attribute file listing the constants to inline. Peregrine passes it to the middle-end with the files of `--attributes`.
 
-`#erase` runs with its default configuration (`nat := .machine`): `Nat` literals become machine integers, and the `@[extern]` functions on `Nat` become axioms that the target must implement ([frontends.md](frontends.md#lean)). For another configuration, such as `config {nat := .peano}`, write the `#erase` command in the source and give peregrine the `.ast` file.
+`#erase` runs with its default configuration (`nat := .machine`) unless `--lean-config` gives another one. With the default, `Nat` literals become machine integers, and the `@[extern]` functions on `Nat` become axioms that the target must implement ([frontends.md](frontends.md#lean)). With `--lean-config '{nat := .peano}'`, `Nat` stays an inductive type.
 
 ### $\lambda_\square$ programs
 
@@ -244,7 +249,7 @@ Attribute files ([format.md](format.md#attribute-files)) add inlinings, constant
 | 10–19, 20–29 | listed by `--help` for parsing and compiler errors; not used yet (those errors exit with 1) |
 | 30 | the frontend tool is not on the `PATH` |
 | 31 | the frontend tool failed |
-| 32 | the frontend does not support the request: `--entry` missing for Rocq or Lean, or given for Agda; `--typed` for Lean; frontend options on a $\lambda_\square$ input; `erase` of a $\lambda_\square$ program; a Lean input outside a Lake project |
+| 32 | the frontend does not support the request: `--entry` missing for Rocq or Lean, or given for Agda; `--typed` for Lean; `--lean-config` for a frontend other than Lean; frontend options on a $\lambda_\square$ input; `erase` of a $\lambda_\square$ program; a Lean input outside a Lake project |
 | 123, 124, 125 | from the command line parser: other errors, command-line errors, internal errors |
 
 
@@ -266,7 +271,10 @@ They keep working, print a warning on standard error, and are not listed by `--h
 ## Examples
 
 ```bash
-# Rocq, with a library compiled under the logical name MyLib
+# Rocq, in a project whose _RocqProject gives the load path (detected)
+peregrine c theories/Main.v --entry main -o build/main.c
+
+# Rocq, with the load path given instead
 peregrine c src/Main.v --entry main \
   --frontend-arg=-Q --frontend-arg=theories --frontend-arg=MyLib -o build/main.c
 
@@ -276,8 +284,8 @@ peregrine rust src/Main.v --entry main --numbers=i64 -o main.rs
 # Agda, literate, with an include path; keep the lambda box program
 peregrine ocaml Main.lagda.md --frontend-arg=-i --frontend-arg=lib --keep-ast main.ast
 
-# Lean, evaluated without any target toolchain
-peregrine eval Main.lean --entry main
+# Lean, evaluated without any target toolchain, with Nat as an inductive type
+peregrine eval Main.lean --entry main --lean-config '{nat := .peano}'
 
 # Force a frontend: a Rocq file with another extension
 peregrine erase main.coq --from rocq --entry main -o main.ast

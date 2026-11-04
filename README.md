@@ -24,7 +24,8 @@ peregrine BACKEND INPUT [-o OUTPUT] [OPTIONS]
 `INPUT` is a proof-assistant source file or a $\lambda_\square$ program. Peregrine picks the frontend from the extension, runs it, and compiles the result with `BACKEND`:
 
 ```bash
-# Rocq: extract the definition `main` of Prog.v to C (Prog.c and Prog.h)
+# Rocq: extract the definition `main` of Prog.v to C (Prog.c and Prog.h); the load
+# path comes from the nearest _RocqProject or _CoqProject
 peregrine c Prog.v --entry main
 
 # Agda: extract the definitions marked {-# COMPILE AGDA2LAMBOX main #-} to OCaml (Prog.mlf)
