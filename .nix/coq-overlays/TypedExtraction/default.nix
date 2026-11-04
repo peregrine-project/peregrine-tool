@@ -38,6 +38,11 @@ let
   release = {
     "0.2.1".sha256 = "sha256-GWdu/l7CipeBubgS5OGHsZfpP2Fkr1cfiZMRH5d1n0g=";
     "0.2.0".sha256 = "sha256-rgg39X45IXjcnejBhh8N7wMiH+gHQrfO8pBbFEWOGVI=";
+    # 0.2.1 plus the Rust reference-counting mode (rust-rc-mode), see rocq-peregrine.opam
+    "6e671a0fc5847581922d5e60ee61e367151c12f1" = {
+      rev = "6e671a0fc5847581922d5e60ee61e367151c12f1";
+      hash = lib.fakeHash;
+    };
   };
   releaseRev = v: "v${v}";
 

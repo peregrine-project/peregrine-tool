@@ -35,7 +35,9 @@ export function make_printable(file: string) {
 }
 
 // Add main function to `file` that calls `main_fn` and
-// prints the return value using s-expression printer
+// prints the return value using s-expression printer.
+// Program::new() exists in both memory modes: with rust-rc, Program has no
+// field and its methods return Rc values, which serde prints as their contents
 function append_main(file: string, test: TestCase) {
   const main = find_entry_point(readFileSync(file, "utf8"), test.main);
   const content = (test.output_type == SimpleType.Other) ?

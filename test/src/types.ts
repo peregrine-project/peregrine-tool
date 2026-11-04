@@ -81,6 +81,6 @@ export type TestCase = {
 // for the peregrine compiler.
 // The optional flag makes the typed backends (Rust, Elm) compile the untyped
 // source `src` of each test, inferring its types, instead of `tsrc`.
-// For Rust, the optional verb (`rust`, `rust-i64`) compiles with that verb
-// instead of `peregrine compile` and src/rust/config.sexp.
+// For Rust, the optional verb (`rust`, `rust-i64`, `rust-hybrid`, `rust-rc`)
+// compiles with that verb instead of `peregrine compile` and src/rust/config.sexp.
 export type TestConfiguration = [Lang, string, string, boolean?, string?]

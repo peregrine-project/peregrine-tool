@@ -21,6 +21,9 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Rust, "i64", "--dearg-ctors false --dearg-consts false", false, "rust-i64"],
     // i64 or GMP per value: prints as rust-i64 does
     [Lang.Rust, "hybrid", "--dearg-ctors false --dearg-consts false", false, "rust-hybrid"],
+    // Reference counting instead of the arena, with the numbers of the rust
+    // verb: serde prints an Rc<T> as T, so it expects the outputs of the Rust tests
+    [Lang.Rust, "rc", "--dearg-ctors false --dearg-consts false", false, "rust-rc"],
     [Lang.CakeML, "", ""],
     [Lang.Lean, "", ""],
     // The F# backend is experimental
