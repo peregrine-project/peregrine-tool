@@ -129,8 +129,8 @@ jobs:
       - name: Checkout agda2lambox
         uses: actions/checkout@v7
         with:
-          repository: 4ever2/agda2lambox
-          ref: 20120b78af01b7bec1c8d46ba8dceef140d65fb6
+          repository: agda/agda2lambox
+          ref: 6d68080404b6eb720471305b5b84d327f6747256
           path: agda
 
       - name: Configure the agda2lambox build
@@ -160,8 +160,10 @@ jobs:
 
       - name: Build agda2lambox
         run: cd agda && make build
+      # Under opam exec, so that agda2lambox's tests find peregrine and
+      # validate every AST they generate
       - name: Generate Agda ASTs
-        run: cd agda && make test && mv test/dist/ ../test/agda/
+        run: cd agda && opam exec -- make test && mv test/dist/ ../test/agda/
 
       # elan and both pinned Lean toolchains (test/lean for the frontend
       # fixtures, the repository root for the Lean backend) are cached, so
