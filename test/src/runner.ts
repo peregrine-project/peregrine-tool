@@ -14,6 +14,7 @@ import { prepare_lean_project, run_lean } from "./lean";
 import { build_fsharp, has_dotnet, prepare_fsharp_project, run_fsharp } from "./fsharp";
 import { compile_koka, has_koka, run_koka } from "./koka";
 import { test_configurations, tests } from "./tests";
+import { run_cli_tests } from "./cli";
 
 
 // Timeout used when executing the compiled code
@@ -32,6 +33,8 @@ var xfails = new Map<string, string>();
 var tmpdir = process.env.TMPDIR;
 
 var use_local_binary = false;
+// Path of the installed peregrine binary
+var peregrine_path = "";
 function get_exec(local: boolean): string {
   if (local) {
     // For local testing without installing
@@ -65,6 +68,11 @@ function compile_box(file: string, outdir: string, lang: Lang, opts: string, con
 
     return { type: "error", reason: "compile error", compiler: "peregrine", code: e.status, error: e.stdout.toString('utf8') + e.stderr.toString('utf8') };
   }
+}
+
+// The options of a configuration followed by the compiler arguments of a test
+function with_args(opts: string, test: TestCase): string {
+  return test.compiler_args === undefined ? opts : `${opts} ${test.compiler_args}`;
 }
 
 // Report the result of compiling, with a typed backend, an untyped program
@@ -195,7 +203,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f_mlf = compile_box(test.src, tmpdir, Lang.OCaml, opts);
+        const f_mlf = compile_box(test.src, tmpdir, Lang.OCaml, with_args(opts, test));
         if (test.cofix && !opts.includes("--lower-cofix")) {
           print_cofix_rejected(f_mlf, test.src);
           continue;
@@ -227,7 +235,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f_cml = compile_box(test.src, tmpdir, Lang.CakeML, opts);
+        const f_cml = compile_box(test.src, tmpdir, Lang.CakeML, with_args(opts, test));
         if (test.cofix && !opts.includes("--lower-cofix")) {
           print_cofix_rejected(f_cml, test.src);
           continue;
@@ -259,7 +267,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f_c = compile_box(test.src, tmpdir, Lang.C, opts);
+        const f_c = compile_box(test.src, tmpdir, Lang.C, with_args(opts, test));
         if (test.cofix && !opts.includes("--lower-cofix")) {
           print_cofix_rejected(f_c, test.src);
           continue;
@@ -290,7 +298,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f_ll = compile_box(test.src, tmpdir, Lang.LLVM, opts);
+        const f_ll = compile_box(test.src, tmpdir, Lang.LLVM, with_args(opts, test));
         if (test.cofix && !opts.includes("--lower-cofix")) {
           print_cofix_rejected(f_ll, test.src);
           continue;
@@ -320,7 +328,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f = compile_box(test.src, tmpdir, Lang.Wasm, opts);
+        const f = compile_box(test.src, tmpdir, Lang.Wasm, with_args(opts, test));
         if (test.cofix && !opts.includes("--lower-cofix")) {
           print_cofix_rejected(f, test.src);
           continue;
@@ -353,8 +361,8 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile peregrine
         const f_rs = rust_verb === undefined
-          ? compile_box(src, otudir, Lang.Rust, opts, "src/rust/config.sexp")
-          : compile_box(src, otudir, Lang.Rust, opts, undefined, rust_verb);
+          ? compile_box(src, otudir, Lang.Rust, with_args(opts, test), "src/rust/config.sexp")
+          : compile_box(src, otudir, Lang.Rust, with_args(opts, test), undefined, rust_verb);
         if (untyped && test.rejected) {
           print_rejected(f_rs, src);
           continue;
@@ -392,7 +400,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         process.stdout.write(`  ${src}: `);
 
         // Compile peregrine
-        const f_elm = compile_box(src, otudir, Lang.Elm, opts, "src/elm/config.sexp");
+        const f_elm = compile_box(src, otudir, Lang.Elm, with_args(opts, test), "src/elm/config.sexp");
         if (untyped && test.rejected) {
           print_rejected(f_elm, src);
           continue;
@@ -418,7 +426,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f_lean = compile_box(test.src, leandir, Lang.Lean, opts, test.configs?.[Lang.Lean]);
+        const f_lean = compile_box(test.src, leandir, Lang.Lean, with_args(opts, test), test.configs?.[Lang.Lean]);
         if (typeof f_lean !== "string") {
           print_result(f_lean, test.src);
           continue;
@@ -444,7 +452,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       const compiled = tests.filter((t) => t.src !== undefined).map((test, k) => {
         const outdir = path.join(fsharpdir, "gen", `${k}`);
         mkdirSync(outdir, { recursive: true });
-        return { test, f_fs: compile_box(test.src, outdir, Lang.FSharp, opts, test.configs?.[Lang.FSharp]) };
+        return { test, f_fs: compile_box(test.src, outdir, Lang.FSharp, with_args(opts, test), test.configs?.[Lang.FSharp]) };
       });
       const programs = compiled.filter((c) => typeof c.f_fs === "string")
         .map((c) => ({ test: c.test, file: c.f_fs as string }));
@@ -474,7 +482,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         // Each test gets its own directory, as several tests share a file name.
         const outdir = path.join(tmpdir, "koka", `${k}`);
         mkdirSync(outdir, { recursive: true });
-        const f_kk = compile_box(test.src, outdir, Lang.Koka, opts, test.configs?.[Lang.Koka]);
+        const f_kk = compile_box(test.src, outdir, Lang.Koka, with_args(opts, test), test.configs?.[Lang.Koka]);
         if (typeof f_kk !== "string") {
           print_result(f_kk, test.src);
           return;
@@ -498,7 +506,7 @@ function check_peregrine() {
   const cmd = `which peregrine`;
 
   try {
-    execSync(cmd, { stdio: "pipe", timeout: compile_timeout });
+    peregrine_path = execSync(cmd, { stdio: "pipe", timeout: compile_timeout, encoding: "utf8" }).trim();
     use_local_binary = false;
   } catch (e) {
     print_line("Could not locate peregrine, falling back to using dune");
@@ -523,12 +531,24 @@ async function main() {
   // or only the configurations named on the command line, e.g. `Rust` or `WebAssembly-cps`
   // (exact, case-sensitive match on the name the runner prints)
   const config_name = (c: TestConfiguration) => c[0] + (c[1].length > 0 ? "-" + c[1] : "");
-  const names = test_configurations.map(config_name);
+  // `CLI` names the checks of src/cli.ts
+  const names = ["CLI", ...test_configurations.map(config_name)];
   const selected = process.argv.slice(2);
   const unknown = selected.filter((n) => !names.includes(n));
   if (unknown.length > 0) {
     print_line(`error: unknown test configuration ${unknown.join(", ")}; the configurations are ${names.join(", ")}`);
     exit(2);
+  }
+  if (selected.length === 0 || selected.includes("CLI")) {
+    print_line("Running CLI tests:");
+    if (use_local_binary) {
+      failed_tests.push("CLI");
+      print_line("  error: they need peregrine on the PATH");
+    } else {
+      const clidir = path.join(tmpdir, "cli");
+      if (!existsSync(clidir)) mkdirSync(clidir);
+      failed_tests.push(...run_cli_tests(peregrine_path, clidir));
+    }
   }
   for (var backend of test_configurations) {
     if (selected.length > 0 && !selected.includes(config_name(backend))) continue;

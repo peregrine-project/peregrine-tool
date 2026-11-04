@@ -160,6 +160,9 @@ jobs:
 
       - name: Build agda2lambox
         run: cd agda && make build
+      # The tests of Agda sources run agda2lambox through peregrine
+      - name: Put agda2lambox on the path
+        run: dirname "$(cd agda && cabal list-bin agda2lambox)" >> "$GITHUB_PATH"
       # Under opam exec, so that agda2lambox's tests find peregrine and
       # validate every AST they generate
       - name: Generate Agda ASTs
