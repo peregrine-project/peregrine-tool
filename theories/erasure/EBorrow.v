@@ -24,12 +24,15 @@
     The functions are given by the backend, which decides what is a function
     ([fn_def]): its parameters, its body under them, and what the variables
     beyond the parameters denote.  [check] tests the first condition for a
-    table of modes; [check_sound] states what it guarantees. *)
+    table of modes.  [BO] says in rules what "not consumed" means, and
+    [borrow_modes_spec] proves that every parameter [borrow_modes] marks
+    borrowed satisfies it. *)
 
 From Stdlib Require Import List Bool Arith Lia.
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Common Require Import BasicAst Kernames.
-From MetaRocq.Erasure Require Import EAst EAstUtils.
+From MetaRocq.Erasure Require Import EAst EAstUtils EInduction.
+From MetaRocq.Utils Require Import All_Forall.
 Import ListNotations.
 
 Local Open Scope bs_scope.
@@ -119,6 +122,22 @@ Section Analysis.
   Definition all_params (Γ : list var_kind) : list event :=
     List.concat (List.map (fun k => match k with VParam j | VCapt j => [Consume j] | _ => [] end) Γ).
 
+  (** A match on [d]: whether [d]'s own events count, the kind of the variables
+      the branches bind, and the event of a cell the branches may reuse. *)
+  Definition case_scrut (Γ : list var_kind) (d : term) (brs : list (list name * term))
+    : bool * var_kind * list event :=
+    match d with
+    | tRel n =>
+      match nth_error Γ n with
+      | Some (VParam j) =>
+        (false, VField j,
+         if existsb (fun br => reuse (List.length (fst br)) (snd br)) brs then [Consume j] else [])
+      | Some (VField j) => (false, VField j, [])
+      | _ => (true, VOther, [])
+      end
+    | _ => (true, VOther, [])
+    end.
+
   Section Uses.
     Context (ms : modes) (grp : list fid) (self : fid).
 
@@ -146,19 +165,8 @@ Section Analysis.
       | tLambda _ b => uses (VOther :: List.map capture Γ) false false b
       | tLetIn _ v b => List.app (uses Γ false false v) (uses (VOther :: Γ) tail false b)
       | tCase _ d brs =>
-        let '(ed, k, ev_reuse) :=
-          match d with
-          | tRel n =>
-            match nth_error Γ n with
-            | Some (VParam j) =>
-              ([], VField j,
-               if existsb (fun br => reuse (List.length (fst br)) (snd br)) brs then [Consume j] else [])
-            | Some (VField j) => ([], VField j, [])
-            | _ => (uses Γ false false d, VOther, [])
-            end
-          | _ => (uses Γ false false d, VOther, [])
-          end in
-        List.app ed (List.app ev_reuse
+        let '(own, k, ev_reuse) := case_scrut Γ d brs in
+        List.app (if own then uses Γ false false d else []) (List.app ev_reuse
           (List.concat (List.map (fun br => uses (List.app (repeat k (List.length (fst br))) Γ) tail false (snd br)) brs)))
       | tFix mfix _ | tCoFix mfix _ =>
         List.concat (List.map (fun d => uses (List.app (repeat VOther (List.length mfix)) (List.map capture Γ)) false false (dbody d)) mfix)
@@ -242,5 +250,172 @@ Section Analysis.
       rewrite forallb_forall in C. specialize (C j (proj2 (in_seq _ _ _) (conj (Nat.le_0_l _) Hj))).
       rewrite Hb in C. simpl in C. apply negb_true_iff in C. exact C.
     - rewrite borrowed_owned_all in Hb. discriminate.
+  Qed.
+
+  (** ** What "not consumed" means
+
+      [BO ms j Γ t]: in [t], parameter [j] occurs only as the scrutinee of a
+      match whose branches do not reuse its cell, or as an argument at a
+      borrowed position of a known function.  Under a closure or a local
+      fixpoint it does not occur at all.  Variables bound by a match on the
+      parameter are its fields, and using those does not consume it. *)
+  Section Spec.
+    Context (ms : modes) (j : nat).
+
+    Definition at_borrowed_pos (Γ : list var_kind) (f a : term) : bool :=
+      let '(h, args) := decompose_app (tApp f a) in
+      match known Γ h with
+      | Some (g, ar) =>
+        let pos := List.length args - 1 in
+        andb (Nat.ltb pos ar) (andb (borrowed ms g pos) (borrowable Γ a))
+      | None => false
+      end.
+
+    Definition not_param (Γ : list var_kind) (n : nat) : Prop :=
+      nth_error Γ n <> Some (VParam j) /\ nth_error Γ n <> Some (VCapt j).
+
+    (** The kind of the variables a match on [d] binds, when [d] is a parameter
+        or one of its fields. *)
+    Definition scrut_kind (Γ : list var_kind) (d : term) : option var_kind :=
+      match d with
+      | tRel n =>
+        match nth_error Γ n with
+        | Some (VParam i) | Some (VField i) => Some (VField i)
+        | _ => None
+        end
+      | _ => None
+      end.
+
+    Definition no_reuse_of_param (Γ : list var_kind) (d : term) (brs : list (list name * term)) : Prop :=
+      match d with
+      | tRel n =>
+        nth_error Γ n = Some (VParam j) ->
+        existsb (fun br => reuse (List.length (fst br)) (snd br)) brs = false
+      | _ => True
+      end.
+
+    Inductive BO : list var_kind -> term -> Prop :=
+    | BO_box Γ : BO Γ tBox
+    | BO_var Γ i : BO Γ (tVar i)
+    | BO_const Γ k : BO Γ (tConst k)
+    | BO_rel Γ n : not_param Γ n -> BO Γ (tRel n)
+    | BO_app Γ f a :
+        BO Γ f -> (at_borrowed_pos Γ f a = true \/ BO Γ a) -> BO Γ (tApp f a)
+    | BO_lam Γ na b : BO (VOther :: List.map capture Γ) b -> BO Γ (tLambda na b)
+    | BO_let Γ na v b : BO Γ v -> BO (VOther :: Γ) b -> BO Γ (tLetIn na v b)
+    | BO_case_var Γ ci d brs k :
+        scrut_kind Γ d = Some k ->
+        no_reuse_of_param Γ d brs ->
+        Forall (fun br => BO (List.app (repeat k (List.length (fst br))) Γ) (snd br)) brs ->
+        BO Γ (tCase ci d brs)
+    | BO_case Γ ci d brs :
+        scrut_kind Γ d = None ->
+        BO Γ d ->
+        Forall (fun br => BO (List.app (repeat VOther (List.length (fst br))) Γ) (snd br)) brs ->
+        BO Γ (tCase ci d brs)
+    | BO_fix Γ mfix i :
+        Forall (fun d => BO (List.app (repeat VOther (List.length mfix)) (List.map capture Γ)) (dbody d)) mfix ->
+        BO Γ (tFix mfix i)
+    | BO_cofix Γ mfix i :
+        Forall (fun d => BO (List.app (repeat VOther (List.length mfix)) (List.map capture Γ)) (dbody d)) mfix ->
+        BO Γ (tCoFix mfix i)
+    | BO_construct Γ ind c args : Forall (BO Γ) args -> BO Γ (tConstruct ind c args)
+    | BO_evar Γ e l : Forall (BO Γ) l -> BO Γ (tEvar e l)
+    | BO_proj Γ pr c : BO Γ c -> BO Γ (tProj pr c)
+    | BO_lazy Γ c : BO Γ c -> BO Γ (tLazy c)
+    | BO_force Γ c : BO Γ c -> BO Γ (tForce c)
+    | BO_prim Γ p : existsb (is_consume j) (all_params Γ) = false -> BO Γ (tPrim p).
+
+    Lemma existsb_concat_map {A} (f : event -> bool) (g : A -> list event) (l : list A) :
+      existsb f (List.concat (List.map g l)) = false ->
+      forall x, In x l -> existsb f (g x) = false.
+    Proof.
+      induction l as [|y l IH]; simpl; intros H x Hx; [contradiction|].
+      rewrite existsb_app in H. apply orb_false_iff in H as [H1 H2].
+      destruct Hx as [<-|Hx]; [exact H1|]. exact (IH H2 x Hx).
+    Qed.
+
+    Lemma tail_events_no_consume grp self Γ h args :
+      existsb (is_consume j) (tail_events ms grp self Γ h args) = false.
+    Proof.
+      unfold tail_events. destruct (known Γ h) as [[g ar]|]; [|reflexivity].
+      destruct (existsb (String.eqb g) grp); [|reflexivity].
+      generalize (combine (seq 0 (List.length args)) args) as l.
+      induction l as [|[i a] l IH]; [reflexivity|]. simpl.
+      rewrite existsb_app, IH, orb_false_r.
+      match goal with |- context [if ?c then _ else _] => destruct c end; reflexivity.
+    Qed.
+
+    Theorem no_consume_BO grp self t : forall Γ tl hd,
+      existsb (is_consume j) (uses ms grp self Γ tl hd t) = false -> BO Γ t.
+    Proof.
+      induction t using term_forall_list_ind; intros Γ tl hd H; simpl in H.
+      - constructor.
+      - constructor. unfold not_param.
+        destruct (nth_error Γ n) as [[i|i|i|f ar|]|] eqn:E;
+          simpl in H; split; try discriminate; intro Heq; inversion Heq; subst;
+          simpl in H; rewrite Nat.eqb_refl in H; discriminate.
+      - constructor.
+      - constructor. apply All_Forall in X. rewrite Forall_forall in *. intros a Ha.
+        eapply (X a Ha). exact (existsb_concat_map _ (uses ms grp self Γ false false) _ H a Ha).
+      - constructor. eapply IHt. exact H.
+      - rewrite existsb_app in H. apply orb_false_iff in H as [H1 H2].
+        constructor; [eapply IHt1; exact H1 | eapply IHt2; exact H2].
+      - assert (Hdec : decompose_app (tApp t1 t2) = decompose_app_rec t1 [t2]) by reflexivity.
+        try unfold decompose_app in H. cbn [decompose_app_rec] in H.
+        destruct (decompose_app_rec t1 [t2]) as [h args] eqn:Hd.
+        simpl in H. rewrite !existsb_app in H. apply orb_false_iff in H as [Ha H].
+        apply orb_false_iff in H as [_ Hf].
+        constructor; [eapply IHt1; exact Hf|].
+        unfold at_borrowed_pos. rewrite Hdec.
+        destruct (known Γ h) as [[g ar]|]; cbv zeta in *.
+        + match goal with |- (?c = true) \/ _ => destruct c eqn:C end;
+            [left; reflexivity | right; eapply IHt2; exact Ha].
+        + right. eapply IHt2. exact Ha.
+      - constructor.
+      - constructor. apply All_Forall in X. rewrite Forall_forall in *. intros a Ha.
+        eapply (X a Ha). exact (existsb_concat_map _ (uses ms grp self Γ false false) _ H a Ha).
+      - (* a match *)
+        destruct (case_scrut Γ t l) as [[own k] ev] eqn:Cs.
+        simpl in H. rewrite !existsb_app in H. apply orb_false_iff in H as [H0 H].
+        apply orb_false_iff in H as [Hev Hbrs].
+        assert (Hall : Forall (fun br => BO (List.app (repeat k (List.length (fst br))) Γ) (snd br)) l).
+        { apply All_Forall in X. rewrite Forall_forall in *. intros br Hbr.
+          eapply (X br Hbr) with (tl := tl) (hd := false).
+          exact (existsb_concat_map _ (fun br => uses ms grp self (List.app (repeat k (List.length (fst br))) Γ) tl false (snd br)) _ Hbrs br Hbr). }
+        destruct own.
+        + assert (Hk : scrut_kind Γ t = None /\ k = VOther).
+          { clear -Cs. unfold case_scrut, scrut_kind in *.
+            destruct t; inversion Cs; subst; try (split; reflexivity).
+            destruct (nth_error Γ n) as [[i|i|i|f ar|]|]; inversion Cs; subst; split; reflexivity. }
+          destruct Hk as [Hs ->]. eapply BO_case; [exact Hs| eapply IHt; exact H0 | exact Hall].
+        + assert (Hk : scrut_kind Γ t = Some k /\ no_reuse_of_param Γ t l).
+          { clear -Cs Hev. unfold case_scrut, scrut_kind, no_reuse_of_param in *.
+            destruct t; try (inversion Cs; fail).
+            destruct (nth_error Γ n) as [[i|i|i|f ar|]|] eqn:E; inversion Cs; subst.
+            - split; [reflexivity|]. intro Heq.
+              assert (i = j) as -> by congruence.
+              destruct (existsb (fun br => reuse (List.length (fst br)) (snd br)) l) eqn:Ex; [|reflexivity].
+              exfalso. simpl in Hev. rewrite Nat.eqb_refl in Hev. discriminate.
+            - split; [reflexivity|]. intro Heq. congruence. }
+          destruct Hk as [Hs Hr]. eapply BO_case_var; [exact Hs|exact Hr|exact Hall].
+      - constructor. eapply IHt. exact H.
+      - constructor. apply All_Forall in X. rewrite Forall_forall in *. intros d Hd.
+        eapply (X d Hd). exact (existsb_concat_map _ (fun d => uses ms grp self (List.app (repeat VOther (List.length m)) (List.map capture Γ)) false false (dbody d)) _ H d Hd).
+      - constructor. apply All_Forall in X. rewrite Forall_forall in *. intros d Hd.
+        eapply (X d Hd). exact (existsb_concat_map _ (fun d => uses ms grp self (List.app (repeat VOther (List.length m)) (List.map capture Γ)) false false (dbody d)) _ H d Hd).
+      - constructor. exact H.
+      - constructor. eapply IHt. exact H.
+      - constructor. eapply IHt. exact H.
+    Qed.
+  End Spec.
+
+  (** A parameter that [borrow_modes] marks borrowed satisfies [BO] in the body
+      of its function. *)
+  Theorem borrow_modes_spec fds fd j :
+    In fd fds -> borrowed (borrow_modes fds) (fd_id fd) j = true -> j < fd_arity fd ->
+    BO (borrow_modes fds) j (List.app (param_ctx (fd_arity fd)) (fd_ctx fd)) (fd_body fd).
+  Proof.
+    intros Hin Hb Hj. eapply no_consume_BO. exact (check_sound fds fd j Hin Hb Hj).
   Qed.
 End Analysis.
