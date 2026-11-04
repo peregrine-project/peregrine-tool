@@ -257,6 +257,11 @@ let rust_verbs = [
     rust_verb_config = RustHybridRemaps.hybrid_rust_config';
     rust_verb_const_remaps = RustHybridRemaps.hybrid_const_remaps;
     rust_verb_ind_remaps = RustHybridRemaps.hybrid_ind_remaps };
+  { rust_verb_name = "rust-rc";
+    rust_verb_doc = "Compile lambda box program to Rust, without numeric remapping, with values reference counted (Rc) instead of allocated in an arena";
+    rust_verb_config = ConfigUtils.rc_rust_config';
+    rust_verb_const_remaps = [];
+    rust_verb_ind_remaps = [] };
 ]
 
 let compile_rust v opts eopts f_prog =

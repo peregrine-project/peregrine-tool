@@ -67,7 +67,7 @@ The backend is located in [`peregrine-project/rocq-typed-extraction`](https://gi
 
 Output
 * A single file; written to `<file>.rs` by the CLI.
-* The generated Rust depends on [bumpalo](https://docs.rs/bumpalo/) v3 or later.
+* The generated Rust depends on [bumpalo](https://docs.rs/bumpalo/) v3 or later, except with `rust-rc`.
 * Is compiled with the [Rust compiler](https://rust-lang.org/tools/install/)
 
 ### Numeric representations
@@ -89,6 +89,15 @@ The remapped operations are hand-written Rust strings; nothing about them is ver
 * `rust-mixed` and `rust-mixed-narrow` convert the arguments of the operations they run in `i64` with `to_i64().unwrap()`, which panics on an argument outside `i64`; the result of the `i64` operation is not checked, as for `rust-i64`. [RustMixedCoherence.v](/theories/backends/RustMixedCoherence.v) proves, for a ZArith model of these operations, that they agree with the `nat` operations when arguments and result fit in `i64`; it says nothing about the emitted Rust.
 * `rust-hybrid` keeps a value in `i64` while it fits and computes exactly otherwise: an operation on small arguments uses `checked_*` arithmetic and moves to GMP on overflow, and a result that fits in `i64` is stored as an `i64` again. Only large values are allocated.
 * The GMP eliminators of `rust-gmp`, `rust-mixed`, `rust-mixed-narrow` and `rust-hybrid` leak (`Box::leak`) the predecessor they compute; for `rust-hybrid` only a large one.
+
+### Memory management
+By default the generated program allocates every value and closure in a [bumpalo](https://docs.rs/bumpalo/) arena owned by the `Program` struct and passes them as `&'a` references; nothing is freed before the program is dropped. The verb `rust-rc` (configuration field `rust_refcount`) reference counts instead, with the numeric representation of `rust`:
+
+* a value of an inductive type is an `Rc<T<'a, ..>>` and a function an `Rc<dyn Fn(A) -> B + 'a>`; type parameters are bounded by `Clone + 'a`;
+* every use of a variable clones it (a reference-count increment), a `match` borrows its scrutinee and clones the fields a branch binds, and a closure clones the variables it captures;
+* a local fixpoint is a closure stored in an `Rc<OnceCell<..>>` that the closure itself holds, a cycle that is never freed.
+
+The output depends on no crate. The memory freed is that of values no longer referenced; the clones are not elided, and the drop of a long list recurses once per element. The remapping strings of the numeric verbs assume the arena, so `rust-rc` uses none.
 
 ## Elm
 

@@ -98,7 +98,7 @@ Require compcert.cfrontend.Csyntax
         compcert.cfrontend.Clight.
 
 Separate Extraction Pipeline.peregrine_pipeline Pipeline.peregrine_validate
-                    ConfigUtils.empty_rust_config' ConfigUtils.empty_elm_config' ConfigUtils.empty_certirocq_config'
+                    ConfigUtils.empty_rust_config' ConfigUtils.rc_rust_config' ConfigUtils.empty_elm_config' ConfigUtils.empty_certirocq_config'
                     ConfigUtils.empty_ocaml_config' ConfigUtils.empty_cakeml_config' ConfigUtils.empty_lean_config' ConfigUtils.empty_fsharp_config' ConfigUtils.empty_koka_config'
                     ConfigUtils.empty_config'
                     RustGMPRemaps.gmp_const_remaps RustGMPRemaps.gmp_ind_remaps RustGMPRemaps.gmp_rust_config'

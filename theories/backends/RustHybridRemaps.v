@@ -230,4 +230,5 @@ Definition hybrid_rust_config' : rust_config' := {|
   rust_any_type_symbol'    := None;
   rust_print_full_names'   := None;
   rust_default_attributes' := None;
+  rust_refcount'           := None;
 |}.

@@ -21,6 +21,7 @@ Definition default_rust_config := {|
   rust_any_type_symbol    := "()";
   rust_print_full_names   := true;
   rust_default_attributes := "#[derive(Debug, Clone)]";
+  rust_refcount           := false;
 |}.
 
 Definition rust_phases := {|
@@ -61,10 +62,52 @@ Definition rust_program_preamble := [
   "}"
 ].
 
-Definition mk_preamble (o : rust_config) : Preamble := {|
-  top_preamble := rust_top_preamble ++ [o.(rust_preamble_top)];
-  program_preamble := rust_program_preamble ++ [o.(rust_preamble_program)];
-|}.
+(** The preamble of the reference-counting mode ([rust_refcount]).  Values
+    are [Rc<..>] and closures [Rc<dyn Fn(A) -> B + 'a>]; the printer builds a
+    value with [__mk], borrows a scrutinee with [__borrow] and applies a closure
+    with [__app].  [__own] is for a later precise mode that moves a value out of
+    a unique [Rc].  The program has no allocator. *)
+Definition rust_rc_top_preamble := [
+  "#![allow(dead_code)]";
+  "#![allow(non_camel_case_types)]";
+  "#![allow(unused_imports)]";
+  "#![allow(non_snake_case)]";
+  "#![allow(unused_variables)]";
+  "";
+  "use std::marker::PhantomData;";
+  "use std::rc::Rc;";
+  "";
+  "fn __mk<T>(t: T) -> Rc<T> {";
+  "  Rc::new(t)";
+  "}";
+  "";
+  "fn __borrow<T: ?Sized>(x: &Rc<T>) -> &T {";
+  "  &**x";
+  "}";
+  "";
+  "fn __own<T: Clone>(x: Rc<T>) -> T {";
+  "  Rc::unwrap_or_clone(x)";
+  "}";
+  "";
+  "fn __app<'b, TArg, TRet>(f: Rc<dyn Fn(TArg) -> TRet + 'b>, a: TArg) -> TRet {";
+  "  (*f)(a)";
+  "}"
+].
+
+Definition rust_rc_program_preamble := [
+  "fn closure<TArg, TRet>(&'a self, F: impl Fn(TArg) -> TRet + 'a) -> Rc<dyn Fn(TArg) -> TRet + 'a> {";
+  "  Rc::new(F)";
+  "}"
+].
+
+Definition mk_preamble (o : rust_config) : Preamble :=
+  if o.(rust_refcount) then {|
+    top_preamble := rust_rc_top_preamble ++ [o.(rust_preamble_top)];
+    program_preamble := rust_rc_program_preamble ++ [o.(rust_preamble_program)];
+  |} else {|
+    top_preamble := rust_top_preamble ++ [o.(rust_preamble_top)];
+    program_preamble := rust_program_preamble ++ [o.(rust_preamble_program)];
+  |}.
 
 Definition mk_attributes (attrs : custom_attributes) (o : rust_config) : Kernames.inductive -> string :=
   match attrs with
@@ -128,6 +171,7 @@ Definition mk_config (o : rust_config) : RustPrintConfig := {|
   type_box_symbol := o.(rust_type_box_symbol);
   any_type_symbol := o.(rust_any_type_symbol);
   print_full_names := o.(rust_print_full_names);
+  memory_mode := if o.(rust_refcount) then RcMode else ArenaMode;
 |}.
 
 
@@ -162,20 +206,26 @@ Definition eta_remapped_bodies (remaps : remaps) (Σ : ExAst.global_env) : ExAst
     scheme and dearg mask of a constant. *)
 Definition id_kn : Kernames.kername := (Kernames.MPfile ["Datatypes"; "Init"; "Corelib"], "id").
 
-Definition id_remap : Kernames.kername * remapped_constant :=
+Definition id_remap_string (refcount : bool) : string :=
+  if refcount then
+    "fn ##name##<T: Clone + 'a>(&'a self) -> Rc<dyn Fn(()) -> Rc<dyn Fn(T) -> T + 'a> + 'a> { self.closure(move |_A: ()| self.closure(move |x: T| x)) }"
+  else
+    "fn ##name##<T: Copy>(&'a self) -> &'a dyn Fn(()) -> &'a dyn Fn(T) -> T { self.closure(move |_A: ()| self.closure(move |x: T| x)) }".
+
+Definition id_remap (refcount : bool) : Kernames.kername * remapped_constant :=
   (id_kn, {|
     re_const_ext := None;
     re_const_arity := 0;
     re_const_gc := false;
     re_const_inl := false;
-    re_const_s := "fn ##name##<T: Copy>(&'a self) -> &'a dyn Fn(()) -> &'a dyn Fn(T) -> T { self.closure(move |_A: ()| self.closure(move |x: T| x)) }";
+    re_const_s := id_remap_string refcount;
   |}).
 
-Definition default_const_remaps (Σ : ExAst.global_env) : constant_remappings :=
+Definition default_const_remaps (refcount : bool) (Σ : ExAst.global_env) : constant_remappings :=
   match ExAst.lookup_env Σ id_kn with
   | Some (ExAst.ConstantDecl {| ExAst.cst_type := (_, ty) |}) =>
     match ExAst.decompose_arr ty with
-    | ([], _) => [id_remap]
+    | ([], _) => [id_remap refcount]
     | _ => []
     end
   | _ => []
@@ -188,7 +238,7 @@ Definition extract_rust (const_remaps : constant_remappings)
                         (file_name : string)
                         (p : ExAst.global_env)
                         : result' (list string) :=
-  let remaps := mk_remaps (const_remaps ++ default_const_remaps p)%list ind_remaps in
+  let remaps := mk_remaps (const_remaps ++ default_const_remaps opts.(rust_refcount) p)%list ind_remaps in
   let attrs := mk_attributes custom_attr opts in
   let config := mk_config opts in
   let preamble := mk_preamble opts in

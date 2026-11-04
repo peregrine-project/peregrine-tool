@@ -74,6 +74,7 @@ Section BackendConfigOptional.
     rust_any_type_symbol'    : option string;
     rust_print_full_names'   : option bool;
     rust_default_attributes' : option string;
+    rust_refcount'           : option bool;
   }.
   Definition empty_rust_config' : rust_config' := {|
     rust_preamble_top'       := None;
@@ -83,6 +84,20 @@ Section BackendConfigOptional.
     rust_any_type_symbol'    := None;
     rust_print_full_names'   := None;
     rust_default_attributes' := None;
+    rust_refcount'           := None;
+  |}.
+
+  (* The configuration of the [rust-rc] verb: reference counting instead of the
+     arena, no other change *)
+  Definition rc_rust_config' : rust_config' := {|
+    rust_preamble_top'       := None;
+    rust_preamble_program'   := None;
+    rust_term_box_symbol'    := None;
+    rust_type_box_symbol'    := None;
+    rust_any_type_symbol'    := None;
+    rust_print_full_names'   := None;
+    rust_default_attributes' := None;
+    rust_refcount'           := Some true;
   |}.
 
   Definition mk_rust_config (o : rust_config') : rust_config := {|
@@ -93,6 +108,7 @@ Section BackendConfigOptional.
     rust_any_type_symbol    := get_optional o default_rust_config rust_any_type_symbol' rust_any_type_symbol;
     rust_print_full_names   := get_optional o default_rust_config rust_print_full_names' rust_print_full_names;
     rust_default_attributes := get_optional o default_rust_config rust_default_attributes' rust_default_attributes;
+    rust_refcount           := get_optional o default_rust_config rust_refcount' rust_refcount;
   |}.
 
 
