@@ -112,7 +112,7 @@ The tool runs in a temporary directory, which is removed afterwards. With `-d` i
 
 Needs Rocq and the Peregrine plugin, both installed by `opam install rocq-peregrine`.
 
-Peregrine writes a driver file in the temporary directory. The driver `Load`s `INPUT`, then runs `Peregrine Extract` (or `Peregrine Extract Typed`) on `NAME`, and is compiled with `rocq compile ARG… Driver.v`. `NAME` is resolved at the end of `INPUT`, so it can be any name visible there, qualified or not. The driver takes the base name of `INPUT`, so the extracted names are those of a module of that name, e.g. `Prog.main`. Inside a Rocq project the file may have a longer logical path; that path is not used.
+Peregrine writes a driver file in the temporary directory. The driver `Load`s `INPUT` (or a copy of it whose name ends in `.v`, which `Load` requires), then runs `Peregrine Extract` (or `Peregrine Extract Typed`) on `NAME`, and is compiled with `rocq compile ARG… Driver.v`. `NAME` is resolved at the end of `INPUT`, so it can be any name visible there, qualified or not. The driver takes the base name of `INPUT`, so the extracted names are those of a module of that name, e.g. `Prog.main`. Inside a Rocq project the file may have a longer logical path; that path is not used.
 
 The libraries that `INPUT` requires must be compiled. Their load paths go to `--frontend-arg`, as for `rocq compile`: `--frontend-arg=-Q --frontend-arg=DIR --frontend-arg=Lib`, or `-R`, or `-I` for OCaml plugins. Relative paths are relative to the current directory. Peregrine does not read `_CoqProject` or `_RocqProject`.
 
