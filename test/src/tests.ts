@@ -165,7 +165,7 @@ var agda_tests: TestCase[] =
         {
             src: "agda/Lvls.ast",
             xfail: {
-                "Rust-untyped": "#TBD-rust-erased-projection: the projection of the erased field ℓ is printed as a unit, which is then applied (E0618)",
+                "Rust-untyped": "#127: the projection of the erased field ℓ is printed as a unit, which is then applied (E0618)",
                 "Elm-untyped": "#TBD-agda-module-path-order: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Lvls_toNat, which Elm rejects"
             },
             main: "Lvls_test",
@@ -279,11 +279,11 @@ var agda_tests: TestCase[] =
         agda_nat_test("Bool", 84, true),
         { ...agda_nat_test("ConsImplicitArgs", 168, true), xfail: elm_ctor_clash },
         agda_nat_test("Curry", 168, true),
-        { ...agda_nat_test("Either", 42, true), xfail: { ...rust("#TBD-rust-ctor-type-args: rustc cannot infer the parameter B of Either at the constructor Left (E0283)"), ...elm_ctor_clash } },
+        { ...agda_nat_test("Either", 42, true), xfail: { ...rust("#127: rustc cannot infer the parameter B of Either at the constructor Left (E0283)"), ...elm_ctor_clash } },
         agda_nat_test("ErasedFields", 168, true),
         agda_nat_test("EtaExpansion", 672, true),
         agda_nat_test("ExactSplit", 0, true),
-        { ...agda_nat_test("Exp", 168, true), xfail: { ...rust("#TBD-rust-indexed-cast: the branches of geval have different types (GExp is indexed by the type of its value), and the Rust printer has no cast (E0308)"), ...elm_ctor_clash } },
+        { ...agda_nat_test("Exp", 168, true), xfail: { ...rust("#127: the branches of geval have different types (GExp is indexed by the type of its value), and the Rust printer has no cast (E0308)"), ...elm_ctor_clash } },
         agda_nat_test("Identity", 42, true),
         { ...agda_nat_test("Levels", 294, true), xfail: elm("#TBD-agda-module-path-order: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Levels_toNat, which Elm rejects") },
         agda_nat_test("List0", 42, true),
@@ -354,8 +354,8 @@ var rocq_tests: TestCase[] =
             parameters: [],
             cofix: true,
             tsrc: "rocq/extraction/CoStream_typed.ast",
-            rejected: "#TBD-typed-cofix: the Rust and Elm printers do not support cofixpoints, so neither does type inference",
-            xfail: on(["Rust", "Elm", "Rust-verb"], "#TBD-typed-cofix: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)")
+            rejected: "#125: the Rust and Elm printers do not support cofixpoints, so neither does type inference",
+            xfail: on(["Rust", "Elm", "Rust-verb"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)")
         },
         {
             src: "rocq/extraction/Prims.ast",
@@ -368,12 +368,12 @@ var rocq_tests: TestCase[] =
             ],
             parameters: [],
             tsrc: "rocq/extraction/Prims_typed.ast",
-            rejected: "#TBD-typed-prims: the Rust and Elm printers do not support primitive values, so neither does type inference",
+            rejected: "#125: the Rust and Elm printers do not support primitive values, so neither does type inference",
             xfail: {
-                ...on(["Rust", "Elm", "Rust-verb"], "#TBD-typed-prims: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
-                "WebAssembly": "#TBD-wasm-prims: the Wasm backend does not support primitive strings",
-                "WebAssembly-cps": "#TBD-wasm-prims: the Wasm backend does not support primitive strings",
-                "CakeML": "#TBD-cakeml-prims: the CakeML backend prints every primitive literal as a raise"
+                ...on(["Rust", "Elm", "Rust-verb"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
+                "WebAssembly": "#125: the Wasm backend does not support primitive strings",
+                "WebAssembly-cps": "#125: the Wasm backend does not support primitive strings",
+                "CakeML": "#125: the CakeML backend prints every primitive literal as a raise"
             }
         },
         {
@@ -418,13 +418,13 @@ var rocq_tests: TestCase[] =
                 [Lang.Koka]: "src/koka/remap.sexp"
             },
             xfail: {
-                ...on(["WebAssembly", "WebAssembly-cps"], "#TBD-wasm-remap: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
-                "LLVM": "#TBD-llvm-remap: the LLVM backend calls a remapped constant without declaring it (use of undefined value '@remap_id')",
-                "CakeML": "#TBD-cakeml-remap: the CakeML backend takes no constant remappings, so the axiom ext_id is printed as a raise, which cake does not parse",
-                ...on(["Rust", "Rust-verb"], "#TBD-typed-remap-dearg: the typed pipeline removes the unused parameter of shadowed, so the call no longer matches its remapping"),
+                ...on(["WebAssembly", "WebAssembly-cps"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
+                "LLVM": "#126: the LLVM backend calls a remapped constant without declaring it (use of undefined value '@remap_id')",
+                "CakeML": "#126: the CakeML backend takes no constant remappings, so the axiom ext_id is printed as a raise, which cake does not parse",
+                ...on(["Rust", "Rust-verb"], "#126: the typed pipeline removes the unused parameter of shadowed, so the call no longer matches its remapping"),
                 "Rust-untyped": "#79: inference prints no method for the axiom ext_id, and gives the unused parameter of shadowed the type ()",
-                "Elm": "#TBD-typed-remap-dearg, #TBD-elm-remap-body: the typed pipeline removes the unused parameter of shadowed, and Elm prints its body under the remapped name",
-                "Elm-untyped": "#TBD-elm-remap-body: Elm prints shadowed, with its body, under the remapped name identity, so the program calls it instead of Basics.identity"
+                "Elm": "#126: the typed pipeline removes the unused parameter of shadowed, and Elm prints its body under the remapped name",
+                "Elm-untyped": "#126: Elm prints shadowed, with its body, under the remapped name identity, so the program calls it instead of Basics.identity"
             },
             main: "Remap_test",
             output_type: SimpleType.Nat,
