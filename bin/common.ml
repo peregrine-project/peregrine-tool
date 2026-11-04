@@ -22,13 +22,15 @@ type frontend_opts = {
   frontend_args: string list;
   keep_ast: string option;
   typed: bool;
+  lean_config: string option;
 }
-let mk_frontend_opts from entry frontend_args keep_ast typed = {
+let mk_frontend_opts from entry frontend_args keep_ast typed lean_config = {
   from;
   entry;
   frontend_args;
   keep_ast;
   typed;
+  lean_config;
 }
 
 type erasure_opts = {

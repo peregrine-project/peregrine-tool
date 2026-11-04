@@ -98,7 +98,7 @@ let frontend_t =
     Arg.(value & opt (some string) None & info ["entry"] ~docs ~docv:"NAME" ~doc)
   in
   let frontend_arg =
-    let doc = "Pass $(docv) to the frontend tool ($(b,rocq compile), $(b,agda2lambox), $(b,lake env lean)), e.g. $(b,--frontend-arg=-Q --frontend-arg=dir --frontend-arg=Lib). Repeatable." in
+    let doc = "Pass $(docv) to the frontend tool ($(b,rocq compile), $(b,agda2lambox), $(b,lake env lean)), e.g. $(b,--frontend-arg=-Q --frontend-arg=dir --frontend-arg=Lib). Repeatable. Without -Q, -R or -I among them, a Rocq input takes the load path of the nearest $(b,_RocqProject) or $(b,_CoqProject)." in
     Arg.(value & opt_all string [] & info ["frontend-arg"] ~docs ~docv:"ARG" ~doc)
   in
   let keep_ast_arg =
@@ -109,7 +109,11 @@ let frontend_t =
     let doc = "Ask the frontend for typed lambda box. The commands whose backend needs typed lambda box ($(b,rust), $(b,elm), $(b,ast typed)) do so without it, if the frontend has typed output (Rocq, Agda)." in
     Arg.(value & flag & info ["typed"] ~docs ~doc)
   in
-  Term.(const mk_frontend_opts $ from_arg $ entry_arg $ frontend_arg $ keep_ast_arg $ typed_arg)
+  let lean_config_arg =
+    let doc = "The configuration of the Lean frontend, a Lean term of type $(b,Erasure.ErasureConfig) given to $(b,#erase NAME config) $(docv), e.g. $(b,'{nat := .peano}')." in
+    Arg.(value & opt (some string) None & info ["lean-config"] ~docs ~docv:"TERM" ~doc)
+  in
+  Term.(const mk_frontend_opts $ from_arg $ entry_arg $ frontend_arg $ keep_ast_arg $ typed_arg $ lean_config_arg)
 
 let sdocs = Manpage.s_common_options
 
