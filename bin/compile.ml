@@ -202,7 +202,12 @@ let compile_aux opts fo ~typed f_input config =
   match res with
   | ResultMonad.Ok p ->
     info opts "Compiled successfully:";
-    write_program opts stem p
+    (* The only output that can have the name of a source: lean on a .lean *)
+    (match p with
+     | Pipeline.LeanProgram _ when get_out_file opts stem "lean" = f_input ->
+       prerr_endline ("peregrine: the output would overwrite " ^ f_input ^ ", give another output file with -o");
+       exit 1
+     | _ -> write_program opts stem p)
   | ResultMonad.Err e ->
     print_endline "Could not compile:";
     cprint_endline e;
