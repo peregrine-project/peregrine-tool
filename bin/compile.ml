@@ -262,6 +262,11 @@ let rust_verbs = [
     rust_verb_config = ConfigUtils.rc_rust_config';
     rust_verb_const_remaps = [];
     rust_verb_ind_remaps = [] };
+  { rust_verb_name = "rust-rc-hybrid";
+    rust_verb_doc = "Compile lambda box program to Rust, with the numbers of rust-hybrid and everything else reference counted (needs the rug crate)";
+    rust_verb_config = RustHybridRemaps.rc_hybrid_rust_config';
+    rust_verb_const_remaps = RustHybridRemaps.hybrid_const_remaps;
+    rust_verb_ind_remaps = RustHybridRemaps.hybrid_ind_remaps };
 ]
 
 let compile_rust v opts eopts f_prog =

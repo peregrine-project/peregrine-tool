@@ -106,6 +106,10 @@ Definition rust_rc_top_preamble := [
 Definition rust_rc_program_preamble := [
   "fn closure<TArg, TRet>(&'a self, F: impl Fn(TArg) -> TRet + 'a) -> Rc<dyn Fn(TArg) -> TRet + 'a> {";
   "  Rc::new(F)";
+  "}";
+  "// The numeric remaps keep big numbers behind a reference; with no arena they are leaked";
+  "fn alloc<T: 'a>(&'a self, t: T) -> &'a T {";
+  "  Box::leak(Box::new(t))";
   "}"
 ].
 
