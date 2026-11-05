@@ -3,7 +3,7 @@ import { Lang, ProgramType, SimpleType, TestCase, TestConfiguration } from "./ty
 /* (backend, peregrine flags) pair configurations */
 export var test_configurations: TestConfiguration[] = [
     [Lang.OCaml, "", ""],
-    // [Lang.C, "cps", "--cps"], // TODO
+    [Lang.C, "cps", "--cps"],
     [Lang.C, "", ""],
     [Lang.Wasm, "cps", "--cps"],
     [Lang.Wasm, "", ""],
