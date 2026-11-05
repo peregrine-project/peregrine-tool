@@ -83,3 +83,4 @@ Peregrine Extract Typed "extraction/Remap_typed.ast" Remap.test.
 
 (* PolyLet.v *)
 Peregrine Extract "extraction/PolyLet.ast" PolyLet.test.
+Peregrine Extract Typed "extraction/PolyLet_typed.ast" PolyLet.test.

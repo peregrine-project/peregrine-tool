@@ -200,7 +200,7 @@ The backend commands (not `compile`, `validate` or `erase`) take these flags, wh
 
 These set the `certirocq_config` record ([format.md](format.md#c--wasm--llvm-certirocq_config)) that CertiRocq reads.
 
-* `--cps`: use CertiRocq's CPS pipeline instead of the direct one. For `c`, the output then includes `gc.h` instead of `gc_stack.h`.
+* `--cps`: use CertiRocq's CPS pipeline instead of the direct one.
 * `--c-args=N`: the number of arguments that the generated functions take as C arguments; the rest are passed in an array (default 5).
 * `-O N`: CertiRocq's optimization level. 0, the default, disables lambda lifting; 1 and above enable it.
 * `--body-name=NAME`: the name of the top-level function (default `body`). The LLVM backend ignores it and always names its entry point `certirocq_main`.
