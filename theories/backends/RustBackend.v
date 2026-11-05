@@ -95,6 +95,12 @@ Definition rust_rc_top_preamble := [
   "  (*f)(a)";
   "}";
   "";
+  "fn __cast<S, T>(x: S) -> T {";
+  "  let y = unsafe { std::mem::transmute_copy::<S, T>(&x) };";
+  "  std::mem::forget(x);";
+  "  y";
+  "}";
+  "";
   "// Runs f on a thread with a stack of the given size.  Unary nat recursion,";
   "// and dropping a long Rc chain, recurse once per cell:";
   "// __with_stack(2 << 30, || { let p = Program::new(); ... })";
