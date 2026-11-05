@@ -55,6 +55,7 @@ const names = exportedFunctions(bytes);
 const call = (fn, env, arg) => {
   const name = names.get(fn);
   if (name === undefined) throw new Error(`no exported function at table index ${fn}`);
+  if (ex[name].length !== 2) throw new Error(`${name} takes ${ex[name].length} arguments, not 2 (direct style only)`);
   ex[name](env, arg);
   return checkedResult();
 };
@@ -108,14 +109,16 @@ for (;;) {
     console.log(`result ${natOfWasm(load(v, 1))}`);
     break;
   }
+  if (tag !== 1) throw new Error(`not a free-monad value: tag ${tag}`);
   const o = load(v, 1), k = load(v, 2);
   let r;
   if (boxed(o)) {
     console.log(natOfWasm(load(o, 1)));
     r = RUnit;
   } else {
-    const x = input.shift();
-    r = block(0, [natToWasm(x === undefined ? 0 : Number(x))]);
+    const x = input.shift() ?? "0";
+    if (!/^\d+$/.test(x)) throw new Error(`input is not a natural number: ${x}`);
+    r = block(0, [natToWasm(Number(x))]);
   }
   v = call(load(k, 1), load(k, 2), r);
 }
