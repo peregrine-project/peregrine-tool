@@ -20,7 +20,7 @@ function exec_output(e): string {
   return stderr || stdout;
 }
 
-// The F# tests need the .NET SDK; without it they are skipped.
+// The F# tests need the .NET SDK; without it they fail.
 export function has_dotnet(): boolean {
   try {
     execSync("dotnet --version", { stdio: "pipe", env: dotnet_env });
@@ -165,34 +165,36 @@ export function build_fsharp(projectdir: string, programs: FSharpProgram[], time
 
   // The whole batch gets the compile timeout of each of its programs.
   const batch_timeout = timeout * Math.max(1, programs.length);
-  const err = build_project(projectdir, cases, members, batch_timeout);
-  if (err === undefined) return failures;
+  let err = build_project(projectdir, cases, members, batch_timeout);
 
   // Attribute the errors to the programs they are reported in: the file of
   // the program, or its dispatch case in Main.fs, whose first case is on
-  // line main_first_case.
+  // line main_first_case. The compiler stops at the first file with errors,
+  // so rebuild without the failing programs until no error is attributed.
   const owner = (line: string): number | undefined => {
     const m = line.match(/\/(T(\d+)|Main)\.fs\((\d+),/);
     if (m === null) return undefined;
     return m[2] !== undefined ? Number(m[2]) : members[Number(m[3]) - main_first_case];
   };
-  const errors = new Map<number, string[]>();
-  for (const line of err.split("\n")) {
-    const i = owner(line);
-    if (i !== undefined) errors.set(i, [...(errors.get(i) ?? []), line]);
+  while (err !== undefined && err !== "timeout") {
+    const errors = new Map<number, string[]>();
+    for (const line of err.split("\n")) {
+      const i = owner(line);
+      if (i !== undefined) errors.set(i, [...(errors.get(i) ?? []), line]);
+    }
+    const failing = members.filter((i) => errors.has(i));
+    if (failing.length === 0) break;
+    for (const i of failing) {
+      failures.set(i, { type: "error", reason: "compile error", compiler: "dotnet", code: 1, error: errors.get(i).join("\n") });
+    }
+    members = members.filter((i) => !failing.includes(i));
+    err = members.length === 0 ? undefined : build_project(projectdir, cases, members, batch_timeout);
   }
-  const failing = members.filter((i) => errors.has(i));
-  for (const i of failing) {
-    failures.set(i, { type: "error", reason: "compile error", compiler: "dotnet", code: 1, error: errors.get(i).join("\n") });
-  }
-  members = members.filter((i) => !failing.includes(i));
-
-  const err2 = failing.length === 0 ? err : build_project(projectdir, cases, members, batch_timeout);
-  if (err2 !== undefined) {
+  if (err !== undefined) {
     for (const i of members) {
-      failures.set(i, err2 === "timeout"
+      failures.set(i, err === "timeout"
         ? { type: "error", reason: "timeout" }
-        : { type: "error", reason: "compile error", compiler: "dotnet", code: 1, error: err2 });
+        : { type: "error", reason: "compile error", compiler: "dotnet", code: 1, error: err });
     }
   }
   return failures;
