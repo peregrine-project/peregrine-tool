@@ -410,8 +410,22 @@ Section Printer.
   (* ----- Declarations ---------------------------------------------- *)
 
   (* Parameter [j] of the top-level function [f], [^v] when borrowed. *)
+  (* An [int] made by [n - 1] must be dropped after a call that borrows it, so that
+     call is no tail call: a parameter of type [int] is not borrowed.  The parameters
+     of a local function have no printed type here, so with natural numbers on [int]
+     none of them is borrowed. *)
+  Definition any_native : bool :=
+    existsb (fun '(kn, _, d) =>
+               match d with
+               | InductiveDecl _ => match remap kn with Some _ => true | None => false end
+               | _ => false
+               end) Σ.
+
   Definition param (f : string) (j : nat) (v : string) : string :=
-    (if borrowed bms f j then "^" else "") ++ v.
+    (if andb (negb any_native) (borrowed bms f j) then "^" else "") ++ v.
+
+  Definition typed_param (f : string) (j : nat) (v t : string) : string :=
+    (if andb (negb (String.eqb t "int")) (borrowed bms f j) then "^" else "") ++ v ++ " : " ++ t.
 
   Definition tvars_of (n : nat) : list string := map kty_var (seq 0 n).
 
@@ -488,7 +502,7 @@ Section Printer.
         else Ok (pre ++ "fun " ++ fun_name kn ++ "() : pure " ++ res' ++ " { " ++ body' ++ " }")
       | _ =>
         Ok (pre ++ "fun " ++ fun_name kn ++ "(" ++
-            concat_with ", " (mapi (fun j '(v, t) => param (fun_name kn) j v ++ " : " ++ t) (combine pvars doms')) ++
+            concat_with ", " (mapi (fun j '(v, t) => typed_param (fun_name kn) j v t) (combine pvars doms')) ++
             ") : pure " ++ res' ++ " { " ++ body' ++ " }")
       end
     end.
@@ -617,15 +631,7 @@ Definition preamble (module : string) : string :=
 Definition print_program (remap : kername -> option (string * nat)) (module : string) (Σ : global_env)
   : kres string :=
   let fns := fn_table Σ remap in
-  (* An [int] made by [n - 1] must be dropped after a call that borrows it, so that
-     call is no tail call.  With natural numbers on [int], borrowed parameters
-     make Sieve take about 2.5 times as long. *)
-  let native := existsb (fun '(kn, _, d) =>
-                  match d with
-                  | InductiveDecl _ => match remap kn with Some _ => true | None => false end
-                  | _ => false
-                  end) Σ in
-  let bms := if native then [] else borrow_modes (const_fn Σ remap) koka_reuse fns in
+  let bms := borrow_modes (const_fn Σ remap) koka_reuse fns in
   decls <- monad_map (print_decl Σ remap bms) (List.rev Σ);;
   let present := fold_right (fun o acc => match o with Some s => s :: acc | None => acc end) [] decls in
   Ok (preamble module ++ kt_nl ++ concat_with kt_nl present ++ kt_nl).
