@@ -29,11 +29,6 @@ function get_pp_fun(type: ProgramType): [string[], string] {
     case SimpleType.UInt63:
       // TODO
       break;
-    case SimpleType.Other:
-      return [
-        [],
-        ""
-      ]
     default:
       switch (type.type) {
         case "list":

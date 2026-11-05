@@ -1,9 +1,9 @@
-import { Lang, SimpleType, TestCase, TestConfiguration } from "./types";
+import { Lang, ProgramType, SimpleType, TestCase, TestConfiguration } from "./types";
 
 /* (backend, peregrine flags) pair configurations */
 export var test_configurations: TestConfiguration[] = [
     [Lang.OCaml, "", ""],
-    // [Lang.C, "cps", "--cps"], // TODO
+    [Lang.C, "cps", "--cps"],
     [Lang.C, "", ""],
     [Lang.Wasm, "cps", "--cps"],
     [Lang.Wasm, "", ""],
@@ -32,7 +32,7 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Koka, "experimental", ""],
     // The two optional middle-end passes, which only the untyped pipeline runs
     [Lang.OCaml, "passes", "--specialize-instances true --cse true"],
-    // The lowering of cofixpoints, which only the programs using them run
+    // The lowering of cofixpoints, a no-op on the programs without them
     [Lang.OCaml, "cofix", "--lower-cofix true"],
     [Lang.C, "cofix", "--lower-cofix true"],
     [Lang.Wasm, "cofix", "--lower-cofix true"]
@@ -51,7 +51,8 @@ function agda_nat(n: number): string[] {
 // An Agda program of the agda2lambox test suite whose entry point `test`
 // computes the natural number n. The programs of test/typed and
 // test/agda2rust are compiled with --typed, and the untyped backends take
-// the same file.
+// the same file; those of test/untyped get their typed source from
+// with_typed_agda.
 function agda_nat_test(name: string, n: number, typed: boolean): TestCase {
     return {
         src: `agda/${name}.ast`,
@@ -64,6 +65,25 @@ function agda_nat_test(name: string, n: number, typed: boolean): TestCase {
     };
 }
 
+// The fields of a test of agda-src/ whose entry point is `digest`
+function agda_digest(name: string, output_type: ProgramType, expected_output: string[]) {
+    return { main: `${name}_digest`, output_type, expected_output, rust_i64_output: expected_output[1], parameters: [] };
+}
+
+// The attribute files of the backends, which realise the remapped constants of
+// Remap and the postulate of Postulates
+const remap_attributes: TestCase["attributes"] = {
+    [Lang.OCaml]: "src/ocaml/remap.sexp",
+    [Lang.C]: "src/c/remap.sexp",
+    [Lang.LLVM]: "src/c/remap.sexp",
+    [Lang.Wasm]: "src/c/remap.sexp",
+    [Lang.Rust]: "src/rust/remap.sexp",
+    [Lang.Elm]: "src/elm/remap.sexp",
+    [Lang.Lean]: "src/lean/remap.sexp",
+    [Lang.FSharp]: "src/fsharp/remap.sexp",
+    [Lang.Koka]: "src/koka/remap.sexp"
+};
+
 // Known failures shared by several tests, by configuration
 const on = (configs: string[], reason: string) => Object.fromEntries(configs.map((c) => [c, reason]));
 const elm = (reason: string) => on(["Elm", "Elm-untyped"], reason);
@@ -71,6 +91,10 @@ const rust = (reason: string) => on(["Rust", "Rust-untyped", "Rust-verb", "Rust-
 const elm_operator = elm("#79: Elm prints the names of operators and of other symbols ([], _∷_, ×, ℕ) with a leading underscore, which Elm rejects");
 const elm_ctor_clash = elm("#99: Elm prints the constructors of different types under the same name");
 const elm_module_clash = elm("#94: the Elm module is named after the file, which clashes with a module of the Elm core or test library");
+const rust_fn_fields = on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"],
+    "#79: Debug and Serialize are derived for every type, which fails on the function-typed fields of the record (E0277)");
+const lean_untyped = on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"],
+    "peregrine-project/lean-to-lambdabox#21: the Lean frontend has no typed output, so a Lean program has no typed source");
 const lean_name_clash = on(["Lean", "FSharp-experimental", "Koka-experimental"],
     "#93, #99: two definitions whose module paths differ only in their last component (where-modules, record modules) get the same name: agda2lambox writes module paths outermost first, and the backend keeps only one component");
 
@@ -90,6 +114,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Equality.ast",
+            xfail: { "Elm": "#79: Elm prints the type name ≡ as __UU002261_, which Elm rejects" },
             main: "Equality_test",
             output_type: SimpleType.Nat,
             expected_output: [
@@ -101,7 +126,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/EtaCon.ast",
-            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            xfail: elm("#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects"),
             main: "EtaCon_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -112,16 +137,8 @@ var agda_tests: TestCase[] =
             parameters: []
         },
         {
-            src: "agda/Exports.ast",
-            xfail: { "Rust-untyped": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the record" },
-            main: "Exports_test",
-            output_type: SimpleType.Other,
-            expected_output: ["", ""],
-            parameters: []
-        },
-        {
             src: "agda/Hello.ast",
-            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            xfail: elm("#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects"),
             main: "Hello_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -133,7 +150,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Imports.ast",
-            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            xfail: elm("#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects"),
             main: "Imports_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -143,34 +160,12 @@ var agda_tests: TestCase[] =
             ],
             parameters: []
         },
-        {
-            src: "agda/Input.ast",
-            xfail: { "Rust-untyped": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the record" },
-            main: "Input_test",
-            output_type: SimpleType.Other,
-            expected_output: ["", ""],
-            parameters: []
-        },
-        {
-            src: "agda/Irr.ast",
-            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
-            main: "Irr_test",
-            output_type: SimpleType.Other,
-            expected_output: undefined,
-            parameters: []
-        },
-        {
-            src: "agda/K.ast",
-            main: "K_test",
-            output_type: SimpleType.Other,
-            expected_output: undefined,
-            parameters: []
-        },
+        agda_nat_test("K", 42, false),
         {
             src: "agda/Lvls.ast",
             xfail: {
                 "Rust-untyped": "#127: the projection of the erased field ℓ is printed as a unit, which is then applied (E0618)",
-                "Elm-untyped": "#99: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Lvls_toNat, which Elm rejects"
+                ...elm("#99: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Lvls_toNat, which Elm rejects")
             },
             main: "Lvls_test",
             output_type: SimpleType.Nat,
@@ -179,7 +174,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Map.ast",
-            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            xfail: elm("#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects"),
             main: "Map_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -191,7 +186,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Mutual.ast",
-            xfail: { "Elm-untyped": "#99: Elm prints the constructors of Nat and Odd under the same names, Zero and Succ" },
+            xfail: elm("#99: Elm prints the constructors of Nat and Odd under the same names, Zero and Succ"),
             main: "Mutual_test",
             output_type: SimpleType.Nat,
             expected_output: [
@@ -236,7 +231,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Proj.ast",
-            xfail: { "Elm-untyped": "#79: Elm prints the operator name _,_ as __UU2c_, which Elm rejects" },
+            xfail: elm("#79: Elm prints the operator name _,_ as __UU2c_, which Elm rejects"),
             main: "Proj_test",
             output_type: SimpleType.Bool,
             expected_output: [
@@ -248,7 +243,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/rust.ast",
-            xfail: { "Elm-untyped": "#94: the Elm module is named after the file, and rust is not a module name" },
+            xfail: elm("#94: the Elm module is named after the file, and rust is not a module name"),
             main: "rust_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -262,6 +257,10 @@ var agda_tests: TestCase[] =
             src: "agda/STLC.ast",
             // The type of the result of eval depends on the type of the term
             rejected: true,
+            xfail: {
+                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"], "#127: the branches of eval have different types (the type of the value is indexed by the type of the term), and the Rust printer has no cast (E0308)"),
+                "Elm": "#79: Elm prints the type name ∋ as __UU00220b_, which Elm rejects"
+            },
             main: "STLC_test",
             output_type: SimpleType.Nat,
             expected_output: [
@@ -273,7 +272,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Unicode.ast",
-            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            xfail: elm("#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects"),
             main: "Unicode_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -285,7 +284,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/With.ast",
-            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            xfail: elm("#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects"),
             main: "With_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
@@ -302,7 +301,8 @@ var agda_tests: TestCase[] =
             ...agda_nat_test("InductionRecursion", 3, false),
             // An ML type exists, but inference gives the first argument of the
             // constructor _∷_⊣_ (the index αs) the type box
-            rejected: "#79: type inference cannot unify the type of _∷_⊣_ with its application to a list"
+            rejected: "#79: type inference cannot unify the type of _∷_⊣_ with its application to a list",
+            xfail: { "Elm": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" }
         },
         { ...agda_nat_test("Params", 25, false), xfail: elm_operator },
         { ...agda_nat_test("Prelude", 42, false), xfail: elm_operator },
@@ -340,6 +340,18 @@ var agda_tests: TestCase[] =
         { ...agda_nat_test("PartialAppM", 378, true), xfail: elm_operator },
         agda_nat_test("PartialAppSwap", 210, true),
         agda_nat_test("PointFree", 126, true),
+        // The postulate TODO is realised by the attribute files; it is only
+        // reached in a branch that is not taken
+        {
+            ...agda_nat_test("Postulates", 84, true),
+            attributes: remap_attributes,
+            xfail: {
+                ...on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"], "#126: the Rust printer prints no method for the remapped axiom Postulates.TODO (E0599)"),
+                ...on(["WebAssembly", "WebAssembly-cps", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
+                "LLVM": "#126: the LLVM backend calls a remapped constant without declaring it (use of undefined value '@remap_id')",
+                "CakeML": "#126: the CakeML backend takes no constant remappings, so the postulate TODO is printed as a raise, which cake does not parse"
+            }
+        },
         agda_nat_test("Prim", 42, true),
         { ...agda_nat_test("Product", 42, true), xfail: elm_operator },
         { ...agda_nat_test("RecordFields", 168, true), xfail: elm_ctor_clash },
@@ -395,8 +407,9 @@ var rocq_tests: TestCase[] =
             parameters: [],
             cofix: true,
             tsrc: "rocq/extraction/CoStream_typed.ast",
+            rust_i64_output: "(cons () 0 (cons () 1 (cons () 0 (cons () 1 (nil)))))",
             rejected: "#125: the Rust and Elm printers do not support cofixpoints, so neither does type inference",
-            xfail: on(["Rust", "Elm", "Rust-verb", "Rust-rc"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)")
+            xfail: on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)")
         },
         {
             src: "rocq/extraction/Prims.ast",
@@ -409,11 +422,13 @@ var rocq_tests: TestCase[] =
             ],
             parameters: [],
             tsrc: "rocq/extraction/Prims_typed.ast",
+            rust_i64_output: "(cons () 1 (cons () 0 (nil)))",
             rejected: "#125: the Rust and Elm printers do not support primitive values, so neither does type inference",
             xfail: {
-                ...on(["Rust", "Elm", "Rust-verb", "Rust-rc"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
+                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
                 "WebAssembly": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cps": "#125: the Wasm backend does not support primitive strings",
+                "WebAssembly-cofix": "#125: the Wasm backend does not support primitive strings",
                 "CakeML": "#125: the CakeML backend prints every primitive literal as a raise"
             }
         },
@@ -447,22 +462,13 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Remap.ast",
             tsrc: "rocq/extraction/Remap_typed.ast",
-            attributes: {
-                [Lang.OCaml]: "src/ocaml/remap.sexp",
-                [Lang.C]: "src/c/remap.sexp",
-                [Lang.LLVM]: "src/c/remap.sexp",
-                [Lang.Wasm]: "src/c/remap.sexp",
-                [Lang.Rust]: "src/rust/remap.sexp",
-                [Lang.Elm]: "src/elm/remap.sexp",
-                [Lang.Lean]: "src/lean/remap.sexp",
-                [Lang.FSharp]: "src/fsharp/remap.sexp",
-                [Lang.Koka]: "src/koka/remap.sexp"
-            },
+            rust_i64_output: "3",
+            attributes: remap_attributes,
             xfail: {
-                ...on(["WebAssembly", "WebAssembly-cps"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
+                ...on(["WebAssembly", "WebAssembly-cps", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
                 "LLVM": "#126: the LLVM backend calls a remapped constant without declaring it (use of undefined value '@remap_id')",
                 "CakeML": "#126: the CakeML backend takes no constant remappings, so the axiom ext_id is printed as a raise, which cake does not parse",
-                ...on(["Rust", "Rust-verb", "Rust-rc"], "#126: the typed pipeline removes the unused parameter of shadowed, so the call no longer matches its remapping"),
+                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"], "#126: the typed pipeline removes the unused parameter of shadowed, so the call no longer matches its remapping"),
                 "Rust-untyped": "#79: inference prints no method for the axiom ext_id, and gives the unused parameter of shadowed the type ()",
                 "Elm": "#126: the typed pipeline removes the unused parameter of shadowed, and Elm prints its body under the remapped name",
                 "Elm-untyped": "#126: Elm prints shadowed, with its body, under the remapped name identity, so the program calls it instead of Basics.identity"
@@ -581,9 +587,12 @@ var rocq_tests: TestCase[] =
         },
         {
             src: "rocq/extraction/PolyLet.ast",
+            tsrc: "rocq/extraction/PolyLet_typed.ast",
+            rust_i64_output: "2",
             // A let-bound polymorphic function used at two types: Rocq's
             // extraction generalises the let, the type inference does not
             rejected: "#79: the type inference does not generalise let-bound definitions",
+            xfail: on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"], "#127: the Rust printer binds the polymorphic id with a let, as a closure of a single type, so its uses at bool and at nat do not type-check (E0308)"),
             main: "PolyLet_test",
             output_type: SimpleType.Nat,
             expected_output: [
@@ -599,7 +608,7 @@ var lean_tests: TestCase[] =
     [
         {
             src: "lean/extraction/Demo.ast",
-            xfail: { "Elm-untyped": "#79: the names have an empty module path, so Elm prints identifiers that start with an underscore, which Elm rejects" },
+            xfail: { ...lean_untyped, "Elm-untyped": "#79: the names have an empty module path, so Elm prints identifiers that start with an underscore, which Elm rejects" },
             main: "Demo_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
@@ -611,7 +620,7 @@ var lean_tests: TestCase[] =
         },
         {
             src: "lean/extraction/Map.ast",
-            xfail: { "Elm-untyped": "#79: the names have an empty module path, so Elm prints identifiers that start with an underscore, which Elm rejects" },
+            xfail: { ...lean_untyped, "Elm-untyped": "#79: the names have an empty module path, so Elm prints identifiers that start with an underscore, which Elm rejects" },
             main: "Map_ys",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -647,6 +656,8 @@ var source_tests: TestCase[] =
         },
         {
             src: "agda-src/Demo.agda",
+            tsrc: "agda-src/Demo.agda",
+            rust_i64_output: "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
             main: "Demo_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
@@ -655,6 +666,33 @@ var source_tests: TestCase[] =
                 "Cons True (Cons False (Cons True (Cons False Empty)))"
             ],
             parameters: []
+        },
+        {
+            // agda2lambox's Exports, whose entry point is a record of
+            // functions, with an entry point that uses the record
+            src: "agda-src/Exports.agda",
+            tsrc: "agda-src/Exports.agda",
+            xfail: rust_fn_fields,
+            ...agda_digest("Exports", SimpleType.Nat, agda_nat(2))
+        },
+        {
+            // agda2lambox's Irr, whose entry point is a vector, with an entry
+            // point that turns it into a list
+            src: "agda-src/Irr.agda",
+            tsrc: "agda-src/Irr.agda",
+            xfail: elm("#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects"),
+            ...agda_digest("Irr", { type: "list", a_t: SimpleType.Nat }, [
+                "(cons (S (S O)) (cons (S O) nil))",
+                "(Ֆ_Ֆcons_ () (suc () (suc () (zero))) (Ֆ_Ֆcons_ () (suc () (zero)) (ՖՖ5bՖՖ5d)))",
+                "Cons (Suc (Suc Zero)) (Cons (Suc Zero) Empty)"
+            ])
+        },
+        {
+            // agda2lambox's Input, likewise
+            src: "agda-src/Input.agda",
+            tsrc: "agda-src/Input.agda",
+            xfail: rust_fn_fields,
+            ...agda_digest("Input", SimpleType.Bool, ["true", "(true)", "True"])
         },
         {
             // Lean has no typed output: the typed backends infer the types
@@ -672,10 +710,18 @@ var source_tests: TestCase[] =
                 "(List_Ֆdotcons () (Bool_Ֆdottrue) (List_Ֆdotcons () (Bool_Ֆdotfalse) (List_Ֆdotcons () (Bool_Ֆdottrue) (List_Ֆdotcons () (Bool_Ֆdotfalse) (List_Ֆdotempty)))))",
                 "Cons True (Cons False (Cons True (Cons False Empty)))"
             ],
+            rust_i64_output: "(List_Ֆdotcons () (Bool_Ֆdottrue) (List_Ֆdotcons () (Bool_Ֆdotfalse) (List_Ֆdotcons () (Bool_Ֆdottrue) (List_Ֆdotcons () (Bool_Ֆdotfalse) (List_Ֆdotempty)))))",
             parameters: []
         },
     ];
 
+// The programs of agda2lambox's test/untyped are also compiled with --typed,
+// to agda/typed/ (see .github/workflows/build.yml). Agda's Nat and Bool are
+// not Rocq's, so rust-i64 prints them as the Rust tests do.
+function with_typed_agda(t: TestCase): TestCase {
+    return t.tsrc !== undefined ? t : { ...t, tsrc: t.src.replace(/^agda\//, "agda/typed/"), rust_i64_output: t.rust_i64_output ?? t.expected_output[1] };
+}
+
 // List of programs to be tested
 export var tests: TestCase[] =
-    [...agda_tests, ...rocq_tests, ...lean_tests, ...source_tests];
+    [...agda_tests.map(with_typed_agda), ...rocq_tests, ...lean_tests, ...source_tests];

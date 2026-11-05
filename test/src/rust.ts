@@ -40,11 +40,7 @@ export function make_printable(file: string) {
 // field and its methods return Rc values, which serde prints as their contents
 function append_main(file: string, test: TestCase) {
   const main = find_entry_point(readFileSync(file, "utf8"), test.main);
-  const content = (test.output_type == SimpleType.Other) ?
-    `fn main() {
-  Program::new().${main}();
-}
-` : `fn main() {
+  const content = `fn main() {
   let y = to_value(Program::new().${main}());
   println!("{}", to_string(&y.unwrap()).unwrap())
 }
@@ -75,7 +71,7 @@ export function compile_rust(file: string, tmpdir: string, test: TestCase, timeo
 }
 
 // `expected` is the expected output, by default the one of the Rust tests
-export function run_rust(file: string, tmpdir: string, test: TestCase, timeout: number, expected: string | undefined = test.expected_output?.[1]): ExecResult {
+export function run_rust(file: string, tmpdir: string, test: TestCase, timeout: number, expected: string | undefined): ExecResult {
   // Command to run
   const m = path.basename(file, ".rs");
   const cmd = `cargo run -q --bin ${m}`;
@@ -87,11 +83,7 @@ export function run_rust(file: string, tmpdir: string, test: TestCase, timeout: 
     const stop_main = Date.now();
     const time_main = stop_main - start_main;
 
-    // A program whose type we cannot print has nothing to compare; any other
-    // test must record an output for Rust
-    if (test.output_type === SimpleType.Other) {
-      return { type: "success", time: time_main };
-    }
+    // Every test must record an output for Rust
     if (!expected) {
       return { type: "error", reason: "incorrect result", actual: res, expected: "(no expected output for Rust)" };
     }

@@ -48,8 +48,8 @@ Definition extract_c (remaps : constant_remappings)
                      : result' (Cprogram * list string) :=
   let config := mk_opts opts in
   let prs := mk_prims remaps in
-  let gc_lib := if opts.(direct) then "gc_stack.h" else "gc.h" in
-  let libs := gc_lib :: (Kernames.IdentSetProp.to_list (get_libs remaps)) in
+  (* Both pipelines target the runtime's gc_stack.h; CertiRocq no longer installs gc.h *)
+  let libs := "gc_stack.h" :: (Kernames.IdentSetProp.to_list (get_libs remaps)) in
   let (res, _) := run_pipeline EAst.program Cprogram config p (c_pipeline prs) in
   match res with
   | compM.Ret p => Ok (p, libs)
