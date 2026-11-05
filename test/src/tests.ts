@@ -67,6 +67,20 @@ function agda_digest(name: string, output_type: ProgramType, expected_output: st
     return { main: `${name}_digest`, output_type, expected_output, rust_i64_output: expected_output[1], parameters: [] };
 }
 
+// The attribute files of the backends, which realise the remapped constants of
+// Remap and the postulate of Postulates
+const remap_attributes: TestCase["attributes"] = {
+    [Lang.OCaml]: "src/ocaml/remap.sexp",
+    [Lang.C]: "src/c/remap.sexp",
+    [Lang.LLVM]: "src/c/remap.sexp",
+    [Lang.Wasm]: "src/c/remap.sexp",
+    [Lang.Rust]: "src/rust/remap.sexp",
+    [Lang.Elm]: "src/elm/remap.sexp",
+    [Lang.Lean]: "src/lean/remap.sexp",
+    [Lang.FSharp]: "src/fsharp/remap.sexp",
+    [Lang.Koka]: "src/koka/remap.sexp"
+};
+
 // Known failures shared by several tests, by configuration
 const on = (configs: string[], reason: string) => Object.fromEntries(configs.map((c) => [c, reason]));
 const elm = (reason: string) => on(["Elm", "Elm-untyped"], reason);
@@ -323,12 +337,17 @@ var agda_tests: TestCase[] =
         { ...agda_nat_test("PartialAppM", 378, true), xfail: elm_operator },
         agda_nat_test("PartialAppSwap", 210, true),
         agda_nat_test("PointFree", 126, true),
-        // The postulates are only reached in a branch that is not taken, but
-        // every backend needs them realised
+        // The postulate TODO is realised by the attribute files; it is only
+        // reached in a branch that is not taken
         {
             ...agda_nat_test("Postulates", 84, true),
-            xfail: on(test_configurations.map(([l, n]) => n.length > 0 ? `${l}-${n}` : l),
-                "#TBD-agda-postulates: the test gives no realisation of the postulate TODO, which every backend needs (C: Axioms found, use Extract Constant to realize them in C)")
+            attributes: remap_attributes,
+            xfail: {
+                ...on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#126: the Rust printer prints no method for the remapped axiom Postulates.TODO (E0599)"),
+                ...on(["WebAssembly", "WebAssembly-cps", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
+                "LLVM": "#126: the LLVM backend calls a remapped constant without declaring it (use of undefined value '@remap_id')",
+                "CakeML": "#126: the CakeML backend takes no constant remappings, so the postulate TODO is printed as a raise, which cake does not parse"
+            }
         },
         agda_nat_test("Prim", 42, true),
         { ...agda_nat_test("Product", 42, true), xfail: elm_operator },
@@ -440,17 +459,7 @@ var rocq_tests: TestCase[] =
             src: "rocq/extraction/Remap.ast",
             tsrc: "rocq/extraction/Remap_typed.ast",
             rust_i64_output: "3",
-            attributes: {
-                [Lang.OCaml]: "src/ocaml/remap.sexp",
-                [Lang.C]: "src/c/remap.sexp",
-                [Lang.LLVM]: "src/c/remap.sexp",
-                [Lang.Wasm]: "src/c/remap.sexp",
-                [Lang.Rust]: "src/rust/remap.sexp",
-                [Lang.Elm]: "src/elm/remap.sexp",
-                [Lang.Lean]: "src/lean/remap.sexp",
-                [Lang.FSharp]: "src/fsharp/remap.sexp",
-                [Lang.Koka]: "src/koka/remap.sexp"
-            },
+            attributes: remap_attributes,
             xfail: {
                 ...on(["WebAssembly", "WebAssembly-cps", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
                 "LLVM": "#126: the LLVM backend calls a remapped constant without declaring it (use of undefined value '@remap_id')",
