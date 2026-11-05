@@ -526,10 +526,10 @@ var rocq_tests: TestCase[] =
             src: "rocq/extraction/Phantom.ast",
             tsrc: "rocq/extraction/Phantom_typed.ast",
             xfail: {
-                "Rust": "peregrine-project/rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
-                "Rust-verb": "peregrine-project/rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
-                "Rust-i64": "peregrine-project/rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
-                "Rust-hybrid": "peregrine-project/rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor"
+                "Rust": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
+                "Rust-verb": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
+                "Rust-i64": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
+                "Rust-hybrid": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)"
             },
             rust_i64_output: "1",
             main: "Phantom_test",
@@ -541,7 +541,7 @@ var rocq_tests: TestCase[] =
             src: "rocq/extraction/PolyLet.ast",
             // A let-bound polymorphic function used at two types: Rocq's
             // extraction generalises the let, the type inference does not
-            rejected: true,
+            rejected: "#79: the type inference does not generalise let-bound definitions",
             main: "PolyLet_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S O))", "", ""],
