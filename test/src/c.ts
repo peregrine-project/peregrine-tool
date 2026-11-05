@@ -115,7 +115,8 @@ export function compile_c(file: string, test: TestCase, timeout: number): string
   const f_glue = "src/c/glue.c";
   // No -Wno-error=... flags: the generated C and glue.c must build with the
   // default diagnostics of gcc 14+, which reject -Wint-conversion and co.
-  const cmd = `gcc -o ${f_out} -w -O2 -fomit-frame-pointer -I\${C_RUNTIME_PATH} \${C_RUNTIME_PATH}/gc_stack.c ${file} ${f_glue} -xc -`;
+  // remap.c realises the constants that src/c/remap.sexp remaps.
+  const cmd = `gcc -o ${f_out} -w -O2 -fomit-frame-pointer -I\${C_RUNTIME_PATH} -Isrc/c \${C_RUNTIME_PATH}/gc_stack.c ${file} ${f_glue} src/c/remap.c -xc -`;
   // Generate main file
   const main = get_c_main(test);
 
@@ -140,7 +141,7 @@ export function compile_llvm(file: string, test: TestCase, timeout: number): str
   const f_glue = "src/c/glue.c";
   // The module uses opaque pointers (`ptr`), which needs clang 15 or later
   const clang = process.env.CLANG ?? "clang";
-  const cmd = `${clang} -o ${f_out} -w -O2 -I\${C_RUNTIME_PATH} \${C_RUNTIME_PATH}/gc_stack.c ${file} ${f_glue} -xc -`;
+  const cmd = `${clang} -o ${f_out} -w -O2 -I\${C_RUNTIME_PATH} -Isrc/c \${C_RUNTIME_PATH}/gc_stack.c ${file} ${f_glue} src/c/remap.c -xc -`;
   const main = get_c_main(test, "certirocq_main");
 
   try {

@@ -85,7 +85,8 @@ function run_frontend_cli_tests(exec: string, dir: string): string[] {
         erase("Rocq input in no load path", dir, ["Alone.v", "--entry", "x"], path.join(dir, "p3.ast"),
               "is in no load path", undefined, `(MPfile ("Alone"))`);
     } else {
-        print_line("  Rocq checks skipped: rocq is not installed");
+        print_line("  error: rocq not found");
+        failed.push("rocq");
     }
     if (has("lake")) {
         const two = ["lean/source/Two.lean", "--entry", "two"];
@@ -98,7 +99,8 @@ function run_frontend_cli_tests(exec: string, dir: string): string[] {
             failed.push("--lean-config");
         }
     } else {
-        print_line("  Lean checks skipped: lake is not installed");
+        print_line("  error: lake not found");
+        failed.push("lake");
     }
     return failed;
 }

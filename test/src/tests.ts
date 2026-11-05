@@ -35,6 +35,42 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Wasm, "cofix", "--lower-cofix true"]
 ];
 
+// The expected outputs of an Agda program that computes the natural number n,
+// as the OCaml, C and Wasm drivers, the Rust driver and the Elm driver print it
+function agda_nat(n: number): string[] {
+    return [
+        "(S ".repeat(n) + "O" + ")".repeat(n),
+        "(suc () ".repeat(n) + "(zero)" + ")".repeat(n),
+        n === 0 ? "Zero" : "Suc (".repeat(n - 1) + "Suc Zero" + ")".repeat(n - 1)
+    ];
+}
+
+// An Agda program of the agda2lambox test suite whose entry point `test`
+// computes the natural number n. The programs of test/typed and
+// test/agda2rust are compiled with --typed, and the untyped backends take
+// the same file.
+function agda_nat_test(name: string, n: number, typed: boolean): TestCase {
+    return {
+        src: `agda/${name}.ast`,
+        tsrc: typed ? `agda/${name}.ast` : undefined,
+        main: `${name}_test`,
+        output_type: SimpleType.Nat,
+        expected_output: agda_nat(n),
+        rust_i64_output: typed ? agda_nat(n)[1] : undefined,
+        parameters: []
+    };
+}
+
+// Known failures shared by several tests, by configuration
+const on = (configs: string[], reason: string) => Object.fromEntries(configs.map((c) => [c, reason]));
+const elm = (reason: string) => on(["Elm", "Elm-untyped"], reason);
+const rust = (reason: string) => on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"], reason);
+const elm_operator = elm("#79: Elm prints the names of operators and of other symbols ([], _∷_, ×, ℕ) with a leading underscore, which Elm rejects");
+const elm_ctor_clash = elm("#99: Elm prints the constructors of different types under the same name");
+const elm_module_clash = elm("#94: the Elm module is named after the file, which clashes with a module of the Elm core or test library");
+const lean_name_clash = on(["Lean", "FSharp-experimental", "Koka-experimental"],
+    "#93, #99: two definitions whose module paths differ only in their last component (where-modules, record modules) get the same name: agda2lambox writes module paths outermost first, and the backend keeps only one component");
+
 // Agda Tests
 var agda_tests: TestCase[] =
     [
@@ -44,256 +80,273 @@ var agda_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
                 "(cons true (cons false (cons true (cons false nil))))",
-                // The typed backends keep the names of the constructors, which
-                // agda2lambox emits as r#true and r#false
-                "(cons () (rՖhshtrue) (cons () (rՖhshfalse) (cons () (rՖhshtrue) (cons () (rՖhshfalse) (empty)))))",
-                "Cons R_UU23true (Cons R_UU23false (Cons R_UU23true (Cons R_UU23false Empty)))"
+                "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
+                "Cons True (Cons False (Cons True (Cons False Empty)))"
             ],
             parameters: []
         },
         {
             src: "agda/Equality.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`_≡_`), which Elm rejects
-            skip: [Lang.Elm],
             main: "Equality_test",
             output_type: SimpleType.Nat,
             expected_output: [
                 "(S (S O))",
-                ""
+                "(suc () (suc () (zero)))",
+                "Suc (Suc Zero)"
             ],
             parameters: []
         },
         {
             src: "agda/EtaCon.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`[]`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "EtaCon_example",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "EtaCon_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S O) nil)",
-                "(Ֆ_Ֆcons_ () (suc () (zero)) (Ֆ5bՖՖ5dՖ))",
+                "(Ֆ_Ֆcons_ () (suc () (zero)) (ՖՖ5bՖՖ5d))",
                 "Cons (S O) Empty"
             ],
             parameters: []
         },
         {
             src: "agda/Exports.ast",
-            // The Rust test configuration derives Debug and Serialize for every
-            // type, which fails on the function-typed fields of the record
-            skip: [Lang.Rust],
-            main: "Exports_main",
+            xfail: { "Rust-untyped": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the record" },
+            main: "Exports_test",
             output_type: SimpleType.Other,
             expected_output: ["", ""],
             parameters: []
         },
         {
             src: "agda/Hello.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`[]`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "Hello_hello",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "Hello_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))) nil))))))",
-                "",
-                ""
+                "(Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero)))))))))))))))))))))))))))))))))) (ՖՖ5bՖՖ5d)))))))",
+                "Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero))))))))))))))))))))))))))))))))) Empty)))))"
             ],
             parameters: []
         },
         {
             src: "agda/Imports.ast",
-            // Typable with a polymorphic List, but agda2lambox declares List without
-            // parameters, so inference gives it one element type and the program
-            // uses it at Bool and at Nat
-            rejected: true,
-            main: "Imports_test2",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "Imports_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S (S (S (S (S O)))))) nil)",
-                "",
-                ""
+                "(Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (zero))))))) (ՖՖ5bՖՖ5d))",
+                "Cons (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))) Empty"
             ],
             parameters: []
         },
         {
             src: "agda/Input.ast",
-            // The Rust test configuration derives Debug and Serialize for every
-            // type, which fails on the function-typed fields of the record
-            skip: [Lang.Rust],
-            main: "Input_main",
+            xfail: { "Rust-untyped": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the record" },
+            main: "Input_test",
             output_type: SimpleType.Other,
             expected_output: ["", ""],
             parameters: []
         },
         {
             src: "agda/Irr.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`[]`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "Irr_ys",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "Irr_test",
             output_type: SimpleType.Other,
             expected_output: undefined,
             parameters: []
         },
         {
             src: "agda/K.ast",
-            // The entry point is a function, which the Rust driver cannot call
-            skip: [Lang.Rust],
-            main: "K_K",
+            main: "K_test",
             output_type: SimpleType.Other,
             expected_output: undefined,
             parameters: []
         },
         {
-            src: "agda/Levels.ast",
-            // Rust: the backend prints the axiom lsuc as a unit and then applies it
-            // Elm: the backend prints an identifier that starts with an underscore
-            // for the local definition toNat
-            skip: [Lang.Rust, Lang.Elm],
-            main: "Levels_testMkLevel",
-            // OCaml/Wasm/CakeML call this program's malfunction
-            // [main], which CertiRocq's Malfunction extraction
-            // resolves to a tBox placeholder ("error: tBox has been
-            // translated away") because [Levels.test]'s body
-            // contains an erased type argument it can't lower.
-            // [Levels_testMkLevel] does evaluate to 42 [S]s under
-            // the Lean backend (which calls the symbol directly),
-            // but the result is unobservable on the other backends.
-            // Treat as Other so all backends exercise compile+run
-            // without requiring a shared output convention.
-            output_type: SimpleType.Other,
-            expected_output: undefined,
+            src: "agda/Lvls.ast",
+            xfail: {
+                "Rust-untyped": "#127: the projection of the erased field ℓ is printed as a unit, which is then applied (E0618)",
+                "Elm-untyped": "#99: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Lvls_toNat, which Elm rejects"
+            },
+            main: "Lvls_test",
+            output_type: SimpleType.Nat,
+            expected_output: agda_nat(210),
             parameters: []
         },
         {
             src: "agda/Map.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`[]`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "Map_ys",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "Map_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S O)) (cons (S (S (S (S (S (S O)))))) (cons (S (S (S (S (S (S (S (S (S (S O)))))))))) nil)))",
-                "",
-                ""
+                "(Ֆ_Ֆcons_ () (suc () (suc () (zero))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (zero))))))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero))))))))))) (ՖՖ5bՖՖ5d))))",
+                "Cons (Suc (Suc Zero)) (Cons (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))))))) Empty))"
             ],
             parameters: []
         },
         {
             src: "agda/Mutual.ast",
-            // The Elm backend prints the constructors of Nat and Odd under the same
-            // names, Zero and Succ
-            skip: [Lang.Elm],
+            xfail: { "Elm-untyped": "#99: Elm prints the constructors of Nat and Odd under the same names, Zero and Succ" },
             main: "Mutual_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S O)", "", ""],
+            expected_output: [
+                "(S O)",
+                "(succ () (zero))",
+                "Succ Zero"
+            ],
             parameters: []
         },
         {
             src: "agda/Nat.ast",
-            main: "Nat_thing",
+            main: "Nat_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S (S (S O)))", "", ""],
+            expected_output: [
+                "(S (S (S O)))",
+                "(suc () (suc () (suc () (zero))))",
+                "Suc (Suc (Suc Zero))"
+            ],
             parameters: []
         },
         {
             src: "agda/OddEven.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`_,_`), which Elm rejects
-            skip: [Lang.Elm],
             main: "OddEven_test",
             output_type: SimpleType.Bool,
-            expected_output: ["false", "", ""],
+            expected_output: [
+                "false",
+                "(false)",
+                "False"
+            ],
             parameters: []
         },
         {
             src: "agda/PatternLambda.ast",
             main: "PatternLambda_test",
             output_type: SimpleType.Bool,
-            expected_output: ["false", "", ""],
+            expected_output: [
+                "false",
+                "(false)",
+                "False"
+            ],
             parameters: []
         },
         {
             src: "agda/Proj.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`_,_`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "Proj_second",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name _,_ as __UU2c_, which Elm rejects" },
+            main: "Proj_test",
             output_type: SimpleType.Bool,
-            expected_output: ["false", "", ""],
+            expected_output: [
+                "false",
+                "(false)",
+                "False"
+            ],
             parameters: []
         },
         {
             src: "agda/rust.ast",
-            // The Elm driver names the module after the file, and rust is not a
-            // module name
-            skip: [Lang.Elm],
-            main: "rust_testIdd",
+            xfail: { "Elm-untyped": "#94: the Elm module is named after the file, and rust is not a module name" },
+            main: "rust_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
-            expected_output: ["(cons (S (S (S O))) nil)", ""],
+            expected_output: [
+                "(cons (S (S (S O))) nil)",
+                "(Ֆ_ՖՖ3aՖՖ3a_ () (suc () (suc () (suc () (zero)))) (ՖՖ5bՖՖ5d))",
+                "Cons (Suc (Suc (Suc Zero))) Empty"
+            ],
             parameters: []
         },
-        {
-            src: "agda/scheme.ast",
-            // f returns a Bool or a Nat depending on its first argument
-            rejected: true,
-            main: "scheme_demo",
-            output_type: SimpleType.Nat,
-            expected_output: ["(S (S (S (S (S (S O))))))", ""],
-            parameters: []
-        },
-        /*     {
-                tsrc: "agda/SchemeTyped.ast",
-                main: "SchemeTyped_demo",
-                output_type: SimpleType.Nat, // TODO
-                expected_output: ["", ""], // TODO
-                parameters: []
-            }, */ // No main to test
         {
             src: "agda/STLC.ast",
             // The type of the result of eval depends on the type of the term
             rejected: true,
             main: "STLC_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S (S O))", "", ""],
+            expected_output: [
+                "(S (S O))",
+                "(suc () (suc () (zero)))",
+                "Suc (Suc Zero)"
+            ],
             parameters: []
         },
-        /*     {
-                tsrc: "agda/Test.ast",
-                main: "Test_demo",
-                output_type: SimpleType.Nat, // TODO
-                expected_output: ["", ""], // TODO
-                parameters: []
-            }, */ // No main to test
-        /*     {
-                tsrc: "agda/Types.ast",
-                main: "Types_demo",
-                output_type: SimpleType.Nat, // TODO
-                expected_output: ["", ""], // TODO
-                parameters: []
-            }, */ // No main to test
         {
             src: "agda/Unicode.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`[]`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "Unicode_main",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "Unicode_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
-            expected_output: ["(cons (S O) nil)", "", ""],
+            expected_output: [
+                "(cons (S O) nil)",
+                "(Ֆ_Ֆcons_ () (suc () (zero)) (ՖՖ5bՖՖ5d))",
+                "Cons (Suc Zero) Empty"
+            ],
             parameters: []
         },
         {
             src: "agda/With.ast",
-            // The Elm backend prints an identifier that starts with an underscore
-            // for a name that is an operator (`[]`), which Elm rejects
-            skip: [Lang.Elm],
-            main: "With_ys",
+            xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
+            main: "With_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
-            expected_output: ["(cons true nil)", "", ""],
+            expected_output: [
+                "(cons true nil)",
+                "(Ֆ_ՖՖ3aՖՖ3a_ () (true) (ՖՖ5bՖՖ5d))",
+                "Cons True Empty"
+            ],
             parameters: []
         },
+        // Untyped
+        agda_nat_test("ErasedRecursion", 2, false),
+        { ...agda_nat_test("Fannkuch", 7, false), xfail: elm_operator },
+        {
+            ...agda_nat_test("InductionRecursion", 3, false),
+            // An ML type exists, but inference gives the first argument of the
+            // constructor _∷_⊣_ (the index αs) the type box
+            rejected: "#79: type inference cannot unify the type of _∷_⊣_ with its application to a list"
+        },
+        { ...agda_nat_test("Params", 25, false), xfail: elm_operator },
+        { ...agda_nat_test("Prelude", 42, false), xfail: elm_operator },
+        agda_nat_test("RecursiveInline", 6, false),
+        agda_nat_test("StrictLet", 3, false),
+        { ...agda_nat_test("Terminating", 6, false), xfail: elm("#99: agda2lambox writes the module path of a where-bound lambda outermost first, so Elm prints it as _14_Terminating__UU2eextendedlambda1, which Elm rejects") },
+        { ...agda_nat_test("WhereNames", 6, false), xfail: { ...elm_operator, ...lean_name_clash } },
+        // Typed: test/typed
+        { ...agda_nat_test("Scheme", 42, true), xfail: elm_operator },
+        { ...agda_nat_test("Test", 42, true), xfail: elm_module_clash },
+        { ...agda_nat_test("Types", 42, true), xfail: elm_operator },
+        // Typed: test/agda2rust
+        agda_nat_test("Bool00", 168, true),
+        agda_nat_test("Bool", 84, true),
+        { ...agda_nat_test("ConsImplicitArgs", 168, true), xfail: elm_ctor_clash },
+        agda_nat_test("Curry", 168, true),
+        { ...agda_nat_test("Either", 42, true), xfail: { ...rust("#127: rustc cannot infer the parameter B of Either at the constructor Left (E0283)"), ...elm_ctor_clash } },
+        agda_nat_test("ErasedFields", 168, true),
+        agda_nat_test("EtaExpansion", 672, true),
+        agda_nat_test("ExactSplit", 0, true),
+        { ...agda_nat_test("Exp", 168, true), xfail: { ...rust("#127: the branches of geval have different types (GExp is indexed by the type of its value), and the Rust printer has no cast (E0308)"), ...elm_ctor_clash } },
+        agda_nat_test("Identity", 42, true),
+        { ...agda_nat_test("Levels", 294, true), xfail: elm("#99: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Levels_toNat, which Elm rejects") },
+        agda_nat_test("List0", 42, true),
+        { ...agda_nat_test("List", 42, true), xfail: elm_module_clash },
+        { ...agda_nat_test("Maybe", 42, true), xfail: elm_module_clash },
+        agda_nat_test("MultiArgFun", 630, true),
+        agda_nat_test("Newtype", 42, true),
+        agda_nat_test("Numbers", 42, true),
+        agda_nat_test("OpenModule", 210, true),
+        { ...agda_nat_test("OverloadedFields", 168, true), xfail: { ...elm_ctor_clash, ...lean_name_clash } },
+        { ...agda_nat_test("PartialApp", 378, true), xfail: elm_operator },
+        agda_nat_test("PartialAppConst", 84, true),
+        agda_nat_test("PartialAppId", 336, true),
+        { ...agda_nat_test("PartialAppM", 378, true), xfail: elm_operator },
+        agda_nat_test("PartialAppSwap", 210, true),
+        agda_nat_test("PointFree", 126, true),
+        agda_nat_test("Prim", 42, true),
+        { ...agda_nat_test("Product", 42, true), xfail: elm_operator },
+        { ...agda_nat_test("RecordFields", 168, true), xfail: elm_ctor_clash },
+        { ...agda_nat_test("RunTimeIrrelevance", 336, true), xfail: elm("#94, #99: with the elm_false_elim_def of the test configuration, an absurd clause is printed as an empty branch, and the constructors Mk of two types clash") },
+        agda_nat_test("Simplification", 42, true),
+        agda_nat_test("Singleton", 42, true),
+        agda_nat_test("Top", 42, true),
+        { ...agda_nat_test("TypeAliases", 168, true), xfail: elm_operator },
+        agda_nat_test("UnusedArgs", 84, true),
+        { ...agda_nat_test("Where", 210, true), xfail: { ...elm_operator, ...lean_name_clash } },
     ];
 
 // Rocq Tests
@@ -304,11 +357,14 @@ var rocq_tests: TestCase[] =
             // specialization of the OCaml-passes configuration rewrites it
             src: "rocq/extraction/Classy.ast",
             tsrc: "rocq/extraction/Classy_typed.ast",
-            // The Rust test configuration derives Debug and Serialize for every
-            // type, which fails on the function-typed fields of the records.
-            // On the untyped source, the inferred types give each record field
-            // a type variable instead of the function type, which Elm rejects
-            skip: [Lang.Rust, Lang.Elm],
+            xfail: {
+                "Rust": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the records",
+                "Rust-verb": "#79: the rust verb derives Debug for every type, which fails on the function-typed fields of the records",
+                "Rust-i64": "#79: the rust-i64 verb derives Debug for every type, which fails on the function-typed fields of the records",
+                "Rust-hybrid": "#79: the rust-hybrid verb derives Debug for every type, which fails on the function-typed fields of the records",
+                "Elm-untyped": "#79: the inferred types give each record field a type variable instead of the function type"
+            },
+            rust_i64_output: "3",
             main: "Classy_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S O)))", "(S () (S () (S () (O))))", "S (S (S O))"],
@@ -334,8 +390,9 @@ var rocq_tests: TestCase[] =
             ],
             parameters: [],
             cofix: true,
-            // Rust and Elm have no typed source for this program
-            skip: [Lang.Rust, Lang.Elm]
+            tsrc: "rocq/extraction/CoStream_typed.ast",
+            rejected: "#125: the Rust and Elm printers do not support cofixpoints, so neither does type inference",
+            xfail: on(["Rust", "Elm", "Rust-verb"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)")
         },
         {
             src: "rocq/extraction/Prims.ast",
@@ -347,9 +404,14 @@ var rocq_tests: TestCase[] =
                 "Cons (S O) (Cons O Nil)"
             ],
             parameters: [],
-            // The typed backends reject primitive types, Wasm primitive strings,
-            // and cake does not parse the CakeML backend's primitive literals
-            skip: [Lang.Rust, Lang.Elm, Lang.Wasm, Lang.CakeML]
+            tsrc: "rocq/extraction/Prims_typed.ast",
+            rejected: "#125: the Rust and Elm printers do not support primitive values, so neither does type inference",
+            xfail: {
+                ...on(["Rust", "Elm", "Rust-verb"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
+                "WebAssembly": "#125: the Wasm backend does not support primitive strings",
+                "WebAssembly-cps": "#125: the Wasm backend does not support primitive strings",
+                "CakeML": "#125: the CakeML backend prints every primitive literal as a raise"
+            }
         },
         {
             src: "rocq/extraction/Demo.ast",
@@ -373,16 +435,34 @@ var rocq_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))) nil))))))",
-                "",
-                ""
+                "(cons () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O)))))))))))))))))))))))))))))))))) (nil)))))))",
+                "Cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))) Nil)))))"
             ],
             parameters: []
         },
         {
             src: "rocq/extraction/Remap.ast",
-            // Only the Lean and F# tests supply remappings of these constants
-            skip: [Lang.OCaml, Lang.C, Lang.Wasm, Lang.LLVM, Lang.Rust, Lang.Elm, Lang.CakeML, Lang.Koka],
-            configs: { [Lang.Lean]: "src/lean/remap.sexp", [Lang.FSharp]: "src/fsharp/remap.sexp" },
+            tsrc: "rocq/extraction/Remap_typed.ast",
+            attributes: {
+                [Lang.OCaml]: "src/ocaml/remap.sexp",
+                [Lang.C]: "src/c/remap.sexp",
+                [Lang.LLVM]: "src/c/remap.sexp",
+                [Lang.Wasm]: "src/c/remap.sexp",
+                [Lang.Rust]: "src/rust/remap.sexp",
+                [Lang.Elm]: "src/elm/remap.sexp",
+                [Lang.Lean]: "src/lean/remap.sexp",
+                [Lang.FSharp]: "src/fsharp/remap.sexp",
+                [Lang.Koka]: "src/koka/remap.sexp"
+            },
+            xfail: {
+                ...on(["WebAssembly", "WebAssembly-cps"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
+                "LLVM": "#126: the LLVM backend calls a remapped constant without declaring it (use of undefined value '@remap_id')",
+                "CakeML": "#126: the CakeML backend takes no constant remappings, so the axiom ext_id is printed as a raise, which cake does not parse",
+                ...on(["Rust", "Rust-verb"], "#126: the typed pipeline removes the unused parameter of shadowed, so the call no longer matches its remapping"),
+                "Rust-untyped": "#79: inference prints no method for the axiom ext_id, and gives the unused parameter of shadowed the type ()",
+                "Elm": "#126: the typed pipeline removes the unused parameter of shadowed, and Elm prints its body under the remapped name",
+                "Elm-untyped": "#126: Elm prints shadowed, with its body, under the remapped name identity, so the program calls it instead of Basics.identity"
+            },
             main: "Remap_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S O)))", "(S () (S () (S () (O))))", "S (S (S O))"],
@@ -406,14 +486,14 @@ var rocq_tests: TestCase[] =
             src: "rocq/extraction/Id.ast",
             tsrc: "rocq/extraction/Id_typed.ast",
             // The Elm backend has the same defect and no stopgap
-            skip: [Lang.Elm],
+            xfail: { "Elm": "#84: id is printed without its type parameter" },
             rust_i64_output: "(cons () 1 (cons () 2 (nil)))",
             main: "Id_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S O) (cons (S (S O)) nil))",
                 "(cons () (S () (O)) (cons () (S () (S () (O))) (nil)))",
-                "Cons () (S O) (Cons () (S (S O)) (Nil ()))"
+                "Cons (S O) (Cons (S (S O)) Nil)"
             ],
             parameters: []
         },
@@ -436,10 +516,12 @@ var rocq_tests: TestCase[] =
             rust_i64_output: "1",
             main: "Mutual_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S O)", "(S () (O))", ""],
+            expected_output: ["(S O)", "(S () (O))", "S O"],
             parameters: [],
-            // The Elm backend prints the constructor succ' as Succ', which is not an Elm identifier
-            skip: [Lang.Elm]
+            xfail: {
+                "Elm": "#99: Elm prints the constructor succ' as Succ', which is not an Elm identifier",
+                "Elm-untyped": "#99: Elm prints the constructor succ' as Succ', which is not an Elm identifier"
+            }
         },
         {
             src: "rocq/extraction/Nat.ast",
@@ -479,8 +561,14 @@ var rocq_tests: TestCase[] =
         },
         {
             src: "rocq/extraction/Phantom.ast",
-            // No typed source: the typed Rust backend keeps the phantom
-            // parameter, which rustc cannot infer at the constructor
+            tsrc: "rocq/extraction/Phantom_typed.ast",
+            xfail: {
+                "Rust": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
+                "Rust-verb": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
+                "Rust-i64": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
+                "Rust-hybrid": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)"
+            },
+            rust_i64_output: "1",
             main: "Phantom_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S O)", "(S () (O))", "S O"],
@@ -490,10 +578,14 @@ var rocq_tests: TestCase[] =
             src: "rocq/extraction/PolyLet.ast",
             // A let-bound polymorphic function used at two types: Rocq's
             // extraction generalises the let, the type inference does not
-            rejected: true,
+            rejected: "#79: the type inference does not generalise let-bound definitions",
             main: "PolyLet_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S (S O))", "", ""],
+            expected_output: [
+                "(S (S O))",
+                "(S () (S () (O)))",
+                "S (S O)"
+            ],
             parameters: []
         },
     ];
@@ -502,9 +594,7 @@ var lean_tests: TestCase[] =
     [
         {
             src: "lean/extraction/Demo.ast",
-            // The names have an empty module path, so the Elm backend prints
-            // identifiers that start with an underscore, which Elm rejects
-            skip: [Lang.Elm],
+            xfail: { "Elm-untyped": "#79: the names have an empty module path, so Elm prints identifiers that start with an underscore, which Elm rejects" },
             main: "Demo_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
@@ -516,15 +606,13 @@ var lean_tests: TestCase[] =
         },
         {
             src: "lean/extraction/Map.ast",
-            // The names have an empty module path, so the Elm backend prints
-            // identifiers that start with an underscore, which Elm rejects
-            skip: [Lang.Elm],
+            xfail: { "Elm-untyped": "#79: the names have an empty module path, so Elm prints identifiers that start with an underscore, which Elm rejects" },
             main: "Map_ys",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S O)) (cons (S (S (S (S (S (S O)))))) (cons (S (S (S (S (S (S (S (S (S (S O)))))))))) nil)))",
-                "",
-                ""
+                "(List_Ֆdotcons () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotzero))) (List_Ֆdotcons () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotzero))))))) (List_Ֆdotcons () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotzero))))))))))) (List_Ֆdotempty))))",
+                "Cons (Suc (Suc Zero)) (Cons (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))))))) Empty))"
             ],
             parameters: []
         }, // Generates invalid identifier names in C backend
@@ -554,18 +642,12 @@ var source_tests: TestCase[] =
         },
         {
             src: "agda-src/Demo.agda",
-            // The typed backends get typed lambda box from agda2lambox. The
-            // commit of agda2lambox that CI builds emits a typed program that
-            // the Rust and Elm printers reject (`unbound TVar 0`) with the
-            // dearg passes off, as in src/rust/config.sexp; agda2lambox
-            // master does not
-            skip: [Lang.Rust, Lang.Elm],
             main: "Demo_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
                 "(cons true (cons false (cons true (cons false nil))))",
-                "(cons () (rՖhshtrue) (cons () (rՖhshfalse) (cons () (rՖhshtrue) (cons () (rՖhshfalse) (empty)))))",
-                "Cons R_UU23true (Cons R_UU23false (Cons R_UU23true (Cons R_UU23false Empty)))"
+                "(cons () (true) (cons () (false) (cons () (true) (cons () (false) (empty)))))",
+                "Cons True (Cons False (Cons True (Cons False Empty)))"
             ],
             parameters: []
         },
@@ -574,7 +656,10 @@ var source_tests: TestCase[] =
             src: "lean/source/Demo.lean",
             tsrc: "lean/source/Demo.lean",
             compiler_args: "--entry test",
-            skip: [Lang.Elm],
+            xfail: {
+                "Elm": "#79: the names have an empty module path, so Elm prints identifiers that start with an underscore, which Elm rejects",
+                "Elm-untyped": "#79: the names have an empty module path, so Elm prints identifiers that start with an underscore, which Elm rejects"
+            },
             main: "Demo_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
             expected_output: [
