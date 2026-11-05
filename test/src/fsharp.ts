@@ -81,7 +81,6 @@ function pp_call(type: ProgramType): string | undefined {
   if (type === SimpleType.Bool) return "TestPrinters.pp_bool";
   if (type === SimpleType.Nat) return "TestPrinters.pp_nat";
   if (type === SimpleType.UInt63) return undefined;
-  if (type === SimpleType.Other) return undefined;
   if (typeof type === "number") return undefined;
   switch (type.type) {
     case "list": {
@@ -202,8 +201,8 @@ export function build_fsharp(projectdir: string, programs: FSharpProgram[], time
 
 // Run the i-th program of the batch built by build_fsharp.
 export function run_fsharp(projectdir: string, i: number, test: TestCase, timeout: number): ExecResult {
-  // When there is no printer for the output type the program prints
-  // nothing, so the test is run-only: succeeding means it exited cleanly.
+  // Without a printer for the output type the program prints nothing, and
+  // the test fails
   const printer = pp_call(test.output_type);
 
   const start_main = Date.now();
@@ -225,11 +224,8 @@ export function run_fsharp(projectdir: string, i: number, test: TestCase, timeou
   }
   const time_main = Date.now() - start_main;
 
-  // Return success if there is no expected output to compare against, if the
-  // program returns a type that we don't know how to print, or if we have no
-  // printer for it (nothing was written to stdout in that case).
-  if (test.expected_output === undefined || test.output_type === SimpleType.Other || printer === undefined) {
-    return { type: "success", time: time_main };
+  if (printer === undefined) {
+    return { type: "error", reason: "incorrect result", actual: res, expected: "(no F# printer for the type of the result)" };
   }
 
   // Compare output against the expected output

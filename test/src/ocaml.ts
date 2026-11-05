@@ -16,8 +16,6 @@ function get_ocaml_type(type: ProgramType): string {
     case SimpleType.UInt63:
       // TODO
       return "'a";
-    case SimpleType.Other:
-      return "'a";
     default:
       switch (type.type) {
         case "list":
@@ -46,8 +44,6 @@ function get_pp_fun(type: ProgramType): string {
       return "Driver.pp_nat";
     case SimpleType.UInt63:
       // TODO
-      return "";
-    case SimpleType.Other:
       return "";
     default:
       switch (type.type) {
@@ -79,7 +75,7 @@ function gen_mli(file: string, type: ProgramType) {
 // Generate main wrapper
 function gen_main(file: string, module: string, type: ProgramType) {
   const pp_fun = get_pp_fun(type);
-  const pp = pp_fun.length > 0 ? `${pp_fun} x;\n  print_string "\\n"` : "()";
+  const pp = `${pp_fun} x;\n  print_string "\\n"`;
   const content =
     `open Printf
 
