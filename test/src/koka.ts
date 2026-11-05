@@ -26,7 +26,8 @@ function program_types(source: string): KokaType[] {
     const arity = m[3] === undefined ? 0 : m[3].split(",").length;
     const ctors = m[4].split("; ").filter((c) => c.length > 0).map((c) => {
       const name = c.split("(")[0].trim();
-      const short = name.replace(/^C_.*?_\d+_/, "");
+      // Lean's names keep the type: List.cons is List__UU2econs
+      const short = name.replace(/^C_.*?_\d+_/, "").replace(/^.*__UU2e/, "");
       const nargs = c.includes("(") ? c.split(",").length : 0;
       const first = c.match(/\(\s*f0 : ([^,)]*)/)?.[1].trim();
       return { name, short, nargs, first };
@@ -69,7 +70,8 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
   }
   if (typeof type === "number" || type.type !== "list") return undefined;
   const elem = printer(types, type.a_t, id + 1);
-  const t = find_type(types, [[["nil", "empty"], 0], [["cons"], 2]]);
+  // Agda's [] is _UU5b_UU5d, ∷ __UU002237_ and :: __UU3a_UU3a_
+  const t = find_type(types, [[["nil", "empty", "_UU5b_UU5d"], 0], [["cons", "__UU002237_", "__UU3a_UU3a_"], 2]]);
   if (elem === undefined || t === undefined) return undefined;
   const [nil, cons] = t.ctors;
   return {
@@ -100,7 +102,7 @@ export function compile_koka(file: string, test: TestCase, timeout: number): { e
   const isDelayed = new RegExp(`^val ${main} : delayed`, "m").test(source);
   const isNullaryFun = entry !== null && entry[1] === "fun" && entry[3] !== undefined;
   const target = isDelayed ? `pg_force(${main})` : isNullaryFun ? `${main}()` : main;
-  const pp = test.expected_output === undefined ? undefined : printer(program_types(source), test.output_type);
+  const pp = printer(program_types(source), test.output_type);
   // The printers cast with pg_cast, which only the untyped preamble declares
   const cast = source.includes("extern pg_cast") ? "" : `extern pg_cast( x : a ) : b { c inline "#1"; js inline "#1" }\n`;
   const body = pp === undefined
@@ -141,8 +143,8 @@ export function run_koka(exe: string, test: TestCase, checked: boolean, timeout:
     return { type: "error", reason: "runtime error", error: `status ${e.status}, signal ${e.signal}: ${out.slice(-2000)}` };
   }
   const time = Date.now() - start;
-  if (!checked || test.expected_output === undefined || test.output_type === SimpleType.Other) {
-    return { type: "success", time };
+  if (!checked) {
+    return { type: "error", reason: "incorrect result", actual: res, expected: "(no Koka printer: the program declares no type of the shape of the result)" };
   }
   if (res !== test.expected_output[0]) {
     return { type: "error", reason: "incorrect result", actual: res, expected: test.expected_output[0] };
