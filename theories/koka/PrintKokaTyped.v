@@ -411,9 +411,9 @@ Section Printer.
 
   (* Parameter [j] of the top-level function [f], [^v] when borrowed. *)
   (* An [int] made by [n - 1] must be dropped after a call that borrows it, so that
-     call is no tail call: a parameter of type [int] is not borrowed.  The parameters
-     of a local function have no printed type here, so with natural numbers on [int]
-     none of them is borrowed. *)
+     call is no tail call: a parameter of type [int] is not borrowed.  A parameter of
+     a local function whose type is not known here is not borrowed either, when
+     natural numbers are on [int]. *)
   Definition any_native : bool :=
     existsb (fun '(kn, _, d) =>
                match d with
@@ -421,8 +421,15 @@ Section Printer.
                | _ => false
                end) Σ.
 
-  Definition param (f : string) (j : nat) (v : string) : string :=
-    (if andb (negb any_native) (borrowed bms f j) then "^" else "") ++ v.
+  Definition param (tys : list (option string)) (f : string) (j : nat) (v : string) : string :=
+    let allowed :=
+        if any_native
+        then match nth_error tys j with
+             | Some (Some t) => negb (String.eqb t "int")
+             | _ => false
+             end
+        else true in
+    (if andb allowed (borrowed bms f j) then "^" else "") ++ v.
 
   Definition typed_param (f : string) (j : nat) (v t : string) : string :=
     (if andb (negb (String.eqb t "int")) (borrowed bms f j) then "^" else "") ++ v ++ " : " ++ t.
@@ -441,7 +448,7 @@ Section Printer.
      its member.  The members take the constant's parameters [pre] first when
      their bodies refer to them (lambda lifting: every call passes them
      unchanged).  Koka infers the members' types. *)
-  Definition print_group (kn : kername) (pre : list string) (Γp : ctx) (mfix : EAst.mfixpoint EAst.term)
+  Definition print_group (kn : kername) (pre : list string) (Γp : ctx) (tys : list (option string)) (mfix : EAst.mfixpoint EAst.term)
     : kres (list string * ctx) :=
     let names := mapi (fun j _ => fun_name kn ++ "__m" ++ string_of_nat j) mfix in
     let arities := map (fun d => List.length pre + List.length (fst (lambdas (EAst.dbody d)))) mfix in
@@ -451,7 +458,7 @@ Section Printer.
         let '(params, inner) := lambdas (EAst.dbody d) in
         let pvars := mapi (fun j na => var (name_ident na) (base + j)) params in
         body' <- print_term (List.app (List.rev (map (fun v => (v, None)) pvars)) (List.app Γg Γp)) inner [];;
-        match List.app pre (mapi (param n) pvars) with
+        match List.app pre (mapi (param tys n) pvars) with
         | [] => Err "a fixpoint without parameters"
         | ps => Ok ("fun " ++ n ++ "(" ++ concat_with ", " ps ++ ") { " ++ body' ++ " }")
         end) (combine names mfix);;
@@ -477,7 +484,7 @@ Section Printer.
         | EAst.tFix mfix i, _ =>
           (* the constant is its member [i] *)
           if Nat.ltb 1 (List.length mfix) then
-            '(defs, Γg) <- print_group kn [] [] mfix;;
+            '(defs, Γg) <- print_group kn [] [] [] mfix;;
             match nth_error (List.rev Γg) i with
             | Some (n, Some (k, _)) => Ok (concat_with kt_nl defs ++ kt_nl, call_known n k pvars)
             | _ => Err "fixpoint index out of range"
@@ -487,7 +494,19 @@ Section Printer.
           (* also for a single fixpoint: Koka honours [^] only on top-level functions *)
           let closed := forallb (fun d => ELiftSubst.closedn (List.length mfix) (EAst.dbody d)) mfix in
           let lifted := if closed then [] else pvars in
-          '(defs, Γg) <- print_group kn lifted Γp mfix;;
+          (* a single fixpoint takes the types of its arguments, then the remaining arrows *)
+          let arg_tys := map (fun a => match a with
+                                       | EAst.tRel m =>
+                                         if Nat.ltb m (List.length pvars)
+                                         then nth_error doms' (List.length pvars - 1 - m)
+                                         else None
+                                       | _ => None
+                                       end) args in
+          let fix arrows t := match t with TArr a b => a :: arrows b | _ => [] end in
+          let rest_tys := map (fun a => match print_type Γt a with Ok s => Some s | Err _ => None end)
+                              (arrows res) in
+          let tys := if Nat.eqb (List.length mfix) 1 then List.app arg_tys rest_tys else [] in
+          '(defs, Γg) <- print_group kn lifted Γp tys mfix;;
           args' <- monad_map (fun a => print_term Γp a []) args;;
           match nth_error (List.rev Γg) i with
           | Some (n, Some (k, pre)) => Ok (concat_with kt_nl defs ++ kt_nl, call_known n k (List.app pre args'))
