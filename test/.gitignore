@@ -148,3 +148,6 @@ dist
 !src/ocaml/*.mli
 
 agda/
+
+# Interface files of the Agda frontend tests
+*.agdai
