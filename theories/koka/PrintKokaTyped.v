@@ -617,7 +617,15 @@ Definition preamble (module : string) : string :=
 Definition print_program (remap : kername -> option (string * nat)) (module : string) (Σ : global_env)
   : kres string :=
   let fns := fn_table Σ remap in
-  let bms := borrow_modes (const_fn Σ remap) koka_reuse fns in
+  (* An [int] made by [n - 1] must be dropped after a call that borrows it, so that
+     call is no tail call.  With natural numbers on [int], borrowed parameters
+     make Sieve take about 2.5 times as long. *)
+  let native := existsb (fun '(kn, _, d) =>
+                  match d with
+                  | InductiveDecl _ => match remap kn with Some _ => true | None => false end
+                  | _ => false
+                  end) Σ in
+  let bms := if native then [] else borrow_modes (const_fn Σ remap) koka_reuse fns in
   decls <- monad_map (print_decl Σ remap bms) (List.rev Σ);;
   let present := fold_right (fun o acc => match o with Some s => s :: acc | None => acc end) [] decls in
   Ok (preamble module ++ kt_nl ++ concat_with kt_nl present ++ kt_nl).
