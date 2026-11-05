@@ -20,9 +20,10 @@ export function prepare_elm_project(tmpdir: string): string {
 // compares the return value to the expected output
 function append_main(file: string, test: TestCase) {
   const main = find_entry_point(readFileSync(file, "utf8"), test.main);
-  // Without an output recorded for Elm (missing or empty entry) the test only
-  // forces the value
   const expected = test.output_type == SimpleType.Other ? undefined : test.expected_output?.[2];
+  if (test.output_type != SimpleType.Other && !expected) {
+    throw new Error(`no expected output for Elm in ${test.src}`);
+  }
   const content = !expected ?
     `
 main = Html.text (Debug.toString ${main})
