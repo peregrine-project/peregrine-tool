@@ -48,6 +48,12 @@ Definition rust_top_preamble := [
   "";
   "fn hint_app<TArg, TRet>(f: &dyn Fn(TArg) -> TRet) -> &dyn Fn(TArg) -> TRet {";
   "  f";
+  "}";
+  "";
+  "fn __cast<S, T>(x: S) -> T {";
+  "  let y = unsafe { std::mem::transmute_copy::<S, T>(&x) };";
+  "  std::mem::forget(x);";
+  "  y";
   "}"
 ].
 
