@@ -56,9 +56,12 @@ const call = (fn, env, arg) => {
   const name = names.get(fn);
   if (name === undefined) throw new Error(`no exported function at table index ${fn}`);
   ex[name](env, arg);
+  return checkedResult();
+};
+function checkedResult() {
   if (ex.out_of_mem.value !== 0) throw new Error("out of linear memory");
   return ex.result.value;
-};
+}
 
 const view = () => new DataView(ex.memory.buffer);
 const load = (p, i) => view().getInt32(p + 4 * i, true);
@@ -97,7 +100,7 @@ function natOfWasm(v) {
 // GetNat (unboxed 0); resp: RUnit (unboxed 0), RNat n (boxed 0)
 const RUnit = 1;
 ex.main_function();
-let v = ex.result.value;
+let v = checkedResult();
 for (;;) {
   if (!boxed(v)) throw new Error(`not a free-monad value: ${v}`);
   const tag = load(v, 0);

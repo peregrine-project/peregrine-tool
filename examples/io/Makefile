@@ -1,9 +1,10 @@
 # IO through a free monad, interpreted in Rocq (FreeIO.v).  Only the primitives
-# are written per backend: ocaml/axioms.ml and c/freeio_prims.c.
+# are written per backend: ocaml/axioms.ml and c/freeio_prims.c.  On Wasm the
+# host interprets the tree (wasm/host.mjs).
 #   make check   builds the program for OCaml and C and runs it with input 3,
 #                and wasm/WasmIO.v under the Node host wasm/host.mjs.
 PEREGRINE ?= peregrine
-# extra flags of the OCaml build, e.g. --cse true --specialize-instances true
+# extra flags of the OCaml and Wasm builds, e.g. --cse true --specialize-instances true
 PEREGRINE_FLAGS ?=
 COQC      ?= coqc
 CC        ?= gcc
