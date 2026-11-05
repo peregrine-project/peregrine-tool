@@ -420,9 +420,7 @@ var rocq_tests: TestCase[] =
             xfail: {
                 ...on(["WebAssembly", "WebAssembly-cps"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
                 "CakeML": "#126: the CakeML backend takes no constant remappings, so the axiom ext_id is printed as a raise, which cake does not parse",
-                ...on(["Rust", "Rust-verb"], "#126: the typed pipeline removes the unused parameter of shadowed, so the call no longer matches its remapping"),
                 "Rust-untyped": "#79: inference prints no method for the axiom ext_id, and gives the unused parameter of shadowed the type ()",
-                "Elm": "#126: the typed pipeline removes the unused parameter of shadowed, and Elm prints its body under the remapped name",
                 "Elm-untyped": "#126: Elm prints shadowed, with its body, under the remapped name identity, so the program calls it instead of Basics.identity"
             },
             main: "Remap_test",
