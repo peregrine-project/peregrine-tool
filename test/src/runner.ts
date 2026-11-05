@@ -1,5 +1,5 @@
 import { exit } from "process";
-import { Lang, TestCase, TestConfiguration, ExecResult, SimpleType, ExecFailure, Expectations } from "./types";
+import { Lang, TestCase, TestConfiguration, ExecResult, ExecFailure, Expectations } from "./types";
 import { run_wasm } from "./wasm";
 import { execSync } from "child_process";
 import path from "path";
@@ -7,7 +7,7 @@ import { existsSync, mkdirSync } from "fs";
 import { lang_to_ext, lang_to_peregrine_arg, print_line, replace_ext } from "./utils";
 import { compile_c, compile_llvm, set_c_env } from "./c";
 import { compile_ocaml, compile_types } from "./ocaml";
-import { cakeml_output_checked, compile_cakeml, get_cake } from "./cakeml";
+import { compile_cakeml, get_cake } from "./cakeml";
 import { compile_rust, make_printable, prepare_cargo, run_rust } from "./rust";
 import { prepare_elm_project, run_elm } from "./elm";
 import { prepare_lean_project, run_lean } from "./lean";
@@ -90,8 +90,13 @@ function print_rejected(res: string | ExecFailure, test: string, reason: true | 
   }
 }
 
+// Report a test that has no typed source on a typed configuration: it cannot
+// run there, so it fails, and must be marked as an expected failure
+function print_no_typed_source(src: string) {
+  process.stdout.write(`  ${src}: `);
+  print_result({ type: "error", reason: "compile error", compiler: "the test suite", code: 0, error: "no typed source (tsrc)" }, src);
+}
 
-// Run the given executable and compare against the expected test result
 // Report the result of compiling a program with cofixpoints without lowering
 // them: peregrine must fail and name them
 function print_cofix_rejected(res: string | ExecFailure, test: string) {
@@ -104,7 +109,8 @@ function print_cofix_rejected(res: string | ExecFailure, test: string) {
   }
 }
 
-function run_exec(file: string, test: TestCase, skip_output_check: boolean): ExecResult {
+// Run the given executable and compare against the expected test result
+function run_exec(file: string, test: TestCase): ExecResult {
   // Command to run
   const cmd = file;
 
@@ -114,12 +120,6 @@ function run_exec(file: string, test: TestCase, skip_output_check: boolean): Exe
     const res = execSync(cmd, { stdio: "pipe", timeout: exec_timeout, encoding: "utf8" }).trim();
     const stop_main = Date.now();
     const time_main = stop_main - start_main;
-
-    // Return success if there is no expected output to compare against or if the program
-    // returns a type that we don't know how to print
-    if (test.expected_output === undefined || test.output_type === SimpleType.Other || skip_output_check) {
-      return { type: "success", time: time_main };
-    }
 
     // Compare output against the expected output
     if (res !== test.expected_output[0]) {
@@ -187,15 +187,13 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
   const name = `${lang}${n.length > 0 ? "-"+n : ""}`;
   const reason = (e?: Expectations) => e?.[name];
   print_line(`Running ${name} tests:`);
-  // A configuration lowering cofixpoints only runs the programs that use them
-  if (opts.includes("--lower-cofix")) tests = tests.filter((t) => t.cofix);
-  xfails = new Map(tests.filter((t) => source(t) !== undefined && reason(t.xfail) !== undefined)
-    .map((t) => [source(t), reason(t.xfail)] as [string, string]));
+  // Keyed by the source, or by `src` for a test without the typed source
+  xfails = new Map(tests.filter((t) => reason(t.xfail) !== undefined)
+    .map((t) => [source(t) ?? t.src, reason(t.xfail)] as [string, string]));
   switch (lang) {
     case Lang.OCaml:
       compile_types(compile_timeout);
       for (var test of tests) {
-        if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
@@ -217,7 +215,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // Run executable
-        const res = run_exec(f_exec, test, false);
+        const res = run_exec(f_exec, test);
 
         // Report result
         print_result(res, test.src);
@@ -227,7 +225,6 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       //compile_types(compile_timeout);
       get_cake(compile_timeout, tmpdir)
       for (var test of tests) {
-        if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
@@ -250,7 +247,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // Run executable
-        const res = run_exec(f_exec, test, !cakeml_output_checked(test));
+        const res = run_exec(f_exec, test);
 
         // Report result
         print_result(res, test.src);
@@ -259,7 +256,6 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
     case Lang.C:
       await set_c_env(compile_timeout);
       for (var test of tests) {
-        if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
@@ -281,7 +277,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // Run executable
-        const res = run_exec(f_exec, test, false);
+        const res = run_exec(f_exec, test);
 
         // Report result
         print_result(res, test.src);
@@ -290,7 +286,6 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
     case Lang.LLVM:
       await set_c_env(compile_timeout);
       for (var test of tests) {
-        if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
@@ -312,7 +307,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // Run executable
-        const res = run_exec(f_exec, test, false);
+        const res = run_exec(f_exec, test);
 
         // Report result
         print_result(res, test.src);
@@ -320,7 +315,6 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       break;
     case Lang.Wasm:
       for (var test of tests) {
-        if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
@@ -347,12 +341,14 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
       for (var test of tests) {
         const src = typed_src(test);
-        if (src === undefined) continue;
+        if (src === undefined) {
+          print_no_typed_source(test.src);
+          continue;
+        }
         // rust-i64 and rust-hybrid print numbers and booleans natively, so they
         // need their own outputs
         const native = rust_verb === "rust-i64" || rust_verb === "rust-hybrid";
-        const expected = native ? test.rust_i64_output : test.expected_output?.[1];
-        if (native && expected === undefined) continue;
+        const expected = native ? test.rust_i64_output : test.expected_output[1];
         process.stdout.write(`  ${src}: `);
 
         // Compile peregrine
@@ -392,7 +388,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
       for (var test of tests) {
         const src = typed_src(test);
-        if (src === undefined) continue;
+        if (src === undefined) {
+          print_no_typed_source(test.src);
+          continue;
+        }
         process.stdout.write(`  ${src}: `);
 
         // Compile peregrine
@@ -418,7 +417,6 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       var leandir = prepare_lean_project(tmpdir, compile_timeout);
 
       for (var test of tests) {
-        if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
@@ -445,7 +443,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
       // Compile every test with peregrine, then build all of them at once.
       // Each test gets its own directory, as several tests share a file name.
-      const compiled = tests.filter((t) => t.src !== undefined).map((test, k) => {
+      const compiled = tests.map((test, k) => {
         const outdir = path.join(fsharpdir, "gen", `${k}`);
         mkdirSync(outdir, { recursive: true });
         return { test, f_fs: compile_box(test.src, outdir, Lang.FSharp, with_args(lang, opts, test)) };
@@ -473,7 +471,6 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         break;
       }
       tests.forEach((test, k) => {
-        if (test.src === undefined) return;
         process.stdout.write(`  ${test.src}: `);
         // Each test gets its own directory, as several tests share a file name.
         const outdir = path.join(tmpdir, "koka", `${k}`);
@@ -535,10 +532,14 @@ async function main() {
     ...Object.entries(t.xfail ?? {}).map(([c, r]) => ({ test: t, what: `xfail on ${c}`, config: c, reason: r })),
     ...(typeof t.rejected === "string" ? [{ test: t, what: "rejected", config: undefined, reason: t.rejected }] : [])
   ]);
+  // A rejected test must be rejected on Rust-untyped and Elm-untyped: an xfail
+  // there would hide a program that type inference wrongly accepts
+  const rejected_configs = ["Rust-untyped", "Elm-untyped"];
   const bad_marks = marks.filter((m) => !/(?<![\w-])([\w.-]+\/[\w.-]+)?#(\d+|TBD-[\w-]+)\b/.test(m.reason)
-    || (m.config !== undefined && !names.includes(m.config)));
+    || (m.config !== undefined && !names.includes(m.config))
+    || (m.config !== undefined && m.test.rejected !== undefined && rejected_configs.includes(m.config)));
   for (const m of bad_marks)
-    print_line(`error: ${m.test.src ?? m.test.tsrc}: ${m.what} needs a configuration name and an issue reference (#N or owner/repo#N): "${m.reason}"`);
+    print_line(`error: ${m.test.src}: ${m.what} needs a configuration name, an issue reference (#N or owner/repo#N), and no xfail where the test is rejected: "${m.reason}"`);
   if (bad_marks.length > 0) exit(2);
   const selected = process.argv.slice(2);
   const unknown = selected.filter((n) => !names.includes(n));
