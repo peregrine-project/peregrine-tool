@@ -532,10 +532,14 @@ async function main() {
     ...Object.entries(t.xfail ?? {}).map(([c, r]) => ({ test: t, what: `xfail on ${c}`, config: c, reason: r })),
     ...(typeof t.rejected === "string" ? [{ test: t, what: "rejected", config: undefined, reason: t.rejected }] : [])
   ]);
+  // A rejected test must be rejected on Rust-untyped and Elm-untyped: an xfail
+  // there would hide a program that type inference wrongly accepts
+  const rejected_configs = ["Rust-untyped", "Elm-untyped"];
   const bad_marks = marks.filter((m) => !/(?<![\w-])([\w.-]+\/[\w.-]+)?#(\d+|TBD-[\w-]+)\b/.test(m.reason)
-    || (m.config !== undefined && !names.includes(m.config)));
+    || (m.config !== undefined && !names.includes(m.config))
+    || (m.config !== undefined && m.test.rejected !== undefined && rejected_configs.includes(m.config)));
   for (const m of bad_marks)
-    print_line(`error: ${m.test.src}: ${m.what} needs a configuration name and an issue reference (#N or owner/repo#N): "${m.reason}"`);
+    print_line(`error: ${m.test.src}: ${m.what} needs a configuration name, an issue reference (#N or owner/repo#N), and no xfail where the test is rejected: "${m.reason}"`);
   if (bad_marks.length > 0) exit(2);
   const selected = process.argv.slice(2);
   const unknown = selected.filter((n) => !names.includes(n));

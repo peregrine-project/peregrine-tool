@@ -69,7 +69,7 @@ export function compile_rust(file: string, tmpdir: string, test: TestCase, timeo
 }
 
 // `expected` is the expected output, by default the one of the Rust tests
-export function run_rust(file: string, tmpdir: string, test: TestCase, timeout: number, expected: string | undefined = test.expected_output[1]): ExecResult {
+export function run_rust(file: string, tmpdir: string, test: TestCase, timeout: number, expected: string | undefined): ExecResult {
   // Command to run
   const m = path.basename(file, ".rs");
   const cmd = `cargo run -q --bin ${m}`;

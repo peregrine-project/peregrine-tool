@@ -255,7 +255,7 @@ var agda_tests: TestCase[] =
             // The type of the result of eval depends on the type of the term
             rejected: true,
             xfail: {
-                ...rust("#127: the branches of eval have different types (the type of the value is indexed by the type of the term), and the Rust printer has no cast (E0308)"),
+                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#127: the branches of eval have different types (the type of the value is indexed by the type of the term), and the Rust printer has no cast (E0308)"),
                 "Elm": "#79: Elm prints the type name ∋ as __UU00220b_, which Elm rejects"
             },
             main: "STLC_test",
@@ -705,6 +705,7 @@ var source_tests: TestCase[] =
                 "(List_Ֆdotcons () (Bool_Ֆdottrue) (List_Ֆdotcons () (Bool_Ֆdotfalse) (List_Ֆdotcons () (Bool_Ֆdottrue) (List_Ֆdotcons () (Bool_Ֆdotfalse) (List_Ֆdotempty)))))",
                 "Cons True (Cons False (Cons True (Cons False Empty)))"
             ],
+            rust_i64_output: "(List_Ֆdotcons () (Bool_Ֆdottrue) (List_Ֆdotcons () (Bool_Ֆdotfalse) (List_Ֆdotcons () (Bool_Ֆdottrue) (List_Ֆdotcons () (Bool_Ֆdotfalse) (List_Ֆdotempty)))))",
             parameters: []
         },
     ];
