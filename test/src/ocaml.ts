@@ -10,9 +10,9 @@ import { writeFileSync } from "fs";
 function get_ocaml_type(type: ProgramType): string {
   switch (type) {
     case SimpleType.Bool:
-      return "Types.bool_";
+      return "Driver.bool_";
     case SimpleType.Nat:
-      return "Types.nat";
+      return "Driver.nat";
     case SimpleType.UInt63:
       // TODO
       return "'a";
@@ -22,14 +22,14 @@ function get_ocaml_type(type: ProgramType): string {
       switch (type.type) {
         case "list":
           var a_t = get_ocaml_type(type.a_t);
-          return `${a_t} Types.list_`;
+          return `${a_t} Driver.list_`;
         case "option":
           var a_t = get_ocaml_type(type.a_t);
-          return `${a_t} Types.option_`;
+          return `${a_t} Driver.option_`;
         case "prod":
           var a_t = get_ocaml_type(type.a_t);
           var b_t = get_ocaml_type(type.b_t);
-          return `(${a_t}, ${b_t}) Types.prod_`;
+          return `(${a_t}, ${b_t}) Driver.prod_`;
         default:
           break;
       }
@@ -41,9 +41,9 @@ function get_ocaml_type(type: ProgramType): string {
 function get_pp_fun(type: ProgramType): string {
   switch (type) {
     case SimpleType.Bool:
-      return "Types.pp_bool";
+      return "Driver.pp_bool";
     case SimpleType.Nat:
-      return "Types.pp_nat";
+      return "Driver.pp_nat";
     case SimpleType.UInt63:
       // TODO
       return "";
@@ -53,14 +53,14 @@ function get_pp_fun(type: ProgramType): string {
       switch (type.type) {
         case "list":
           var pp_a = get_pp_fun(type.a_t);
-          return `Types.pp_list (${pp_a})`;
+          return `Driver.pp_list (${pp_a})`;
         case "option":
           var pp_a = get_pp_fun(type.a_t);
-          return `Types.pp_option (${pp_a})`;
+          return `Driver.pp_option (${pp_a})`;
         case "prod":
           var pp_a = get_pp_fun(type.a_t);
           var pp_b = get_pp_fun(type.b_t);
-          return `Types.pp_prod (${pp_a}) (${pp_b})`;
+          return `Driver.pp_prod (${pp_a}) (${pp_b})`;
         default:
           break;
       }
@@ -95,7 +95,7 @@ let main =
 }
 
 const util_dir = path.join(process.cwd(), "src/ocaml/");
-const f_types = path.join(util_dir, "types.cmx");
+const f_types = path.join(util_dir, "driver.cmx");
 
 // Compile .mlf file to OCaml executable
 export function compile_ocaml(file: string, test: TestCase, timeout: number, tmpdir: string): string | ExecFailure {
@@ -135,11 +135,11 @@ export function compile_ocaml(file: string, test: TestCase, timeout: number, tmp
   }
 }
 
-// Compile `src/ocaml/types.ml`
+// Compile `src/ocaml/driver.ml`
 export function compile_types(timeout) {
   try {
-    execSync("ocamlopt -c src/ocaml/types.mli", { stdio: "pipe", timeout: timeout });
-    execSync("ocamlopt -I src/ocaml/ -c src/ocaml/types.ml", { stdio: "pipe", timeout: timeout });
+    execSync("ocamlopt -c src/ocaml/driver.mli", { stdio: "pipe", timeout: timeout });
+    execSync("ocamlopt -I src/ocaml/ -c src/ocaml/driver.ml", { stdio: "pipe", timeout: timeout });
 
   } catch (e) {
     print_line("error: could not compile type definitions");

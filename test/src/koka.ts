@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { ExecFailure, ExecResult, ProgramType, SimpleType, TestCase } from "./types";
 
-// The Koka tests need the koka compiler; without it they are skipped.
+// The Koka tests need the koka compiler; without it they fail.
 export function has_koka(): boolean {
   try {
     execSync("koka --version", { stdio: "pipe" });
