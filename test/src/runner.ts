@@ -485,7 +485,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         mkdirSync(outdir, { recursive: true });
         const f_kk = compile_box(src, outdir, Lang.Koka, with_args(lang, opts, test), undefined, rust_verb);
         if (typed && untyped && test.rejected) {
-          print_rejected(f_kk, src);
+          print_rejected(f_kk, src, test.rejected);
           return;
         }
         const koka_rejected = test.koka_typed_rejected === true || (test.koka_typed_rejected === "typed-source" && !untyped);
