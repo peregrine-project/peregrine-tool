@@ -36,7 +36,7 @@ export function make_printable(file: string) {
 
 // Add main function to `file` that calls `main_fn` and
 // prints the return value using s-expression printer.
-// Program::new() exists in both memory modes: with rust-rc, Program has no
+// Program::new() exists in both memory modes: with --memory=rc, Program has no
 // field and its methods return Rc values, which serde prints as their contents
 function append_main(file: string, test: TestCase) {
   const main = find_entry_point(readFileSync(file, "utf8"), test.main);
@@ -87,11 +87,13 @@ export function run_rust(file: string, tmpdir: string, test: TestCase, timeout: 
     const stop_main = Date.now();
     const time_main = stop_main - start_main;
 
-    // Return success if there is no expected output to compare against or if the program
-    // returns a type that we don't know how to print
-    // or if no output is recorded for Rust (missing or empty entry)
-    if (test.output_type === SimpleType.Other || !expected) {
+    // A program whose type we cannot print has nothing to compare; any other
+    // test must record an output for Rust
+    if (test.output_type === SimpleType.Other) {
       return { type: "success", time: time_main };
+    }
+    if (!expected) {
+      return { type: "error", reason: "incorrect result", actual: res, expected: "(no expected output for Rust)" };
     }
 
     // Compare output against the expected output

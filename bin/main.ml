@@ -9,17 +9,17 @@ let copts_t =
   let verbose_arg =
     let doc = "Suppress informational output." in
     let quiet = Quiet, Arg.info ["q"; "quiet"] ~docs ~doc in
-    let doc = "Give verbose output." in
+    let doc = "Give verbose output: print the command that runs the frontend." in
     let verbose = Verbose, Arg.info ["v"; "verbose"] ~docs ~doc in
     Arg.(last & vflag_all [Normal] [quiet; verbose])
   in
   let debug_arg =
-    let doc = "Enable debug information." in
+    let doc = "Keep the temporary directory of the frontend and print its path." in
     Arg.(value & flag & info ["d"; "debug"] ~docs ~doc)
   in
   let out_arg =
     let doc = "Output file." in
-    Arg.(value & opt (some string) None & info ["o"; "outfile"] ~docs ~doc)
+    Arg.(value & opt (some string) None & info ["o"; "outfile"] ~docs ~docv:"FILE" ~doc)
   in
   let attrs_arg =
     let doc = "Attribute config files." in
@@ -41,12 +41,12 @@ let certirocq_opts_t =
     Arg.(value & opt (some int) None & info ["O"] ~doc)
   in
   let anf_conf_arg =
-    let doc = "ANF pipeline config." in
-    Arg.(value & opt (some int) None & info ["anf-conf"] ~doc)
+    let deprecated = "Ignored: the pipeline does not read it." in
+    Arg.(value & opt (some int) None & info ["anf-conf"] ~deprecated ~docv:"N")
   in
   let prefix_arg =
-    let doc = "Prefix to generated FFI." in
-    Arg.(value & opt (some string) None & info ["prefix"] ~doc)
+    let deprecated = "Ignored: CertiRocq no longer generates an FFI." in
+    Arg.(value & opt (some string) None & info ["prefix"] ~deprecated ~docv:"PREFIX")
   in
   let body_name_arg =
     let doc = "Name of the toplevel function." in
@@ -85,6 +85,35 @@ let erasure_opts_t =
   in
   Term.(const mk_erasure_opts $ betared_arg $ unbox_arg $ dearg_ctors_arg $ dearg_consts_arg $ specialize_instances_arg $ cse_arg $ lower_cofix_arg)
 
+let s_frontend = "FRONTEND OPTIONS"
+
+let frontend_t =
+  let docs = s_frontend in
+  let from_arg =
+    let doc = "The frontend that reads $(i,INPUT): $(docv) is $(b,rocq), $(b,agda), $(b,lean) or $(b,lambdabox). By default it is inferred from the extension of $(i,INPUT): $(b,.v) is Rocq, $(b,.agda) and the literate $(b,.lagda)[$(b,.md)|$(b,.tex)|$(b,.rst)|$(b,.org)|$(b,.typ)|$(b,.tree)] are Agda, $(b,.lean) is Lean, and any other file is a lambda box program." in
+    Arg.(value & opt (some (enum Frontend.names)) None & info ["from"] ~docs ~docv:"FRONTEND" ~doc)
+  in
+  let entry_arg =
+    let doc = "The definition to extract from a Rocq or Lean source. Agda takes the definitions marked with a $(b,COMPILE AGDA2LAMBOX) pragma instead." in
+    Arg.(value & opt (some string) None & info ["entry"] ~docs ~docv:"NAME" ~doc)
+  in
+  let frontend_arg =
+    let doc = "Pass $(docv) to the frontend tool ($(b,rocq compile), $(b,agda2lambox), $(b,lake env lean)), e.g. $(b,--frontend-arg=-Q --frontend-arg=dir --frontend-arg=Lib). Repeatable. Without -Q, -R or -I among them, a Rocq input takes the load path of the nearest $(b,_RocqProject) or $(b,_CoqProject)." in
+    Arg.(value & opt_all string [] & info ["frontend-arg"] ~docs ~docv:"ARG" ~doc)
+  in
+  let keep_ast_arg =
+    let doc = "Also write the lambda box program of the frontend to $(docv) (and its attribute file, for Lean, to $(docv).inlinings)." in
+    Arg.(value & opt (some string) None & info ["keep-ast"] ~docs ~docv:"FILE" ~doc)
+  in
+  let typed_arg =
+    let doc = "Ask the frontend for typed lambda box. The commands whose backend needs typed lambda box ($(b,rust), $(b,elm), $(b,ast typed)) do so without it, if the frontend has typed output (Rocq, Agda)." in
+    Arg.(value & flag & info ["typed"] ~docs ~doc)
+  in
+  let lean_config_arg =
+    let doc = "The configuration of the Lean frontend, a Lean term of type $(b,Erasure.ErasureConfig) given to $(b,#erase NAME config) $(docv), e.g. $(b,'{nat := .peano}')." in
+    Arg.(value & opt (some string) None & info ["lean-config"] ~docs ~docv:"TERM" ~doc)
+  in
+  Term.(const mk_frontend_opts $ from_arg $ entry_arg $ frontend_arg $ keep_ast_arg $ typed_arg $ lean_config_arg)
 
 let sdocs = Manpage.s_common_options
 
@@ -129,242 +158,107 @@ let help_cmd =
     Term.(ret (const help $ Arg.man_format $ Term.choice_names $ topic))
 
 let exits = Cmd.Exit.defaults @ [
-  Cmd.Exit.info 10 ~max:19 ~doc:"on parsing errors.";
-  Cmd.Exit.info 20 ~max:29 ~doc:"on compiler errors.";
+  Cmd.Exit.info 1 ~doc:"on a program that is not valid or does not compile.";
+  Cmd.Exit.info 10 ~max:19 ~doc:"reserved for parsing errors.";
+  Cmd.Exit.info 20 ~max:29 ~doc:"reserved for compiler errors.";
+  Cmd.Exit.info Frontend.tool_missing ~doc:"when the frontend tool is not on the PATH.";
+  Cmd.Exit.info Frontend.tool_failed ~doc:"when the frontend fails.";
+  Cmd.Exit.info Frontend.unsupported ~doc:"on options that the frontend does not support.";
 ]
 
+let input_arg n =
+  let doc = "The program: a lambda box program, or a Rocq, Agda or Lean source file (see $(b,--from))." in
+  Arg.(required & pos n (some file) None & info [] ~docv:"INPUT" ~doc)
+
+let man = help_secs
+
 let compile_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"PROGRAM_FILE" ~doc)
-  in
   let config_file =
     let doc = "config file" in
     Arg.(required & pos 1 (some file) None & info []
            ~docv:"CONFIG_FILE" ~doc)
   in
-  let doc = "Compile lambda box program" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
+  let doc = "Compile with a pipeline configuration file" in
   let info = Cmd.info "compile" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile $ copts_t $ program_file $ config_file)
+  Cmd.v info Term.(const compile $ copts_t $ frontend_t $ input_arg 0 $ config_file)
 
-let rust_cmd v =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info v.rust_verb_name ~doc:v.rust_verb_doc ~sdocs ~man in
-  Cmd.v info Term.(const (compile_rust v) $ copts_t $ erasure_opts_t $ program_file)
-
-let elm_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box program to Elm" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "elm" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_elm $ copts_t $ erasure_opts_t $ program_file)
-
-let ocaml_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box program to OCaml" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "ocaml" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_ocaml $ copts_t $ erasure_opts_t $ program_file)
-
-let cakeml_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box program to CakeML" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "cakeml" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_cakeml $ copts_t $ erasure_opts_t $ program_file)
-
-let lean_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box program to Lean 4" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "lean" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_lean $ copts_t $ erasure_opts_t $ program_file)
-
-let fsharp_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box program to F# (experimental)" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "fsharp" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_fsharp $ copts_t $ erasure_opts_t $ program_file)
-
-let koka_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box program to Koka (experimental)" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "koka" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_koka $ copts_t $ erasure_opts_t $ program_file)
-
-let c_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box program to C" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "c" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_c $ copts_t $ certirocq_opts_t $ erasure_opts_t $ program_file)
-
-let wasm_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box program to WebAssembly" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "wasm" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_wasm $ copts_t $ certirocq_opts_t $ erasure_opts_t $ program_file)
-
-let llvm_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Compile lambda box program to LLVM IR (textual .ll)" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "llvm" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_llvm $ copts_t $ certirocq_opts_t $ erasure_opts_t $ program_file)
-
-let eval_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let fuel_arg =
-    let doc = "evaluator fuel" in
-    Arg.(value & opt int 10000 & info ["fuel"] ~doc)
-  in
-  let doc = "Evaluate lambda box program" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "eval" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_eval $ copts_t $ certirocq_opts_t $ erasure_opts_t $ fuel_arg $ program_file)
-
-let ast_cmd =
-  let ast_type =
-    let doc = "AST type" in
-    Arg.(required & pos 0 (some (enum [("box", Box); ("typed", BoxTyped); ("anf", ANF); ("anfc", ANFC)])) None & info []
-           ~docv:"AST_TYPE" ~doc)
-  in
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 1 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
-  let doc = "Get intermediate representations" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
-  let info = Cmd.info "ast" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const compile_ast $ copts_t $ certirocq_opts_t $ erasure_opts_t $ ast_type $ program_file)
+let erase_cmd =
+  let doc = "Run only the frontend and write the lambda box program" in
+  let info = Cmd.info "erase" ~doc ~sdocs ~man in
+  Cmd.v info Term.(const erase $ copts_t $ frontend_t $ input_arg 0)
 
 let validate_cmd =
-  let program_file =
-    let doc = "lambda box program" in
-    Arg.(required & pos 0 (some file) None & info []
-           ~docv:"FILE" ~doc)
-  in
   let config_file =
     let doc = "config file" in
     Arg.(value & opt (some file) None & info ["config"] ~doc)
   in
   let doc = "Validate program and compile configuration" in
-  let man = [
-    `S Manpage.s_description;
-    `P "";
-    `Blocks help_secs; ]
-  in
   let info = Cmd.info "validate" ~doc ~sdocs ~man in
-  Cmd.v info Term.(const validate $ copts_t $ program_file $ config_file)
+  Cmd.v info Term.(const validate $ copts_t $ frontend_t $ input_arg 0 $ config_file)
+
+(* A command that compiles INPUT with the backend of [target_t] *)
+let backend_cmd ?(pos=0) ?deprecated ?docs (name, doc, target_t) =
+  let info = Cmd.info name ?deprecated ?docs ~doc ~sdocs ~man in
+  Cmd.v info Term.(const compile_backend $ target_t $ copts_t $ erasure_opts_t $ frontend_t $ input_arg pos)
+
+let certirocq backend =
+  Term.(const (fun c -> target (backend (mk_certirocq_config c))) $ certirocq_opts_t)
+
+let rust_t =
+  let doc = "The representation of nat, positive, N and Z: " ^
+    String.concat ", " (List.map (fun v -> "$(b," ^ v.rust_numbers ^ ") " ^ v.rust_verb_doc) rust_numbers) ^ "." in
+  let numbers = List.map (fun v -> v.rust_numbers, v) rust_numbers in
+  let numbers_arg = Arg.(value & opt (enum numbers) (List.hd rust_numbers) & info ["numbers"] ~docv:"NUMBERS" ~doc) in
+  let memory_doc = "The memory management of values: $(b,arena) allocates them in a bumpalo arena freed at the end of the program, $(b,rc) reference counts them (with $(b,--numbers=peano) or $(b,--numbers=hybrid))." in
+  let memory_arg = Arg.(value & opt (enum ["arena", false; "rc", true]) false & info ["memory"] ~docv:"MEMORY" ~doc:memory_doc) in
+  let select v rc =
+    if rc && Option.is_none v.rust_rc_config
+    then `Error (false, "--memory=rc is available with --numbers=peano and --numbers=hybrid")
+    else `Ok (rust_target ~rc v) in
+  Term.(ret (const select $ numbers_arg $ memory_arg))
+
+let fuel_arg =
+  let doc = "evaluator fuel" in
+  Arg.(value & opt int 10000 & info ["fuel"] ~doc)
+
+let ast_type_arg =
+  let doc = "AST type" in
+  Arg.(required & pos 0 (some (enum [("box", Box); ("typed", BoxTyped); ("anf", ANF); ("anfc", ANFC)])) None & info []
+         ~docv:"AST_TYPE" ~doc)
+
+let plain ?typed b = Term.const (target ?typed b)
+
+let backends = [
+  "c", "Compile to C", certirocq (fun c -> ConfigUtils.C' c);
+  "wasm", "Compile to WebAssembly", certirocq (fun c -> ConfigUtils.Wasm' c);
+  "llvm", "Compile to LLVM IR (textual .ll)", certirocq (fun c -> ConfigUtils.LLVM' c);
+  "ocaml", "Compile to OCaml", plain (ConfigUtils.OCaml' ConfigUtils.empty_ocaml_config');
+  "cakeml", "Compile to CakeML", plain (ConfigUtils.CakeML' ConfigUtils.empty_cakeml_config');
+  "rust", "Compile to Rust", rust_t;
+  "elm", "Compile to Elm", plain ~typed:true (ConfigUtils.Elm' ConfigUtils.empty_elm_config');
+  "lean", "Compile to Lean 4", plain (ConfigUtils.Lean' ConfigUtils.empty_lean_config');
+  "fsharp", "Compile to F# (experimental)", plain (ConfigUtils.FSharp' ConfigUtils.empty_fsharp_config');
+  "koka", "Compile to Koka (experimental)", plain (ConfigUtils.Koka' ConfigUtils.empty_koka_config');
+  "eval", "Evaluate the program with the lambda box interpreter", Term.(const eval_target $ certirocq_opts_t $ fuel_arg);
+]
+
+(* The verbs of the representations of numbers in Rust other than the
+   default, before `rust --numbers` *)
+let rust_aliases =
+  List.tl rust_numbers |> List.map (fun v ->
+    let deprecated = "Use $(b,rust --numbers=" ^ v.rust_numbers ^ ") instead." in
+    backend_cmd ~deprecated ~docs:Manpage.s_none
+      (v.rust_verb_name, "Compile to Rust, with nat/positive/N/Z as " ^ v.rust_verb_doc, Term.const (rust_target v)))
+
+let ast_cmd =
+  backend_cmd ~pos:1 ("ast", "Print an intermediate representation", Term.(const ast_target $ certirocq_opts_t $ ast_type_arg))
 
 let main_cmd =
-  let doc = "Verified compiler from LambdaBox to WebAssembly, C, Rust, and OCaml" in
+  let doc = "Compile Rocq, Agda and Lean programs, through LambdaBox, to C, WebAssembly, OCaml, Rust and more" in
   let man = help_secs in
   let info = Cmd.info "peregrine" ~version ~doc ~sdocs ~man ~exits in
   let default = Term.(ret (const (fun _ -> `Help (`Pager, None)) $ copts_t)) in
-  Cmd.group info ~default (compile_cmd :: List.map rust_cmd rust_verbs @ [elm_cmd; ocaml_cmd; cakeml_cmd; lean_cmd; fsharp_cmd; koka_cmd; c_cmd; wasm_cmd; llvm_cmd; eval_cmd; ast_cmd; validate_cmd; help_cmd])
+  Cmd.group info ~default
+    (compile_cmd :: erase_cmd :: List.map backend_cmd backends @ rust_aliases @ [ast_cmd; validate_cmd; help_cmd])
 
 let () = exit (Cmd.eval main_cmd)
