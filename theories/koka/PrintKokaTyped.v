@@ -202,7 +202,7 @@ Section Printer.
     | _ => None
     end.
 
-  (* Constants without a body that are used must be remapped. *)
+  (* A monomorphic constant without parameters: a [delayed] value. *)
   Definition is_thunk (kn : kername) : bool :=
     match lookup_env Σ kn with
     | Some (ConstantDecl {| cst_type := (tvars, _); cst_body := Some b |}) =>

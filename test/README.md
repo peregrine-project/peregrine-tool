@@ -24,7 +24,7 @@ The test suite depends on the following:
 Every test runs on every configuration, and either its result is compared with the expected one and passes, or it fails as an expected failure that an open issue tracks. No test is skipped, and no result goes unchecked: a driver that cannot print the result of a test fails it.
 
 * A test marked `xfail` for a configuration (keyed by the name the runner prints, e.g. `Rust-untyped`) runs there and must fail. The runner reports it as an expected failure with its reason. If it passes, the suite fails with "remove the mark", so that a fix is noticed.
-* A test marked `rejected` must be rejected by type inference in `Rust-untyped` and `Elm-untyped` (see below). `rejected: true` means that the program cannot be ML-typed, so the rejection is the correct behaviour. A string instead of `true` is the reason for a rejection that comes from a limitation of the backends.
+* A test marked `rejected` must be rejected by type inference in `Rust-untyped`, `Elm-untyped` and `Koka-typed-untyped` (see below). `rejected: true` means that the program cannot be ML-typed, so the rejection is the correct behaviour. A string instead of `true` is the reason for a rejection that comes from a limitation of the backends.
 * The reason of every `xfail` and of every limitation `rejected` names its issue, as `#N` (this repository) or `owner/repo#N`. The runner refuses to start if one does not. An issue still to be filed is written `#TBD-<slug>`.
 * [check-issues.sh](check-issues.sh), which CI runs, collects the issue references of [src/tests.ts](src/tests.ts) and fails if one of the issues is closed, or if a placeholder `#TBD-<slug>` is left. When an issue is closed, its tests pass, or their marks need a new issue.
 

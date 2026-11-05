@@ -183,7 +183,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
   // Source that the typed backends compile
   const typed_src = (t: TestCase) => untyped ? t.src : t.tsrc;
   // Source that this configuration compiles
-  const source = (t: TestCase) => lang === Lang.Rust || lang === Lang.Elm ? typed_src(t) : t.src;
+  const source = (t: TestCase) => lang === Lang.Rust || lang === Lang.Elm || rust_verb === "koka-typed" ? typed_src(t) : t.src;
   const name = `${lang}${n.length > 0 ? "-"+n : ""}`;
   const reason = (e?: Expectations) => e?.[name];
   print_line(`Running ${name} tests:`);
@@ -485,7 +485,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         mkdirSync(outdir, { recursive: true });
         const f_kk = compile_box(src, outdir, Lang.Koka, with_args(lang, opts, test), undefined, rust_verb);
         if (typed && untyped && test.rejected) {
-          print_rejected(f_kk, src);
+          print_rejected(f_kk, src, test.rejected);
           return;
         }
         const koka_rejected = test.koka_typed_rejected === true || (test.koka_typed_rejected === "typed-source" && !untyped);
@@ -555,9 +555,10 @@ async function main() {
     ...Object.entries(t.xfail ?? {}).map(([c, r]) => ({ test: t, what: `xfail on ${c}`, config: c, reason: r })),
     ...(typeof t.rejected === "string" ? [{ test: t, what: "rejected", config: undefined, reason: t.rejected }] : [])
   ]);
-  // A rejected test must be rejected on Rust-untyped and Elm-untyped: an xfail
-  // there would hide a program that type inference wrongly accepts
-  const rejected_configs = ["Rust-untyped", "Elm-untyped"];
+  // A rejected test must be rejected on Rust-untyped, Elm-untyped and
+  // Koka-typed-untyped: an xfail there would hide a program that type
+  // inference wrongly accepts
+  const rejected_configs = ["Rust-untyped", "Elm-untyped", "Koka-typed-untyped"];
   const bad_marks = marks.filter((m) => !/(?<![\w-])([\w.-]+\/[\w.-]+)?#(\d+|TBD-[\w-]+)\b/.test(m.reason)
     || (m.config !== undefined && !names.includes(m.config))
     || (m.config !== undefined && m.test.rejected !== undefined && rejected_configs.includes(m.config)));
