@@ -7,6 +7,7 @@ From MetaRocq.Erasure Require EAst ELiftSubst EAstUtils.
 From Peregrine Require Import EBorrow.
 From MetaRocq.Erasure.Typed Require Import ExAst.
 From Stdlib Require Import List.
+From Stdlib.Strings Require Byte.
 
 Import ListNotations.
 Import MonadNotation.
@@ -43,8 +44,18 @@ Fixpoint mp_path (mp : modpath) : list ident :=
   | MPdot mp id => List.app (mp_path mp) [id]
   end.
 
+(* Koka treats [x_Sigma] and [x_sigma] as one name, and sha256.v defines both
+   [Sigma_1] and [sigma_1].  A name with a leading capital gets a prefix. *)
+Definition uncapitalised (s : ident) : ident :=
+  match s with
+  | String.String c _ =>
+    let n := Byte.to_nat c in
+    if andb (Nat.leb 65 n) (Nat.leb n 90) then "u" ++ s else s
+  | _ => s
+  end.
+
 Definition flat_name (kn : kername) : string :=
-  String.concat "_" (List.app (mp_path (fst kn)) [snd kn]).
+  String.concat "_" (List.app (mp_path (fst kn)) [uncapitalised (snd kn)]).
 
 Definition fun_name (kn : kername) : string := "pg_" ++ flat_name kn.
 
