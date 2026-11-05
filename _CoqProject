@@ -49,6 +49,7 @@ theories/backends/FSharpBackend.v
 theories/backends/KokaBackend.v
 theories/backends/KokaTypedBackend.v
 theories/backends/KokaIntRemaps.v
+theories/backends/KokaIntCoherence.v
 theories/backends/EvalBackend.v
 theories/backends/ASTBackend.v
 
