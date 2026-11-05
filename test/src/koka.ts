@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { ExecFailure, ExecResult, ProgramType, SimpleType, TestCase } from "./types";
 
-// The Koka tests need the koka compiler; without it they are skipped.
+// The Koka tests need the koka compiler; without it they fail.
 export function has_koka(): boolean {
   try {
     execSync("koka --version", { stdio: "pipe" });
@@ -24,7 +24,8 @@ function program_types(source: string): KokaType[] {
   for (const m of source.matchAll(/^type (t_\w+) \{ (.*) \}$/gm)) {
     const ctors = m[2].split("; ").filter((c) => c.length > 0).map((c) => {
       const name = c.split("(")[0].trim();
-      const short = name.replace(/^C_.*?_\d+_/, "");
+      // Lean's names keep the type: List.cons is List__UU2econs
+      const short = name.replace(/^C_.*?_\d+_/, "").replace(/^.*__UU2e/, "");
       const nargs = c.includes("(") ? c.split(",").length : 0;
       return { name, short, nargs };
     });
@@ -60,7 +61,8 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
   }
   if (typeof type === "number" || type.type !== "list") return undefined;
   const elem = printer(types, type.a_t, id + 1);
-  const t = find_type(types, [[["nil", "empty"], 0], [["cons"], 2]]);
+  // Agda's [] is _UU5b_UU5d, ∷ __UU002237_ and :: __UU3a_UU3a_
+  const t = find_type(types, [[["nil", "empty", "_UU5b_UU5d"], 0], [["cons", "__UU002237_", "__UU3a_UU3a_"], 2]]);
   if (elem === undefined || t === undefined) return undefined;
   const [nil, cons] = t.ctors;
   return {
@@ -77,7 +79,7 @@ export function compile_koka(file: string, test: TestCase, timeout: number): { e
   const main = `pg_${test.main}`;
   const isDelayed = new RegExp(`^val ${main} : delayed`, "m").test(source);
   const target = isDelayed ? `pg_force(${main})` : main;
-  const pp = test.expected_output === undefined ? undefined : printer(program_types(source), test.output_type);
+  const pp = printer(program_types(source), test.output_type);
   const body = pp === undefined
     ? `val pg_unused = unsafe-total(fn() { ${target} }); ()`
     : `println(${pp.name}(unsafe-total(fn() { ${target} })))`;
@@ -115,8 +117,8 @@ export function run_koka(exe: string, test: TestCase, checked: boolean, timeout:
     return { type: "error", reason: "runtime error", error: e };
   }
   const time = Date.now() - start;
-  if (!checked || test.expected_output === undefined || test.output_type === SimpleType.Other) {
-    return { type: "success", time };
+  if (!checked) {
+    return { type: "error", reason: "incorrect result", actual: res, expected: "(no Koka printer: the program declares no type of the shape of the result)" };
   }
   if (res !== test.expected_output[0]) {
     return { type: "error", reason: "incorrect result", actual: res, expected: test.expected_output[0] };

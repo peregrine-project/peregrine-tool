@@ -12,7 +12,7 @@ The middle-end connects frontends and backends and serves three purposes:
 This document details points 2 and 3 and shows the general middle-end pipeline.
 For more details on frontends and backends, see [frontends.md](frontends.md), [backends.md](backends.md).
 
-The middle-end is exposed as a CLI, for more details on how to use the middle-end, see [cmds.md](cmds.md)
+The middle-end is exposed as a CLI, for more details on how to use the middle-end, see [usage.md](usage.md)
 
 ## Pipeline
 

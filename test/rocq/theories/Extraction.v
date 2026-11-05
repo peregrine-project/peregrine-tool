@@ -27,9 +27,11 @@ Peregrine Extract Typed "extraction/Closure_typed.ast" Closure.test.
 
 (* CoStream.v *)
 Peregrine Extract "extraction/CoStream.ast" CoStream.test.
+Peregrine Extract Typed "extraction/CoStream_typed.ast" CoStream.test.
 
 (* Prims.v *)
 Peregrine Extract "extraction/Prims.ast" Prims.test.
+Peregrine Extract Typed "extraction/Prims_typed.ast" Prims.test.
 
 (* Demo.v *)
 Peregrine Extract "extraction/Demo.ast" Demo.test.
@@ -73,9 +75,12 @@ Peregrine Extract Typed "extraction/Params_typed.ast" Params.test.
 
 (* Phantom.v *)
 Peregrine Extract "extraction/Phantom.ast" Phantom.test.
+Peregrine Extract Typed "extraction/Phantom_typed.ast" Phantom.test.
 
 (* Remap.v *)
 Peregrine Extract "extraction/Remap.ast" Remap.test.
+Peregrine Extract Typed "extraction/Remap_typed.ast" Remap.test.
 
 (* PolyLet.v *)
 Peregrine Extract "extraction/PolyLet.ast" PolyLet.test.
+Peregrine Extract Typed "extraction/PolyLet_typed.ast" PolyLet.test.

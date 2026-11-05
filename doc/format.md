@@ -317,11 +317,11 @@ The generated module starts with `module <elm_module_name> exposing (..)` follow
   <direct>     ; true   — use the direct (ANF) pipeline
   <c_args>     ; 5      — number of C arguments (for CertiRocq)
   <o_level>    ; 0      — optimisation level
-  <anf_conf>   ; 0      — ANF pipeline configuration
-  <prefix>     ; ""     — prefix prepended to generated FFI symbols
+  <anf_conf>   ; 0      — not read by the pipeline
+  <prefix>     ; ""     — not read (CertiRocq no longer generates an FFI)
   <body_name>) ; "body" — name of the top-level function
 ```
-The C, Wasm and LLVM backends use this record verbatim; the LLVM backend ignores `prefix` and `body_name` and always names its entry point `certirocq_main`. The C backend additionally selects between `gc_stack.h` (when `direct = true`) and `gc.h` (when `direct = false`) and prepends the GC header to the list of `#include`s.
+The C, Wasm and LLVM backends use this record verbatim; the LLVM backend ignores `body_name` and always names its entry point `certirocq_main`. The C backend additionally prepends the GC header `gc_stack.h` to the list of `#include`s, for both values of `direct`.
 
 #### OCaml (`ocaml_config`)
 ```

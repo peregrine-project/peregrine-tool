@@ -24,6 +24,20 @@ env:
   JOBS: 4
   TMPDIR: /tmp
 jobs:
+  # Every expected failure of the test suite names an open issue
+  issues:
+    name: Issues of the expected failures
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check that the issues named in test/src/tests.ts are open
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: test/check-issues.sh
+
   build:
     name: OCaml ${{ matrix.ocaml_version }} build
     runs-on: ${{ matrix.os }}
@@ -129,8 +143,8 @@ jobs:
       - name: Checkout agda2lambox
         uses: actions/checkout@v7
         with:
-          repository: 4ever2/agda2lambox
-          ref: 20120b78af01b7bec1c8d46ba8dceef140d65fb6
+          repository: agda/agda2lambox
+          ref: 6d68080404b6eb720471305b5b84d327f6747256
           path: agda
 
       - name: Configure the agda2lambox build
@@ -160,8 +174,19 @@ jobs:
 
       - name: Build agda2lambox
         run: cd agda && make build
+      # The tests of Agda sources run agda2lambox through peregrine
+      - name: Put agda2lambox on the path
+        run: dirname "$(cd agda && cabal list-bin agda2lambox)" >> "$GITHUB_PATH"
+      # Under opam exec, so that agda2lambox's tests find peregrine and
+      # validate every AST they generate
       - name: Generate Agda ASTs
-        run: cd agda && make test && mv test/dist/ ../test/agda/
+        run: cd agda && opam exec -- make test && mv test/dist/ ../test/agda/
+      # The typed sources of the untyped programs, for the typed backends
+      - name: Generate typed Agda ASTs of the untyped programs
+        run: |
+          mkdir -p test/agda/typed
+          cd agda/test/untyped
+          for f in *.agda; do agda2lambox --typed -o ../../../test/agda/typed "$f"; done
 
       # elan and both pinned Lean toolchains (test/lean for the frontend
       # fixtures, the repository root for the Lean backend) are cached, so

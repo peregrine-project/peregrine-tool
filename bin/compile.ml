@@ -23,16 +23,17 @@ let cprint_endline s =
 
 
 
-(* Extraction output helper functions *)
-let get_out_file opts f ext =
+(* Extraction output helper functions. [stem] is the input file without its
+   extension. *)
+let get_out_file opts stem ext =
   match opts.output_file with
   | Some f -> f
-  | None -> (Filename.remove_extension f)^"."^ext
+  | None -> stem^"."^ext
 
-let get_header_file opts f =
+let get_header_file opts stem =
   match opts.output_file with
   | Some f -> (Filename.remove_extension f)^".h"
-  | None -> (Filename.remove_extension f)^".h"
+  | None -> stem^".h"
 
 let write_res f p =
   let f = open_out f in
@@ -126,13 +127,6 @@ let write_program opts f p =
 
 
 
-let read_file f =
-  let c = open_in f in
-  let s = really_input_string c (in_channel_length c) in
-  close_in c;
-  s
-
-
 let mk_certirocq_config copts = {
   ConfigUtils.direct'    = Some (not copts.cps);
   ConfigUtils.c_args'    = Option.map Peregrine.Caml_nat.nat_of_caml_int copts.c_args;
@@ -171,20 +165,26 @@ let mk_ast_config t copts : ConfigUtils.ast_config' =
     | ANF -> ConfigUtils.LambdaANF' (Some (mk_certirocq_config copts))
     | ANFC -> ConfigUtils.LambdaANFC' (Some (mk_certirocq_config copts))
 
+let info opts s = if opts.verbose <> Quiet then print_endline s
+
+let read_attrs opts attrs =
+  List.map (fun s -> s |> read_file |> bytestring_of_caml_string) (opts.attrs @ attrs)
+
 (* Validate function *)
-let validate opts f_prog f_config =
+let validate opts fo f_input f_config =
+  let f_prog, attrs, _ = Frontend.load opts fo ~typed:false f_input in
   let prog = f_prog |> read_file |> bytestring_of_caml_string in
   (* backend part of config isn't check so we just use any *)
   let config =
     match f_config with
     | Some f -> Datatypes.Coq_inl (f |> read_file |> bytestring_of_caml_string)
     | None -> Datatypes.Coq_inr (ConfigUtils.empty_config' (ConfigUtils.OCaml' ConfigUtils.empty_ocaml_config')) in
-  let attrs = List.map (fun s -> s |> read_file |> bytestring_of_caml_string) opts.attrs in
-  print_endline "Validating AST:";
+  let attrs = read_attrs opts attrs in
+  info opts "Validating AST:";
   let res = Pipeline.peregrine_validate config attrs prog in
   match res with
   | ResultMonad.Ok _ ->
-    print_endline "AST is valid"
+    info opts "AST is valid"
   | ResultMonad.Err e ->
     print_endline "Error validating AST:";
     cprint_endline e;
@@ -192,33 +192,65 @@ let validate opts f_prog f_config =
 
 
 (* Compile functions *)
-let compile_aux opts f prog config =
-  let f_name = f |> Filename.basename |> Filename.chop_extension |> bytestring_of_caml_string in
-  let attrs = List.map (fun s -> s |> read_file |> bytestring_of_caml_string) opts.attrs in
-  print_endline "Compiling:";
+let compile_aux opts fo ~typed f_input config =
+  let f_prog, attrs, stem = Frontend.load opts fo ~typed f_input in
+  let prog = f_prog |> read_file |> bytestring_of_caml_string in
+  let f_name = stem |> Filename.basename |> bytestring_of_caml_string in
+  let attrs = read_attrs opts attrs in
+  info opts "Compiling:";
   let res = Pipeline.peregrine_pipeline config attrs prog f_name in
   match res with
   | ResultMonad.Ok p ->
-    print_endline "Compiled successfully:";
-    write_program opts f p
+    info opts "Compiled successfully:";
+    (* The only output that can have the name of a source: lean on a .lean *)
+    (match p with
+     | Pipeline.LeanProgram _ when get_out_file opts stem "lean" = f_input ->
+       prerr_endline ("peregrine: the output would overwrite " ^ f_input ^ ", give another output file with -o");
+       exit 1
+     | _ -> write_program opts stem p)
   | ResultMonad.Err e ->
     print_endline "Could not compile:";
     cprint_endline e;
     exit 1
 
-let compile opts f_prog f_config =
-  let prog = f_prog |> read_file |> bytestring_of_caml_string in
+let compile opts fo f_prog f_config =
   let config = f_config |> read_file |> bytestring_of_caml_string in
-  compile_aux opts f_prog prog (Datatypes.Coq_inl config)
+  (* A frontend gives typed lambda box to the backends that need it *)
+  let typed = match Pipeline.parse_config config with
+    | ResultMonad.Ok { Config.backend_opts = (Config.Rust _ | Config.Elm _ | Config.AST Config.LambdaBoxTyped); _ } -> true
+    | _ -> false in
+  compile_aux opts fo ~typed f_prog (Datatypes.Coq_inl config)
 
-let compile_backend ?(const_remaps=[]) ?(ind_remaps=[]) backend_opts opts eopts f_prog =
-  let prog = f_prog |> read_file |> bytestring_of_caml_string in
-  let config = mk_config ~const_remaps ~ind_remaps backend_opts eopts in
-  compile_aux opts f_prog prog (Datatypes.Coq_inr config)
+(* Write the lambda box program of a source file, and the attribute files of
+   its frontend next to it *)
+let erase opts fo f_input =
+  let f_prog, attrs, stem = Frontend.load opts fo ~typed:false f_input in
+  if f_prog = f_input then
+    Frontend.fail Frontend.unsupported "%s is a lambda box program already" f_input;
+  let out = get_out_file opts stem "ast" in
+  Frontend.copy f_prog out;
+  List.iter (fun a -> Frontend.copy a (out ^ Filename.extension a)) attrs
 
-(* The Rust verbs, one per representation of nat/positive/N/Z. This list is
-   the only place that names them: main.ml makes one subcommand per entry. *)
-type rust_verb = {
+(* A backend configuration with its remappings. [typed] asks the frontend for
+   typed lambda box. *)
+type target = {
+  backend : ConfigUtils.backend_config';
+  const_remaps : Config.constant_remappings;
+  ind_remaps : Config.inductive_remappings;
+  typed : bool;
+}
+
+let target ?(typed=false) ?(const_remaps=[]) ?(ind_remaps=[]) backend =
+  { backend; const_remaps; ind_remaps; typed }
+
+let compile_backend t opts eopts fo f_prog =
+  let config = mk_config ~const_remaps:t.const_remaps ~ind_remaps:t.ind_remaps t.backend eopts in
+  compile_aux opts fo ~typed:t.typed f_prog (Datatypes.Coq_inr config)
+
+(* The representations of nat/positive/N/Z in Rust, chosen by `rust
+   --numbers`. Each also has its own, deprecated, verb. *)
+type rust_numbers = {
+  rust_numbers : string;
   rust_verb_name : string;
   rust_verb_doc : string;
   rust_verb_config : ConfigUtils.rust_config';
@@ -226,89 +258,54 @@ type rust_verb = {
   rust_verb_ind_remaps : Config.inductive_remappings;
 }
 
-let rust_verbs = [
-  { rust_verb_name = "rust";
-    rust_verb_doc = "Compile lambda box program to Rust, without numeric remapping (nat/positive/N/Z as the extracted inductive types)";
+let rust_numbers = [
+  { rust_numbers = "peano";
+    rust_verb_name = "rust";
+    rust_verb_doc = "the inductive types as extracted (unary nat, binary positive/N/Z), no remapping";
     rust_verb_config = ConfigUtils.empty_rust_config';
     rust_verb_const_remaps = [];
     rust_verb_ind_remaps = [] };
-  { rust_verb_name = "rust-gmp";
-    rust_verb_doc = "Compile lambda box program to Rust, with nat/positive/N/Z as GMP integers (rug::Integer, needs the rug crate)";
+  { rust_numbers = "gmp";
+    rust_verb_name = "rust-gmp";
+    rust_verb_doc = "GMP integers (rug::Integer, needs the rug crate)";
     rust_verb_config = RustGMPRemaps.gmp_rust_config';
     rust_verb_const_remaps = RustGMPRemaps.gmp_const_remaps;
     rust_verb_ind_remaps = RustGMPRemaps.gmp_ind_remaps };
-  { rust_verb_name = "rust-i64";
-    rust_verb_doc = "Compile lambda box program to Rust, with nat/positive/N/Z as i64 (overflow is not checked)";
+  { rust_numbers = "i64";
+    rust_verb_name = "rust-i64";
+    rust_verb_doc = "i64, overflow is not checked";
     rust_verb_config = RustNativeRemaps.native_rust_config';
     rust_verb_const_remaps = RustNativeRemaps.native_const_remaps;
     rust_verb_ind_remaps = RustNativeRemaps.native_ind_remaps };
-  { rust_verb_name = "rust-mixed";
-    rust_verb_doc = "Compile lambda box program to Rust, with GMP integers and add/mul/sub/div/mod/pow/eqb/leb/ltb on nat computed in i64";
+  { rust_numbers = "mixed";
+    rust_verb_name = "rust-mixed";
+    rust_verb_doc = "GMP integers, with add/mul/sub/div/mod/pow/eqb/leb/ltb on nat computed in i64";
     rust_verb_config = RustMixedRemaps.mixed_rust_config';
     rust_verb_const_remaps = RustMixedRemaps.mixed_const_remaps;
     rust_verb_ind_remaps = RustMixedRemaps.mixed_ind_remaps };
-  { rust_verb_name = "rust-mixed-narrow";
-    rust_verb_doc = "Compile lambda box program to Rust, with GMP integers and div/mod/pow on nat computed in i64";
+  { rust_numbers = "mixed-narrow";
+    rust_verb_name = "rust-mixed-narrow";
+    rust_verb_doc = "GMP integers, with div/mod/pow on nat computed in i64";
     rust_verb_config = RustMixedRemaps.mixed_rust_config';
     rust_verb_const_remaps = RustMixedRemaps.mixed_const_remaps2;
     rust_verb_ind_remaps = RustMixedRemaps.mixed_ind_remaps };
-  { rust_verb_name = "rust-hybrid";
-    rust_verb_doc = "Compile lambda box program to Rust, with nat/positive/N/Z as i64 when the value fits and as GMP integers otherwise, overflow checked (needs the rug crate)";
+  { rust_numbers = "hybrid";
+    rust_verb_name = "rust-hybrid";
+    rust_verb_doc = "i64 when the value fits and GMP integers otherwise, overflow checked (needs the rug crate)";
     rust_verb_config = RustHybridRemaps.hybrid_rust_config';
     rust_verb_const_remaps = RustHybridRemaps.hybrid_const_remaps;
     rust_verb_ind_remaps = RustHybridRemaps.hybrid_ind_remaps };
 ]
 
-let compile_rust v opts eopts f_prog =
-  compile_backend
-    ~const_remaps:v.rust_verb_const_remaps
-    ~ind_remaps:v.rust_verb_ind_remaps
-    (ConfigUtils.Rust' v.rust_verb_config) opts eopts f_prog
+let rust_target v =
+  target ~typed:true ~const_remaps:v.rust_verb_const_remaps ~ind_remaps:v.rust_verb_ind_remaps
+    (ConfigUtils.Rust' v.rust_verb_config)
 
-let compile_elm opts eopts f_prog =
-  let b_opts = ConfigUtils.Elm' ConfigUtils.empty_elm_config' in
-  compile_backend b_opts opts eopts f_prog
-
-let compile_ocaml opts eopts f_prog =
-  let b_opts = ConfigUtils.OCaml' ConfigUtils.empty_ocaml_config' in
-  compile_backend b_opts opts eopts f_prog
-
-let compile_cakeml opts eopts f_prog =
-  let b_opts = ConfigUtils.CakeML' ConfigUtils.empty_cakeml_config' in
-  compile_backend b_opts opts eopts f_prog
-
-let compile_lean opts eopts f_prog =
-  let b_opts = ConfigUtils.Lean' ConfigUtils.empty_lean_config' in
-  compile_backend b_opts opts eopts f_prog
-
-let compile_fsharp opts eopts f_prog =
-  let b_opts = ConfigUtils.FSharp' ConfigUtils.empty_fsharp_config' in
-  compile_backend b_opts opts eopts f_prog
-
-let compile_koka opts eopts f_prog =
-  let b_opts = ConfigUtils.Koka' ConfigUtils.empty_koka_config' in
-  compile_backend b_opts opts eopts f_prog
-
-let compile_c opts copts eopts f_prog =
-  let b_opts = ConfigUtils.C' (mk_certirocq_config copts) in
-  compile_backend b_opts opts eopts f_prog
-
-let compile_wasm opts copts eopts f_prog =
-  let b_opts = ConfigUtils.Wasm' (mk_certirocq_config copts) in
-  compile_backend b_opts opts eopts f_prog
-
-let compile_llvm opts copts eopts f_prog =
-  let b_opts = ConfigUtils.LLVM' (mk_certirocq_config copts) in
-  compile_backend b_opts opts eopts f_prog
-
-let compile_ast opts copts eopts t f_prog =
-  let b_opts = ConfigUtils.AST' (mk_ast_config t copts) in
-  compile_backend b_opts opts eopts f_prog
-
-let compile_eval opts copts eopts fuel f_prog =
-  let copts = (mk_certirocq_config copts) in
-  let b_opts = ConfigUtils.Eval' {
-      ConfigUtils.copts'    = Some copts;
+let eval_target copts fuel =
+  target (ConfigUtils.Eval' {
+      ConfigUtils.copts'    = Some (mk_certirocq_config copts);
       ConfigUtils.fuel'     = Peregrine.Caml_nat.nat_of_caml_int fuel;
-    } in
-  compile_backend b_opts opts eopts f_prog
+    })
+
+let ast_target copts t =
+  target ~typed:(t = BoxTyped) (ConfigUtils.AST' (mk_ast_config t copts))

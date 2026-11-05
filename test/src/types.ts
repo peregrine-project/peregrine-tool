@@ -13,8 +13,7 @@ export type ExecResult = ExecFailure | ExecSuccess;
 export enum SimpleType {
   Nat,
   Bool,
-  UInt63,
-  Other /* For programs using types not in the list, when using this type the output won't be checked */
+  UInt63
 }
 
 // Complex types that have type variables
@@ -42,10 +41,16 @@ export enum Lang {
   Koka = "Koka"
 }
 
+// Reasons keyed by the name of a test configuration, as the runner prints it
+// (e.g. "Rust", "Rust-untyped", "WebAssembly-cps")
+export type Expectations = { [config: string]: string };
+
 export type TestCase = {
   // Path to file containing the program lambda box source
-  src?: string,
-  // Path to file containg the typed lambda box source
+  src: string,
+  // Path to file containg the typed lambda box source. A test without one
+  // fails on the typed configurations (Rust, Elm, Rust-verb, Rust-i64,
+  // Rust-hybrid), where it must be marked as an expected failure
   tsrc?: string,
   // Name of the programs main function
   // Only used for typed backends where there isn't an explicit main function
@@ -53,27 +58,32 @@ export type TestCase = {
   // The return type of the main function
   // Used to generate printing function for the output
   output_type: ProgramType,
-  // The expected output
-  expected_output?: string[],
+  // The expected outputs: of the OCaml, C, LLVM, Wasm, CakeML, Lean, F# and
+  // Koka drivers, of the Rust driver, and of the Elm driver
+  expected_output: string[],
   // Types of the main functions parameters
   parameters?: ProgramType[],
   // Arguments for main function call
   arguments?: string[],
   // Extra flags and args for compiling the test program
   compiler_args?: string,
-  // Pipeline configuration files per backend, for backends compiled with
-  // `peregrine compile` on this test
-  configs?: Partial<Record<Lang, string>>,
-  // Backends on which the test is known to fail and is not run
-  skip?: Lang[],
-  // The types of the untyped source cannot be inferred: the typed backends
-  // (Rust, Elm) must reject `src` with "Could not infer types"
-  rejected?: boolean,
-  // The program has cofixpoints: only a configuration passing --lower-cofix runs
-  // it, and C, Wasm, OCaml and CakeML must reject it without that option
+  // Attribute files per backend, passed with --attributes
+  attributes?: Partial<Record<Lang, string>>,
+  // Known failures, per configuration: the reason, which names an open issue
+  // (#N or owner/repo#N). The test runs and must fail: if it passes, the
+  // suite fails, so that the mark is removed
+  xfail?: Expectations,
+  // The typed backends (Rust, Elm) must reject the untyped `src` with "Could
+  // not infer types". `true`: the program cannot be ML-typed, so rejecting it
+  // is correct. A string: the program uses a feature that the typed backends
+  // lack, and the string is the reason, which names the open issue of that
+  // limitation, as for `xfail`
+  rejected?: true | string,
+  // The program has cofixpoints: C, Wasm, LLVM, OCaml and CakeML must reject it
+  // without --lower-cofix
   cofix?: boolean,
   // The expected output of the Rust-i64 test configuration, where nat is i64
-  // and bool is the Rust bool; a test without one is not run there
+  // and bool is the Rust bool, and of Rust-hybrid; a test without one fails there
   rust_i64_output?: string,
 }
 

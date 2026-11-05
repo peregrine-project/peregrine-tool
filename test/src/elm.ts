@@ -1,6 +1,6 @@
 import path from "path";
 import { ExecResult, SimpleType, TestCase } from "./types";
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync } from "fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "fs";
 import { execSync } from "child_process";
 import { find_entry_point } from "./utils";
 
@@ -20,14 +20,11 @@ export function prepare_elm_project(tmpdir: string): string {
 // compares the return value to the expected output
 function append_main(file: string, test: TestCase) {
   const main = find_entry_point(readFileSync(file, "utf8"), test.main);
-  // Without an output recorded for Elm (missing or empty entry) the test only
-  // forces the value
-  const expected = test.output_type == SimpleType.Other ? undefined : test.expected_output?.[2];
-  const content = !expected ?
-    `
-main = Html.text (Debug.toString ${main})
-test = let x = ${main} in Test.test "${main} test" (\\ _ -> Expect.equal 1 1)
-` : `
+  const expected = test.expected_output[2];
+  if (!expected) {
+    throw new Error(`no expected output for Elm in ${test.src}`);
+  }
+  const content = `
 main = Html.text (Debug.toString ${main})
 test = Test.test "${main} test" (\\ _ -> Expect.equal (Debug.toString ${main}) ("${expected}"))
 `;
@@ -59,9 +56,13 @@ export function run_elm(file: string, tmpdir: string, test: TestCase, timeout: n
     }
     if (e.status == 2) {
       // TODO parse stdout to retreive reason
-      return { type: "error", reason: "incorrect result", actual: "TODO", expected: test.expected_output?.[2] }
+      return { type: "error", reason: "incorrect result", actual: "TODO", expected: test.expected_output[2] }
     }
 
     return { type: "error", reason: "runtime error", error: e }; // TODO
+  } finally {
+    // The module would stay in the project and could clash with the modules
+    // that the next tests import
+    rmSync(file, { force: true });
   }
 }

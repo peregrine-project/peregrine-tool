@@ -13,6 +13,26 @@ let mk_copts verbose debug output_file attrs = {
   attrs
 }
 
+(* The frontends, see frontend.ml *)
+type frontend = Rocq | Agda | Lean | LambdaBox
+
+type frontend_opts = {
+  from: frontend option;
+  entry: string option;
+  frontend_args: string list;
+  keep_ast: string option;
+  typed: bool;
+  lean_config: string option;
+}
+let mk_frontend_opts from entry frontend_args keep_ast typed lean_config = {
+  from;
+  entry;
+  frontend_args;
+  keep_ast;
+  typed;
+  lean_config;
+}
+
 type erasure_opts = {
   betared             : bool option;
   unboxing            : bool option;
@@ -61,3 +81,9 @@ type import =
     FromRelativePath of string
   | FromAbsolutePath of string
   | FromLibrary of string * string option
+
+let read_file f =
+  let c = open_in_bin f in
+  let s = really_input_string c (in_channel_length c) in
+  close_in c;
+  s
