@@ -91,7 +91,8 @@ var agda_tests: TestCase[] =
             output_type: SimpleType.Nat,
             expected_output: [
                 "(S (S O))",
-                ""
+                "(suc () (suc () (zero)))",
+                "Suc (Suc Zero)"
             ],
             parameters: []
         },
@@ -122,8 +123,8 @@ var agda_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))) nil))))))",
-                "",
-                ""
+                "(Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero)))))))))))))))))))))))))))))))))) (ՖՖ5bՖՖ5d)))))))",
+                "Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero))))))))))))))))))))))))))))))))) Empty)))))"
             ],
             parameters: []
         },
@@ -134,8 +135,8 @@ var agda_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S (S (S (S (S O)))))) nil)",
-                "",
-                ""
+                "(Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (zero))))))) (ՖՖ5bՖՖ5d))",
+                "Cons (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))) Empty"
             ],
             parameters: []
         },
@@ -170,7 +171,7 @@ var agda_tests: TestCase[] =
             },
             main: "Lvls_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S ".repeat(210) + "O" + ")".repeat(210), "", ""],
+            expected_output: agda_nat(210),
             parameters: []
         },
         {
@@ -180,8 +181,8 @@ var agda_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S O)) (cons (S (S (S (S (S (S O)))))) (cons (S (S (S (S (S (S (S (S (S (S O)))))))))) nil)))",
-                "",
-                ""
+                "(Ֆ_Ֆcons_ () (suc () (suc () (zero))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (zero))))))) (Ֆ_Ֆcons_ () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (suc () (zero))))))))))) (ՖՖ5bՖՖ5d))))",
+                "Cons (Suc (Suc Zero)) (Cons (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))))))) Empty))"
             ],
             parameters: []
         },
@@ -190,28 +191,44 @@ var agda_tests: TestCase[] =
             xfail: { "Elm-untyped": "#99: Elm prints the constructors of Nat and Odd under the same names, Zero and Succ" },
             main: "Mutual_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S O)", "", ""],
+            expected_output: [
+                "(S O)",
+                "(succ () (zero))",
+                "Succ Zero"
+            ],
             parameters: []
         },
         {
             src: "agda/Nat.ast",
             main: "Nat_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S (S (S O)))", "", ""],
+            expected_output: [
+                "(S (S (S O)))",
+                "(suc () (suc () (suc () (zero))))",
+                "Suc (Suc (Suc Zero))"
+            ],
             parameters: []
         },
         {
             src: "agda/OddEven.ast",
             main: "OddEven_test",
             output_type: SimpleType.Bool,
-            expected_output: ["false", "", ""],
+            expected_output: [
+                "false",
+                "(false)",
+                "False"
+            ],
             parameters: []
         },
         {
             src: "agda/PatternLambda.ast",
             main: "PatternLambda_test",
             output_type: SimpleType.Bool,
-            expected_output: ["false", "", ""],
+            expected_output: [
+                "false",
+                "(false)",
+                "False"
+            ],
             parameters: []
         },
         {
@@ -219,7 +236,11 @@ var agda_tests: TestCase[] =
             xfail: { "Elm-untyped": "#79: Elm prints the operator name _,_ as __UU2c_, which Elm rejects" },
             main: "Proj_test",
             output_type: SimpleType.Bool,
-            expected_output: ["false", "", ""],
+            expected_output: [
+                "false",
+                "(false)",
+                "False"
+            ],
             parameters: []
         },
         {
@@ -227,7 +248,11 @@ var agda_tests: TestCase[] =
             xfail: { "Elm-untyped": "#94: the Elm module is named after the file, and rust is not a module name" },
             main: "rust_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
-            expected_output: ["(cons (S (S (S O))) nil)", ""],
+            expected_output: [
+                "(cons (S (S (S O))) nil)",
+                "(Ֆ_ՖՖ3aՖՖ3a_ () (suc () (suc () (suc () (zero)))) (ՖՖ5bՖՖ5d))",
+                "Cons (Suc (Suc (Suc Zero))) Empty"
+            ],
             parameters: []
         },
         {
@@ -236,7 +261,11 @@ var agda_tests: TestCase[] =
             rejected: true,
             main: "STLC_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S (S O))", "", ""],
+            expected_output: [
+                "(S (S O))",
+                "(suc () (suc () (zero)))",
+                "Suc (Suc Zero)"
+            ],
             parameters: []
         },
         {
@@ -244,7 +273,11 @@ var agda_tests: TestCase[] =
             xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
             main: "Unicode_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
-            expected_output: ["(cons (S O) nil)", "", ""],
+            expected_output: [
+                "(cons (S O) nil)",
+                "(Ֆ_Ֆcons_ () (suc () (zero)) (ՖՖ5bՖՖ5d))",
+                "Cons (Suc Zero) Empty"
+            ],
             parameters: []
         },
         {
@@ -252,7 +285,11 @@ var agda_tests: TestCase[] =
             xfail: { "Elm-untyped": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" },
             main: "With_test",
             output_type: { type: "list", a_t: SimpleType.Bool },
-            expected_output: ["(cons true nil)", "", ""],
+            expected_output: [
+                "(cons true nil)",
+                "(Ֆ_ՖՖ3aՖՖ3a_ () (true) (ՖՖ5bՖՖ5d))",
+                "Cons True Empty"
+            ],
             parameters: []
         },
         // Untyped
@@ -398,8 +435,8 @@ var rocq_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))) nil))))))",
-                "",
-                ""
+                "(cons () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (cons () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (S () (O)))))))))))))))))))))))))))))))))) (nil)))))))",
+                "Cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) (Cons (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))))) Nil)))))"
             ],
             parameters: []
         },
@@ -476,7 +513,7 @@ var rocq_tests: TestCase[] =
             rust_i64_output: "1",
             main: "Mutual_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S O)", "(S () (O))", ""],
+            expected_output: ["(S O)", "(S () (O))", "S O"],
             parameters: [],
             xfail: {
                 "Elm": "#99: Elm prints the constructor succ' as Succ', which is not an Elm identifier",
@@ -523,10 +560,10 @@ var rocq_tests: TestCase[] =
             src: "rocq/extraction/Phantom.ast",
             tsrc: "rocq/extraction/Phantom_typed.ast",
             xfail: {
-                "Rust": "peregrine-project/rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
-                "Rust-verb": "peregrine-project/rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
-                "Rust-i64": "peregrine-project/rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor",
-                "Rust-hybrid": "peregrine-project/rocq-typed-extraction#19: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor"
+                "Rust": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
+                "Rust-verb": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
+                "Rust-i64": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
+                "Rust-hybrid": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)"
             },
             rust_i64_output: "1",
             main: "Phantom_test",
@@ -538,10 +575,14 @@ var rocq_tests: TestCase[] =
             src: "rocq/extraction/PolyLet.ast",
             // A let-bound polymorphic function used at two types: Rocq's
             // extraction generalises the let, the type inference does not
-            rejected: true,
+            rejected: "#79: the type inference does not generalise let-bound definitions",
             main: "PolyLet_test",
             output_type: SimpleType.Nat,
-            expected_output: ["(S (S O))", "", ""],
+            expected_output: [
+                "(S (S O))",
+                "(S () (S () (O)))",
+                "S (S O)"
+            ],
             parameters: []
         },
     ];
@@ -567,8 +608,8 @@ var lean_tests: TestCase[] =
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
                 "(cons (S (S O)) (cons (S (S (S (S (S (S O)))))) (cons (S (S (S (S (S (S (S (S (S (S O)))))))))) nil)))",
-                "",
-                ""
+                "(List_Ֆdotcons () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotzero))) (List_Ֆdotcons () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotzero))))))) (List_Ֆdotcons () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotsuc () (Nat_Ֆdotzero))))))))))) (List_Ֆdotempty))))",
+                "Cons (Suc (Suc Zero)) (Cons (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))) (Cons (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc (Suc Zero)))))))))) Empty))"
             ],
             parameters: []
         }, // Generates invalid identifier names in C backend
