@@ -93,7 +93,7 @@ const elm_ctor_clash = elm("#99: Elm prints the constructors of different types 
 const elm_module_clash = elm("#94: the Elm module is named after the file, which clashes with a module of the Elm core or test library");
 const rust_fn_fields = on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"],
     "#79: Debug and Serialize are derived for every type, which fails on the function-typed fields of the record (E0277)");
-const lean_untyped = on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"],
+const lean_untyped = on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Koka-typed"],
     "peregrine-project/lean-to-lambdabox#21: the Lean frontend has no typed output, so a Lean program has no typed source");
 const lean_name_clash = on(["Lean", "FSharp-experimental", "Koka-experimental"],
     "#93, #99: two definitions whose module paths differ only in their last component (where-modules, record modules) get the same name: agda2lambox writes module paths outermost first, and the backend keeps only one component");
