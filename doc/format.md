@@ -321,7 +321,7 @@ The generated module starts with `module <elm_module_name> exposing (..)` follow
   <prefix>     ; ""     — not read (CertiRocq no longer generates an FFI)
   <body_name>) ; "body" — name of the top-level function
 ```
-The C, Wasm and LLVM backends use this record verbatim; the LLVM backend ignores `body_name` and always names its entry point `certirocq_main`. The C backend additionally selects between `gc_stack.h` (when `direct = true`) and `gc.h` (when `direct = false`) and prepends the GC header to the list of `#include`s.
+The C, Wasm and LLVM backends use this record verbatim; the LLVM backend ignores `body_name` and always names its entry point `certirocq_main`. The C backend additionally prepends the GC header `gc_stack.h` to the list of `#include`s, for both values of `direct`.
 
 #### OCaml (`ocaml_config`)
 ```
