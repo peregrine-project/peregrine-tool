@@ -216,7 +216,7 @@ These set the `certirocq_config` record ([format.md](format.md#c--wasm--llvm-cer
 | `i64` | `i64`, overflow not checked | |
 | `mixed` | GMP integers, with `add`/`mul`/`sub`/`div`/`modulo`/`pow`/`eqb`/`leb`/`ltb` on `nat` computed in `i64` | `rug` |
 | `mixed-narrow` | GMP integers, with `div`/`modulo`/`pow` on `nat` computed in `i64` | `rug` |
-| `hybrid` | `i64` while the value fits, GMP integers otherwise, overflow checked | `rug` |
+| `hybrid` | a tagged 63-bit integer while the value fits, GMP integers otherwise, overflow checked | `rug` |
 
 Every representation other than `peano` also maps `bool` to the Rust `bool` and `comparison` to `std::cmp::Ordering`. The generated code always needs the `bumpalo` crate. See [backends.md](backends.md#numeric-representations) for what each representation computes and what is proved about it.
 
