@@ -10,7 +10,7 @@
   ()
   ((((MPfile ("Remap" "Tests" "Peregrine")) "ext_id") (remapped_constant None 1 false false "fn ##name##<T>(&'a self, x: T) -> T { x }"))
    (((MPfile ("Remap" "Tests" "Peregrine")) "shadowed") (remapped_constant None 1 false false "fn ##name##<T>(&'a self, x: T) -> T { x }"))
-   (((MPfile ("Postulates")) "TODO") (remapped_constant None 0 false false "fn ##name##<T>(&'a self) -> T { panic!(\"postulate\") }")))
+   (((MPfile ("Postulates")) "TODO") (remapped_constant None 0 false false "fn ##name##<T>(&'a self) -> T { panic!() }")))
   ()
   ()
   ())
