@@ -68,6 +68,7 @@ Any other file is read as a $\lambda_\square$ program ([format.md](doc/format.md
 | `lean` | `.lean` | untyped | Lake and the runtime in [lean/](lean/) | unverified |
 | `fsharp` (experimental) | `.fs` | untyped | the .NET SDK | unverified |
 | `koka` (experimental) | `.kk` | untyped | the Koka compiler | unverified |
+| `koka-typed` (experimental) | `.kk` | typed (types of untyped input are inferred) | the Koka compiler | unverified |
 | `eval` | the value, printed | untyped | nothing | debugging tool |
 | `ast` | `.ast` | either | nothing | debugging tool |
 

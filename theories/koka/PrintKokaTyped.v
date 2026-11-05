@@ -161,7 +161,6 @@ Section Printer.
     | _ => ([], t)
     end.
 
-  (* The body of a constant: a top-level fixpoint is the function itself. *)
   (* The body of a constant: a top-level fixpoint is (a copy of) its member. *)
   Definition const_body (b : EAst.term) : EAst.term :=
     match b with
@@ -176,7 +175,7 @@ Section Printer.
     | _ => None
     end.
 
-  (* Constants without a body that are used must be remapped. *)
+  (* A monomorphic constant without parameters: a [delayed] value. *)
   Definition is_thunk (kn : kername) : bool :=
     match lookup_env Σ kn with
     | Some (ConstantDecl {| cst_type := (tvars, _); cst_body := Some b |}) =>
