@@ -8,7 +8,9 @@ Import ListNotations.
    backend does not cover it.  The marker promises that the callee reads nothing of
    the caller's stack frame.  At such a call the emitter has unlinked every
    shadow-stack frame of the caller, and the pass also requires each argument to be
-   an [i64] value or the caller's own first parameter, the thread info. *)
+   an [i64] value or the caller's own first parameter, the thread info.  An [i64]
+   is safe because the emitter converts no [alloca] address to an integer; the pass
+   checks neither property of the emitter. *)
 Definition raw_id_eqb (x y : raw_id) : bool :=
   match x, y with
   | Name a, Name b => String.eqb a b
