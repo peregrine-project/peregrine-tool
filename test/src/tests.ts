@@ -396,7 +396,6 @@ var rocq_tests: TestCase[] =
         },
         {
             src: "rocq/extraction/CoStream.ast",
-            koka_typed_rejected: true,
             main: "CoStream_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -409,11 +408,13 @@ var rocq_tests: TestCase[] =
             tsrc: "rocq/extraction/CoStream_typed.ast",
             rust_i64_output: "(cons () 0 (cons () 1 (cons () 0 (cons () 1 (nil)))))",
             rejected: "#125: the Rust and Elm printers do not support cofixpoints, so neither does type inference",
-            xfail: on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)")
+            xfail: {
+                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)"),
+                "Koka-typed": "#125: the typed Koka printer does not support cofixpoints"
+            }
         },
         {
             src: "rocq/extraction/Prims.ast",
-            koka_typed_rejected: true,
             main: "Prims_test",
             output_type: { type: "list", a_t: SimpleType.Nat },
             expected_output: [
@@ -427,6 +428,7 @@ var rocq_tests: TestCase[] =
             rejected: "#125: the Rust and Elm printers do not support primitive values, so neither does type inference",
             xfail: {
                 ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
+                "Koka-typed": "#125: the typed Koka printer does not support primitive values",
                 "WebAssembly": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cps": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cofix": "#125: the Wasm backend does not support primitive strings",
@@ -495,7 +497,6 @@ var rocq_tests: TestCase[] =
         {
             // Corelib's id is declared through a type alias (benchmarks UPSTREAM_ISSUES entry 3)
             src: "rocq/extraction/Id.ast",
-            koka_typed_rejected: "typed-source",
             tsrc: "rocq/extraction/Id_typed.ast",
             // The Elm backend has the same defect and no stopgap
             xfail: { "Elm": "#84: id is printed without its type parameter" },
@@ -564,8 +565,8 @@ var rocq_tests: TestCase[] =
         },
         {
             src: "rocq/extraction/Params.ast",
-            koka_typed_rejected: "typed-source",
             tsrc: "rocq/extraction/Params_typed.ast",
+            xfail: { "Koka-typed": "#139: the value parameter of Tagged is a type Koka cannot express (TAny)" },
             rust_i64_output: "3",
             main: "Params_test",
             output_type: SimpleType.Nat,
@@ -594,7 +595,10 @@ var rocq_tests: TestCase[] =
             // A let-bound polymorphic function used at two types: Rocq's
             // extraction generalises the let, the type inference does not
             rejected: "#79: the type inference does not generalise let-bound definitions",
-            xfail: on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#127: the Rust printer binds the polymorphic id with a let, as a closure of a single type, so its uses at bool and at nat do not type-check (E0308)"),
+            xfail: {
+                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#127: the Rust printer binds the polymorphic id with a let, as a closure of a single type, so its uses at bool and at nat do not type-check (E0308)"),
+                "Koka-typed": "#138: the typed Koka printer binds the polymorphic id with a val, which Koka does not generalise"
+            },
             main: "PolyLet_test",
             output_type: SimpleType.Nat,
             expected_output: [

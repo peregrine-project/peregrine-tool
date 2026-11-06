@@ -488,17 +488,6 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
           print_rejected(f_kk, src, test.rejected);
           return;
         }
-        const koka_rejected = test.koka_typed_rejected === true || (test.koka_typed_rejected === "typed-source" && !untyped);
-        if (typed && koka_rejected) {
-          if (typeof f_kk === "string") {
-            print_result({ type: "error", reason: "incorrect result", expected: "a rejection by the typed Koka backend", actual: "a compiled program" }, src);
-          } else if (f_kk.reason === "compile error" && /typed Koka backend cannot print|Could not infer types/.test(f_kk.error)) {
-            print_line("rejected by the typed Koka backend, as expected");
-          } else {
-            print_result(f_kk, src);
-          }
-          return;
-        }
         if (typeof f_kk !== "string") {
           print_result(f_kk, src);
           return;
