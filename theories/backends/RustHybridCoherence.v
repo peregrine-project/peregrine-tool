@@ -26,7 +26,8 @@
     Trusted, as in [RustMixedCoherence.v]: that each emitted Rust string
     computes the function modelled here (Rust's [checked_*], [/], [%], [>>]
     on [i64]; rug's operations as the corresponding [Z] functions), and GMP.
-    [__pow] aborts on an exponent outside [u32]; the model covers the others. *)
+    [__pow] aborts on an exponent outside [u32] unless the base is 0 or 1; the
+    model covers the others. *)
 
 From Stdlib Require Import Bool ZArith NArith PArith Arith Lia.
 

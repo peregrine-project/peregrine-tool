@@ -30,7 +30,8 @@
     remap table compute what the Rocq functions compute; that the Rust strings
     implement the model is trusted.  The only [unsafe] code dereferences an
     even word, and the private field of [Num] in [mod __hybrid] makes
-    [of_big] the only source of even words.
+    [of_big], which only [of_integer] calls on a value outside the small range,
+    the only source of even words.
     Cargo dependencies: [rug = "1"], [bumpalo = "3"]. *)
 
 From MetaRocq.Common Require Import Kernames.
@@ -156,7 +157,8 @@ Definition hybrid_top_preamble : string :=
   "mod __hybrid {";
   "  // The only code that reads or builds the word of a Num.  Invariant: an odd";
   "  // word is 2v+1 for a small v; an even word is the address of a rug::Integer";
-  "  // that lives for 'a (of_big takes a &'a reference; Integer is 8-aligned).";
+  "  // that lives for 'a (of_big takes a &'a reference; Integer is 8-aligned) and";
+  "  // whose value is outside the small range (of_integer, the only caller, checks).";
   "  // The field is private, so no other code can build an even word, and";
   "  // view() dereferences only even words.";
   "  #[derive(Clone, Copy)]";
@@ -167,7 +169,9 @@ Definition hybrid_top_preamble : string :=
   "  impl<'a> Num<'a> {";
   "    /// A small number; v must be in [SMIN, SMAX] (out of range gives a wrong small value, never an invalid address).";
   "    #[inline(always)] pub const fn S(v: i64) -> Num<'a> { Num(v.wrapping_shl(1) | 1, std::marker::PhantomData) }";
-  "    #[inline(always)] pub fn of_big(b: &'a rug::Integer) -> Num<'a> { Num(b as *const rug::Integer as usize as i64, std::marker::PhantomData) }";
+  "    #[inline(always)] fn of_big(b: &'a rug::Integer) -> Num<'a> { Num(b as *const rug::Integer as usize as i64, std::marker::PhantomData) }";
+  "    /// The number b: small when b is in [SMIN, SMAX], so the representation stays canonical.";
+  "    #[inline(always)] pub fn of_integer(b: &'a rug::Integer) -> Num<'a> { match b.to_i64() { Some(v) if v >= SMIN && v <= SMAX => Num::S(v), _ => Num::of_big(b) } }";
   "    #[inline(always)] pub fn small(self) -> Option<i64> { if self.0 & 1 == 1 { Some(self.0 >> 1) } else { None } }";
   "    #[inline(always)] pub fn view(self) -> View<'a> { if self.0 & 1 == 1 { View::S(self.0 >> 1) } else { View::B(unsafe { &*(self.0 as usize as *const rug::Integer) }) } }";
   "    /// Fast paths on two small numbers: None when an argument is big or the result leaves the small range.";
@@ -183,7 +187,7 @@ Definition hybrid_top_preamble : string :=
   "#[inline(always)] fn __fits(v: i64) -> bool { v >= __SMIN && v <= __SMAX }";
   "fn __big(x: Num) -> rug::Integer { match x.view() { View::S(v) => rug::Integer::from(v), View::B(b) => b.clone() } }";
   "fn __bref<'t>(x: Num<'t>, tmp: &'t mut rug::Integer) -> &'t rug::Integer { match x.view() { View::S(v) => { tmp.assign(v); tmp } View::B(b) => b } }";
-  "fn __leak(x: rug::Integer) -> Num<'static> { match x.to_i64() { Some(v) if __fits(v) => Num::S(v), _ => Num::of_big(Box::leak(Box::new(x))) } }";
+  "fn __leak(x: rug::Integer) -> Num<'static> { match x.to_i64() { Some(v) if __fits(v) => Num::S(v), _ => Num::of_integer(Box::leak(Box::new(x))) } }";
   "fn __leak_i64(v: i64) -> Num<'static> { if __fits(v) { Num::S(v) } else { __leak(rug::Integer::from(v)) } }";
   "impl<'a> PartialEq for Num<'a> { fn eq(&self, o: &Self) -> bool { match (self.view(), o.view()) { (View::S(a), View::S(b)) => a == b, (View::B(a), View::B(b)) => a == b, _ => false } } }";
   "impl<'a> Eq for Num<'a> {}";
@@ -240,8 +244,8 @@ Definition hybrid_top_preamble : string :=
     with [x / 0 = 0] and [x mod 0 = x]. *)
 Definition hybrid_program_preamble : string :=
   String.concat MRString.nl [
-  "fn __int(&'a self, v: i64) -> Num<'a> { if __fits(v) { Num::S(v) } else { Num::of_big(self.alloc(rug::Integer::from(v))) } }";
-  "fn __num(&'a self, x: rug::Integer) -> Num<'a> { match x.to_i64() { Some(v) if __fits(v) => Num::S(v), _ => Num::of_big(self.alloc(x)) } }";
+  "fn __int(&'a self, v: i64) -> Num<'a> { if __fits(v) { Num::S(v) } else { Num::of_integer(self.alloc(rug::Integer::from(v))) } }";
+  "fn __num(&'a self, x: rug::Integer) -> Num<'a> { match x.to_i64() { Some(v) if __fits(v) => Num::S(v), _ => Num::of_integer(self.alloc(x)) } }";
   "fn __add(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if let Some(r) = Num::add_small(a, b) { return r } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x + y))) }";
   "fn __sub(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if let Some(r) = Num::sub_small(a, b) { return r } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x - y))) }";
   "fn __mul(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if let Some(r) = Num::mul_small(a, b) { return r } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x * y))) }";
@@ -256,7 +260,8 @@ Definition hybrid_program_preamble : string :=
   "  if let (Some(x), Some(y)) = (a.small(), b.small()) { let r = x % y; return Num::S(if r != 0 && ((r < 0) != (y < 0)) { r + y } else { r }) }";
   "  self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x.rem_floor(y)))) }";
   "fn __pow(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> {";
-  "  let e: u32 = match b.small() { Some(v) if v >= 0 && v <= u32::MAX as i64 => v as u32, _ => panic!(""exponent out of range"") };";
+  "  // b is a nat; 0 and 1 to any power are themselves";
+  "  let e: u32 = match b.small() { Some(v) if v >= 0 && v <= u32::MAX as i64 => v as u32, _ if a == Num::S(0) || a == Num::S(1) => return a, _ => panic!(""exponent out of range"") };";
   "  if let Some(x) = a.small() { if let Some(r) = x.checked_pow(e) { return self.__int(r) } }";
   "  self.__num(__gmp1!(a, |x| rug::Integer::from(x.pow(e)))) }";
   "fn __nat_zero(&'a self) -> Num<'a> { Num::S(0) }";
