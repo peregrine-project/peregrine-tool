@@ -114,7 +114,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Equality.ast",
-            xfail: { "Elm": "#79: Elm prints the type name ≡ as __UU002261_, which Elm rejects" },
+            xfail: { "Elm": "#79: Elm prints the type name ≡ as __UU002261_, which Elm rejects", "Koka-typed": "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express" },
             main: "Equality_test",
             output_type: SimpleType.Nat,
             expected_output: [
@@ -259,7 +259,8 @@ var agda_tests: TestCase[] =
             rejected: true,
             xfail: {
                 ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#127: the branches of eval have different types (the type of the value is indexed by the type of the term), and the Rust printer has no cast (E0308)"),
-                "Elm": "#79: Elm prints the type name ∋ as __UU00220b_, which Elm rejects"
+                "Elm": "#79: Elm prints the type name ∋ as __UU00220b_, which Elm rejects",
+                "Koka-typed": "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express"
             },
             main: "STLC_test",
             output_type: SimpleType.Nat,
@@ -304,14 +305,14 @@ var agda_tests: TestCase[] =
             rejected: "#79: type inference cannot unify the type of _∷_⊣_ with its application to a list",
             xfail: { "Elm": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" }
         },
-        { ...agda_nat_test("Params", 25, false), xfail: elm_operator },
+        { ...agda_nat_test("Params", 25, false), xfail: { ...elm_operator, "Koka-typed": "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express" } },
         { ...agda_nat_test("Prelude", 42, false), xfail: elm_operator },
         agda_nat_test("RecursiveInline", 6, false),
         agda_nat_test("StrictLet", 3, false),
         { ...agda_nat_test("Terminating", 6, false), xfail: elm("#99: agda2lambox writes the module path of a where-bound lambda outermost first, so Elm prints it as _14_Terminating__UU2eextendedlambda1, which Elm rejects") },
         { ...agda_nat_test("WhereNames", 6, false), xfail: { ...elm_operator, ...lean_name_clash } },
         // Typed: test/typed
-        { ...agda_nat_test("Scheme", 42, true), xfail: elm_operator },
+        { ...agda_nat_test("Scheme", 42, true), xfail: { ...elm_operator, ...on(["Koka-typed", "Koka-typed-untyped"], "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express") } },
         { ...agda_nat_test("Test", 42, true), xfail: elm_module_clash },
         { ...agda_nat_test("Types", 42, true), xfail: elm_operator },
         // Typed: test/agda2rust
@@ -323,7 +324,7 @@ var agda_tests: TestCase[] =
         agda_nat_test("ErasedFields", 168, true),
         agda_nat_test("EtaExpansion", 672, true),
         agda_nat_test("ExactSplit", 0, true),
-        { ...agda_nat_test("Exp", 168, true), xfail: { ...rust("#127: the branches of geval have different types (GExp is indexed by the type of its value), and the Rust printer has no cast (E0308)"), ...elm_ctor_clash } },
+        { ...agda_nat_test("Exp", 168, true), xfail: { ...rust("#127: the branches of geval have different types (GExp is indexed by the type of its value), ...on(["Koka-typed", "Koka-typed-untyped"], "#143: the branches of geval have different types (GExp is indexed by the type of its value), which typed Koka does not cast"), and the Rust printer has no cast (E0308)"), ...elm_ctor_clash } },
         agda_nat_test("Identity", 42, true),
         { ...agda_nat_test("Levels", 294, true), xfail: elm("#99: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Levels_toNat, which Elm rejects") },
         agda_nat_test("List0", 42, true),
@@ -349,7 +350,8 @@ var agda_tests: TestCase[] =
                 ...on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#126: the Rust printer prints no method for the remapped axiom Postulates.TODO (E0599)"),
                 ...on(["WebAssembly", "WebAssembly-cps", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
                 "LLVM": "#126: the LLVM backend calls a remapped constant without declaring it (use of undefined value '@remap_id')",
-                "CakeML": "#126: the CakeML backend takes no constant remappings, so the postulate TODO is printed as a raise, which cake does not parse"
+                "CakeML": "#126: the CakeML backend takes no constant remappings, so the postulate TODO is printed as a raise, which cake does not parse",
+                ...on(["Koka-typed", "Koka-typed-untyped"], "#126: the Koka realisation of TODO returns its type argument, so typed Koka sees () where max needs a function")
             }
         },
         agda_nat_test("Prim", 42, true),
@@ -359,7 +361,7 @@ var agda_tests: TestCase[] =
         agda_nat_test("Simplification", 42, true),
         agda_nat_test("Singleton", 42, true),
         agda_nat_test("Top", 42, true),
-        { ...agda_nat_test("TypeAliases", 168, true), xfail: elm_operator },
+        { ...agda_nat_test("TypeAliases", 168, true), xfail: { ...elm_operator, ...on(["Koka-typed", "Koka-typed-untyped"], "#84: the type of incr is declared through an alias, so it has fewer arrows than its body has lambdas") } },
         agda_nat_test("UnusedArgs", 84, true),
         { ...agda_nat_test("Where", 210, true), xfail: { ...elm_operator, ...lean_name_clash } },
     ];
