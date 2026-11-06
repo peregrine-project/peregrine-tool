@@ -187,18 +187,26 @@ Qed.
 Program Definition extra_unsafe_transforms (spec_inst cse impl_box impl_lazy_force : bool) :=
   let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
   (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params EWellformed.all_env_flags)) in
-  (* Instance/dictionary specialization, then common-subexpression
-     elimination, both in the constructors-as-blocks regime of [implement_box].
+  (* Instance/dictionary specialization and the pruning of the constants it
+     leaves unused, then common-subexpression elimination, all in the
+     constructors-as-blocks regime of [implement_box].
      They run after [optional_unsafe_transforms], so betared and dead-argument
      elimination do not see their output.  Both are off by default, and their
      semantic obligations rest on axioms (EInstanceSpecialize.v,
      ECommonSubexpr.v). *)
   ETransform.optional_self_transform spec_inst
     (specialize_instances_transformation efl EImplementBox.block_wcbv_flags) ▷
+  ETransform.optional_self_transform spec_inst
+    (prune_transformation efl EImplementBox.block_wcbv_flags) ▷
   ETransform.optional_self_transform cse
     (cse_transformation efl EImplementBox.block_wcbv_flags) ▷
   ETransform.optional_self_transform impl_box implement_box_transformation ▷
   ETransform.optional_self_transform impl_lazy_force implement_lazy_force_transformation.
+Next Obligation.
+  cbn. intros.
+  destruct spec_inst, cse, impl_box, impl_lazy_force; cbn in *;
+    try assumption; try (apply switch_off_box_wf_eprogram; assumption).
+Qed.
 Next Obligation.
   cbn. intros.
   destruct spec_inst, cse, impl_box, impl_lazy_force; cbn in *;
