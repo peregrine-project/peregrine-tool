@@ -464,9 +464,45 @@ Section Printer.
         end) (combine names mfix);;
     Ok (defs, Γg).
 
+  (* [TAny] comes from a polymorphic type inside a type, as in the alias
+     [ID := forall A, A -> A] of the standard library.  At the top of a constant's type
+     its occurrences are one type variable of the constant, as for [id : ID]. *)
+  Fixpoint has_any (t : box_type) : bool :=
+    match t with
+    | TAny => true
+    | TArr a b | TApp a b => orb (has_any a) (has_any b)
+    | _ => false
+    end.
+
+  Fixpoint any_to_var (n : nat) (t : box_type) : box_type :=
+    match t with
+    | TAny => TVar n
+    | TArr a b => TArr (any_to_var n a) (any_to_var n b)
+    | TApp a b => TApp (any_to_var n a) (any_to_var n b)
+    | _ => t
+    end.
+
+  Definition is_any_alias (kn : kername) : bool :=
+    match lookup_env Σ kn with
+    | Some (TypeAliasDecl (Some ([], bt))) => has_any bt
+    | _ => false
+    end.
+
+  Definition expand_any_alias (ty : list name * box_type) : list name * box_type :=
+    match snd ty with
+    | TConst kn =>
+      match lookup_env Σ kn with
+      | Some (TypeAliasDecl (Some ([], bt))) =>
+        if has_any bt then (List.app (fst ty) [BasicAst.nAnon], any_to_var (List.length (fst ty)) bt) else ty
+      | _ => ty
+      end
+    | _ => ty
+    end.
+
   Definition print_constant (kn : kername) (ty : list name * box_type) (b0 : EAst.term)
     : kres string :=
     let b := eta_fix b0 in
+    let ty := expand_any_alias ty in
     let Γt := tvars_of (List.length (fst ty)) in
     let body := const_body b in
     let '(params, inner) := lambdas body in
@@ -558,7 +594,8 @@ Section Printer.
       end
     | ConstantDecl {| cst_body := None |} => Ok None
     | InductiveDecl mib => s <- print_inductive kn mib;; Ok (Some s)
-    | TypeAliasDecl (Some (tvars, bt)) => s <- print_alias kn tvars bt;; Ok (Some s)
+    | TypeAliasDecl (Some (tvars, bt)) =>
+      if is_any_alias kn then Ok None else s <- print_alias kn tvars bt;; Ok (Some s)
     | TypeAliasDecl None => Ok None
     end.
 
