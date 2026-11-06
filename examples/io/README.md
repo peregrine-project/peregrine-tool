@@ -60,7 +60,9 @@ calls the code of the closure `k` on its environment and the response. The
 module exports every function, its memory and the globals `mem_ptr` and
 `result`; the host reads the function index of each export from the binary's
 export section, since the closure holds a table index and the module's table
-maps index *i* to function *i*.
+maps index *i* to function *i*. Numbers are unary `nat`, so their size is bounded by the
+program and not by the host: the host handles inputs of several million, but the
+module's non-tail `x + x` exhausts Node's stack from an input of about 20000.
 
 The host relies on the value layout and the calling convention of
 CertiRocq's Wasm backend (unboxed constructors as `2 * ordinal + 1`, boxed ones

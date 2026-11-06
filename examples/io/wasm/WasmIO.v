@@ -1,7 +1,9 @@
 (** The program of [FreeIO.v], on [nat], for a host-driven interpreter: the extracted
     value is the free-monad tree itself, and the host performs each operation
     and calls the continuation (see [host.mjs]).  The Wasm module has no
-    imports. *)
+    imports.  The definitions repeat those of [FreeIO.v] with [nat] in place of
+    [int], because [peregrine wasm] rejects the [PrimInt63] operations that
+    [FreeIO.v] uses (#125, #126); this copy goes once the Wasm backend accepts them. *)
 From Peregrine.Plugin Require Import Loader.
 Inductive op := PutNat (n : nat) | GetNat.
 Inductive resp := RUnit | RNat (n : nat).
