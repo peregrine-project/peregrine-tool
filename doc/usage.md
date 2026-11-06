@@ -200,7 +200,7 @@ These set the `certirocq_config` record ([format.md](format.md#c--wasm--llvm-cer
 
 * `--cps`: use CertiRocq's CPS pipeline instead of the direct one.
 * `--c-args=N`: the number of arguments that the generated functions take as C arguments; the rest are passed in an array (default 5).
-* `-O N`: CertiRocq's optimization level. 0, the default, disables lambda lifting; 1 and above enable it.
+* `-O N`: CertiRocq's optimization level. 1, the default, enables lambda lifting; 0 disables it, so that every local function keeps a heap-allocated closure environment.
 * `--body-name=NAME`: the name of the top-level function (default `body`). The LLVM backend ignores it and always names its entry point `certirocq_main`.
 
 `--prefix` and `--anf-conf` are accepted but [deprecated](#deprecated-commands-and-options): nothing reads them.

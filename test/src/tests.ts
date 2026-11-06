@@ -8,6 +8,9 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Wasm, "cps", "--cps"],
     [Lang.Wasm, "", ""],
     [Lang.LLVM, "", ""],
+    // -O 0 turns off lambda lifting; the default is -O 1
+    [Lang.C, "O0", "-O 0"],
+    [Lang.LLVM, "O0", "-O 0"],
     [Lang.Rust, "", ""],
     [Lang.Elm, "", ""],
     // The typed backends on the untyped sources, whose types are inferred.
