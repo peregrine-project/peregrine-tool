@@ -112,7 +112,8 @@ export function compile_koka(file: string, test: TestCase, timeout: number): { e
   const main = entry === null ? `pg_${test.main}` : entry[2];
   const isDelayed = new RegExp(`^val ${main} : delayed`, "m").test(source);
   const isNullaryFun = entry !== null && entry[1] === "fun" && entry[3] !== undefined;
-  const target = isDelayed ? `pg_force(${main})` : isNullaryFun ? `${main}()` : main;
+  const force = /^fun pgk_force\(/m.test(source) ? "pgk_force" : "pg_force";
+  const target = isDelayed ? `${force}(${main})` : isNullaryFun ? `${main}()` : main;
   const pp = printer(program_types(source), test.output_type);
   // The printers cast with pg_cast, which only the untyped preamble declares
   const cast = source.includes("extern pg_cast") ? "" : `extern pg_cast( x : a ) : b { c inline "#1"; js inline "#1" }\n`;
