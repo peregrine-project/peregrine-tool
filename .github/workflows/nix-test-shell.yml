@@ -23,7 +23,7 @@ jobs:
           extraPullNames: coq, coq-community, math-comp, metarocq
       - name: Enter the shell and print the toolchain versions
         run: |
-          nix-shell .nix/test-shell.nix --run '
+          NIXPKGS_ALLOW_UNFREE=1 nix-shell .nix/test-shell.nix --run '
             set -e
             rocq --version
             rustc --version

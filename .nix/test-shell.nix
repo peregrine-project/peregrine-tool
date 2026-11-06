@@ -1,6 +1,9 @@
 # A shell for running the test suite (test/) under Nix:
 #
-#   nix-shell .nix/test-shell.nix
+#   NIXPKGS_ALLOW_UNFREE=1 nix-shell .nix/test-shell.nix
+#
+# CompCert, which CertiRocq needs, has an unfree licence, hence the variable
+# (the Nix CI jobs set it too).
 #
 # It has the build inputs of the Peregrine package of default.nix (bundle 9.1:
 # Rocq, MetaRocq, CertiRocq, verified extraction and the other pins of
