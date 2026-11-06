@@ -495,7 +495,7 @@ Proof.
   intros l o.
   cbn -[Deserialize_bool].
   simpl_bytes.
-  rewrite 9!complete_class.
+  rewrite 10!complete_class.
   destruct o; cbn.
   reflexivity.
 Qed.
@@ -506,7 +506,7 @@ Proof.
   intros l o.
   cbn -[Deserialize_bool].
   simpl_bytes.
-  rewrite 9!complete_class.
+  rewrite 10!complete_class.
   destruct o; cbn.
   reflexivity.
 Qed.

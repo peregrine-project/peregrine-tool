@@ -155,7 +155,8 @@ data ErasurePhases = ErasurePhases
     deargCtor     :: Maybe Bool,
     deargConst    :: Maybe Bool,
     specializeInstances :: Maybe Bool,
-    cse           :: Maybe Bool
+    cse           :: Maybe Bool,
+    liftConstants :: Maybe Bool
   }
 
 -- Configuration of Peregrine

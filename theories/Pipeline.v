@@ -119,6 +119,7 @@ Definition apply_transforms (c : config) (lbox : lbox_opts) (p : PAst) (typed : 
   let impl_lazy := c.(erasure_opts).(implement_lazy) in
   let spec_inst := c.(erasure_opts).(specialize_instances) in
   let cse := c.(erasure_opts).(cse) in
+  let lift_consts := c.(erasure_opts).(lift_constants) in
   match p, typed with
   | Untyped env (Some t), true =>
       (* Typed backend on untyped (lambda-box) input: bridge to typed via the
@@ -136,22 +137,22 @@ Definition apply_transforms (c : config) (lbox : lbox_opts) (p : PAst) (typed : 
       let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (drop env0, EAst.tBox) in
       Ok (lbox_typed lbox env' None)
   | Untyped env (Some t), false =>
-      let (env', t') := run_untyped_transforms econf cstr_reorder spec_inst cse lbox impl_box impl_lazy (env, t) in
+      let (env', t') := run_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, t) in
       Ok (Untyped env' (Some t'))
   | Untyped env None, false =>
-      let (env', _) := run_untyped_transforms econf cstr_reorder spec_inst cse lbox impl_box impl_lazy (env, EAst.tBox) in
+      let (env', _) := run_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, EAst.tBox) in
       Ok (Untyped env' None)
   | Typed env (Some t), true =>
       let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (drop env, t) in
       Ok (lbox_typed lbox env' (Some t'))
   | Typed env (Some t), false =>
-      let (env', t') := run_typed_to_untyped_transforms econf cstr_reorder spec_inst cse lbox impl_box impl_lazy (drop env, t) in
+      let (env', t') := run_typed_to_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env, t) in
       (Ok (Untyped env' (Some t')))
   | Typed env None, true =>
       let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (drop env, EAst.tBox) in
       Ok (lbox_typed lbox env' None)
   | Typed env None, false =>
-      let (env', _) := run_typed_to_untyped_transforms econf cstr_reorder spec_inst cse lbox impl_box impl_lazy (drop env, EAst.tBox) in
+      let (env', _) := run_typed_to_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env, EAst.tBox) in
       (Ok (Untyped env' None))
   end.
 

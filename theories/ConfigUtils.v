@@ -308,6 +308,7 @@ Section GeneralConfigOptional.
     dearg_consts'   : option bool;
     specialize_instances' : option bool;
     cse'            : option bool;
+    lift_constants' : option bool;
   }.
   Definition empty_erasure_phases' : erasure_phases' := {|
     implement_box'  := None;
@@ -319,6 +320,7 @@ Section GeneralConfigOptional.
     dearg_consts'   := None;
     specialize_instances' := None;
     cse'            := None;
+    lift_constants' := None;
   |}.
 
   Definition get_default_phase_opt' (o : erasure_phases_config) (p : erasure_phases_config -> phases_config) : bool :=
@@ -338,6 +340,7 @@ Section GeneralConfigOptional.
     dearg_consts   := get_default_phase_opt' o dearg_consts_c;
     specialize_instances := get_default_phase_opt' o specialize_instances_c;
     cse            := get_default_phase_opt' o cse_c;
+    lift_constants := get_default_phase_opt' o lift_constants_c;
   |}.
 
   Definition enforce_phase' (b' : option bool) (b : bool) (o : phases_config) : bool :=
@@ -361,6 +364,7 @@ Section GeneralConfigOptional.
     dearg_consts   := enforce_phase' o.(dearg_consts')   d.(dearg_consts)   o'.(dearg_consts_c);
     specialize_instances := enforce_phase' o.(specialize_instances') d.(specialize_instances) o'.(specialize_instances_c);
     cse            := enforce_phase' o.(cse')            d.(cse)            o'.(cse_c);
+    lift_constants := enforce_phase' o.(lift_constants') d.(lift_constants) o'.(lift_constants_c);
   |}.
 
   Definition mk_erasure_phases (b : backend_config') (o : option erasure_phases') : erasure_phases :=
