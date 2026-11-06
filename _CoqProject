@@ -19,6 +19,7 @@ theories/erasure/EInstanceSpecialize.v
 theories/erasure/ECommonSubexpr.v
 theories/erasure/EHindleyMilner.v
 theories/erasure/EHindleyMilnerSound.v
+theories/erasure/EBorrow.v
 
 theories/lean/LeanIR.v
 theories/lean/LeanCompile.v
@@ -36,17 +37,21 @@ theories/backends/RustNativeRemaps.v
 theories/backends/RustMixedRemaps.v
 theories/backends/RustHybridRemaps.v
 theories/backends/RustMixedCoherence.v
+theories/backends/RustHybridCoherence.v
 theories/backends/ElmBackend.v
 theories/backends/OCamlBackend.v
 theories/backends/CakeMLBackend.v
 theories/backends/CBackend.v
 theories/backends/WasmBackend.v
+theories/backends/LLVMTail.v
 theories/backends/LLVMBackend.v
 theories/backends/CertiRocqBackend.v
 theories/backends/LeanBackend.v
 theories/backends/FSharpBackend.v
 theories/backends/KokaBackend.v
 theories/backends/KokaTypedBackend.v
+theories/backends/KokaIntRemaps.v
+theories/backends/KokaIntCoherence.v
 theories/backends/EvalBackend.v
 theories/backends/ASTBackend.v
 

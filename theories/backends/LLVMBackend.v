@@ -10,6 +10,7 @@ From CertiRocq Require Import Common.Pipeline_utils.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
 From Peregrine Require Import CertiRocqBackend.
+From Peregrine Require LLVMTail.
 From ExtLib.Structures Require Import Monad.
 
 Import MonadNotation.
@@ -21,7 +22,7 @@ Local Open Scope bs_scope.
 Definition default_llvm_config := {|
   direct    := true;
   c_args    := 5;
-  o_level   := 0;
+  o_level   := 1;  (* lambda lifting; 0 keeps every closure (#133) *)
   anf_conf  := 0;
   prefix    := "";
   body_name := "body";
@@ -51,8 +52,25 @@ Definition llvm_pipeline prs (p : EAst.program) :=
 Definition llvm_prelude : string :=
   "declare void @garbage_collect(ptr)" ++ String.String "010"%byte String.EmptyString.
 
-Definition print_llvm p : string :=
-  llvm_prelude ++ serialize_bytestring p.
+(* The module calls each remapped constant without declaring it, so the printer
+   adds the declarations, as for [garbage_collect].  Every value is an [i64], and a
+   constant that allocates also takes the thread info (see [Eprim] in
+   LambdaANF_to_LLVM).  Two constants may share a target, which is declared once. *)
+Definition llvm_prim_decl (r : remapped_constant) : string :=
+  let args := List.app (if r.(re_const_gc) then ["ptr"] else []) (repeat "i64" r.(re_const_arity)) in
+  "declare i64 @" ++ r.(re_const_s) ++ "(" ++ String.concat ", " args ++ ")"
+    ++ String.String "010"%byte String.EmptyString.
+
+Fixpoint llvm_prim_decls (seen : list string) (rs : constant_remappings) : string :=
+  match rs with
+  | [] => ""
+  | (_, r) :: rs =>
+    if existsb (String.eqb r.(re_const_s)) seen then llvm_prim_decls seen rs
+    else llvm_prim_decl r ++ llvm_prim_decls (r.(re_const_s) :: seen) rs
+  end.
+
+Definition print_llvm (remaps : constant_remappings) p : string :=
+  llvm_prelude ++ llvm_prim_decls [] remaps ++ serialize_bytestring (map LLVMTail.tail_tle p).
 
 Definition extract_llvm (remaps : constant_remappings)
                         (custom_attr : custom_attributes)
@@ -64,6 +82,6 @@ Definition extract_llvm (remaps : constant_remappings)
   let prs := mk_prims remaps in
   let (res, _) := run_pipeline EAst.program _ config p (llvm_pipeline prs) in
   match res with
-  | compM.Ret m => Ok (print_llvm m)
+  | compM.Ret m => Ok (print_llvm remaps m)
   | compM.Err s => Err s
   end.

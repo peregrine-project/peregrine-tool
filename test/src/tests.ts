@@ -8,6 +8,9 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Wasm, "cps", "--cps"],
     [Lang.Wasm, "", ""],
     [Lang.LLVM, "", ""],
+    // -O 0 turns off lambda lifting; the default is -O 1
+    [Lang.C, "O0", "-O 0"],
+    [Lang.LLVM, "O0", "-O 0"],
     [Lang.Rust, "", ""],
     [Lang.Elm, "", ""],
     // The typed backends on the untyped sources, whose types are inferred.
@@ -347,9 +350,7 @@ var agda_tests: TestCase[] =
             ...agda_nat_test("Postulates", 84, true),
             attributes: remap_attributes,
             xfail: {
-                ...on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#126: the Rust printer prints no method for the remapped axiom Postulates.TODO (E0599)"),
                 ...on(["WebAssembly", "WebAssembly-cps", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
-                "LLVM": "#126: the LLVM backend calls a remapped constant without declaring it (use of undefined value '@remap_id')",
                 "CakeML": "#126: the CakeML backend takes no constant remappings, so the postulate TODO is printed as a raise, which cake does not parse"
             }
         },
@@ -470,11 +471,8 @@ var rocq_tests: TestCase[] =
             attributes: remap_attributes,
             xfail: {
                 ...on(["WebAssembly", "WebAssembly-cps", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
-                "LLVM": "#126: the LLVM backend calls a remapped constant without declaring it (use of undefined value '@remap_id')",
                 "CakeML": "#126: the CakeML backend takes no constant remappings, so the axiom ext_id is printed as a raise, which cake does not parse",
-                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#126: the typed pipeline removes the unused parameter of shadowed, so the call no longer matches its remapping"),
                 "Rust-untyped": "#79: inference prints no method for the axiom ext_id, and gives the unused parameter of shadowed the type ()",
-                "Elm": "#126: the typed pipeline removes the unused parameter of shadowed, and Elm prints its body under the remapped name",
                 "Elm-untyped": "#126: Elm prints shadowed, with its body, under the remapped name identity, so the program calls it instead of Basics.identity"
             },
             main: "Remap_test",

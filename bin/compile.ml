@@ -8,6 +8,7 @@ module RustGMPRemaps = Peregrine.RustGMPRemaps
 module RustNativeRemaps = Peregrine.RustNativeRemaps
 module RustMixedRemaps = Peregrine.RustMixedRemaps
 module RustHybridRemaps = Peregrine.RustHybridRemaps
+module KokaIntRemaps = Peregrine.KokaIntRemaps
 module Pipeline = Peregrine.Pipeline2
 module ResultMonad = Peregrine.ResultMonad
 module Anf_term = Peregrine.Term0
@@ -300,6 +301,10 @@ let rust_numbers = [
 let rust_target v =
   target ~typed:true ~const_remaps:v.rust_verb_const_remaps ~ind_remaps:v.rust_verb_ind_remaps
     (ConfigUtils.Rust' v.rust_verb_config)
+
+let koka_typed_int_target =
+  target ~typed:true ~const_remaps:KokaIntRemaps.koka_int_remaps
+    (ConfigUtils.KokaTyped' ConfigUtils.empty_koka_config')
 
 let eval_target copts fuel =
   target (ConfigUtils.Eval' {

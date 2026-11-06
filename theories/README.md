@@ -2,7 +2,7 @@
 This directory contains the Peregrine middle-end Rocq source code.
 
 * [backends/](backends/): Wrappers for Peregrine backends
-* [erasure/](erasure/): Code transform/optimization pipeline, Rocq frontend utilities, and type inference for untyped input given to the typed backends (annotations unverified; erasure and scoping proved)
+* [erasure/](erasure/): Code transform/optimization pipeline, Rocq frontend utilities, type inference for untyped input given to the typed backends (annotations unverified; erasure and scoping proved), and borrow inference for reference-counted backends
 * [serialization/](serialization/): Serializers, deserializers and correctness proofs
 * [CheckWF.v](CheckWf.v): AST wellformedness checker
 * [Config.v](Config.v): Configuration definitions
