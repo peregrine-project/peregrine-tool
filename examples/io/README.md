@@ -22,8 +22,8 @@ The primitives:
 | OCaml | `ocaml/axioms.ml`, a module `Axioms` with `def_FreeIO_put_int` and `def_FreeIO_get_int` | none: Peregrine refers to an axiom `K` as `Axioms.def_K` |
 | C | `c/freeio_prims.c` | `c/config.sexp`: `get_int` allocates its result pair through `mk_pair`, so its remap sets `re_const_gc` |
 
-`make check` builds both programs and runs them with input 3; each prints `3`,
-`4` and `result 6`.
+`make check` builds both programs, and the Wasm one below, and runs them with
+input 3; each prints `3`, `4` and `result 6`.
 
 `FreeIO.lean` is the same program in Lean, written against a class of
 operations with one instance in `IO` and one in the free monad, so the source
@@ -46,3 +46,32 @@ These operations take no world argument. The order of their calls is kept
 because `interp` performs an operation before it applies the continuation to
 the result, and the calls happen inside `interp` on variables, so no
 middle-end pass sees two equal closed calls that it could merge.
+
+## Wasm: a host-driven interpreter
+
+The Wasm module that Peregrine emits has no imports, so the primitives cannot
+be functions that the module calls. `wasm/WasmIO.v` therefore extracts the
+free-monad tree itself (`main : free nat`, the program of `FreeIO.v` on
+`nat`, as primitive integers do not reach the Wasm backend yet, #125), and the
+host interprets it: `wasm/host.mjs` runs `main_function`,
+reads the value from the exported global `result`, and while it is `Op o k`
+performs `o`, writes the response into the module's memory at `mem_ptr`, and
+calls the code of the closure `k` on its environment and the response. The
+module exports every function, its memory and the globals `mem_ptr` and
+`result`; the host reads the function index of each export from the binary's
+export section, since the closure holds a table index and the module's table
+maps index *i* to function *i*. Numbers are unary `nat`, so their size is bounded by the
+program and not by the host: the host handles inputs of several million, but the
+module's non-tail `x + x` exhausts Node's stack from an input of about 20000.
+
+The host relies on the value layout and the calling convention of
+CertiRocq's Wasm backend (unboxed constructors as `2 * ordinal + 1`, boxed ones
+as a pointer to the ordinal and the arguments, closures as blocks holding a
+table index and an environment, code taking the environment and then the
+argument), and on the default direct-style pipeline (with `--cps` the closure
+calls do not match). The host is trusted and outside the proof, and it is more
+than the primitives: on OCaml and C `interp` is compiled with the program,
+here the host is the interpreter. CertiCoq-Wasm's theorem covers the run of
+`main_function` up to the first `Op o k`; the calls of `k` from the host, the
+responses the host writes into memory and the layout it reads are not part of
+its statement. `make check` runs it with Node on input 3.

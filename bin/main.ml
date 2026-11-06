@@ -37,7 +37,7 @@ let certirocq_opts_t =
     Arg.(value & opt (some int) None & info ["c-args"] ~doc)
   in
   let o_level_arg =
-    let doc = "Optimization level." in
+    let doc = "Optimization level: 1 (the default) enables lambda lifting, 0 disables it." in
     Arg.(value & opt (some int) None & info ["O"] ~doc)
   in
   let anf_conf_arg =

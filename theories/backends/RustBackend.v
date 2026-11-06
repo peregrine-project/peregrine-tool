@@ -143,7 +143,7 @@ Definition mk_config (o : rust_config) : RustPrintConfig := {|
 Definition eta_remapped_bodies (remaps : remaps) (Σ : ExAst.global_env) : ExAst.global_env :=
   map (fun '(kn, deps, d) =>
     match d, remap_constant remaps kn with
-    | ExAst.ConstantDecl {| ExAst.cst_type := ty; ExAst.cst_body := Some _ |}, Some _ =>
+    | ExAst.ConstantDecl {| ExAst.cst_type := ty |}, Some _ =>
       let n := #|fst (ExAst.decompose_arr (snd ty))| in
       let body := List.fold_right (fun _ t => EAst.tLambda BasicAst.nAnon t) EAst.tBox (repeat tt n) in
       (kn, deps, ExAst.ConstantDecl {| ExAst.cst_type := ty; ExAst.cst_body := Some body |})

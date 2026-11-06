@@ -161,6 +161,56 @@ Section Printer.
       end
     end.
 
+  (* A constant may be declared through a type alias, as [incr : Endo] with
+     [Endo := Nat -> Nat]: [split_arrows_u] unfolds an alias at the head of the type
+     when it needs more arrows, substituting the alias's parameters. *)
+  Fixpoint subst_tvars (args : list box_type) (t : box_type) : box_type :=
+    match t with
+    | TVar i => nth i args t
+    | TArr a b => TArr (subst_tvars args a) (subst_tvars args b)
+    | TApp a b => TApp (subst_tvars args a) (subst_tvars args b)
+    | _ => t
+    end.
+
+  Fixpoint ty_spine (t : box_type) (acc : list box_type) : box_type * list box_type :=
+    match t with
+    | TApp h a => ty_spine h (a :: acc)
+    | _ => (t, acc)
+    end.
+
+  Definition unfold_alias (t : box_type) : option box_type :=
+    match ty_spine t [] with
+    | (TConst kn, args) =>
+      match lookup_env Σ kn with
+      | Some (TypeAliasDecl (Some (tvars, bt))) =>
+        if Nat.eqb (List.length tvars) (List.length args) then Some (subst_tvars args bt) else None
+      | _ => None
+      end
+    | _ => None
+    end.
+
+  Fixpoint split_arrows_u (fuel n : nat) (t : box_type) {struct fuel} : option (list box_type * box_type) :=
+    match n with
+    | 0 => Some ([], t)
+    | S n' =>
+      match fuel with
+      | 0 => None
+      | S fuel' =>
+        match t with
+        | TArr dom cod =>
+          match split_arrows_u fuel' n' cod with
+          | Some (doms, r) => Some (dom :: doms, r)
+          | None => None
+          end
+        | _ =>
+          match unfold_alias t with
+          | Some t' => split_arrows_u fuel' n t'
+          | None => None
+          end
+        end
+      end
+    end.
+
   (* ----- Terms ----------------------------------------------------- *)
 
   (* Arity of every top-level function: its leading lambdas. *)
@@ -507,7 +557,7 @@ Section Printer.
     let body := const_body b in
     let '(params, inner) := lambdas body in
     let self := match b with EAst.tFix [_] 0 => [(fun_name kn, Some (List.length params, []))] | _ => [] end in
-    match split_arrows (List.length params) (snd ty) with
+    match split_arrows_u (List.length params + 16) (List.length params) (snd ty) with
     | None => Err ("the type of " ++ string_of_kername kn ++ " has fewer arrows than its body has lambdas")
     | Some (doms, res) =>
       doms' <- monad_map (print_type Γt) doms;;
