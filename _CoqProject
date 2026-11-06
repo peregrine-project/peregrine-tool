@@ -18,6 +18,7 @@ theories/erasure/ErasureTyped.v
 theories/erasure/Transforms.v
 theories/erasure/EInstanceSpecialize.v
 theories/erasure/ECommonSubexpr.v
+theories/erasure/ELboxOpts.v
 theories/erasure/EHindleyMilner.v
 theories/erasure/EHindleyMilnerSound.v
 

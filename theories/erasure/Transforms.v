@@ -11,6 +11,7 @@ From MetaRocq.Erasure Require EImplementBox.
 From MetaRocq.Erasure Require EImplementLazyForce.
 From Peregrine Require Import EInstanceSpecialize.
 From Peregrine Require Import ECommonSubexpr.
+From Peregrine Require Import ELboxOpts.
 From Malfunction Require Pipeline.
 
 Import PCUICProgram.
@@ -184,7 +185,7 @@ Proof.
 Qed.
 
 
-Program Definition extra_unsafe_transforms (spec_inst cse impl_box impl_lazy_force : bool) :=
+Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_opts) (impl_box impl_lazy_force : bool) :=
   let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
   (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params EWellformed.all_env_flags)) in
   (* Instance/dictionary specialization, then common-subexpression
@@ -197,28 +198,48 @@ Program Definition extra_unsafe_transforms (spec_inst cse impl_box impl_lazy_for
     (specialize_instances_transformation efl EImplementBox.block_wcbv_flags) ▷
   ETransform.optional_self_transform cse
     (cse_transformation efl EImplementBox.block_wcbv_flags) ▷
+  (* Unverified lambda-box simplifications (fixpoint eta-hoisting, case/function
+     permutation, identity cases, let/function permutation), after inlining and
+     beta reduction and before boxes are implemented (ELboxOpts.v).  The
+     identity-case pass runs first, as its own transformation (axioms
+     trust_case_id_wf / trust_case_id_pres); the other three follow (axioms
+     trust_lbox_opts_wf / trust_lbox_opts_pres).  Off by default. *)
+  ETransform.optional_self_transform lbox.(lbox_case_id)
+    (case_id_transformation efl EImplementBox.block_wcbv_flags) ▷
+  ETransform.optional_self_transform (any_lbox_opts (without_case_id lbox))
+    (lbox_opts_transformation lbox efl EImplementBox.block_wcbv_flags) ▷
   ETransform.optional_self_transform impl_box implement_box_transformation ▷
   ETransform.optional_self_transform impl_lazy_force implement_lazy_force_transformation.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), impl_box, impl_lazy_force; cbn in *;
+    try assumption; try (apply switch_off_box_wf_eprogram; assumption).
+Qed.
+Next Obligation.
+  cbn. intros.
+  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), impl_box, impl_lazy_force; cbn in *;
+    try assumption; try (apply switch_off_box_wf_eprogram; assumption).
+Qed.
+Next Obligation.
+  cbn. intros.
+  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 
 
 
 Program Definition untyped_transform_pipeline {guard : abstract_guard_impl}
-  (efl := all_env_flags) econf spec_inst cse impl_box impl_lazy_force
+  (efl := all_env_flags) econf spec_inst cse lbox impl_box impl_lazy_force
   : Transform.t _ _ _ EAst.term _ _
    (* Standard evaluation, with cases on prop, guarded fixpoints, applied constructors *)
    (eval_eprogram_mapping EWcbvEval.default_wcbv_flags)
@@ -227,7 +248,7 @@ Program Definition untyped_transform_pipeline {guard : abstract_guard_impl}
   rebuild_wf_env_transform_mapping true true ▷
   verified_lambdabox_pipeline_mapping econf ▷
   optional_unsafe_transforms econf ▷
-  extra_unsafe_transforms spec_inst cse impl_box impl_lazy_force.
+  extra_unsafe_transforms spec_inst cse lbox impl_box impl_lazy_force.
 Next Obligation.
   cbn. intros.
   destruct H as [? [? ?]].
@@ -243,7 +264,7 @@ Final Obligation.
   cbn. intros.
   destruct econf as [[[] ? ? []] ? ? [] ?]; cbn in *;
     try apply coind_to_ind_wf_eprogram in H;
-    destruct spec_inst, cse, impl_box, impl_lazy_force; auto.
+    destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), impl_box, impl_lazy_force; auto.
 Qed.
 
 
@@ -406,7 +427,7 @@ Qed.
 
 
 Program Definition typed_to_untyped_transform_pipeline {guard : abstract_guard_impl}
-  (efl := EWellformed.all_env_flags) econf spec_inst cse impl_box impl_lazy_force
+  (efl := EWellformed.all_env_flags) econf spec_inst cse lbox impl_box impl_lazy_force
   : Transform.t _ _ _ _ _ _
    (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
    (EProgram.eval_eprogram final_wcbv_flags) :=
@@ -416,7 +437,7 @@ Program Definition typed_to_untyped_transform_pipeline {guard : abstract_guard_i
    rebuild_wf_env_transform_mapping true true ▷
    verified_lambdabox_typed_pipeline econf ▷
    optional_unsafe_transforms econf ▷
-   extra_unsafe_transforms spec_inst cse impl_box impl_lazy_force.
+   extra_unsafe_transforms spec_inst cse lbox impl_box impl_lazy_force.
 Next Obligation.
   intros.
   cbn in *.
@@ -443,12 +464,12 @@ Final Obligation.
   cbn. intros.
   destruct econf as [[[] ? ? []] ? ? [] ?]; cbn in *;
     try apply coind_to_ind_wf_eprogram in H;
-    destruct spec_inst, cse, impl_box, impl_lazy_force; auto.
+    destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), impl_box, impl_lazy_force; auto.
 Qed.
 
 
-Program Definition run_untyped_transforms econf ind_reorder spec_inst cse impl_box impl_lazy_force p :=
-  run (untyped_transform_pipeline econf spec_inst cse impl_box impl_lazy_force) (ind_reorder, p) _.
+Program Definition run_untyped_transforms econf ind_reorder spec_inst cse lbox impl_box impl_lazy_force p :=
+  run (untyped_transform_pipeline econf spec_inst cse lbox impl_box impl_lazy_force) (ind_reorder, p) _.
 Final Obligation.
 Admitted. (* assumed for now, check_wf should ensure this *)
 
@@ -457,7 +478,7 @@ Program Definition run_typed_transforms econf ind_reorder p :=
 Final Obligation.
 Admitted. (* assumed for now, check_wf should ensure this *)
 
-Program Definition run_typed_to_untyped_transforms econf ind_reorder spec_inst cse impl_box impl_lazy_force p :=
-  run (typed_to_untyped_transform_pipeline econf spec_inst cse impl_box impl_lazy_force) (ind_reorder, p) _.
+Program Definition run_typed_to_untyped_transforms econf ind_reorder spec_inst cse lbox impl_box impl_lazy_force p :=
+  run (typed_to_untyped_transform_pipeline econf spec_inst cse lbox impl_box impl_lazy_force) (ind_reorder, p) _.
 Final Obligation.
 Admitted. (* assumed for now, check_wf should ensure this *)

@@ -6,13 +6,26 @@ type copts = {
   output_file: string option;
   attrs: string list;
   inline_recursors: bool;
+  (* Unverified lambda-box simplifications (ELboxOpts.v): umbrella flag and
+     per-pass overrides (None = follow the umbrella). *)
+  lbox_opts: bool;
+  lbox_fix_eta: bool option;
+  lbox_case_fun: bool option;
+  lbox_case_id: bool option;
+  lbox_let_fun: bool option;
 }
-let mk_copts verbose debug output_file attrs inline_recursors = {
+let mk_copts verbose debug output_file attrs inline_recursors
+    lbox_opts lbox_fix_eta lbox_case_fun lbox_case_id lbox_let_fun = {
   verbose;
   debug;
   output_file;
   attrs;
-  inline_recursors
+  inline_recursors;
+  lbox_opts;
+  lbox_fix_eta;
+  lbox_case_fun;
+  lbox_case_id;
+  lbox_let_fun;
 }
 
 (* The frontends, see frontend.ml *)

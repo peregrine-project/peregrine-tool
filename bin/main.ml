@@ -35,7 +35,33 @@ let copts_t =
                default; ignored by $(b,erase) and $(b,validate)." in
     Arg.(value & opt ~vopt:true bool false & info ["inline-recursors"] ~docs ~docv:"BOOL" ~doc)
   in
-  Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg $ inline_recursors_arg)
+  let lbox_opts_arg =
+    let doc = "Enable all lambda-box simplifications of ELboxOpts.v: fixpoint \
+               eta-hoisting, case/function permutation, identity cases and \
+               let/function permutation, i.e. what Rocq's extraction does in \
+               Mlutil. They run after inlining and beta reduction, for every \
+               backend. UNVERIFIED: their correctness is assumed by the axioms \
+               trust_case_id_wf/trust_case_id_pres (identity cases) and \
+               trust_lbox_opts_wf/trust_lbox_opts_pres (the other three). \
+               Off by default; each \
+               pass can be overridden individually with the --lbox-* options." in
+    Arg.(value & opt ~vopt:true bool false & info ["lbox-opts"] ~docs ~docv:"BOOL" ~doc)
+  in
+  let lbox_pass_arg name what =
+    let doc = Printf.sprintf "%s (unverified lambda-box pass, see --lbox-opts). \
+                              Defaults to the value of --lbox-opts." what in
+    Arg.(value & opt ~vopt:(Some true) (some bool) None & info [name] ~docs ~docv:"BOOL" ~doc)
+  in
+  let lbox_fix_eta_arg = lbox_pass_arg "lbox-fix-eta"
+      "Fixpoint eta-hoisting: (fun xs => (fix F ..) xs) becomes the fixpoint" in
+  let lbox_case_fun_arg = lbox_pass_arg "lbox-case-fun"
+      "Case/function permutation: match x with C => fun y => e becomes fun y => match x with C => e" in
+  let lbox_case_id_arg = lbox_pass_arg "lbox-case-id"
+      "Identity cases: match e with C xs => C xs becomes e (boxes count as equal)" in
+  let lbox_let_fun_arg = lbox_pass_arg "lbox-let-fun"
+      "Let/function permutation and applied lets: let z := a in fun y => e becomes fun y => let z := a in e, (let z := a in f) b becomes let z := a in f b" in
+  Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg $ inline_recursors_arg
+        $ lbox_opts_arg $ lbox_fix_eta_arg $ lbox_case_fun_arg $ lbox_case_id_arg $ lbox_let_fun_arg)
 
 let certirocq_opts_t =
   let cps_arg =
