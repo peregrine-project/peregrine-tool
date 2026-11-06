@@ -14,19 +14,19 @@
     coqPackages = {
       coq.override.version = "9.1";
 
-      metarocq-utils.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-common.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-template-rocq.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-pcuic.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-safechecker.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-safechecker-plugin.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-template-pcuic.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-erasure.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-erasure-plugin.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
+      metarocq-utils.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-common.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-template-rocq.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-pcuic.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-safechecker.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-safechecker-plugin.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-template-pcuic.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-erasure.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-erasure-plugin.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
 
       TypedExtraction.override.version = "0.2.1";
       # The peregrine branch of peregrine-project/certirocq, see rocq-peregrine.opam
-      CertiRocq.override.version = "a8dc26feadde902e109ae3a1bbdfacadfc4bb9f6";
+      CertiRocq.override.version = "c1c99e436d2cce95f8de5b87d10173ca56a30b48";
       # CertiRocq needs coq-wasm >= 2.2.1
       wasmcert.override.version = "2.2.1";
       verified-extraction.override.version = "0305df76ac89a83488f12175e2c5d45e1a55d16c";
