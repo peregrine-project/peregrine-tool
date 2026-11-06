@@ -11,6 +11,8 @@
 # test/ calls.  The toolchains come from the nixpkgs that coq-nix-toolbox pins,
 # so their versions can differ from those of build.yml (Rust 1.85.0,
 # Elm 0.19.1, elm-test 0.19.1-revision9, Node 22, clang-15, Koka v3.2.9).
+# nixpkgs no longer has clang 15, so the shell takes its default clang; the
+# LLVM backend's opaque pointers need clang 15 or later.
 # Lean comes through elan, which installs the toolchains named in
 # lean-toolchain and test/lean/lean-toolchain on first use.  The Agda and Lean
 # frontends (agda2lambox, lean-to-lambdabox) are not included.
@@ -26,7 +28,7 @@ pkgs.mkShell {
     elmPackages.elm
     elmPackages.elm-test
     nodejs_22
-    clang_15
+    clang
     koka
     elan
     gmp
