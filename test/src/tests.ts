@@ -350,8 +350,7 @@ var agda_tests: TestCase[] =
                 ...on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#126: the Rust printer prints no method for the remapped axiom Postulates.TODO (E0599)"),
                 ...on(["WebAssembly", "WebAssembly-cps", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
                 "LLVM": "#126: the LLVM backend calls a remapped constant without declaring it (use of undefined value '@remap_id')",
-                "CakeML": "#126: the CakeML backend takes no constant remappings, so the postulate TODO is printed as a raise, which cake does not parse",
-                ...on(["Koka-typed", "Koka-typed-untyped"], "#126: the Koka realisation of TODO returns its type argument, so typed Koka sees () where max needs a function")
+                "CakeML": "#126: the CakeML backend takes no constant remappings, so the postulate TODO is printed as a raise, which cake does not parse"
             }
         },
         agda_nat_test("Prim", 42, true),
@@ -361,7 +360,7 @@ var agda_tests: TestCase[] =
         agda_nat_test("Simplification", 42, true),
         agda_nat_test("Singleton", 42, true),
         agda_nat_test("Top", 42, true),
-        { ...agda_nat_test("TypeAliases", 168, true), xfail: { ...elm_operator, ...on(["Koka-typed", "Koka-typed-untyped"], "#84: the type of incr is declared through an alias, so it has fewer arrows than its body has lambdas") } },
+        { ...agda_nat_test("TypeAliases", 168, true), xfail: elm_operator },
         agda_nat_test("UnusedArgs", 84, true),
         { ...agda_nat_test("Where", 210, true), xfail: { ...elm_operator, ...lean_name_clash } },
     ];
