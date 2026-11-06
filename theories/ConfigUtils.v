@@ -25,7 +25,23 @@ Local Open Scope bs_scope.
 
 Section ErasureConfig.
 
-  Definition mk_cstr_reorders (c : config) := c.(cstr_reorders_opts).
+  (* CertiCoq-Wasm returns the booleans of the PrimInt63 comparisons as the
+     ordinals false = 0 and true = 1 (LambdaANF_to_Wasm_primints), and its proof
+     assumes that order of bool.  Rocq's bool has true first, so the Wasm backend
+     swaps its constructors, as CertiRocq's own plugin does, unless the user
+     maps bool. *)
+  Definition rocq_bool : Kernames.inductive :=
+    {| Kernames.inductive_mind := (Kernames.MPfile ("Datatypes" :: "Init" :: "Corelib" :: nil), "bool");
+       Kernames.inductive_ind := 0 |}.
+
+  Definition mk_cstr_reorders (c : config) : EProgram.inductives_mapping :=
+    let user := c.(cstr_reorders_opts) in
+    match c.(backend_opts) with
+    | Wasm _ =>
+      if List.existsb (fun m => Kernames.eq_inductive_def (fst m) rocq_bool) user then user
+      else (rocq_bool, ("bool", 1 :: 0 :: nil)) :: user
+    | _ => user
+    end.
 
   Definition mk_ind_remaps (c : config) : EProgram.extract_inductives :=
     Utils.filter_map (fun r =>

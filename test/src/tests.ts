@@ -45,6 +45,17 @@ function agda_nat(n: number): string[] {
     ];
 }
 
+// A list of natural numbers, as the backends print it
+function nat_list(ns: number[]): string[] {
+    const n1 = (n: number) => n === 0 ? "O" : "(S ".repeat(n) + "O" + ")".repeat(n);
+    const n2 = (n: number) => "(S () ".repeat(n) + "(O)" + ")".repeat(n);
+    return [
+        ns.map((n) => "(cons " + n1(n) + " ").join("") + "nil" + ")".repeat(ns.length),
+        ns.map((n) => "(cons () " + n2(n) + " ").join("") + "(nil)" + ")".repeat(ns.length),
+        ns.map((n, i) => (i > 0 ? "(" : "") + "Cons " + n1(n) + " ").join("") + "Nil" + ")".repeat(ns.length - 1)
+    ];
+}
+
 // An Agda program of the agda2lambox test suite whose entry point `test`
 // computes the natural number n. The programs of test/typed and
 // test/agda2rust are compiled with --typed, and the untyped backends take
@@ -426,6 +437,19 @@ var rocq_tests: TestCase[] =
                 "WebAssembly-cps": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cofix": "#125: the Wasm backend does not support primitive strings",
                 "CakeML": "#125: the CakeML backend prints every primitive literal as a raise"
+            }
+        },
+        {
+            src: "rocq/extraction/PrimInt.ast",
+            tsrc: "rocq/extraction/PrimInt_typed.ast",
+            main: "PrimInt_test",
+            output_type: { type: "list", a_t: SimpleType.Nat },
+            expected_output: nat_list([7, 7, 42, 0, 7, 0, 0, 32, 8, 14, 6, 1, 0, 1, 0, 0, 1, 2, 1, 1, 0, 6, 1, 0, 1, 3, 62, 3, 3, 2, 17, 3, 2, 6]),
+            parameters: [],
+            xfail: {
+                ...on(["OCaml", "OCaml-passes", "OCaml-cofix", "C", "C-cps", "C-cofix", "LLVM", "CakeML", "Rust-untyped", "Elm-untyped", "Lean", "FSharp-experimental", "Koka-experimental"],
+                    "#125: only the Wasm backend compiles the PrimInt63 operations; the others reject them or print them as missing axioms"),
+                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)")
             }
         },
         {

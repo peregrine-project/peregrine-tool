@@ -46,8 +46,9 @@ Definition print_wasm p : string :=
 
 (* The Int63 operations that CertiCoq-Wasm compiles natively ([primop_map] of
    LambdaANF_to_Wasm_primints, proved correct there).  They are constants without a
-   body, so the pipeline's axiom check needs them registered; the code generator
-   finds the operation by its name, and the target is not used. *)
+   body, so the pipeline's axiom check needs them registered.  The code generator
+   finds the operation by its name and ignores [prim_target] and [prim_alloc],
+   so neither field has an effect here. *)
 Definition int63_mod : Kernames.modpath :=
   Kernames.MPfile ["PrimInt63"; "Int63"; "Cyclic"; "Numbers"; "Corelib"].
 
@@ -61,7 +62,9 @@ Definition int63_prims : primitives :=
        ("mulc", 2, true); ("head0", 1, false); ("tail0", 1, false); ("diveucl", 2, true);
        ("diveucl_21", 3, true); ("addmuldiv", 3, false)].
 
-(* A user's remapping of an operation comes first and wins. *)
+(* A user's remapping of one of these operations replaces its entry, but the code
+   generator still compiles the operation natively: only the arity is taken from
+   the user's entry. *)
 Definition wasm_prims (remaps : constant_remappings) : primitives :=
   let user := mk_prims remaps in
   let is_user (pr : primitive) := existsb (fun u => Kernames.eq_kername u.(prim_name) pr.(prim_name)) user in

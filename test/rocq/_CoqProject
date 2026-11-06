@@ -12,6 +12,7 @@ theories/Id.v
 theories/Map.v
 theories/CoStream.v
 theories/Prims.v
+theories/PrimInt.v
 theories/Mutual.v
 theories/Nat.v
 theories/OddEven.v
