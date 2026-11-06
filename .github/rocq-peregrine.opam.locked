@@ -45,9 +45,9 @@ pin-depends: [
   # 0.2.1 plus the reference-counting memory mode of the Rust printer
   # (memory_mode, RcMode), which the rust-rc verb needs. The three packages
   # require each other at equal versions, so all three are pinned.
-  ["rocq-typed-extraction-common.0.2.1+dev" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#c7e948482bde663a026fb0608464b78de1aa8ae5"]
-  ["rocq-rust-extraction.0.2.1+dev" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#c7e948482bde663a026fb0608464b78de1aa8ae5"]
-  ["rocq-elm-extraction.0.2.1+dev" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#c7e948482bde663a026fb0608464b78de1aa8ae5"]
+  ["rocq-typed-extraction-common.0.2.1+dev" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#6f94d87c14768feaee3699ad2164eaf12f64431e"]
+  ["rocq-rust-extraction.0.2.1+dev" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#6f94d87c14768feaee3699ad2164eaf12f64431e"]
+  ["rocq-elm-extraction.0.2.1+dev" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#6f94d87c14768feaee3699ad2164eaf12f64431e"]
   ["rocq-metarocq-utils.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#c8cd46054518193103c3bb33aa6e15c7f489e72c"]
   ["rocq-metarocq-common.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#c8cd46054518193103c3bb33aa6e15c7f489e72c"]
   ["rocq-metarocq-template.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#c8cd46054518193103c3bb33aa6e15c7f489e72c"]
