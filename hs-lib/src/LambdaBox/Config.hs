@@ -101,6 +101,7 @@ data BackendConfig
   | Lean LeanConfig
   | FSharp FSharpConfig
   | Koka KokaConfig
+  | KokaTyped KokaConfig
   | Eval EvalConfig
   | AST ASTConfig
 

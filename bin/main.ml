@@ -232,6 +232,7 @@ let backends = [
   "lean", "Compile to Lean 4", plain (ConfigUtils.Lean' ConfigUtils.empty_lean_config');
   "fsharp", "Compile to F# (experimental)", plain (ConfigUtils.FSharp' ConfigUtils.empty_fsharp_config');
   "koka", "Compile to Koka (experimental)", plain (ConfigUtils.Koka' ConfigUtils.empty_koka_config');
+  "koka-typed", "Compile to typed Koka (experimental); untyped input is typed by Hindley-Milner inference", plain ~typed:true (ConfigUtils.KokaTyped' ConfigUtils.empty_koka_config');
   "eval", "Evaluate the program with the lambda box interpreter", Term.(const eval_target $ certirocq_opts_t $ fuel_arg);
 ]
 

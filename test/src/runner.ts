@@ -183,7 +183,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
   // Source that the typed backends compile
   const typed_src = (t: TestCase) => untyped ? t.src : t.tsrc;
   // Source that this configuration compiles
-  const source = (t: TestCase) => lang === Lang.Rust || lang === Lang.Elm ? typed_src(t) : t.src;
+  const source = (t: TestCase) => lang === Lang.Rust || lang === Lang.Elm || rust_verb === "koka-typed" ? typed_src(t) : t.src;
   const name = `${lang}${n.length > 0 ? "-"+n : ""}`;
   const reason = (e?: Expectations) => e?.[name];
   print_line(`Running ${name} tests:`);
@@ -471,21 +471,33 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         break;
       }
       tests.forEach((test, k) => {
-        process.stdout.write(`  ${test.src}: `);
+        // The typed backend (verb koka-typed) compiles the typed source, or
+        // the untyped one through type inference
+        const typed = rust_verb === "koka-typed";
+        const src = typed ? typed_src(test) : test.src;
+        if (src === undefined) {
+          print_no_typed_source(test.src);
+          return;
+        }
+        process.stdout.write(`  ${src}: `);
         // Each test gets its own directory, as several tests share a file name.
-        const outdir = path.join(tmpdir, "koka", `${k}`);
+        const outdir = path.join(tmpdir, "koka", `${n}-${k}`);
         mkdirSync(outdir, { recursive: true });
-        const f_kk = compile_box(test.src, outdir, Lang.Koka, with_args(lang, opts, test));
+        const f_kk = compile_box(src, outdir, Lang.Koka, with_args(lang, opts, test), undefined, rust_verb);
+        if (typed && untyped && test.rejected) {
+          print_rejected(f_kk, src, test.rejected);
+          return;
+        }
         if (typeof f_kk !== "string") {
-          print_result(f_kk, test.src);
+          print_result(f_kk, src);
           return;
         }
         const built = compile_koka(f_kk, test, compile_timeout * 4);
         if ("type" in built) {
-          print_result(built, test.src);
+          print_result(built, src);
           return;
         }
-        print_result(run_koka(built.exe, test, built.checked, exec_timeout), test.src);
+        print_result(run_koka(built.exe, test, built.checked, exec_timeout), src);
       });
       break;
 
@@ -532,9 +544,10 @@ async function main() {
     ...Object.entries(t.xfail ?? {}).map(([c, r]) => ({ test: t, what: `xfail on ${c}`, config: c, reason: r })),
     ...(typeof t.rejected === "string" ? [{ test: t, what: "rejected", config: undefined, reason: t.rejected }] : [])
   ]);
-  // A rejected test must be rejected on Rust-untyped and Elm-untyped: an xfail
-  // there would hide a program that type inference wrongly accepts
-  const rejected_configs = ["Rust-untyped", "Elm-untyped"];
+  // A rejected test must be rejected on Rust-untyped, Elm-untyped and
+  // Koka-typed-untyped: an xfail there would hide a program that type
+  // inference wrongly accepts
+  const rejected_configs = ["Rust-untyped", "Elm-untyped", "Koka-typed-untyped"];
   const bad_marks = marks.filter((m) => !/(?<![\w-])([\w.-]+\/[\w.-]+)?#(\d+|TBD-[\w-]+)\b/.test(m.reason)
     || (m.config !== undefined && !names.includes(m.config))
     || (m.config !== undefined && m.test.rejected !== undefined && rejected_configs.includes(m.config)));

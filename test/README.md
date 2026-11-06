@@ -24,7 +24,7 @@ The test suite depends on the following:
 Every test runs on every configuration, and either its result is compared with the expected one and passes, or it fails as an expected failure that an open issue tracks. No test is skipped, and no result goes unchecked: a driver that cannot print the result of a test fails it.
 
 * A test marked `xfail` for a configuration (keyed by the name the runner prints, e.g. `Rust-untyped`) runs there and must fail. The runner reports it as an expected failure with its reason. If it passes, the suite fails with "remove the mark", so that a fix is noticed.
-* A test marked `rejected` must be rejected by type inference in `Rust-untyped` and `Elm-untyped` (see below). `rejected: true` means that the program cannot be ML-typed, so the rejection is the correct behaviour. A string instead of `true` is the reason for a rejection that comes from a limitation of the backends.
+* A test marked `rejected` must be rejected by type inference in `Rust-untyped`, `Elm-untyped` and `Koka-typed-untyped` (see below). `rejected: true` means that the program cannot be ML-typed, so the rejection is the correct behaviour. A string instead of `true` is the reason for a rejection that comes from a limitation of the backends.
 * The reason of every `xfail` and of every limitation `rejected` names its issue, as `#N` (this repository) or `owner/repo#N`. The runner refuses to start if one does not. An issue still to be filed is written `#TBD-<slug>`.
 * [check-issues.sh](check-issues.sh), which CI runs, collects the issue references of [src/tests.ts](src/tests.ts) and fails if one of the issues is closed, or if a placeholder `#TBD-<slug>` is left. When an issue is closed, its tests pass, or their marks need a new issue.
 
@@ -32,7 +32,7 @@ Every test runs on every configuration, and either its result is compared with t
 ## Configurations
 
 The Rust and Elm backends take typed programs, so the `Rust`, `Elm`, `Rust-verb`, `Rust-i64` and `Rust-hybrid` configurations compile the `tsrc` of each test: the Rocq programs extracted with `Peregrine Extract Typed`, and the Agda programs compiled with `--typed`. A test without a `tsrc` (the Lean programs: the Lean frontend has no typed output) fails there, and is marked as an expected failure.
-The `Rust-untyped` and `Elm-untyped` configurations give the same backends the untyped `src` of every test, whose types peregrine then infers, and expect the outputs of the typed sources.
+The `Rust-untyped` and `Elm-untyped` configurations give the same backends the untyped `src` of every test, whose types peregrine then infers, and expect the outputs of the typed sources. `Koka-typed` and `Koka-typed-untyped` do the same for the typed Koka backend: the first compiles `tsrc`, the second `src` with inferred types.
 A test marked as `rejected` is a program whose types cannot be inferred, or that uses a feature the typed backends lack: there peregrine must fail with `Could not infer types`.
 All four compile with `peregrine compile` and the pipeline configurations [src/rust/config.sexp](src/rust/config.sexp) and [src/elm/config.sexp](src/elm/config.sexp).
 The `Rust-verb` and `Rust-i64` configurations compile the typed sources with the `rust` and `rust-i64` commands instead; `rust-i64` represents numbers as `i64`, so its tests have their own expected outputs (`rust_i64_output`), which `Rust-hybrid` shares; a test without one fails there. The `rust-gmp` command is not tested here: its `rug` crate builds GMP from source, which takes longer than the compile timeout.

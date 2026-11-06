@@ -30,6 +30,9 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.FSharp, "experimental", ""],
     // The Koka backend is experimental
     [Lang.Koka, "experimental", ""],
+    // The typed Koka backend, on the typed sources and through type inference
+    [Lang.Koka, "typed", "", false, "koka-typed"],
+    [Lang.Koka, "typed-untyped", "", true, "koka-typed"],
     // The two optional middle-end passes, which only the untyped pipeline runs
     [Lang.OCaml, "passes", "--specialize-instances true --cse true"],
     // The lowering of cofixpoints, a no-op on the programs without them
@@ -93,7 +96,7 @@ const elm_ctor_clash = elm("#99: Elm prints the constructors of different types 
 const elm_module_clash = elm("#94: the Elm module is named after the file, which clashes with a module of the Elm core or test library");
 const rust_fn_fields = on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"],
     "#79: Debug and Serialize are derived for every type, which fails on the function-typed fields of the record (E0277)");
-const lean_untyped = on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"],
+const lean_untyped = on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Koka-typed"],
     "peregrine-project/lean-to-lambdabox#21: the Lean frontend has no typed output, so a Lean program has no typed source");
 const lean_name_clash = on(["Lean", "FSharp-experimental", "Koka-experimental"],
     "#93, #99: two definitions whose module paths differ only in their last component (where-modules, record modules) get the same name: agda2lambox writes module paths outermost first, and the backend keeps only one component");
@@ -114,7 +117,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Equality.ast",
-            xfail: { "Elm": "#79: Elm prints the type name ≡ as __UU002261_, which Elm rejects" },
+            xfail: { "Elm": "#79: Elm prints the type name ≡ as __UU002261_, which Elm rejects", "Koka-typed": "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express" },
             main: "Equality_test",
             output_type: SimpleType.Nat,
             expected_output: [
@@ -259,7 +262,8 @@ var agda_tests: TestCase[] =
             rejected: true,
             xfail: {
                 ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#127: the branches of eval have different types (the type of the value is indexed by the type of the term), and the Rust printer has no cast (E0308)"),
-                "Elm": "#79: Elm prints the type name ∋ as __UU00220b_, which Elm rejects"
+                "Elm": "#79: Elm prints the type name ∋ as __UU00220b_, which Elm rejects",
+                "Koka-typed": "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express"
             },
             main: "STLC_test",
             output_type: SimpleType.Nat,
@@ -304,14 +308,14 @@ var agda_tests: TestCase[] =
             rejected: "#79: type inference cannot unify the type of _∷_⊣_ with its application to a list",
             xfail: { "Elm": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" }
         },
-        { ...agda_nat_test("Params", 25, false), xfail: elm_operator },
+        { ...agda_nat_test("Params", 25, false), xfail: { ...elm_operator, "Koka-typed": "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express" } },
         { ...agda_nat_test("Prelude", 42, false), xfail: elm_operator },
         agda_nat_test("RecursiveInline", 6, false),
         agda_nat_test("StrictLet", 3, false),
         { ...agda_nat_test("Terminating", 6, false), xfail: elm("#99: agda2lambox writes the module path of a where-bound lambda outermost first, so Elm prints it as _14_Terminating__UU2eextendedlambda1, which Elm rejects") },
         { ...agda_nat_test("WhereNames", 6, false), xfail: { ...elm_operator, ...lean_name_clash } },
         // Typed: test/typed
-        { ...agda_nat_test("Scheme", 42, true), xfail: elm_operator },
+        { ...agda_nat_test("Scheme", 42, true), xfail: { ...elm_operator, ...on(["Koka-typed", "Koka-typed-untyped"], "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express") } },
         { ...agda_nat_test("Test", 42, true), xfail: elm_module_clash },
         { ...agda_nat_test("Types", 42, true), xfail: elm_operator },
         // Typed: test/agda2rust
@@ -323,7 +327,7 @@ var agda_tests: TestCase[] =
         agda_nat_test("ErasedFields", 168, true),
         agda_nat_test("EtaExpansion", 672, true),
         agda_nat_test("ExactSplit", 0, true),
-        { ...agda_nat_test("Exp", 168, true), xfail: { ...rust("#127: the branches of geval have different types (GExp is indexed by the type of its value), and the Rust printer has no cast (E0308)"), ...elm_ctor_clash } },
+        { ...agda_nat_test("Exp", 168, true), xfail: { ...rust("#127: the branches of geval have different types (GExp is indexed by the type of its value), and the Rust printer has no cast (E0308)"), ...elm_ctor_clash, ...on(["Koka-typed", "Koka-typed-untyped"], "#143: the branches of geval have different types (GExp is indexed by the type of its value), which typed Koka does not cast") } },
         agda_nat_test("Identity", 42, true),
         { ...agda_nat_test("Levels", 294, true), xfail: elm("#99: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Levels_toNat, which Elm rejects") },
         agda_nat_test("List0", 42, true),
@@ -406,7 +410,10 @@ var rocq_tests: TestCase[] =
             tsrc: "rocq/extraction/CoStream_typed.ast",
             rust_i64_output: "(cons () 0 (cons () 1 (cons () 0 (cons () 1 (nil)))))",
             rejected: "#125: the Rust and Elm printers do not support cofixpoints, so neither does type inference",
-            xfail: on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)")
+            xfail: {
+                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)"),
+                "Koka-typed": "#125: the typed Koka printer does not support cofixpoints"
+            }
         },
         {
             src: "rocq/extraction/Prims.ast",
@@ -423,6 +430,7 @@ var rocq_tests: TestCase[] =
             rejected: "#125: the Rust and Elm printers do not support primitive values, so neither does type inference",
             xfail: {
                 ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
+                "Koka-typed": "#125: the typed Koka printer does not support primitive values",
                 "WebAssembly": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cps": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cofix": "#125: the Wasm backend does not support primitive strings",
@@ -557,6 +565,7 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Params.ast",
             tsrc: "rocq/extraction/Params_typed.ast",
+            xfail: { "Koka-typed": "#139: the value parameter of Tagged is a type Koka cannot express (TAny)" },
             rust_i64_output: "3",
             main: "Params_test",
             output_type: SimpleType.Nat,
@@ -585,7 +594,10 @@ var rocq_tests: TestCase[] =
             // A let-bound polymorphic function used at two types: Rocq's
             // extraction generalises the let, the type inference does not
             rejected: "#79: the type inference does not generalise let-bound definitions",
-            xfail: on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#127: the Rust printer binds the polymorphic id with a let, as a closure of a single type, so its uses at bool and at nat do not type-check (E0308)"),
+            xfail: {
+                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#127: the Rust printer binds the polymorphic id with a let, as a closure of a single type, so its uses at bool and at nat do not type-check (E0308)"),
+                "Koka-typed": "#138: the typed Koka printer binds the polymorphic id with a val, which Koka does not generalise"
+            },
             main: "PolyLet_test",
             output_type: SimpleType.Nat,
             expected_output: [

@@ -275,6 +275,7 @@ The `attributes_config` payload accepted via `--attributes` is the 5-element sub
 (Lean   <lean_config>)
 (FSharp <fsharp_config>)   ; experimental
 (Koka   <koka_config>)     ; experimental
+(KokaTyped <koka_config>)  ; experimental, typed lambda-box
 (Eval   <eval_config>)
 (AST    <ast_config>)
 ```
@@ -362,7 +363,7 @@ and is forwarded to the Malfunction printer. Default: `Standalone`.
   <koka_print_full_names>)  ; true
 ```
 * `koka_module` is printed as the `module` declaration of the generated file when it is not empty; Koka requires it to match the file name.
-* `koka_print_full_names` toggles printing of names qualified by the input file's basename and the module path, as for Lean.
+* `koka_print_full_names` toggles printing of names qualified by the input file's basename and the module path, as for Lean. The typed backend (`KokaTyped`) ignores it and always prints qualified names.
 
 #### Eval (`eval_config`)
 ```

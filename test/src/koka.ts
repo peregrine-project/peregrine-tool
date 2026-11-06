@@ -17,28 +17,45 @@ export function has_koka(): boolean {
 // The constructors of the program's types: for each `type t { C1; C2( f0 : any ) }`
 // the type name and, per constructor, its name and number of fields. The printer
 // names a constructor `C_<type>_<index>_<source name>`.
-type KokaType = { name: string, ctors: { name: string, short: string, nargs: number }[] };
+// A typed program keeps a `()` field per type parameter in front of the source
+// fields (`cons( f0 : (), f1 : a0, f2 : ... )`): `units` counts them, and `nargs`
+// and `first` describe the source fields.
+type KokaType = { name: string, base: string, ctors: { name: string, short: string, nargs: number, units: number, first?: string }[] };
 
 function program_types(source: string): KokaType[] {
   const types: KokaType[] = [];
-  for (const m of source.matchAll(/^type (t_\w+) \{ (.*) \}$/gm)) {
-    const ctors = m[2].split("; ").filter((c) => c.length > 0).map((c) => {
+  for (const m of source.matchAll(/^type (t_\w+)(<([^>]*)>)? \{ (.*) \}$/gm)) {
+    // a typed program's types have parameters; the printers read them as any
+    const arity = m[3] === undefined ? 0 : m[3].split(",").length;
+    const ctors = m[4].split("; ").filter((c) => c.length > 0).map((c) => {
       const name = c.split("(")[0].trim();
       // Lean's names keep the type: List.cons is List__UU2econs
       const short = name.replace(/^C_.*?_\d+_/, "").replace(/^.*__UU2e/, "");
-      const nargs = c.includes("(") ? c.split(",").length : 0;
-      return { name, short, nargs };
+      const inner = c.includes("(") ? c.slice(c.indexOf("(") + 1, c.lastIndexOf(")")) : "";
+      const fields = inner.trim().length === 0 ? [] : inner.split(/,\s*(?=f\d+ : )/).map((f) => f.replace(/^\s*f\d+ : /, "").trim());
+      const lead = fields.findIndex((t) => t !== "()");
+      const units = arity === 0 ? 0 : (lead === -1 ? fields.length : lead);
+      return { name, short, nargs: fields.length - units, units, first: fields[units] };
     });
-    types.push({ name: m[1], ctors });
+    types.push({ name: arity === 0 ? m[1] : `${m[1]}<${Array(arity).fill("any").join(", ")}>`, base: m[1], ctors });
   }
   return types;
 }
 
 // The type whose constructors have the given source names (any of the
 // alternatives at each position) and arities, in this order.
-function find_type(types: KokaType[], shape: [string[], number][]): KokaType | undefined {
-  return types.find((t) => t.ctors.length === shape.length
+function find_types(types: KokaType[], shape: [string[], number][]): KokaType[] {
+  return types.filter((t) => t.ctors.length === shape.length
     && t.ctors.every((c, i) => shape[i][0].includes(c.short) && c.nargs === shape[i][1]));
+}
+function find_type(types: KokaType[], shape: [string[], number][]): KokaType | undefined {
+  return find_types(types, shape)[0];
+}
+
+// The pattern of constructor `c` binding its source fields to `vars`.
+function pat(c: KokaType["ctors"][number], vars: string[]): string {
+  const all = [...Array(c.units).fill("_"), ...vars];
+  return all.length === 0 ? c.name : `${c.name}(${all.join(", ")})`;
 }
 
 // A Koka function `pp<id>` printing a value of `type` in the format of the
@@ -48,15 +65,18 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
   const name = `pp${id}`;
   const cast = (t: KokaType) => `(pg_cast(x) : ${t.name})`;
   if (type === SimpleType.Nat) {
-    const t = find_type(types, [[["O", "zero"], 0], [["S", "succ", "suc"], 1]]);
+    // a typed program may have other zero/succ-shaped types (Even with a
+    // successor into Odd): prefer the one whose successor takes itself
+    const ts = find_types(types, [[["O", "zero"], 0], [["S", "succ", "suc"], 1]]);
+    const t = ts.find((u) => u.ctors[1].first === u.base) ?? ts[0];
     if (t === undefined) return undefined;
     const [z, s] = t.ctors;
-    return { name, decls: [`fun ${name}( x : any ) : div string { match ${cast(t)} { ${z.name} -> "O"; ${s.name}(n) -> "(S " ++ ${name}(n) ++ ")" } }`] };
+    return { name, decls: [`fun ${name}( x : any ) : div string { match ${cast(t)} { ${pat(z, [])} -> "O"; ${pat(s, ["n"])} -> "(S " ++ ${name}(pg_cast(n)) ++ ")" } }`] };
   }
   if (type === SimpleType.Bool) {
     const t = find_type(types, [[["true"], 0], [["false"], 0]]) ?? find_type(types, [[["false"], 0], [["true"], 0]]);
     if (t === undefined) return undefined;
-    const br = t.ctors.map((c) => `${c.name} -> "${c.short}"`).join("; ");
+    const br = t.ctors.map((c) => `${pat(c, [])} -> "${c.short}"`).join("; ");
     return { name, decls: [`fun ${name}( x : any ) : div string { match ${cast(t)} { ${br} } }`] };
   }
   if (typeof type === "number" || type.type !== "list") return undefined;
@@ -67,7 +87,7 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
   const [nil, cons] = t.ctors;
   return {
     name,
-    decls: [...elem.decls, `fun ${name}( x : any ) : div string { match ${cast(t)} { ${nil.name} -> "nil"; ${cons.name}(h, t) -> "(cons " ++ ${elem.name}(h) ++ " " ++ ${name}(t) ++ ")" } }`]
+    decls: [...elem.decls, `fun ${name}( x : any ) : div string { match ${cast(t)} { ${pat(nil, [])} -> "nil"; ${pat(cons, ["h", "t"])} -> "(cons " ++ ${elem.name}(pg_cast(h)) ++ " " ++ ${name}(pg_cast(t)) ++ ")" } }`]
   };
 }
 
@@ -76,17 +96,34 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
 // and whether its output is checked.
 export function compile_koka(file: string, test: TestCase, timeout: number): { exe: string, checked: boolean } | ExecFailure {
   const source = readFileSync(file, "utf8");
-  const main = `pg_${test.main}`;
+  // The entry point: pg_<main>, or for the typed backend the full name ending in it
+  // (a Lean name separates its components with "Ֆdot", which the sanitizer
+  // escapes as _UU000556dot)
+  const main_re = test.main.replace(/_/g, "(?:_|_UU[0-9a-f]{6}dot|_UU2e)");
+  const found = source.match(new RegExp(`^(val|fun) (pg_\\w*?${main_re})\\b(\\(\\))?`, "m"));
+  // failing that, a name ending in the last component of the entry point
+  const last = test.main.split("_").pop();
+  const fallback = found === null ? source.match(new RegExp(`^(val|fun) (pg_(?:\\w*_)?${last})\\b(\\(\\))?`, "m")) : null;
+  const entry = found ?? fallback;
+  if (entry === null) {
+    const names = [...source.matchAll(/^(?:val|fun) (pg_\w+)/gm)].map((m) => m[1]);
+    console.log(`  no entry point for ${test.main} among: ${names.slice(-8).join(" ")}`);
+  }
+  const main = entry === null ? `pg_${test.main}` : entry[2];
   const isDelayed = new RegExp(`^val ${main} : delayed`, "m").test(source);
-  const target = isDelayed ? `pg_force(${main})` : main;
+  const isNullaryFun = entry !== null && entry[1] === "fun" && entry[3] !== undefined;
+  const force = /^fun pgk_force\(/m.test(source) ? "pgk_force" : "pg_force";
+  const target = isDelayed ? `${force}(${main})` : isNullaryFun ? `${main}()` : main;
   const pp = printer(program_types(source), test.output_type);
+  // The printers cast with pg_cast, which only the untyped preamble declares
+  const cast = source.includes("extern pg_cast") ? "" : `extern pg_cast( x : a ) : b { c inline "#1"; js inline "#1" }\n`;
   const body = pp === undefined
     ? `val pg_unused = unsafe-total(fn() { ${target} }); ()`
-    : `println(${pp.name}(unsafe-total(fn() { ${target} })))`;
+    : `println(${pp.name}(pg_cast(unsafe-total(fn() { ${target} }))))`;
   // Koka derives the module name from the path, which must be a lower-case
   // identifier: the program is compiled as prog.kk in its own directory.
   const dir = path.dirname(file);
-  writeFileSync(path.join(dir, "prog.kk"), `${source}\n${(pp?.decls ?? []).join("\n")}\npub fun main() { ${body} }\n`);
+  writeFileSync(path.join(dir, "prog.kk"), `${source}\n${cast}${(pp?.decls ?? []).join("\n")}\npub fun main() { ${body} }\n`);
 
   const exe = path.join(dir, "prog");
   try {
@@ -114,7 +151,8 @@ export function run_koka(exe: string, test: TestCase, checked: boolean, timeout:
     res = execSync(`ulimit -s unlimited; ${exe}`, { stdio: "pipe", timeout: timeout, encoding: "utf8", shell: "/bin/bash" }).trim();
   } catch (e) {
     if (e.signal == "SIGTERM") return { type: "error", reason: "timeout" };
-    return { type: "error", reason: "runtime error", error: e };
+    const out = (e.stderr ? e.stderr.toString() : "") || (e.stdout ? e.stdout.toString() : "");
+    return { type: "error", reason: "runtime error", error: `status ${e.status}, signal ${e.signal}: ${out.slice(-2000)}` };
   }
   const time = Date.now() - start;
   if (!checked) {

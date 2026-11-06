@@ -40,13 +40,14 @@ peregrine help [TOPIC]
 | `lean` | `INPUT.lean` | untyped | |
 | `fsharp` (experimental) | `INPUT.fs` | untyped | |
 | `koka` (experimental) | `INPUT.kk` | untyped | |
+| `koka-typed` (experimental) | `INPUT.kk` | typed | |
 | `eval` | the value, on standard output | untyped | [CertiRocq](#certirocq-options-c-wasm-llvm-eval-ast), [`--fuel`](#eval) |
 
 `INPUT.ext` stands for `INPUT` with its extension replaced (`Prog.v` gives `Prog.c`). `-o` sets the output file. For `c`, the header gets the name of the `-o` file with `.h` in place of its extension. The `.c` file includes the header by its base name, so keep the two in one directory.
 
 Every backend command takes the [frontend options](#frontends), the [common options](#common-options) and the [middle-end pass options](#middle-end-passes).
 
-A typed backend (`rust`, `elm`) given an untyped program first infers its types. If the program cannot be typed this way, peregrine fails with an error that names the offending constant ([backends.md](backends.md#rust)). An untyped backend given a typed program ignores the types.
+A typed backend (`rust`, `elm`, `koka-typed`) given an untyped program first infers its types. If the program cannot be typed this way, peregrine fails with an error that names the offending constant ([backends.md](backends.md#rust)). An untyped backend given a typed program ignores the types.
 
 What each backend produces and what is needed to build and run its output is described in [backends.md](backends.md).
 
@@ -107,7 +108,7 @@ Peregrine prints on standard error one line for each choice it makes by itself: 
 * `--frontend-arg ARG`: pass `ARG` to the tool. Repeat it for several arguments, and write an argument that starts with `-` as `--frontend-arg=ARG`, e.g. `--frontend-arg=-Q --frontend-arg=theories --frontend-arg=MyLib`.
 * `--lean-config TERM`: the configuration of the Lean frontend, a Lean term of type `Erasure.ErasureConfig`, given to `#erase NAME config TERM`, e.g. `--lean-config '{nat := .peano}'`. An error with any other frontend.
 * `--keep-ast FILE`: also write the $\lambda_\square$ program of the frontend to `FILE`, and for Lean the attribute file to `FILE.inlinings`.
-* `--typed`: ask the frontend for typed $\lambda_\square^T$. Without it, peregrine asks for typed output when the backend needs it (`rust`, `elm`, `ast typed`, or `compile` with such a backend) and the frontend has it (Rocq, Agda). Lean has no typed output: `--typed` with Lean is an error, and the typed backends infer the types of its untyped output.
+* `--typed`: ask the frontend for typed $\lambda_\square^T$. Without it, peregrine asks for typed output when the backend needs it (`rust`, `elm`, `koka-typed`, `ast typed`, or `compile` with such a backend) and the frontend has it (Rocq, Agda). Lean has no typed output: `--typed` with Lean is an error, and the typed backends infer the types of its untyped output.
 
 `--entry`, `--typed`, `--frontend-arg` and `--lean-config` are errors on a $\lambda_\square$ input.
 
@@ -226,7 +227,7 @@ Every representation other than `peano` also maps `bool` to the Rust `bool` and 
 
 ### Other backends
 
-`ocaml`, `cakeml`, `elm`, `lean`, `fsharp` and `koka` have no options of their own on the command line. Their configuration records ([format.md](format.md#backend-configuration)) are set with `compile` and a configuration file.
+`ocaml`, `cakeml`, `elm`, `lean`, `fsharp`, `koka` and `koka-typed` have no options of their own on the command line. Their configuration records ([format.md](format.md#backend-configuration)) are set with `compile` and a configuration file.
 
 
 ## Configuration and attribute files
