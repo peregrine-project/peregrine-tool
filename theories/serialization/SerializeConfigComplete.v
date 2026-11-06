@@ -27,7 +27,7 @@ Proof.
   intros l o.
   cbn -[Deserialize_bool Deserialize_ident].
   simpl_bytes.
-  rewrite 7!complete_class.
+  rewrite 8!complete_class.
   destruct o; cbn.
   reflexivity.
 Qed.
@@ -38,7 +38,7 @@ Proof.
   intros l o.
   cbn -[Deserialize_bool Deserialize_ident].
   simpl_bytes.
-  rewrite 7!complete_class.
+  rewrite 8!complete_class.
   destruct o; cbn.
   reflexivity.
 Qed.

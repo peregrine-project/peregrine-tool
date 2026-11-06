@@ -284,4 +284,19 @@ Definition hybrid_rust_config' : rust_config' := {|
   rust_any_type_symbol'    := None;
   rust_print_full_names'   := None;
   rust_default_attributes' := None;
+  rust_refcount'           := None;
+|}.
+
+(** [rust-rc-hybrid]: the same numbers, with the rest of the program reference
+    counted.  A number stays a [Copy] word; a big number is leaked, as the
+    eliminators already leak a big predecessor. *)
+Definition rc_hybrid_rust_config' : rust_config' := {|
+  rust_preamble_top'       := Some hybrid_top_preamble;
+  rust_preamble_program'   := Some hybrid_program_preamble;
+  rust_term_box_symbol'    := None;
+  rust_type_box_symbol'    := None;
+  rust_any_type_symbol'    := None;
+  rust_print_full_names'   := None;
+  rust_default_attributes' := None;
+  rust_refcount'           := Some true;
 |}.

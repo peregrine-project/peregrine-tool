@@ -290,13 +290,15 @@ The `c_config`, `wasm_config`, `llvm_config`, and the `copts` field of `eval_con
   <rust_type_box_symbol>     ; "()"
   <rust_any_type_symbol>     ; "()"
   <rust_print_full_names>    ; true
-  <rust_default_attributes>) ; "#[derive(Debug, Clone)]"
+  <rust_default_attributes>  ; "#[derive(Debug, Clone)]"
+  <rust_refcount>)           ; false
 ```
 * `rust_preamble_top` is appended to the fixed module-level preamble (allow-lints + `hint_app` helper).
 * `rust_preamble_program` is appended to the per-program preamble (the bumpalo allocator and `closure` helpers).
 * The three `*_box_symbol`/`*_any_type_symbol` strings are used by the typed printer for erased terms, erased types, and `Any` types respectively.
 * `rust_print_full_names` toggles fully-qualified printing of MetaRocq names.
 * `rust_default_attributes` is the derive attribute placed in front of each generated `enum`/`struct`, unless overridden by a matching entry in `custom_attributes_opts`.
+* `rust_refcount` selects the memory management: `false` allocates in a bumpalo arena, `true` reference counts (`Rc`) and replaces both preambles' fixed parts; see [backends.md](backends.md#memory-management).
 
 #### Elm (`elm_config`)
 ```

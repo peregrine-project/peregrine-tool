@@ -21,6 +21,9 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Rust, "i64", "--dearg-ctors false --dearg-consts false", false, "rust-i64"],
     // i64 or GMP per value: prints as rust-i64 does
     [Lang.Rust, "hybrid", "--dearg-ctors false --dearg-consts false", false, "rust-hybrid"],
+    // Reference counting instead of the arena, with the numbers of the rust
+    // verb: serde prints an Rc<T> as T, so it expects the outputs of the Rust tests
+    [Lang.Rust, "rc", "--dearg-ctors false --dearg-consts false", false, "rust --memory=rc"],
     [Lang.CakeML, "", ""],
     [Lang.Lean, "", ""],
     // The F# backend is experimental
@@ -84,13 +87,13 @@ const remap_attributes: TestCase["attributes"] = {
 // Known failures shared by several tests, by configuration
 const on = (configs: string[], reason: string) => Object.fromEntries(configs.map((c) => [c, reason]));
 const elm = (reason: string) => on(["Elm", "Elm-untyped"], reason);
-const rust = (reason: string) => on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"], reason);
+const rust = (reason: string) => on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"], reason);
 const elm_operator = elm("#79: Elm prints the names of operators and of other symbols ([], _∷_, ×, ℕ) with a leading underscore, which Elm rejects");
 const elm_ctor_clash = elm("#99: Elm prints the constructors of different types under the same name");
 const elm_module_clash = elm("#94: the Elm module is named after the file, which clashes with a module of the Elm core or test library");
-const rust_fn_fields = on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"],
+const rust_fn_fields = on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"],
     "#79: Debug and Serialize are derived for every type, which fails on the function-typed fields of the record (E0277)");
-const lean_untyped = on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"],
+const lean_untyped = on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"],
     "peregrine-project/lean-to-lambdabox#21: the Lean frontend has no typed output, so a Lean program has no typed source");
 const lean_name_clash = on(["Lean", "FSharp-experimental", "Koka-experimental"],
     "#93, #99: two definitions whose module paths differ only in their last component (where-modules, record modules) get the same name: agda2lambox writes module paths outermost first, and the backend keeps only one component");
@@ -161,7 +164,6 @@ var agda_tests: TestCase[] =
         {
             src: "agda/Lvls.ast",
             xfail: {
-                "Rust-untyped": "#127: the projection of the erased field ℓ is printed as a unit, which is then applied (E0618)",
                 ...elm("#99: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Lvls_toNat, which Elm rejects")
             },
             main: "Lvls_test",
@@ -255,7 +257,7 @@ var agda_tests: TestCase[] =
             // The type of the result of eval depends on the type of the term
             rejected: true,
             xfail: {
-                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#127: the branches of eval have different types (the type of the value is indexed by the type of the term), and the Rust printer has no cast (E0308)"),
+                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"], "#127: the branches of eval have different types (the type of the value is indexed by the type of the term), and the Rust printer has no cast (E0308)"),
                 "Elm": "#79: Elm prints the type name ∋ as __UU00220b_, which Elm rejects"
             },
             main: "STLC_test",
@@ -316,7 +318,7 @@ var agda_tests: TestCase[] =
         agda_nat_test("Bool", 84, true),
         { ...agda_nat_test("ConsImplicitArgs", 168, true), xfail: elm_ctor_clash },
         agda_nat_test("Curry", 168, true),
-        { ...agda_nat_test("Either", 42, true), xfail: { ...rust("#127: rustc cannot infer the parameter B of Either at the constructor Left (E0283)"), ...elm_ctor_clash } },
+        { ...agda_nat_test("Either", 42, true), xfail: elm_ctor_clash },
         agda_nat_test("ErasedFields", 168, true),
         agda_nat_test("EtaExpansion", 672, true),
         agda_nat_test("ExactSplit", 0, true),
@@ -370,6 +372,7 @@ var rocq_tests: TestCase[] =
             xfail: {
                 "Rust": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the records",
                 "Rust-verb": "#79: the rust verb derives Debug for every type, which fails on the function-typed fields of the records",
+                "Rust-rc": "#79: rust --memory=rc derives Debug for every type, which fails on the function-typed fields of the records",
                 "Rust-i64": "#79: the rust-i64 verb derives Debug for every type, which fails on the function-typed fields of the records",
                 "Rust-hybrid": "#79: the rust-hybrid verb derives Debug for every type, which fails on the function-typed fields of the records",
                 "Elm-untyped": "#79: the inferred types give each record field a type variable instead of the function type"
@@ -403,7 +406,7 @@ var rocq_tests: TestCase[] =
             tsrc: "rocq/extraction/CoStream_typed.ast",
             rust_i64_output: "(cons () 0 (cons () 1 (cons () 0 (cons () 1 (nil)))))",
             rejected: "#125: the Rust and Elm printers do not support cofixpoints, so neither does type inference",
-            xfail: on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)")
+            xfail: on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)")
         },
         {
             src: "rocq/extraction/Prims.ast",
@@ -419,7 +422,7 @@ var rocq_tests: TestCase[] =
             rust_i64_output: "(cons () 1 (cons () 0 (nil)))",
             rejected: "#125: the Rust and Elm printers do not support primitive values, so neither does type inference",
             xfail: {
-                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
+                "Elm": "#125: the Elm printer does not support primitive values (Cannot handle Rocq primitive types)",
                 "WebAssembly": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cps": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cofix": "#125: the Wasm backend does not support primitive strings",
@@ -563,12 +566,6 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Phantom.ast",
             tsrc: "rocq/extraction/Phantom_typed.ast",
-            xfail: {
-                "Rust": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
-                "Rust-verb": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
-                "Rust-i64": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
-                "Rust-hybrid": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)"
-            },
             rust_i64_output: "1",
             main: "Phantom_test",
             output_type: SimpleType.Nat,
@@ -582,7 +579,7 @@ var rocq_tests: TestCase[] =
             // A let-bound polymorphic function used at two types: Rocq's
             // extraction generalises the let, the type inference does not
             rejected: "#79: the type inference does not generalise let-bound definitions",
-            xfail: on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#127: the Rust printer binds the polymorphic id with a let, as a closure of a single type, so its uses at bool and at nat do not type-check (E0308)"),
+            xfail: on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"], "#127: the Rust printer binds the polymorphic id with a let, as a closure of a single type, so its uses at bool and at nat do not type-check (E0308)"),
             main: "PolyLet_test",
             output_type: SimpleType.Nat,
             expected_output: [

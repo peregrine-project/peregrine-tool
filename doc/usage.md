@@ -35,7 +35,7 @@ peregrine help [TOPIC]
 | `llvm` (experimental) | `INPUT.ll` | untyped | [CertiRocq](#certirocq-options-c-wasm-llvm-eval-ast) |
 | `ocaml` | `INPUT.mlf` | untyped | |
 | `cakeml` | `INPUT.cml` | untyped | |
-| `rust` | `INPUT.rs` | typed | [`--numbers`](#rust) |
+| `rust` | `INPUT.rs` | typed | [`--numbers`, `--memory`](#rust) |
 | `elm` | `INPUT.elm` | typed | |
 | `lean` | `INPUT.lean` | untyped | |
 | `fsharp` (experimental) | `INPUT.fs` | untyped | |
@@ -218,7 +218,9 @@ These set the `certirocq_config` record ([format.md](format.md#c--wasm--llvm-cer
 | `mixed-narrow` | GMP integers, with `div`/`modulo`/`pow` on `nat` computed in `i64` | `rug` |
 | `hybrid` | a tagged 63-bit integer while the value fits, GMP integers otherwise, overflow checked | `rug` |
 
-Every representation other than `peano` also maps `bool` to the Rust `bool` and `comparison` to `std::cmp::Ordering`. The generated code always needs the `bumpalo` crate. See [backends.md](backends.md#numeric-representations) for what each representation computes and what is proved about it.
+Every representation other than `peano` also maps `bool` to the Rust `bool` and `comparison` to `std::cmp::Ordering`. The generated code needs the `bumpalo` crate, except with `--memory=rc`. See [backends.md](backends.md#numeric-representations) for what each representation computes and what is proved about it.
+
+`--memory=MEMORY` selects how values are managed: `arena` (default) allocates them in a bumpalo arena freed at the end of the program, and `rc` reference counts them. `rc` is available with `--numbers=peano` and `--numbers=hybrid`. See [backends.md](backends.md#memory-management).
 
 ### Eval
 

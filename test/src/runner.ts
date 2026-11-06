@@ -365,7 +365,8 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // A verb prints the default preamble and attributes, without what
-        // the test driver needs to print the result
+        // the test driver needs to print the result. --memory=rc expects the
+        // outputs of the rust verb: serde prints an Rc<T> as T
         if (rust_verb !== undefined) make_printable(f_rs);
 
         // Compile Rust

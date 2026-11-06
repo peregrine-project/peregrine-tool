@@ -254,6 +254,7 @@ type rust_numbers = {
   rust_verb_name : string;
   rust_verb_doc : string;
   rust_verb_config : ConfigUtils.rust_config';
+  rust_rc_config : ConfigUtils.rust_config' option;
   rust_verb_const_remaps : Config.constant_remappings;
   rust_verb_ind_remaps : Config.inductive_remappings;
 }
@@ -263,43 +264,52 @@ let rust_numbers = [
     rust_verb_name = "rust";
     rust_verb_doc = "the inductive types as extracted (unary nat, binary positive/N/Z), no remapping";
     rust_verb_config = ConfigUtils.empty_rust_config';
+    rust_rc_config = Some ConfigUtils.rc_rust_config';
     rust_verb_const_remaps = [];
     rust_verb_ind_remaps = [] };
   { rust_numbers = "gmp";
     rust_verb_name = "rust-gmp";
     rust_verb_doc = "GMP integers (rug::Integer, needs the rug crate)";
     rust_verb_config = RustGMPRemaps.gmp_rust_config';
+    rust_rc_config = None;
     rust_verb_const_remaps = RustGMPRemaps.gmp_const_remaps;
     rust_verb_ind_remaps = RustGMPRemaps.gmp_ind_remaps };
   { rust_numbers = "i64";
     rust_verb_name = "rust-i64";
     rust_verb_doc = "i64, overflow is not checked";
     rust_verb_config = RustNativeRemaps.native_rust_config';
+    rust_rc_config = None;
     rust_verb_const_remaps = RustNativeRemaps.native_const_remaps;
     rust_verb_ind_remaps = RustNativeRemaps.native_ind_remaps };
   { rust_numbers = "mixed";
     rust_verb_name = "rust-mixed";
     rust_verb_doc = "GMP integers, with add/mul/sub/div/mod/pow/eqb/leb/ltb on nat computed in i64";
     rust_verb_config = RustMixedRemaps.mixed_rust_config';
+    rust_rc_config = None;
     rust_verb_const_remaps = RustMixedRemaps.mixed_const_remaps;
     rust_verb_ind_remaps = RustMixedRemaps.mixed_ind_remaps };
   { rust_numbers = "mixed-narrow";
     rust_verb_name = "rust-mixed-narrow";
     rust_verb_doc = "GMP integers, with div/mod/pow on nat computed in i64";
     rust_verb_config = RustMixedRemaps.mixed_rust_config';
+    rust_rc_config = None;
     rust_verb_const_remaps = RustMixedRemaps.mixed_const_remaps2;
     rust_verb_ind_remaps = RustMixedRemaps.mixed_ind_remaps };
   { rust_numbers = "hybrid";
     rust_verb_name = "rust-hybrid";
     rust_verb_doc = "i64 when the value fits and GMP integers otherwise, overflow checked (needs the rug crate)";
     rust_verb_config = RustHybridRemaps.hybrid_rust_config';
+    rust_rc_config = Some RustHybridRemaps.rc_hybrid_rust_config';
     rust_verb_const_remaps = RustHybridRemaps.hybrid_const_remaps;
     rust_verb_ind_remaps = RustHybridRemaps.hybrid_ind_remaps };
 ]
 
-let rust_target v =
+(* [rc] asks for reference counting instead of the arena; the caller has
+   checked that [v] has a configuration for it. *)
+let rust_target ?(rc=false) v =
+  let config = if rc then Option.get v.rust_rc_config else v.rust_verb_config in
   target ~typed:true ~const_remaps:v.rust_verb_const_remaps ~ind_remaps:v.rust_verb_ind_remaps
-    (ConfigUtils.Rust' v.rust_verb_config)
+    (ConfigUtils.Rust' config)
 
 let eval_target copts fuel =
   target (ConfigUtils.Eval' {

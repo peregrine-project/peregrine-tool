@@ -208,7 +208,14 @@ let rust_t =
   let doc = "The representation of nat, positive, N and Z: " ^
     String.concat ", " (List.map (fun v -> "$(b," ^ v.rust_numbers ^ ") " ^ v.rust_verb_doc) rust_numbers) ^ "." in
   let numbers = List.map (fun v -> v.rust_numbers, v) rust_numbers in
-  Term.(const rust_target $ Arg.(value & opt (enum numbers) (List.hd rust_numbers) & info ["numbers"] ~docv:"NUMBERS" ~doc))
+  let numbers_arg = Arg.(value & opt (enum numbers) (List.hd rust_numbers) & info ["numbers"] ~docv:"NUMBERS" ~doc) in
+  let memory_doc = "The memory management of values: $(b,arena) allocates them in a bumpalo arena freed at the end of the program, $(b,rc) reference counts them (with $(b,--numbers=peano) or $(b,--numbers=hybrid))." in
+  let memory_arg = Arg.(value & opt (enum ["arena", false; "rc", true]) false & info ["memory"] ~docv:"MEMORY" ~doc:memory_doc) in
+  let select v rc =
+    if rc && Option.is_none v.rust_rc_config
+    then `Error (false, "--memory=rc is available with --numbers=peano and --numbers=hybrid")
+    else `Ok (rust_target ~rc v) in
+  Term.(ret (const select $ numbers_arg $ memory_arg))
 
 let fuel_arg =
   let doc = "evaluator fuel" in
