@@ -31,7 +31,7 @@ Section ErasureConfig.
      swaps its constructors, as CertiRocq's own plugin does, unless the user
      maps bool. *)
   Definition rocq_bool : Kernames.inductive :=
-    {| Kernames.inductive_mind := (Kernames.MPfile ("Datatypes" :: "Init" :: "Corelib" :: nil), "bool");
+    {| Kernames.inductive_mind := (Kernames.MPfile (List.cons "Datatypes" (List.cons "Init" (List.cons "Corelib" nil))), "bool");
        Kernames.inductive_ind := 0 |}.
 
   Definition mk_cstr_reorders (c : config) : EProgram.inductives_mapping :=
@@ -39,7 +39,7 @@ Section ErasureConfig.
     match c.(backend_opts) with
     | Wasm _ =>
       if List.existsb (fun m => Kernames.eq_inductive_def (fst m) rocq_bool) user then user
-      else (rocq_bool, ("bool", 1 :: 0 :: nil)) :: user
+      else List.cons (rocq_bool, ("bool", List.cons 1 (List.cons 0 nil))) user
     | _ => user
     end.
 
