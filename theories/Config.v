@@ -158,6 +158,7 @@ Section GeneralConfig.
       dearg_consts_c   : phases_config;
       specialize_instances_c : phases_config;
       cse_c            : phases_config;
+      lift_constants_c : phases_config;
     }.
 
   Record erasure_phases := {
@@ -174,6 +175,9 @@ Section GeneralConfig.
       (* Common-subexpression elimination (Peregrine-local unsafe pass,
          see erasure/ECommonSubexpr.v). *)
       cse            : bool;
+      (* Lifting of closed constructor values to shared global constants
+         (Peregrine-local unsafe pass, see erasure/ELiftConstants.v). *)
+      lift_constants : bool;
     }.
 
   Record config := {

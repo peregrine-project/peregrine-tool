@@ -191,7 +191,7 @@ Field by field:
 
 * `backend_opts` (`backend_config`) — selects the backend and its options; see below.
 
-* `erasure_opts` (`erasure_phases`) — toggles the optional erasure passes. The nine fields are
+* `erasure_opts` (`erasure_phases`) — toggles the optional erasure passes. The ten fields are
   ```
   (erasure_phases
     <implement_box>
@@ -202,12 +202,13 @@ Field by field:
     <dearg_ctors>
     <dearg_consts>
     <specialize_instances>
-    <cse>)
+    <cse>
+    <lift_constants>)
   ```
-  All booleans. `specialize_instances` and `cse` select the two optional passes described in [middleend.md](middleend.md); every backend leaves them off by default.
-  Only the nine-field form parses. To migrate a configuration written for the earlier seven-field form, append `None None` to its `erasure_phases` entry (`false false` where the fields are not optional). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
+  All booleans. `specialize_instances`, `cse` and `lift_constants` select the three optional passes described in [middleend.md](middleend.md); every backend leaves them off by default.
+  Only the ten-field form parses. To migrate a configuration written for the earlier seven-field form, append `None None None` to its `erasure_phases` entry (`false false false` where the fields are not optional); for the nine-field form, append one `None` (or `false`). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
 
-* `inlinings_opts` (`inlinings`) — a list of `kername`s; constants in this list are inlined by the typed-erasure pass.
+* `inlinings_opts` (`inlinings`) — a list of `kername`s; constants in this list are inlined by MetaRocq's inlining pass (`EInlining`; untyped pipeline only). The CLI flag `--inline-recursors` extends this list automatically with the program's recursors `I_rect`/`I_rec` (see [usage.md](usage.md#middle-end-passes) and [RecursorInlining.v](/theories/RecursorInlining.v)); the result is identical to listing them in an attribute file.
 
 * `const_remappings_opts` (`constant_remappings`) — a list of `(<kername> <remapped_constant>)` pairs (see below).
 

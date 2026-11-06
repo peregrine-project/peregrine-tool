@@ -35,6 +35,7 @@ Definition koka_phases := {|
   dearg_consts_c   := Compatible false;
   specialize_instances_c := Compatible false;
   cse_c            := Compatible false;
+  lift_constants_c := Compatible false;
 |}.
 
 
