@@ -316,7 +316,7 @@ The generated module starts with `module <elm_module_name> exposing (..)` follow
 (certirocq_config
   <direct>     ; true   — use the direct (ANF) pipeline
   <c_args>     ; 5      — number of C arguments (for CertiRocq)
-  <o_level>    ; 0      — optimisation level
+  <o_level>    ; 1      — optimisation level (1: lambda lifting)
   <anf_conf>   ; 0      — not read by the pipeline
   <prefix>     ; ""     — not read (CertiRocq no longer generates an FFI)
   <body_name>) ; "body" — name of the top-level function
