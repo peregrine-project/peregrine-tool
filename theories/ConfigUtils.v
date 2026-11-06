@@ -14,6 +14,7 @@ From Peregrine Require Import CakeMLBackend.
 From Peregrine Require Import LeanBackend.
 From Peregrine Require Import FSharpBackend.
 From Peregrine Require Import KokaBackend.
+From Peregrine Require Import KokaTypedBackend.
 From Peregrine Require Import CBackend.
 From Peregrine Require Import WasmBackend.
 From Peregrine Require Import LLVMBackend.
@@ -290,6 +291,7 @@ Section BackendConfigOptional.
   | Lean'   : lean_config' -> backend_config'
   | FSharp' : fsharp_config' -> backend_config'
   | Koka'   : koka_config' -> backend_config'
+  | KokaTyped' : koka_config' -> backend_config'
   | Eval'   : eval_config' -> backend_config'
   | AST'    : ast_config' -> backend_config'.
   Definition mk_backend_config (o : backend_config') : backend_config :=
@@ -304,6 +306,7 @@ Section BackendConfigOptional.
     | Lean' o   => Lean (mk_lean_config o)
     | FSharp' o => FSharp (mk_fsharp_config o)
     | Koka' o   => Koka (mk_koka_config o)
+    | KokaTyped' o => KokaTyped (mk_koka_config o)
     | Eval' o   => Eval (mk_eval_config o)
     | AST' o    => AST (mk_ast_config o)
     end.
@@ -392,6 +395,7 @@ Section GeneralConfigOptional.
       | Lean' _   => get_default_phases_opt lean_phases
       | FSharp' _ => get_default_phases_opt fsharp_phases
       | Koka' _   => get_default_phases_opt koka_phases
+      | KokaTyped' _ => get_default_phases_opt koka_typed_phases
       | Eval' _   => get_default_phases_opt eval_phases
       | AST' _   => get_default_phases_opt ast_phases
       end in
@@ -408,6 +412,7 @@ Section GeneralConfigOptional.
       | Lean' _   => enforce_phases o def_opt lean_phases
       | FSharp' _ => enforce_phases o def_opt fsharp_phases
       | Koka' _   => enforce_phases o def_opt koka_phases
+      | KokaTyped' _ => enforce_phases o def_opt koka_typed_phases
       | Eval' _   => enforce_phases o def_opt eval_phases
       | AST' _   => enforce_phases o def_opt ast_phases
       end

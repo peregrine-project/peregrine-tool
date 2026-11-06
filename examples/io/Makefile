@@ -1,11 +1,14 @@
 # IO through a free monad, interpreted in Rocq (FreeIO.v).  Only the primitives
-# are written per backend: ocaml/axioms.ml and c/freeio_prims.c.
-#   make check   builds the program for OCaml and C and runs it with input 3.
+# are written per backend: ocaml/axioms.ml and c/freeio_prims.c.  On Wasm the
+# host interprets the tree (wasm/host.mjs).
+#   make check   builds the program for OCaml and C and runs it with input 3,
+#                and wasm/WasmIO.v under the Node host wasm/host.mjs.
 PEREGRINE ?= peregrine
-# extra flags of the OCaml build, e.g. --cse true --specialize-instances true
+# extra flags of the OCaml and Wasm builds, e.g. --cse true --specialize-instances true
 PEREGRINE_FLAGS ?=
 COQC      ?= coqc
 CC        ?= gcc
+NODE      ?= node
 RUNTIME   ?= $(shell $(COQC) -where)/user-contrib/CertiRocq/Plugin/runtime
 EXPECTED  := 3 4 result 6
 
@@ -14,7 +17,7 @@ EXPECTED  := 3 4 result 6
 SEIO_REV  := 23d998f1b108f898f63f686ef9a596f7340cf48f
 SEIO_AXIOMS := https://raw.githubusercontent.com/andricicezar/fstar-io/$(SEIO_REV)/seiostar/lambdabox/axioms.ml
 
-all: build/ocaml/freeio build/c/freeio build/seio/ocaml/echo build/seio/c/echo
+all: build/ocaml/freeio build/c/freeio build/seio/ocaml/echo build/seio/c/echo build/wasm/wasmio.wasm
 .PHONY: all check clean
 
 build/FreeIO.ast: FreeIO.v
@@ -55,6 +58,16 @@ build/seio/c/echo: build/Echo.ast seio/config.sexp seio/runtime_prims.c seio/run
 	$(CC) -O2 -I$(RUNTIME) -Iseio -Ibuild/seio/c -o $@ build/seio/c/echo.c seio/runtime_prims.c seio/main.c \
 	  $(RUNTIME)/gc_stack.c $(RUNTIME)/prim_int63.c $(RUNTIME)/prim_string.c
 
+# The Wasm module has no imports: the host performs the operations of the
+# free-monad tree that the program returns (wasm/host.mjs).
+build/WasmIO.ast: wasm/WasmIO.v
+	mkdir -p build
+	cd wasm && $(COQC) -Q . "" WasmIO.v
+
+build/wasm/wasmio.wasm: build/WasmIO.ast
+	mkdir -p build/wasm
+	$(PEREGRINE) wasm build/WasmIO.ast -o $@ $(PEREGRINE_FLAGS)
+
 check: all
 	@for b in ocaml c; do \
 	  got=$$(echo hello | build/seio/$$b/echo | tr '\n' ' ' | sed 's/ $$//'); \
@@ -66,6 +79,10 @@ check: all
 	  if [ "$$got" = "$(EXPECTED)" ]; then echo "ok   $$b: $$got"; \
 	  else echo "FAIL $$b: got '$$got', expected '$(EXPECTED)'"; exit 1; fi; \
 	done
+	@got=$$(echo 3 | $(NODE) wasm/host.mjs build/wasm/wasmio.wasm | tr '\n' ' ' | sed 's/ $$//'); \
+	if [ "$$got" = "$(EXPECTED)" ]; then echo "ok   wasm: $$got"; \
+	else echo "FAIL wasm: got '$$got', expected '$(EXPECTED)'"; exit 1; fi
 
 clean:
-	rm -rf build *.vo *.vok *.vos *.glob .*.aux seio/*.vo seio/*.vok seio/*.vos seio/*.glob seio/.*.aux
+	rm -rf build *.vo *.vok *.vos *.glob .*.aux seio/*.vo seio/*.vok seio/*.vos seio/*.glob seio/.*.aux \
+	  wasm/*.vo wasm/*.vok wasm/*.vos wasm/*.glob wasm/.*.aux

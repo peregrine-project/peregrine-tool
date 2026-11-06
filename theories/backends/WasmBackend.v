@@ -18,7 +18,7 @@ Local Open Scope bs_scope.
 Definition default_wasm_config := {|
   direct    := true;
   c_args    := 5;
-  o_level   := 0;
+  o_level   := 1;  (* lambda lifting; 0 keeps every closure (#133) *)
   anf_conf  := 0;
   prefix    := "";
   body_name := "body";

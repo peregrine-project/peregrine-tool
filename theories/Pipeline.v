@@ -14,6 +14,7 @@ From Peregrine Require LeanBackend.
 From Peregrine Require LLVMBackend.
 From Peregrine Require FSharpBackend.
 From Peregrine Require KokaBackend.
+From Peregrine Require KokaTypedBackend.
 From Peregrine Require EvalBackend.
 From Peregrine Require ASTBackend.
 From Peregrine Require NameSanitize.
@@ -77,7 +78,7 @@ Definition check_wf (p : PAst) : result' unit :=
 
 Definition needs_typed (c : config) : bool :=
   match c.(backend_opts) with
-  | Rust _ | Elm _ => true
+  | Rust _ | Elm _ | KokaTyped _ => true
   | C _ | Wasm _ | LLVM _ | OCaml _ | CakeML _ | Lean _ | FSharp _ | Koka _ | Eval _ => false
   | AST c =>
     match c.(ast_type) with
@@ -86,7 +87,23 @@ Definition needs_typed (c : config) : bool :=
     end
   end.
 
+(* A remapped constant is an axiom to the typed transforms: its body is not used,
+   and an analysis of that body must not decide the parameters of the constant.
+   Dearging would otherwise remove a parameter that the body ignores, and the
+   remapping, which takes that parameter, would no longer match its calls.  The
+   mask of a constant without a body removes the logical parameters only. *)
+Definition drop_remapped_bodies (c : config) (env : ExAst.global_env) : ExAst.global_env :=
+  map (fun '(kn, deps, d) =>
+    match d with
+    | ExAst.ConstantDecl cst =>
+      if existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts)
+      then (kn, deps, ExAst.ConstantDecl {| ExAst.cst_type := cst.(ExAst.cst_type); ExAst.cst_body := None |})
+      else (kn, deps, d)
+    | _ => (kn, deps, d)
+    end) env.
+
 Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAst :=
+  let drop := drop_remapped_bodies c in
   let econf := mk_opts c typed in
   let cstr_reorder := mk_cstr_reorders c in
   let impl_box := c.(erasure_opts).(implement_box) in
@@ -103,11 +120,11 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAs
          error.  [EHindleyMilner.infer_section] gives [trans_env env0 = env];
          nothing is proved about the inferred types. *)
       env0 <- infer_for_backend env;;
-      let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (env0, t) in
+      let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (drop env0, t) in
       Ok (Typed env' (Some t'))
   | Untyped env None, true =>
       env0 <- infer_for_backend env;;
-      let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (env0, EAst.tBox) in
+      let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (drop env0, EAst.tBox) in
       Ok (Typed env' None)
   | Untyped env (Some t), false =>
       let (env', t') := run_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (env, t) in
@@ -116,16 +133,16 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAs
       let (env', _) := run_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (env, EAst.tBox) in
       Ok (Untyped env' None)
   | Typed env (Some t), true =>
-      let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (env, t) in
+      let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (drop env, t) in
       Ok (Typed env' (Some t'))
   | Typed env (Some t), false =>
-      let (env', t') := run_typed_to_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (env, t) in
+      let (env', t') := run_typed_to_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (drop env, t) in
       (Ok (Untyped env' (Some t')))
   | Typed env None, true =>
-      let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (env, EAst.tBox) in
+      let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (drop env, EAst.tBox) in
       Ok (Typed env' None)
   | Typed env None, false =>
-      let (env', _) := run_typed_to_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (env, EAst.tBox) in
+      let (env', _) := run_typed_to_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (drop env, EAst.tBox) in
       (Ok (Untyped env' None))
   end.
 
@@ -206,6 +223,16 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
   | Koka opts =>
     p' <- PAst_to_EAst p;;
     res <- KokaBackend.extract_koka
+      const_remaps
+      custom_attr
+      opts
+      f
+      p';;
+    Ok (KokaProgram res)
+
+  | KokaTyped opts =>
+    p' <- PAst_to_ExAst p;;
+    res <- KokaTypedBackend.extract_koka_typed
       const_remaps
       custom_attr
       opts
@@ -326,7 +353,7 @@ Definition check_lowered (c : config) (p : PAst) : result' unit :=
     | OCaml _ => Some "OCaml"
     | CakeML _ => Some "CakeML"
     | Eval _ => Some "eval"
-    | Rust _ | Elm _ | Lean _ | FSharp _ | Koka _ | AST _ => None
+    | Rust _ | Elm _ | Lean _ | FSharp _ | Koka _ | KokaTyped _ | AST _ => None
     end in
   match backend, p with
   | Some b, Untyped env (Some t) => check_lowered_program b (env, t)

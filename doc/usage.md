@@ -40,13 +40,14 @@ peregrine help [TOPIC]
 | `lean` | `INPUT.lean` | untyped | |
 | `fsharp` (experimental) | `INPUT.fs` | untyped | |
 | `koka` (experimental) | `INPUT.kk` | untyped | |
+| `koka-typed` (experimental) | `INPUT.kk` | typed | |
 | `eval` | the value, on standard output | untyped | [CertiRocq](#certirocq-options-c-wasm-llvm-eval-ast), [`--fuel`](#eval) |
 
 `INPUT.ext` stands for `INPUT` with its extension replaced (`Prog.v` gives `Prog.c`). `-o` sets the output file. For `c`, the header gets the name of the `-o` file with `.h` in place of its extension. The `.c` file includes the header by its base name, so keep the two in one directory.
 
 Every backend command takes the [frontend options](#frontends), the [common options](#common-options) and the [middle-end pass options](#middle-end-passes).
 
-A typed backend (`rust`, `elm`) given an untyped program first infers its types. If the program cannot be typed this way, peregrine fails with an error that names the offending constant ([backends.md](backends.md#rust)). An untyped backend given a typed program ignores the types.
+A typed backend (`rust`, `elm`, `koka-typed`) given an untyped program first infers its types. If the program cannot be typed this way, peregrine fails with an error that names the offending constant ([backends.md](backends.md#rust)). An untyped backend given a typed program ignores the types.
 
 What each backend produces and what is needed to build and run its output is described in [backends.md](backends.md).
 
@@ -107,7 +108,7 @@ Peregrine prints on standard error one line for each choice it makes by itself: 
 * `--frontend-arg ARG`: pass `ARG` to the tool. Repeat it for several arguments, and write an argument that starts with `-` as `--frontend-arg=ARG`, e.g. `--frontend-arg=-Q --frontend-arg=theories --frontend-arg=MyLib`.
 * `--lean-config TERM`: the configuration of the Lean frontend, a Lean term of type `Erasure.ErasureConfig`, given to `#erase NAME config TERM`, e.g. `--lean-config '{nat := .peano}'`. An error with any other frontend.
 * `--keep-ast FILE`: also write the $\lambda_\square$ program of the frontend to `FILE`, and for Lean the attribute file to `FILE.inlinings`.
-* `--typed`: ask the frontend for typed $\lambda_\square^T$. Without it, peregrine asks for typed output when the backend needs it (`rust`, `elm`, `ast typed`, or `compile` with such a backend) and the frontend has it (Rocq, Agda). Lean has no typed output: `--typed` with Lean is an error, and the typed backends infer the types of its untyped output.
+* `--typed`: ask the frontend for typed $\lambda_\square^T$. Without it, peregrine asks for typed output when the backend needs it (`rust`, `elm`, `koka-typed`, `ast typed`, or `compile` with such a backend) and the frontend has it (Rocq, Agda). Lean has no typed output: `--typed` with Lean is an error, and the typed backends infer the types of its untyped output.
 
 `--entry`, `--typed`, `--frontend-arg` and `--lean-config` are errors on a $\lambda_\square$ input.
 
@@ -200,7 +201,7 @@ These set the `certirocq_config` record ([format.md](format.md#c--wasm--llvm-cer
 
 * `--cps`: use CertiRocq's CPS pipeline instead of the direct one.
 * `--c-args=N`: the number of arguments that the generated functions take as C arguments; the rest are passed in an array (default 5).
-* `-O N`: CertiRocq's optimization level. 0, the default, disables lambda lifting; 1 and above enable it.
+* `-O N`: CertiRocq's optimization level. 1, the default, enables lambda lifting; 0 disables it, so that every local function keeps a heap-allocated closure environment.
 * `--body-name=NAME`: the name of the top-level function (default `body`). The LLVM backend ignores it and always names its entry point `certirocq_main`.
 
 `--prefix` and `--anf-conf` are accepted but [deprecated](#deprecated-commands-and-options): nothing reads them.
@@ -216,7 +217,7 @@ These set the `certirocq_config` record ([format.md](format.md#c--wasm--llvm-cer
 | `i64` | `i64`, overflow not checked | |
 | `mixed` | GMP integers, with `add`/`mul`/`sub`/`div`/`modulo`/`pow`/`eqb`/`leb`/`ltb` on `nat` computed in `i64` | `rug` |
 | `mixed-narrow` | GMP integers, with `div`/`modulo`/`pow` on `nat` computed in `i64` | `rug` |
-| `hybrid` | `i64` while the value fits, GMP integers otherwise, overflow checked | `rug` |
+| `hybrid` | a tagged 63-bit integer while the value fits, GMP integers otherwise, overflow checked | `rug` |
 
 Every representation other than `peano` also maps `bool` to the Rust `bool` and `comparison` to `std::cmp::Ordering`. The generated code always needs the `bumpalo` crate. See [backends.md](backends.md#numeric-representations) for what each representation computes and what is proved about it.
 
@@ -226,7 +227,7 @@ Every representation other than `peano` also maps `bool` to the Rust `bool` and 
 
 ### Other backends
 
-`ocaml`, `cakeml`, `elm`, `lean`, `fsharp` and `koka` have no options of their own on the command line. Their configuration records ([format.md](format.md#backend-configuration)) are set with `compile` and a configuration file.
+`ocaml`, `cakeml`, `elm`, `lean`, `fsharp`, `koka` and `koka-typed` have no options of their own on the command line. Their configuration records ([format.md](format.md#backend-configuration)) are set with `compile` and a configuration file.
 
 
 ## Configuration and attribute files
