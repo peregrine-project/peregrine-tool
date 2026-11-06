@@ -4,7 +4,7 @@ This page lists what peregrine-tool depends on, where each dependency lives and 
 
 ## Policy for forks in peregrine-project
 
-Some upstream projects need changes that Peregrine cannot wait for. For these, `peregrine-project` keeps a fork:
+Some upstream projects need minor changes. For these, `peregrine-project` keeps a fork:
 
 - The fork's **mirror branch** is the upstream default branch, kept equal to upstream, with no commits of our own. It is `main` for certirocq and `rocq-9.1` for rocq-verified-extraction.
 - The **`peregrine` branch** is the mirror branch plus our edits on top. The edits should stay small, and each one is meant to go upstream as a pull request.
