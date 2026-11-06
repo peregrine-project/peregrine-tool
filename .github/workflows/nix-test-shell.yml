@@ -1,0 +1,37 @@
+# Checks that .nix/test-shell.nix evaluates and provides the test toolchains.
+name: Nix test shell
+
+on:
+  push:
+    branches: [master]
+    paths: ['.nix/**', 'default.nix', '.github/workflows/nix-test-shell.yml']
+  pull_request:
+    paths: ['.nix/**', 'default.nix', '.github/workflows/nix-test-shell.yml']
+  workflow_dispatch:
+
+jobs:
+  test-shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixpkgs-unstable
+      - uses: cachix/cachix-action@v17
+        with:
+          name: peregrine
+          extraPullNames: coq, coq-community, math-comp, metarocq
+      - name: Enter the shell and print the toolchain versions
+        run: |
+          nix-shell .nix/test-shell.nix --run '
+            set -e
+            rocq --version
+            rustc --version
+            cargo --version
+            elm --version
+            command -v elm-test
+            node --version
+            clang --version | head -1
+            koka --version | head -1
+            elan --version
+          '
