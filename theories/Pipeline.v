@@ -6,6 +6,7 @@ From Peregrine Require Import Transforms.
 From Peregrine Require Import Erasure.
 From Peregrine Require Import CheckWf.
 From Peregrine Require Import RecursorInlining.
+From Peregrine Require Import ELboxOpts.
 From Peregrine Require RustBackend.
 From Peregrine Require ElmBackend.
 From Peregrine Require OCamlBackend.
@@ -103,7 +104,15 @@ Definition drop_remapped_bodies (c : config) (env : ExAst.global_env) : ExAst.gl
     | _ => (kn, deps, d)
     end) env.
 
-Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAst :=
+(** The typed pipeline has no room for the (unverified) lambda-box
+    simplifications of ELboxOpts.v in its transformation chain; they are applied
+    to its output here, on the typed environment, when enabled. *)
+Definition lbox_typed (lbox : lbox_opts) (env : typed_env) (t : option EAst.term) : PAst :=
+  if any_lbox_opts lbox
+  then Typed (staged lbox optimize_typed_env env) (option_map (staged lbox optimize) t)
+  else Typed env t.
+
+Definition apply_transforms (c : config) (lbox : lbox_opts) (p : PAst) (typed : bool) : result' PAst :=
   let drop := drop_remapped_bodies c in
   (* Untyped input: MetaRocq's dearging analysis as is. A typed environment: the
      masks of remapped constants from their types ([remap_masks]), with every
@@ -127,28 +136,28 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAs
          nothing is proved about the inferred types. *)
       env0 <- infer_for_backend env;;
       let '(_, (env', t')) := run_typed_transforms (iconf env0) cstr_reorder (drop env0, t) in
-      Ok (Typed env' (Some t'))
+      Ok (lbox_typed lbox env' (Some t'))
   | Untyped env None, true =>
       env0 <- infer_for_backend env;;
       let '(_, (env', _)) := run_typed_transforms (iconf env0) cstr_reorder (drop env0, EAst.tBox) in
-      Ok (Typed env' None)
+      Ok (lbox_typed lbox env' None)
   | Untyped env (Some t), false =>
-      let (env', t') := run_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (env, t) in
+      let (env', t') := run_untyped_transforms econf cstr_reorder spec_inst cse lbox impl_box impl_lazy (env, t) in
       Ok (Untyped env' (Some t'))
   | Untyped env None, false =>
-      let (env', _) := run_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (env, EAst.tBox) in
+      let (env', _) := run_untyped_transforms econf cstr_reorder spec_inst cse lbox impl_box impl_lazy (env, EAst.tBox) in
       Ok (Untyped env' None)
   | Typed env (Some t), true =>
       let '(_, (env', t')) := run_typed_transforms (tconf env) cstr_reorder (drop env, t) in
-      Ok (Typed env' (Some t'))
+      Ok (lbox_typed lbox env' (Some t'))
   | Typed env (Some t), false =>
-      let (env', t') := run_typed_to_untyped_transforms (tconf env) cstr_reorder spec_inst cse impl_box impl_lazy (drop env, t) in
+      let (env', t') := run_typed_to_untyped_transforms (tconf env) cstr_reorder spec_inst cse lbox impl_box impl_lazy (drop env, t) in
       (Ok (Untyped env' (Some t')))
   | Typed env None, true =>
       let '(_, (env', _)) := run_typed_transforms (tconf env) cstr_reorder (drop env, EAst.tBox) in
-      Ok (Typed env' None)
+      Ok (lbox_typed lbox env' None)
   | Typed env None, false =>
-      let (env', _) := run_typed_to_untyped_transforms (tconf env) cstr_reorder spec_inst cse impl_box impl_lazy (drop env, EAst.tBox) in
+      let (env', _) := run_typed_to_untyped_transforms (tconf env) cstr_reorder spec_inst cse lbox impl_box impl_lazy (drop env, EAst.tBox) in
       (Ok (Untyped env' None))
   end.
 
@@ -371,14 +380,14 @@ Definition check_lowered (c : config) (p : PAst) : result' unit :=
     inlinings, as if an attribute file listing them had been passed
     (see RecursorInlining.v). *)
 Definition peregrine_pipeline (c : string + config') (attrs : list string) (inline_recursors : bool)
-  (p : string) (f : string) : extraction_result :=
+  (lbox : lbox_opts) (p : string) (f : string) : extraction_result :=
   p <- parse_ast p;; (* Parse input string into AST *)
   c <- get_config c attrs;; (* Parse or construct config *)
   let c := if inline_recursors then merge_attributes_config c [recursor_attributes p] else c in
   check_wf p;; (* Check that AST is wellformed *)
   p <- NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c) p;; (* Sanitize names in AST *)
   c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;; (* Sanitize names in config *)
-  p <- apply_transforms c p (needs_typed c);; (* Apply program transformation *)
+  p <- apply_transforms c lbox p (needs_typed c);; (* Apply program transformation *)
   check_lowered c p;; (* Reject terms that the backend would miscompile *)
   run_backend c f p. (* Run extraction backend *)
 

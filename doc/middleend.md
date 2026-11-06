@@ -78,7 +78,7 @@ The transformations that will be applied will depend on both the AST type, backe
 * **inlining**:
   a pass inlining declarations. Only declarations declared as inline will be inlined (the `inlinings` of the configuration and attribute files, plus the program's recursors when `--inline-recursors` is given). This is MetaRocq's `EInlining.inline_transformation`, proved correct for any list of inlined constants.
 * **beta reduction**:
-  a pass performing beta reduction
+  a pass performing beta reduction (MetaRocq's `EBeta`; assumed correct by the axioms `trust_betared_wf`, `trust_betared_pres`)
 * **remap inductives**:
   a pass for remapping of inductive declaratiuons. Constructors and eliminator are remapped to axioms, which can be further remapped using the global declaration remapping feature.
 * **implement $\square$**:
@@ -91,6 +91,10 @@ The transformations that will be applied will depend on both the AST type, backe
   a pass that clones a function at call sites that pass a statically known dictionary (single-constructor record) value, and reduces the clone (beta, case of a known constructor); see [optional passes](#optional-passes)
 * **common subexpression elimination**:
   a pass that binds a closed subterm occurring at least twice, always in evaluated positions, with a `let`; see [optional passes](#optional-passes)
+* **identity cases**:
+  a pass rewriting `match e with C xs => C xs` to `e` (boxes count as equal), as Rocq's extraction does; see [optional passes](#optional-passes)
+* **lambda-box simplifications**:
+  fixpoint eta-hoisting (`fun xs => (fix F ..) xs` becomes the fixpoint, dead $\square$ parameters are dropped), case/function permutation (`match x with C => fun y => e` becomes `fun y => match x with C => e` for a variable `x`) and let/function permutation with applied lets and cases (the convoy pattern), as Rocq's extraction does in `Mlutil`; see [optional passes](#optional-passes)
 
 
 ### Transformation support (Untyped target AST)
@@ -114,6 +118,8 @@ The transformations that will be applied will depend on both the AST type, backe
 | annotate names             | optional, default off | optional, default off | required | required | optional, default off | optional, default off |
 | specialize instances       | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
 | common subexpression elimination | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
+| identity cases             | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
+| lambda-box simplifications | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
 
 CertiRocq and the verified Malfunction and CakeML compilers have no translation for `tCoFix`, `tLazy` and `tForce`, and turn them into placeholders. The C, Wasm, LLVM, OCaml, CakeML and eval backends therefore reject a program that still contains one of these terms after the passes above. The option `--lower-cofix true` runs `cofix to fix` and `implement lazy` and removes these terms, at the cost of two passes whose preservation obligations are `Admitted` in [Transforms.v](/theories/erasure/Transforms.v). The Lean and F# backends require both passes.
 
@@ -125,6 +131,8 @@ If the input is untyped, it is first annotated with types by Hindley-Milner infe
 |----------------------------|----------------------|----------------------|-----------------------|
 | remove parameters          | required             | required             | required              |
 | dearging                   | optional, default on | optional, default on | optional, default off |
+| identity cases             | optional, default off | optional, default off | optional, default off |
+| lambda-box simplifications | optional, default off | optional, default off | optional, default off |
 
 ### Optional passes
 Instance specialization ([EInstanceSpecialize.v](/theories/erasure/EInstanceSpecialize.v)) and common subexpression elimination ([ECommonSubexpr.v](/theories/erasure/ECommonSubexpr.v)) are off by default in every backend and are enabled with the `specialize_instances` and `cse` fields of the configuration ([format.md](format.md)) or the `--specialize-instances` and `--cse` flags. They run only in the untyped pipeline, after the other optional passes (`optional_unsafe_transforms`) and before implement $\square$ (`extra_unsafe_transforms` in [Transforms.v](/theories/erasure/Transforms.v)), so beta reduction and dearging do not see their output; the Rust and Elm backends never run them.
@@ -133,3 +141,8 @@ Their correctness is axiomatized:
 
 * Instance specialization: well-formedness preservation and evaluation preservation are the axioms `trust_specialize_instances_wf` and `trust_specialize_instances_pres`, and its two `TransformExt` instances are the axioms `specialize_instances_transformation_ext` and `specialize_instances_transformation_ext'`. Nothing about the pass is proved.
 * Common subexpression elimination: well-formedness preservation (`cse_wf`) and the `TransformExt` instances are proved; evaluation preservation is the axiom `cse_pres_eval`.
+
+The $\lambda_\square$ simplifications of [ELboxOpts.v](/theories/erasure/ELboxOpts.v) (identity cases, fixpoint eta-hoisting, case/function permutation, let/function permutation) are off by default and are enabled with `--lbox-opts` (all four) or one flag per pass (`--lbox-case-id`, `--lbox-fix-eta`, `--lbox-case-fun`, `--lbox-let-fun`), see [usage.md](usage.md#middle-end-passes). In the untyped pipeline they run in `extra_unsafe_transforms`, after common subexpression elimination and before implement $\square$: first the identity-case pass, then the other three in one bottom-up traversal. For the Rust and Elm backends they are applied, in the same two stages, to the output of the typed pipeline (`lbox_typed` in [Pipeline.v](/theories/Pipeline.v)). Nothing about them is proved:
+
+* Identity cases: well-formedness preservation and evaluation preservation are the axioms `trust_case_id_wf` and `trust_case_id_pres`; the header of ELboxOpts.v lists what a proof would need.
+* The other three: the axioms `trust_lbox_opts_wf` and `trust_lbox_opts_pres`, stated for option sets with the identity-case pass off, so they do not bear on that pass.

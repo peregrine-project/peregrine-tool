@@ -192,13 +192,22 @@ let validate opts fo f_input f_config =
 
 
 (* Compile functions *)
+(* The lambda-box simplification passes (ELboxOpts.v): a pass is on if its own
+   flag says so, otherwise if the umbrella --lbox-opts is on. *)
+let mk_lbox_opts opts =
+  let pass o = match o with Some b -> b | None -> opts.lbox_opts in
+  { Peregrine.ELboxOpts.lbox_fix_eta = pass opts.lbox_fix_eta;
+    lbox_case_fun = pass opts.lbox_case_fun;
+    lbox_case_id = pass opts.lbox_case_id;
+    lbox_let_fun = pass opts.lbox_let_fun }
+
 let compile_aux opts fo ~typed f_input config =
   let f_prog, attrs, stem = Frontend.load opts fo ~typed f_input in
   let prog = f_prog |> read_file |> bytestring_of_caml_string in
   let f_name = stem |> Filename.basename |> bytestring_of_caml_string in
   let attrs = read_attrs opts attrs in
   info opts "Compiling:";
-  let res = Pipeline.peregrine_pipeline config attrs opts.inline_recursors prog f_name in
+  let res = Pipeline.peregrine_pipeline config attrs opts.inline_recursors (mk_lbox_opts opts) prog f_name in
   match res with
   | ResultMonad.Ok p ->
     info opts "Compiled successfully:";
