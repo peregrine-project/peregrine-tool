@@ -48,7 +48,7 @@ peregrine eval prog.ast
 | Frontend | Input | Tool that Peregrine runs | Typed $\lambda_\square^T$ | Verification | Project |
 |----------|-------|--------------------------|---------------------------|--------------|---------|
 | Rocq | `.v` | `rocq compile` with the Peregrine plugin (installed with `rocq-peregrine`) | yes | verified erasure (MetaRocq) | [plugin/](plugin/) |
-| Agda | `.agda`, `.lagda`, `.lagda.md`, `.lagda.tex`, `.lagda.rst`, `.lagda.org`, `.lagda.typ`, `.lagda.tree` | `agda2lambox` | yes | unverified | [agda2lambox](https://github.com/agda/agda2lambox) |
+| Agda | `.agda`, `.lagda`, `.lagda.*` | `agda2lambox` | yes | unverified | [agda2lambox](https://github.com/agda/agda2lambox) |
 | Lean | `.lean` | `lake env lean`, in a Lake project that requires LeanToLambdaBox | no; typed backends infer the types | partially verified | [lean-to-lambdabox](https://github.com/peregrine-project/lean-to-lambdabox) |
 
 Any other file is read as a $\lambda_\square$ program ([format.md](doc/format.md)). See [usage.md](doc/usage.md#frontends) for frontend setup and options, and [frontends.md](doc/frontends.md) for how each frontend works.
@@ -72,3 +72,18 @@ Any other file is read as a $\lambda_\square$ program ([format.md](doc/format.md
 | `ast` | `.ast` | either | nothing | debugging tool |
 
 The middle-end is only partly verified. Evaluation preservation for the passes that implement $\square$ and `lazy`/`force` is admitted (the first of them runs for every untyped backend except `ast`), and so are some pipeline preconditions ([Transforms.v](theories/erasure/Transforms.v)). The optional passes rest on axioms ([middleend.md](doc/middleend.md#optional-passes)). For each backend's output and runtime requirements, see [backends.md](doc/backends.md).
+
+
+## Documentation
+
+| File | Contents |
+|------|----------|
+| [overview.md](doc/overview.md) | the pipeline, from the frontends through the middle-end to the backends |
+| [usage.md](doc/usage.md) | every command and option of the `peregrine` CLI, and frontend setup |
+| [frontends.md](doc/frontends.md) | how the Rocq, Agda and Lean frontends produce $\lambda_\square$ |
+| [middleend.md](doc/middleend.md) | the middle-end: validation, the transformation passes, what is proved |
+| [backends.md](doc/backends.md) | each backend: output, runtime requirements, what is proved |
+| [format.md](doc/format.md) | the $\lambda_\square$ IR, the pipeline configuration and their S-expression format |
+| [dev.md](doc/dev.md) | building from source, repository layout, tests |
+| [dependencies.md](doc/dependencies.md) | every dependency with its repository and pin, the policy for forks, how to update a pin |
+| [test/README.md](test/README.md) | the test suite, its configurations and the rules for expected failures |
