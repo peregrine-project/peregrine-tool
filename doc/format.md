@@ -367,7 +367,7 @@ and is forwarded to the Malfunction printer. Default: `Standalone`.
 #### Eval (`eval_config`)
 ```
 (eval_config
-  <copts>     ; certirocq_config, defaulting to the C/Wasm defaults
+  <copts>     ; certirocq_config, defaulting to the C/Wasm defaults (-O 1)
   <fuel>)     ; 2^14
 ```
 The `eval` command runs the program in-process using CertiRocq's evaluator (after the relevant prefix of the C pipeline) and prints its result to stdout. `fuel` bounds the number of reduction steps before giving up.
