@@ -324,7 +324,7 @@ var agda_tests: TestCase[] =
         agda_nat_test("ErasedFields", 168, true),
         agda_nat_test("EtaExpansion", 672, true),
         agda_nat_test("ExactSplit", 0, true),
-        { ...agda_nat_test("Exp", 168, true), xfail: { ...rust("#127: the branches of geval have different types (GExp is indexed by the type of its value), ...on(["Koka-typed", "Koka-typed-untyped"], "#143: the branches of geval have different types (GExp is indexed by the type of its value), which typed Koka does not cast"), and the Rust printer has no cast (E0308)"), ...elm_ctor_clash } },
+        { ...agda_nat_test("Exp", 168, true), xfail: { ...rust("#127: the branches of geval have different types (GExp is indexed by the type of its value), and the Rust printer has no cast (E0308)"), ...elm_ctor_clash, ...on(["Koka-typed", "Koka-typed-untyped"], "#143: the branches of geval have different types (GExp is indexed by the type of its value), which typed Koka does not cast") } },
         agda_nat_test("Identity", 42, true),
         { ...agda_nat_test("Levels", 294, true), xfail: elm("#99: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Levels_toNat, which Elm rejects") },
         agda_nat_test("List0", 42, true),
