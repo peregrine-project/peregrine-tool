@@ -164,7 +164,6 @@ var agda_tests: TestCase[] =
         {
             src: "agda/Lvls.ast",
             xfail: {
-                "Rust-untyped": "#127: the projection of the erased field ℓ is printed as a unit, which is then applied (E0618)",
                 ...elm("#99: agda2lambox writes the module path of the where-bound toNat outermost first, so Elm prints it as _50_Lvls_toNat, which Elm rejects")
             },
             main: "Lvls_test",
@@ -319,7 +318,7 @@ var agda_tests: TestCase[] =
         agda_nat_test("Bool", 84, true),
         { ...agda_nat_test("ConsImplicitArgs", 168, true), xfail: elm_ctor_clash },
         agda_nat_test("Curry", 168, true),
-        { ...agda_nat_test("Either", 42, true), xfail: { ...rust("#127: rustc cannot infer the parameter B of Either at the constructor Left (E0283)"), ...elm_ctor_clash } },
+        { ...agda_nat_test("Either", 42, true), xfail: elm_ctor_clash },
         agda_nat_test("ErasedFields", 168, true),
         agda_nat_test("EtaExpansion", 672, true),
         agda_nat_test("ExactSplit", 0, true),
@@ -423,7 +422,7 @@ var rocq_tests: TestCase[] =
             rust_i64_output: "(cons () 1 (cons () 0 (nil)))",
             rejected: "#125: the Rust and Elm printers do not support primitive values, so neither does type inference",
             xfail: {
-                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-rc"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
+                "Elm": "#125: the Elm printer does not support primitive values (Cannot handle Rocq primitive types)",
                 "WebAssembly": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cps": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cofix": "#125: the Wasm backend does not support primitive strings",
@@ -567,13 +566,6 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Phantom.ast",
             tsrc: "rocq/extraction/Phantom_typed.ast",
-            xfail: {
-                "Rust": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
-                "Rust-verb": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
-                "Rust-rc": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
-                "Rust-i64": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
-                "Rust-hybrid": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)"
-            },
             rust_i64_output: "1",
             main: "Phantom_test",
             output_type: SimpleType.Nat,

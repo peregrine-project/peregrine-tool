@@ -24,8 +24,8 @@
       metarocq-erasure.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
       metarocq-erasure-plugin.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
 
-      # The rust-rc-mode branch of peregrine-project/rocq-typed-extraction, see rocq-peregrine.opam
-      TypedExtraction.override.version = "6e671a0fc5847581922d5e60ee61e367151c12f1";
+      # The rust-rc-memory branch of peregrine-project/rocq-typed-extraction, see rocq-peregrine.opam
+      TypedExtraction.override.version = "6f94d87c14768feaee3699ad2164eaf12f64431e";
       # The peregrine branch of peregrine-project/certirocq, see rocq-peregrine.opam
       CertiRocq.override.version = "a8dc26feadde902e109ae3a1bbdfacadfc4bb9f6";
       # CertiRocq needs coq-wasm >= 2.2.1
