@@ -17,7 +17,10 @@ export function has_koka(): boolean {
 // The constructors of the program's types: for each `type t { C1; C2( f0 : any ) }`
 // the type name and, per constructor, its name and number of fields. The printer
 // names a constructor `C_<type>_<index>_<source name>`.
-type KokaType = { name: string, base: string, ctors: { name: string, short: string, nargs: number, first?: string }[] };
+// A typed program keeps a `()` field per type parameter in front of the source
+// fields (`cons( f0 : (), f1 : a0, f2 : ... )`): `units` counts them, and `nargs`
+// and `first` describe the source fields.
+type KokaType = { name: string, base: string, ctors: { name: string, short: string, nargs: number, units: number, first?: string }[] };
 
 function program_types(source: string): KokaType[] {
   const types: KokaType[] = [];
@@ -28,9 +31,11 @@ function program_types(source: string): KokaType[] {
       const name = c.split("(")[0].trim();
       // Lean's names keep the type: List.cons is List__UU2econs
       const short = name.replace(/^C_.*?_\d+_/, "").replace(/^.*__UU2e/, "");
-      const nargs = c.includes("(") ? c.split(",").length : 0;
-      const first = c.match(/\(\s*f0 : ([^,)]*)/)?.[1].trim();
-      return { name, short, nargs, first };
+      const inner = c.includes("(") ? c.slice(c.indexOf("(") + 1, c.lastIndexOf(")")) : "";
+      const fields = inner.trim().length === 0 ? [] : inner.split(/,\s*(?=f\d+ : )/).map((f) => f.replace(/^\s*f\d+ : /, "").trim());
+      const lead = fields.findIndex((t) => t !== "()");
+      const units = arity === 0 ? 0 : (lead === -1 ? fields.length : lead);
+      return { name, short, nargs: fields.length - units, units, first: fields[units] };
     });
     types.push({ name: arity === 0 ? m[1] : `${m[1]}<${Array(arity).fill("any").join(", ")}>`, base: m[1], ctors });
   }
@@ -47,6 +52,12 @@ function find_type(types: KokaType[], shape: [string[], number][]): KokaType | u
   return find_types(types, shape)[0];
 }
 
+// The pattern of constructor `c` binding its source fields to `vars`.
+function pat(c: KokaType["ctors"][number], vars: string[]): string {
+  const all = [...Array(c.units).fill("_"), ...vars];
+  return all.length === 0 ? c.name : `${c.name}(${all.join(", ")})`;
+}
+
 // A Koka function `pp<id>` printing a value of `type` in the format of the
 // expected outputs, with the declarations it needs, or undefined when the
 // program declares no matching type.
@@ -60,12 +71,12 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
     const t = ts.find((u) => u.ctors[1].first === u.base) ?? ts[0];
     if (t === undefined) return undefined;
     const [z, s] = t.ctors;
-    return { name, decls: [`fun ${name}( x : any ) : div string { match ${cast(t)} { ${z.name} -> "O"; ${s.name}(n) -> "(S " ++ ${name}(pg_cast(n)) ++ ")" } }`] };
+    return { name, decls: [`fun ${name}( x : any ) : div string { match ${cast(t)} { ${pat(z, [])} -> "O"; ${pat(s, ["n"])} -> "(S " ++ ${name}(pg_cast(n)) ++ ")" } }`] };
   }
   if (type === SimpleType.Bool) {
     const t = find_type(types, [[["true"], 0], [["false"], 0]]) ?? find_type(types, [[["false"], 0], [["true"], 0]]);
     if (t === undefined) return undefined;
-    const br = t.ctors.map((c) => `${c.name} -> "${c.short}"`).join("; ");
+    const br = t.ctors.map((c) => `${pat(c, [])} -> "${c.short}"`).join("; ");
     return { name, decls: [`fun ${name}( x : any ) : div string { match ${cast(t)} { ${br} } }`] };
   }
   if (typeof type === "number" || type.type !== "list") return undefined;
@@ -76,7 +87,7 @@ function printer(types: KokaType[], type: ProgramType, id: number = 0): { decls:
   const [nil, cons] = t.ctors;
   return {
     name,
-    decls: [...elem.decls, `fun ${name}( x : any ) : div string { match ${cast(t)} { ${nil.name} -> "nil"; ${cons.name}(h, t) -> "(cons " ++ ${elem.name}(pg_cast(h)) ++ " " ++ ${name}(pg_cast(t)) ++ ")" } }`]
+    decls: [...elem.decls, `fun ${name}( x : any ) : div string { match ${cast(t)} { ${pat(nil, [])} -> "nil"; ${pat(cons, ["h", "t"])} -> "(cons " ++ ${elem.name}(pg_cast(h)) ++ " " ++ ${name}(pg_cast(t)) ++ ")" } }`]
   };
 }
 
