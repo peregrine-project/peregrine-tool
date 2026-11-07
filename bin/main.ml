@@ -37,7 +37,7 @@ let certirocq_opts_t =
     Arg.(value & opt (some int) None & info ["c-args"] ~doc)
   in
   let o_level_arg =
-    let doc = "Optimization level." in
+    let doc = "Optimization level: 1 (the default) enables lambda lifting, 0 disables it." in
     Arg.(value & opt (some int) None & info ["O"] ~doc)
   in
   let anf_conf_arg =
@@ -232,6 +232,7 @@ let backends = [
   "lean", "Compile to Lean 4", plain (ConfigUtils.Lean' ConfigUtils.empty_lean_config');
   "fsharp", "Compile to F# (experimental)", plain (ConfigUtils.FSharp' ConfigUtils.empty_fsharp_config');
   "koka", "Compile to Koka (experimental)", plain (ConfigUtils.Koka' ConfigUtils.empty_koka_config');
+  "koka-typed", "Compile to typed Koka (experimental); untyped input is typed by Hindley-Milner inference", plain ~typed:true (ConfigUtils.KokaTyped' ConfigUtils.empty_koka_config');
   "eval", "Evaluate the program with the lambda box interpreter", Term.(const eval_target $ certirocq_opts_t $ fuel_arg);
 ]
 

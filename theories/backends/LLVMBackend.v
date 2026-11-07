@@ -10,6 +10,7 @@ From CertiRocq Require Import Common.Pipeline_utils.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
 From Peregrine Require Import CertiRocqBackend.
+From Peregrine Require LLVMTail.
 From ExtLib.Structures Require Import Monad.
 
 Import MonadNotation.
@@ -21,7 +22,7 @@ Local Open Scope bs_scope.
 Definition default_llvm_config := {|
   direct    := true;
   c_args    := 5;
-  o_level   := 0;
+  o_level   := 1;  (* lambda lifting; 0 keeps every closure (#133) *)
   anf_conf  := 0;
   prefix    := "";
   body_name := "body";
@@ -69,7 +70,7 @@ Fixpoint llvm_prim_decls (seen : list string) (rs : constant_remappings) : strin
   end.
 
 Definition print_llvm (remaps : constant_remappings) p : string :=
-  llvm_prelude ++ llvm_prim_decls [] remaps ++ serialize_bytestring p.
+  llvm_prelude ++ llvm_prim_decls [] remaps ++ serialize_bytestring (map LLVMTail.tail_tle p).
 
 Definition extract_llvm (remaps : constant_remappings)
                         (custom_attr : custom_attributes)

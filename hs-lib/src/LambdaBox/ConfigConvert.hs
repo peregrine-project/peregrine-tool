@@ -109,6 +109,7 @@ backendConfigConv (CakeML c) = ConfigUtils.CakeML' $ cakemlConfigConv c
 backendConfigConv (Lean c) = ConfigUtils.Lean' $ leanConfigConv c
 backendConfigConv (FSharp c) = ConfigUtils.FSharp' $ fsharpConfigConv c
 backendConfigConv (Koka c) = ConfigUtils.Koka' $ kokaConfigConv c
+backendConfigConv (KokaTyped c) = ConfigUtils.KokaTyped' $ kokaConfigConv c
 backendConfigConv (Eval c) = ConfigUtils.Eval' $ evalConfigConv c
 backendConfigConv (AST c) = ConfigUtils.AST' $ astConfigConv c
 

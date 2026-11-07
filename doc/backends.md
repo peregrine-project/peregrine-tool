@@ -17,6 +17,7 @@ The table below summarises supported the backends
 | Lean         | untyped | ✗ | ✗ | Source language            | ✗ | Reference counting (Lean runtime) |
 | F# (experimental) | untyped | ✗ | ✗ | Source language       | ✗ | .NET GC |
 | Koka (experimental) | untyped | ✗ | ✗ | Source language     | ✗ | Reference counting (Perceus) |
+| Koka, typed (experimental) | typed (untyped: inferred) | ✗ | ✗ | Source language | ✓ | Reference counting (Perceus) |
 | AST (debug)  | either  | ✓ | ✓ | Serialized AST             | ✗ | - |
 | Eval (debug) | either  | ✓ | ✗ | -                          | ✗ | -  |
 
@@ -44,6 +45,8 @@ Implemented in `CertiRocq.CodegenLLVM`, which is in no CertiRocq release and not
 Output — a single `.ll` module that defines `i64 @certirocq_main(ptr %tinfo)` and declares `@garbage_collect`. It uses the value representation and runtime of the C backend: link it with CertiRocq's `gc_stack.c` (in `$(coqc -where)/user-contrib/CertiRocq/Plugin/runtime/`) and a C `main` that calls `make_tinfo()` and then `certirocq_main`, e.g. `clang prog.ll main.c gc_stack.c`. The C glue that prints values works on the result as well (see [test/src/c.ts](/test/src/c.ts)).
 
 What is proved ([`LLVM_sim_exp.v`](https://github.com/peregrine-project/certirocq/blob/peregrine/theories/CodegenLLVM/LLVM_sim_exp.v), theorem `LambdaANF_to_LLVM_correct`): when a LambdaANF program terminates with a value, the emitted module, run in Vellvm's semantics, either runs out of memory or returns a word that represents that value. The theorem assumes `runtime_correct`, a specification of `garbage_collect` and `make_tinfo` that is not proved for the real `gc_stack.c` (and that `gc_stack.c` violates for boxed constructor ordinals 251 to 255, see CertiRocq's `tests/llvm-corpus/README.md`), and that the program is `llvm_restricted`: no primitive operations, no primitive values other than 63-bit integers, no nested function definitions. Programs outside these restrictions are still compiled; for them nothing is proved, and allocating primitives are known to be miscompiled (no GC roots are registered around them). Divergence is not covered, nor is the LambdaBox to LambdaANF part, which is the same as for the C backend. The printer from Vellvm's AST to `.ll` text, and clang, are outside the proof.
+
+Not covered by that theorem: after CertiRocq, Peregrine marks `tail` a call whose result the block returns at once and whose arguments are `i64` values or the thread info ([`LLVMTail.v`](/theories/backends/LLVMTail.v), #134). Vellvm gives the marker no semantics, so the theorem holds whether the marker is right or not. The marker is right because of two properties of the emitter that the pass does not check: it converts no `alloca` address to an `i64`, and it has unlinked every shadow-stack frame of the caller at such a call. At the current CertiRocq pin only the calls of `Eapp` have that shape, and the pipeline rarely emits them: a call in tail position is an `Eletapp`, followed by the restore of the frame pointer, so tail recursion still grows the native stack. With the frame change of CertiRocq/certirocq#155 (396d1204), the calls of such an `Eletapp` are marked too, and clang can turn them into jumps: on Fannkuch the peak goes from 324 MB to 11 MB.
 
 ## OCaml
 
@@ -135,6 +138,18 @@ Output
 * Compile with `koka -O2 -o <exe> <file>.kk`, after adding a `main`. Koka's runtime uses Perceus reference counting, including the reuse of unshared constructor cells.
 * Programs with primitive values (`tPrim`) are rejected at compile time. Constant remapping works as in the Lean backend: `re_const_s` is a Koka expression applied to the arguments, of type `any`, and `re_const_ext` names a module to import.
 * A nested mutual fixpoint, which no current frontend produces, compiles to code that fails when it is evaluated.
+
+## Koka, typed (experimental)
+
+`peregrine koka-typed` prints typed lambda-box as Koka with its types: each inductive becomes a Koka type with type parameters and typed fields, and each constant a function with its type scheme, so the program needs no casts and Koka's own optimizations see the real types. Untyped input is typed by Hindley-Milner inference first, as for Rust and Elm. The printer is [`theories/koka/PrintKokaTyped.v`](/theories/koka/PrintKokaTyped.v).
+
+This is the Koka backend to use; the untyped `koka` verb is the fallback for the programs it rejects.
+
+* Functions take as many arguments as their body has leading lambdas; a saturated call is a direct call, and any other use builds curried closures, which the arrow types denote. Every function returns `pure`.
+* A monomorphic nullary constant is a `delayed` value; a polymorphic one is a nullary function.
+* The backend rejects a program with a type it cannot express (`TAny`, a type variable applied to arguments), primitive values, projections, cofixpoints and `lazy`; the untyped `koka` verb compiles those.
+* It also rejects nested groups of mutual fixpoints, and two names that differ only in case (`pg_x_fooBar` and `pg_x_foobar`), which Koka identifies.
+* A remapped constant is called with its `re_const_arity` arguments, and its `re_const_ext`, if any, is imported.
 
 ## Debug backends
 

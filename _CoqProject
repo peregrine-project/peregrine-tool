@@ -28,6 +28,7 @@ theories/lean/PrintLean.v
 
 theories/fsharp/PrintFSharp.v
 theories/koka/PrintKoka.v
+theories/koka/PrintKokaTyped.v
 
 theories/backends/RustBackend.v
 theories/backends/RustGMPRemaps.v
@@ -41,11 +42,13 @@ theories/backends/OCamlBackend.v
 theories/backends/CakeMLBackend.v
 theories/backends/CBackend.v
 theories/backends/WasmBackend.v
+theories/backends/LLVMTail.v
 theories/backends/LLVMBackend.v
 theories/backends/CertiRocqBackend.v
 theories/backends/LeanBackend.v
 theories/backends/FSharpBackend.v
 theories/backends/KokaBackend.v
+theories/backends/KokaTypedBackend.v
 theories/backends/EvalBackend.v
 theories/backends/ASTBackend.v
 
