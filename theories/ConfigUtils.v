@@ -36,7 +36,34 @@ Section ErasureConfig.
       end
     ) c.(ind_remappings_opts).
 
-  Definition mk_opts (c : config) (typed : bool) : erasure_configuration := {|
+  Fixpoint arrow_domains (bt : ExAst.box_type) : list ExAst.box_type :=
+    match bt with
+    | ExAst.TArr a b => a :: arrow_domains b
+    | _ => nil
+    end.
+
+  (* The dearging mask of a remapped constant: only its arguments of erased type
+     ([TBox]). Its body is dropped ([drop_remapped_bodies]), and MetaRocq's analysis
+     of a constant without a body removes the arguments of type [TBox] or [TAny].
+     A [TAny] argument is a value the remapped code takes: after the type
+     inference of untyped input, the unused parameter of a remapped constant has
+     type [TAny] (the Remap test on typed-untyped Koka and on Elm-untyped). The
+     arity of a remapping counts the arguments left after this mask. *)
+  Definition remap_masks (c : config) (env : ExAst.global_env)
+      (kn : Kernames.kername) : option (list bool) :=
+    if List.existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) then
+      match ExAst.lookup_constant env kn with
+      | Some cst =>
+          Some (List.map (fun bt => match bt with ExAst.TBox => true | _ => false end)
+                         (arrow_domains (snd cst.(ExAst.cst_type))))
+      | None => None
+      end
+    else None.
+
+  (* [overridden] gives the dearging masks that replace MetaRocq's analysis:
+     [remap_masks c env] for a typed environment, [fun _ => None] otherwise. *)
+  Definition mk_opts (c : config) (typed : bool)
+      (overridden : Kernames.kername -> option (list bool)) : erasure_configuration := {|
       enable_unsafe := {|
         Erasure.cofix_to_lazy := c.(erasure_opts).(cofix_to_laxy);
         Erasure.inductives_extraction := true;
@@ -44,15 +71,7 @@ Section ErasureConfig.
         Erasure.betared := c.(erasure_opts).(betared);
       |};
       dearging_config := {|
-        (* A constant remapped to the user's code keeps every argument of its
-           remapping: its body is dropped ([drop_remapped_bodies]), so the analysis
-           would remove the arguments of erased or untyped domains, which the
-           remapped code still takes (the Remap test on typed-untyped Koka). *)
-        overridden_masks := fun kn =>
-          match List.find (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) with
-          | Some (_, r) => Some (List.repeat false r.(re_const_arity))
-          | None => None
-          end;
+        overridden_masks := overridden;
         do_trim_const_masks := c.(erasure_opts).(dearg_consts);
         (* Never trim constructor masks: MetaRocq's [check_oib_masks] requires a
            constructor mask as long as the constructor's arity, so a trimmed
