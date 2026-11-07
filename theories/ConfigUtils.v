@@ -44,7 +44,15 @@ Section ErasureConfig.
         Erasure.betared := c.(erasure_opts).(betared);
       |};
       dearging_config := {|
-        overridden_masks := fun _ => None;
+        (* A constant remapped to the user's code keeps every argument of its
+           remapping: its body is dropped ([drop_remapped_bodies]), so the analysis
+           would remove the arguments of erased or untyped domains, which the
+           remapped code still takes (the Remap test on typed-untyped Koka). *)
+        overridden_masks := fun kn =>
+          match List.find (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) with
+          | Some (_, r) => Some (List.repeat false r.(re_const_arity))
+          | None => None
+          end;
         do_trim_const_masks := c.(erasure_opts).(dearg_consts);
         (* Never trim constructor masks: MetaRocq's [check_oib_masks] requires a
            constructor mask as long as the constructor's arity, so a trimmed

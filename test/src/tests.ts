@@ -308,14 +308,14 @@ var agda_tests: TestCase[] =
             rejected: "#79: type inference cannot unify the type of _∷_⊣_ with its application to a list",
             xfail: { "Elm": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" }
         },
-        { ...agda_nat_test("Params", 25, false), xfail: { ...elm_operator, "Koka-typed": "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express" } },
+        { ...agda_nat_test("Params", 25, false), xfail: elm_operator },
         { ...agda_nat_test("Prelude", 42, false), xfail: elm_operator },
         agda_nat_test("RecursiveInline", 6, false),
         agda_nat_test("StrictLet", 3, false),
         { ...agda_nat_test("Terminating", 6, false), xfail: elm("#99: agda2lambox writes the module path of a where-bound lambda outermost first, so Elm prints it as _14_Terminating__UU2eextendedlambda1, which Elm rejects") },
         { ...agda_nat_test("WhereNames", 6, false), xfail: { ...elm_operator, ...lean_name_clash } },
         // Typed: test/typed
-        { ...agda_nat_test("Scheme", 42, true), xfail: { ...elm_operator, ...on(["Koka-typed", "Koka-typed-untyped"], "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express") } },
+        { ...agda_nat_test("Scheme", 42, true), xfail: elm_operator },
         { ...agda_nat_test("Test", 42, true), xfail: elm_module_clash },
         { ...agda_nat_test("Types", 42, true), xfail: elm_operator },
         // Typed: test/agda2rust
@@ -565,7 +565,6 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Params.ast",
             tsrc: "rocq/extraction/Params_typed.ast",
-            xfail: { "Koka-typed": "#139: the value parameter of Tagged is a type Koka cannot express (TAny)" },
             rust_i64_output: "3",
             main: "Params_test",
             output_type: SimpleType.Nat,
