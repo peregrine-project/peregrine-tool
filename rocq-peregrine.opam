@@ -30,24 +30,31 @@ depends: [
 
 # CertiRocq with the LLVM backend is in no release, and neither are the
 # Vellvm commit it needs and the MetaRocq 9.1 snapshot it is built against
-# (MetaRocq 1.5.1 lacks EImplementLazyForce).
+# (MetaRocq 1.5.1 lacks EImplementLazyForce). TypedExtraction 0.2.1 does
+# not build against that snapshot, so it is pinned to a fixed commit.
 # The MetaRocq snapshot gets the version 1.5.1+9.1+dev, so that it satisfies
 # the `< 1.5.2` bounds of rocq-verified-extraction and rocq-cakeml-extraction,
 # whose releases do not build against it. Keep all commits equal to the ones
 # in .github/rocq-peregrine.opam.locked and .nix/.
 pin-depends: [
-  # The peregrine-main branch of peregrine-project/certirocq (its PR #3):
-  # CertiRocq main (943b52ae) plus the LLVM backend, Peregrine's fixes and
+  # The peregrine branch of peregrine-project/certirocq: CertiRocq main
+  # (943b52ae) plus the LLVM backend, Peregrine's fixes and
   # the shadow-stack change of CertiRocq/certirocq#155.
   ["rocq-certirocq.dev" "git+https://github.com/peregrine-project/certirocq.git#c1c99e436d2cce95f8de5b87d10173ca56a30b48"]
   ["rocq-vellvm.dev" "git+https://github.com/vellvm/vellvm.git#b63a28a0a36cbae73a454d99a97bb8171568343e"]
-  # The peregrine branch of peregrine-project/rocq-verified-extraction: its
-  # rocq-9.1 branch (02b475a) plus the rename of switch_no_params for
-  # MetaRocq#1286, which the 9.1 snapshot needs.
-  ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/peregrine-project/rocq-verified-extraction.git#0305df76ac89a83488f12175e2c5d45e1a55d16c"]
+  # The peregrine branch of peregrine-project/rocq-verified-extraction: a
+  # merge of its rocq-9.1 branch (64ced8c0, the same tree), which builds
+  # against MetaRocq 51b14e4b and has the rename of switch_no_params for
+  # MetaRocq#1286 (MetaRocq/rocq-verified-extraction#44).
+  ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/peregrine-project/rocq-verified-extraction.git#0ed8aa88560a518e0822b583f45e1ebb45b10f7f"]
   # cakeml-backend ported to the MetaRocq 9.1 snapshot, with the datatype
   # declarations and qualified constructor names (cakeml-backend#16).
   ["rocq-cakeml-extraction.0.1.1+dev" "git+https://github.com/peregrine-project/cakeml-backend.git#8df83a16525ca08bb9b5b375b3331b3f480d346b"]
+  # rocq-typed-extraction v0.2.1 plus the qualified Import String that
+  # MetaRocq 51b14e4b needs (branch metarocq-51b14e4b).
+  ["rocq-typed-extraction-common.0.2.1" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#d04536f9cf4eb0fd2d499ce74c054e440fb43894"]
+  ["rocq-rust-extraction.0.2.1" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#d04536f9cf4eb0fd2d499ce74c054e440fb43894"]
+  ["rocq-elm-extraction.0.2.1" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#d04536f9cf4eb0fd2d499ce74c054e440fb43894"]
   ["rocq-metarocq-utils.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56"]
   ["rocq-metarocq-common.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56"]
   ["rocq-metarocq-template.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56"]
