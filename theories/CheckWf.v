@@ -200,7 +200,7 @@ Section WfCorrect.
   Definition check_wf_program_b {efl : EEnvFlags} (p : program) : bool :=
     check_wf_glob_b (fst p) && EWellformed.wellformed (fst p) 0 (snd p).
 
-  Definition inspect {A} (a : A) : {b | a = b} := exist _ a eq_refl.
+  Definition inspect {A} (a : A) : {b | a = b} := @exist _ _ a eq_refl.
 
   (* freshness boolean check coincides with the freshness property *)
   Fixpoint check_fresh_globalbP (k : kername) (decls : global_declarations)
