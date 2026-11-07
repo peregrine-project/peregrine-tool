@@ -28,9 +28,15 @@ Extraction Inline Equations.Init.pr1 Equations.Init.pr2.
 
 Extraction Blacklist
            Classes config uGraph Universes Ast String List Monad Nat Int Init
-           UnivSubst Typing Checker Retyping OrderedType Logic Common Equality Classes
+           UnivSubst Typing Checker Retyping OrderedType Logic Common Common0 Equality Classes
            Uint63
            Extraction.
+
+(* As in MetaRocq's template-rocq/theories/Extraction.v: the template plugin
+   we link against has no ByteCompare.compare, it inlines this. *)
+Extract Inlined Constant MetaRocq.Utils.ByteCompare.compare =>
+  "(fun x y -> let c = Stdlib.compare (Obj.magic x : int) (Obj.magic y : int) in
+               if c < 0 then Datatypes.Lt else if c = 0 then Datatypes.Eq else Datatypes.Gt)".
 
 
 (* TODO: add time implementation if *)
