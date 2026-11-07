@@ -46,7 +46,12 @@ Section ErasureConfig.
       dearging_config := {|
         overridden_masks := fun _ => None;
         do_trim_const_masks := c.(erasure_opts).(dearg_consts);
-        do_trim_ctor_masks := c.(erasure_opts).(dearg_ctors);
+        (* Never trim constructor masks: MetaRocq's [check_oib_masks] requires a
+           constructor mask as long as the constructor's arity, so a trimmed
+           mask fails [compute_masks] and [check_dearging_precond] skips
+           dearging altogether (#146). Constructor arguments are removed with
+           untrimmed masks too. *)
+        do_trim_ctor_masks := false;
       |};
       enable_typed_erasure := typed;
       Erasure.inlining := true;
