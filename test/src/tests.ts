@@ -308,14 +308,14 @@ var agda_tests: TestCase[] =
             rejected: "#79: type inference cannot unify the type of _∷_⊣_ with its application to a list",
             xfail: { "Elm": "#79: Elm prints the operator name [] as _UU5b_UU5d, which Elm rejects" }
         },
-        { ...agda_nat_test("Params", 25, false), xfail: { ...elm_operator, "Koka-typed": "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express" } },
+        { ...agda_nat_test("Params", 25, false), xfail: elm_operator },
         { ...agda_nat_test("Prelude", 42, false), xfail: elm_operator },
         agda_nat_test("RecursiveInline", 6, false),
         agda_nat_test("StrictLet", 3, false),
         { ...agda_nat_test("Terminating", 6, false), xfail: elm("#99: agda2lambox writes the module path of a where-bound lambda outermost first, so Elm prints it as _14_Terminating__UU2eextendedlambda1, which Elm rejects") },
         { ...agda_nat_test("WhereNames", 6, false), xfail: { ...elm_operator, ...lean_name_clash } },
         // Typed: test/typed
-        { ...agda_nat_test("Scheme", 42, true), xfail: { ...elm_operator, ...on(["Koka-typed", "Koka-typed-untyped"], "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express") } },
+        { ...agda_nat_test("Scheme", 42, true), xfail: elm_operator },
         { ...agda_nat_test("Test", 42, true), xfail: elm_module_clash },
         { ...agda_nat_test("Types", 42, true), xfail: elm_operator },
         // Typed: test/agda2rust
@@ -350,7 +350,7 @@ var agda_tests: TestCase[] =
             ...agda_nat_test("Postulates", 84, true),
             attributes: remap_attributes,
             xfail: {
-                ...on(["WebAssembly", "WebAssembly-cps", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
+                ...on(["WebAssembly", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
                 "CakeML": "#126: the CakeML backend takes no constant remappings, so the postulate TODO is printed as a raise, which cake does not parse"
             }
         },
@@ -472,8 +472,7 @@ var rocq_tests: TestCase[] =
             xfail: {
                 ...on(["WebAssembly", "WebAssembly-cps", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
                 "CakeML": "#126: the CakeML backend takes no constant remappings, so the axiom ext_id is printed as a raise, which cake does not parse",
-                "Rust-untyped": "#79: inference prints no method for the axiom ext_id, and gives the unused parameter of shadowed the type ()",
-                "Elm-untyped": "#126: Elm prints shadowed, with its body, under the remapped name identity, so the program calls it instead of Basics.identity"
+                "Rust-untyped": "#79: inference prints no method for the axiom ext_id, and gives the unused parameter of shadowed the type ()"
             },
             main: "Remap_test",
             output_type: SimpleType.Nat,
@@ -565,7 +564,6 @@ var rocq_tests: TestCase[] =
         {
             src: "rocq/extraction/Params.ast",
             tsrc: "rocq/extraction/Params_typed.ast",
-            xfail: { "Koka-typed": "#139: the value parameter of Tagged is a type Koka cannot express (TAny)" },
             rust_i64_output: "3",
             main: "Params_test",
             output_type: SimpleType.Nat,

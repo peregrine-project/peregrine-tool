@@ -183,12 +183,13 @@ The backend commands (not `compile`, `validate` or `erase`) take these flags, wh
 |------|------|
 | `--betared` | beta reduction |
 | `--unboxing` | remove singleton types (inductives with one constructor of one argument) |
-| `--dearg-ctors` | remove dead constructor arguments |
-| `--dearg-consts` | remove dead constant arguments |
+| `--dearg-ctors` | no effect (see below) |
+| `--dearg-consts` | trim the masks of dead constant arguments |
 | `--specialize-instances` | specialize functions at the call sites that pass a statically known dictionary (record) value |
 | `--cse` | bind closed subterms that occur more than once with a `let` |
 | `--lower-cofix` | translate cofixpoints, `lazy` and `force` to fixpoints and thunks |
 
+* Dearging removes dead constructor and constant arguments whenever MetaRocq's precondition holds; the two flags do not switch it. `--dearg-consts` drops the kept arguments at the end of a constant's mask. `--dearg-ctors` used to do the same for constructors, but MetaRocq rejects a trimmed constructor mask, and dearging was then skipped for the whole program, so constructor masks are never trimmed.
 * `--specialize-instances` and `--cse` are off by default and act only on the untyped targets. The typed pipeline of `rust` and `elm` does not run them. Their correctness rests on axioms ([middleend.md](middleend.md#optional-passes)).
 * `--lower-cofix` uses two passes whose evaluation-preservation proofs are admitted. Without it, `c`, `wasm`, `llvm`, `ocaml`, `cakeml` and `eval` reject a program that still has cofixpoints, `lazy` or `force` after the middle-end. `lean`, `fsharp` and `koka` always run these passes.
 

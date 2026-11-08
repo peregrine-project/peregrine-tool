@@ -64,11 +64,11 @@ let erasure_opts_t =
     Arg.(value & opt (some bool) None & info ["unboxing"] ~doc)
   in
   let dearg_ctors_arg =
-    let doc = "Dearg constructors." in
+    let doc = "No effect: constructor masks are never trimmed." in
     Arg.(value & opt (some bool) None & info ["dearg-ctors"] ~doc)
   in
   let dearg_consts_arg =
-    let doc = "Dearg constants." in
+    let doc = "Trim the dearging masks of constants." in
     Arg.(value & opt (some bool) None & info ["dearg-consts"] ~doc)
   in
   let specialize_instances_arg =
