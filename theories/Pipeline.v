@@ -105,9 +105,11 @@ Definition drop_remapped_bodies (c : config) (env : ExAst.global_env) : ExAst.gl
 Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAst :=
   let drop := drop_remapped_bodies c in
   (* Untyped input: MetaRocq's dearging analysis as is. A typed environment: the
-     masks of remapped constants from their types ([remap_masks]). *)
+     masks of remapped constants from their types ([remap_masks]), with every
+     argument kept after the type inference of untyped input. *)
   let econf := mk_opts c typed (fun _ => None) in
-  let tconf env := mk_opts c typed (remap_masks c env) in
+  let tconf env := mk_opts c typed (remap_masks c false env) in
+  let iconf env := mk_opts c typed (remap_masks c true env) in
   let cstr_reorder := mk_cstr_reorders c in
   let impl_box := c.(erasure_opts).(implement_box) in
   let impl_lazy := c.(erasure_opts).(implement_lazy) in
@@ -123,11 +125,11 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAs
          error.  [EHindleyMilner.infer_section] gives [trans_env env0 = env];
          nothing is proved about the inferred types. *)
       env0 <- infer_for_backend env;;
-      let '(_, (env', t')) := run_typed_transforms (tconf env0) cstr_reorder (drop env0, t) in
+      let '(_, (env', t')) := run_typed_transforms (iconf env0) cstr_reorder (drop env0, t) in
       Ok (Typed env' (Some t'))
   | Untyped env None, true =>
       env0 <- infer_for_backend env;;
-      let '(_, (env', _)) := run_typed_transforms (tconf env0) cstr_reorder (drop env0, EAst.tBox) in
+      let '(_, (env', _)) := run_typed_transforms (iconf env0) cstr_reorder (drop env0, EAst.tBox) in
       Ok (Typed env' None)
   | Untyped env (Some t), false =>
       let (env', t') := run_untyped_transforms econf cstr_reorder spec_inst cse impl_box impl_lazy (env, t) in
