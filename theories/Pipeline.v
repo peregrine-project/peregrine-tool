@@ -370,6 +370,8 @@ Definition peregrine_pipeline (c : string + config') (attrs : list string) (p : 
   p <- parse_ast p;; (* Parse input string into AST *)
   c <- get_config c attrs;; (* Parse or construct config *)
   check_wf p;; (* Check that AST is wellformed *)
+  NameSanitize.check_sanitized_injective (NameSanitize.get_sanitizer c)
+    (List.app (NameSanitize.PAst_names p) (NameSanitize.config_names c));; (* Reject name collisions *)
   p <- NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c) p;; (* Sanitize names in AST *)
   c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;; (* Sanitize names in config *)
   p <- apply_transforms c p (needs_typed c);; (* Apply program transformation *)
