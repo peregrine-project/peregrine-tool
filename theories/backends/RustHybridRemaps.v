@@ -18,8 +18,8 @@
     build only canonical numbers, and that each function of the table agrees
     with the Rocq function it replaces.  Trusted: the one line of Rust bound to
     each primitive ([scripts/HybridRuntimeExtract.v]), the kernel
-    [mod __hybrid] below with its comparisons, the eliminator macros (modelled
-    in [RustHybridCoherence.v]), rug and GMP.  The only [unsafe] code
+    [mod __hybrid] below with its comparisons (modelled in
+    [RustHybridCoherence.v]), the one-line eliminator macros, rug and GMP.  The only [unsafe] code
     dereferences an even word; even words come only from [of_integer], which
     builds one only for a value outside the small range, and [of_odd_word]
     receives only odd words ([HybridRuntime.add_fast_ok] and the others).
@@ -27,8 +27,11 @@
     Memory: the arena frees nothing before the program ends, and it does not run
     destructors, so the limbs of a big number live as long as the arena.  GMP
     temporaries are owned values and are freed when the operation returns.
-    Eliminators are [macro_rules!] (no [self]); a big predecessor is
-    [Box::leak]ed, as in [RustGMPRemaps.v], and a small one is a plain value.
+    The eliminators are [macro_rules!] that match on the views of
+    [HybridRuntime.v] ([nat_view] and the others, proved in [nat_view_ok] ...);
+    a macro body cannot name [self], so their remaps print
+    [__nat_elim!(self, ...)], which the typed Rust printer supports for an
+    eliminator ending with a comma.
     Cargo dependencies: [rug = "1"], [bumpalo = "3"]. *)
 
 From MetaRocq.Common Require Import Kernames.
@@ -56,15 +59,15 @@ Definition hybrid_ind_remaps : inductive_remappings := [
     "bool" ["true"; "false"] (Some "__bool_elim!");
   comparison_ind_remap;
   ind_remap {| inductive_mind := <%% nat %%>; inductive_ind := 0 |}
-    "Int<'a>" ["self.__nat_zero()"; "self.__nat_succ"] (Some "__nat_elim!");
+    "Int<'a>" ["self.__nat_zero()"; "self.__nat_succ"] (Some "__nat_elim!(self,");
   ind_remap {| inductive_mind := <%% positive %%>; inductive_ind := 0 |}
     "Int<'a>" ["self.__pos_onebit"; "self.__pos_zerobit"; "self.__pos_one()"]
-    (Some "__pos_elim!");
+    (Some "__pos_elim!(self,");
   ind_remap {| inductive_mind := <%% N %%>; inductive_ind := 0 |}
-    "Int<'a>" ["self.__N_zero()"; "self.__N_frompos"] (Some "__N_elim!");
+    "Int<'a>" ["self.__N_zero()"; "self.__N_frompos"] (Some "__N_elim!(self,");
   ind_remap {| inductive_mind := <%% Z %%>; inductive_ind := 0 |}
     "Int<'a>" ["self.__Z_zero()"; "self.__Z_frompos"; "self.__Z_fromneg"]
-    (Some "__Z_elim!")
+    (Some "__Z_elim!(self,")
 ].
 
 (** The name the printer gives to the Rocq constant [kn] (full names). *)
@@ -141,12 +144,11 @@ Definition hybrid_const_remaps : constant_remappings := [
   (<%% Nat.pow %%>, call2 <%% HybridRuntime.pow %%>)
 ].
 
-(** Outside [impl<'a> Program]: the [Num] type, its comparisons and the
-    eliminators.  [__big] converts to an owned GMP integer, [__bref] to a
-    reference (a small value is assigned to the caller's temporary), and
-    [__leak] builds the canonical [Num] of a GMP integer outside the arena (for
-    the eliminators).  [__gmp1]/[__gmp2] bind GMP references to the arguments
-    for the slow path.  Comparisons use canonicity: a small and a big number
+(** Outside [impl<'a> Program]: the [Num] type, its comparisons, the view
+    enums and the eliminators.  [__big] converts to an owned GMP integer,
+    [__bref] to a reference (a small value is assigned to the caller's
+    temporary).  [__gmp1]/[__gmp2] bind GMP references to the arguments for
+    the slow path.  Comparisons use canonicity: a small and a big number
     differ, and the big one is beyond the small range on the side of its sign. *)
 Definition hybrid_top_preamble : string :=
   String.concat MRString.nl [
@@ -187,8 +189,6 @@ Definition hybrid_top_preamble : string :=
   "#[inline(always)] fn __fits(v: i64) -> bool { v >= __SMIN && v <= __SMAX }";
   "fn __big(x: Num) -> rug::Integer { match x.view() { View::S(v) => rug::Integer::from(v), View::B(b) => b.clone() } }";
   "fn __bref<'t>(x: Num<'t>, tmp: &'t mut rug::Integer) -> &'t rug::Integer { match x.view() { View::S(v) => { tmp.assign(v); tmp } View::B(b) => b } }";
-  "fn __leak(x: rug::Integer) -> Num<'static> { match x.to_i64() { Some(v) if __fits(v) => Num::S(v), _ => Num::of_integer(Box::leak(Box::new(x))) } }";
-  "fn __leak_i64(v: i64) -> Num<'static> { if __fits(v) { Num::S(v) } else { __leak(rug::Integer::from(v)) } }";
   "impl<'a> PartialEq for Num<'a> { fn eq(&self, o: &Self) -> bool { match (self.view(), o.view()) { (View::S(a), View::S(b)) => a == b, (View::B(a), View::B(b)) => a == b, _ => false } } }";
   "impl<'a> Eq for Num<'a> {}";
   "impl<'a> Ord for Num<'a> { fn cmp(&self, o: &Self) -> std::cmp::Ordering { match (self.view(), o.view()) { (View::S(a), View::S(b)) => a.cmp(&b), (View::S(_), View::B(b)) => b.cmp0().reverse(), (View::B(a), View::S(_)) => a.cmp0(), (View::B(a), View::B(b)) => a.cmp(b) } } }";
@@ -204,38 +204,19 @@ Definition hybrid_top_preamble : string :=
   "macro_rules! __bool_elim { ($tcase:expr, $fcase:expr, $val:expr) => { if $val { $tcase } else { $fcase } } }";
   cmp_elim_macro;
   "";
-  "macro_rules! __nat_elim {";
-  "  ($zcase:expr, $pred:ident, $scase:expr, $val:expr) => {";
-  "    { let v: Num = $val;";
-  "      match v.view() { View::S(0) => $zcase,";
-  "        View::S(n) => { let $pred: Num = Num::S(n - 1); $scase },";
-  "        View::B(b) => { let $pred: Num = __leak(rug::Integer::from(b - 1u32)); $scase } } }";
-  "  }";
-  "}";
+  "#[derive(Clone, Copy)] enum PosView<'a> { I(Num<'a>), O(Num<'a>), H }";
+  "#[derive(Clone, Copy)] enum ZView<'a> { Z, P(Num<'a>), N(Num<'a>) }";
   "";
-  "macro_rules! __pos_elim {";
-  "  ($p:ident, $onebcase:expr, $p2:ident, $zerobcase:expr, $onecase:expr, $val:expr) => {";
-  "    { let v: Num = $val;";
-  "      match v.view() { View::S(1) => $onecase,";
-  "        View::S(n) => if n & 1 == 1 { let $p: Num = Num::S(n >> 1); $onebcase } else { let $p2: Num = Num::S(n >> 1); $zerobcase },";
-  "        View::B(b) => { if b.is_odd() { let $p: Num = __leak(rug::Integer::from(b >> 1u32)); $onebcase } else { let $p2: Num = __leak(rug::Integer::from(b >> 1u32)); $zerobcase } } } }";
-  "  }";
-  "}";
-  "";
-  "macro_rules! __N_elim {";
-  "  ($zero_case:expr, $p:ident, $pos_case:expr, $val:expr) => {";
-  "    { let $p: Num = $val; if $p == Num::S(0) { $zero_case } else { $pos_case } }";
-  "  }";
-  "}";
-  "";
-  "macro_rules! __Z_elim {";
-  "  ($zero_case:expr, $p:ident, $pos_case:expr, $p2:ident, $neg_case:expr, $val:expr) => {";
-  "    { let n: Num = $val;";
-  "      if n == Num::S(0) { $zero_case }";
-  "      else if n < Num::S(0) { let $p2: Num = match n.view() { View::S(v) => __leak_i64(-v), View::B(b) => __leak(rug::Integer::from(-b)) }; $neg_case }";
-  "      else { let $p: Num = n; $pos_case } }";
-  "  }";
-  "}"
+  "// The eliminators take self (their remaps print __nat_elim!(self, ...)) and";
+  "// match on the views of HybridRuntime.v.";
+  "macro_rules! __nat_elim { ($s:expr, $zcase:expr, $pred:ident, $scase:expr, $val:expr) => {";
+  "  match $s." ++ rt <%% HybridRuntime.nat_view %%> ++ "($val) { None => $zcase, Some($pred) => $scase } } }";
+  "macro_rules! __pos_elim { ($s:expr, $p:ident, $onebcase:expr, $p2:ident, $zerobcase:expr, $onecase:expr, $val:expr) => {";
+  "  match $s." ++ rt <%% HybridRuntime.pos_view %%> ++ "($val) { PosView::I($p) => $onebcase, PosView::O($p2) => $zerobcase, PosView::H => $onecase } } }";
+  "macro_rules! __N_elim { ($s:expr, $zero_case:expr, $p:ident, $pos_case:expr, $val:expr) => {";
+  "  match $s." ++ rt <%% HybridRuntime.N_view %%> ++ "($val) { None => $zero_case, Some($p) => $pos_case } } }";
+  "macro_rules! __Z_elim { ($s:expr, $zero_case:expr, $p:ident, $pos_case:expr, $p2:ident, $neg_case:expr, $val:expr) => {";
+  "  match $s." ++ rt <%% HybridRuntime.Z_view %%> ++ "($val) { ZView::Z => $zero_case, ZView::P($p) => $pos_case, ZView::N($p2) => $neg_case } } }"
   ].
 
 (** Inside [impl<'a> Program]: [__int] and [__num], the canonical [Num] of

@@ -38,10 +38,11 @@ let
   release = {
     "0.2.1".sha256 = "sha256-GWdu/l7CipeBubgS5OGHsZfpP2Fkr1cfiZMRH5d1n0g=";
     "0.2.0".sha256 = "sha256-rgg39X45IXjcnejBhh8N7wMiH+gHQrfO8pBbFEWOGVI=";
-    # v0.2.1 ported to the MetaRocq 9.1 snapshot, see rocq-peregrine.opam
-    "74dcbc960a8d4fa04496b84d6447611159bd6c70" = {
-      rev = "74dcbc960a8d4fa04496b84d6447611159bd6c70";
-      sha256 = "sha256-11NFrhnlwxScK63/52BbOEbU4mNY+Kmwkd56WrbALu4=";
+    # v0.2.1 ported to the MetaRocq 9.1 snapshot, plus eliminators with leading
+    # arguments (rocq-typed-extraction#27); see rocq-peregrine.opam
+    "0a487b3fa8103c1eabae533cc310634da576e2b4" = {
+      rev = "0a487b3fa8103c1eabae533cc310634da576e2b4";
+      sha256 = "sha256-0RyKRl+pl+UerWtoA9YgpJp+0tJhcSFuRNMqytyJeKk=";
     };
   };
   releaseRev = v: "v${v}";

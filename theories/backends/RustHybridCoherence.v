@@ -1,9 +1,8 @@
 (** * A model of the hand-written part of [rust-hybrid]
 
     The arithmetic of [rust-hybrid] is extracted from [HybridRuntime.v], which
-    proves it.  The kernel [mod __hybrid], [__int]/[__num], the comparisons
-    and the eliminator macros of [RustHybridRemaps.v] stay hand-written Rust
-    strings, which Rocq cannot read.  This file models what they compute, over
+    proves it.  The kernel [mod __hybrid], [__int]/[__num] and the comparisons
+    of [RustHybridRemaps.v] stay hand-written Rust strings, which Rocq cannot read.  This file models what they compute, over
     [Z], and proves:
 
     - the tagged word: [2v+1] encodes a small [v], and the decoded value is
@@ -11,10 +10,9 @@
     - [__int] and [__num] build the canonical number of an integer;
     - equality and comparison on canonical numbers, including a small against
       a big one decided by the sign of the big one, are [Z.eqb] and
-      [Z.compare];
-    - the eliminators: the case and the sub-value they compute from a number
-      are the constructor and the argument of the [nat], [positive], [N] or
-      [Z] it denotes.
+      [Z.compare].
+
+    The eliminators match on the views of [HybridRuntime.v], proved there.
 
     Trusted: that each Rust string computes the function modelled here, rug
     and GMP. *)
@@ -122,37 +120,3 @@ Proof.
   - destruct (Z.compare_spec x 0); simpl; symmetry;
       [ exfalso; apply Ha; lia | apply Z.compare_lt_iff; lia | apply Z.compare_gt_iff; lia ].
 Qed.
-
-(** ** Eliminators *)
-
-(** [__nat_elim]: zero, or the predecessor. *)
-Theorem nat_elim_spec n : (Z.of_nat n = 0 <-> n = O) /\
-  (forall m, n = Datatypes.S m -> Z.of_nat n - 1 = Z.of_nat m).
-Proof. split; [lia|]. intros m ->. lia. Qed.
-
-(** [__pos_elim]: [1] is [xH]; otherwise the parity selects [xI]/[xO], and the
-    argument is the number shifted right by one ([n >> 1], [b >> 1u32]). *)
-Definition pos_case (v : Z) : nat * Z :=
-  if Z.eqb v 1 then (2%nat, 0) else if Z.odd v then (0%nat, Z.shiftr v 1) else (1%nat, Z.shiftr v 1).
-
-Theorem pos_elim_spec p :
-  pos_case (Z.pos p) =
-    match p with xI q => (0%nat, Z.pos q) | xO q => (1%nat, Z.pos q) | xH => (2%nat, 0) end.
-Proof.
-  unfold pos_case. destruct p as [q|q|]; [| |reflexivity].
-  - rewrite Pos2Z.inj_xI. replace (Z.eqb (2 * Z.pos q + 1) 1) with false by (symmetry; apply Z.eqb_neq; lia).
-    rewrite Z.add_comm, Z.odd_add_mul_2. simpl Z.odd. rewrite Z.shiftr_div_pow2 by lia.
-    f_equal. symmetry. apply (Z.div_unique _ _ _ 1); lia.
-  - rewrite Pos2Z.inj_xO. replace (Z.eqb (2 * Z.pos q) 1) with false by (symmetry; apply Z.eqb_neq; lia).
-    rewrite Z.odd_mul, Z.odd_2. simpl. rewrite Z.shiftr_div_pow2 by lia.
-    f_equal. symmetry. apply (Z.div_unique _ _ _ 0); lia.
-Qed.
-
-(** [__N_elim]: zero, or the positive number itself. *)
-Theorem N_elim_spec n : (Z.of_N n = 0 <-> n = N0) /\ (forall p, n = Npos p -> Z.of_N n = Z.pos p).
-Proof. split; [lia|]. intros p ->. reflexivity. Qed.
-
-(** [__Z_elim]: zero, the positive number itself, or the negation of a negative one. *)
-Theorem Z_elim_spec z :
-  match z with Z0 => z = 0 | Zpos p => 0 < z /\ z = Z.pos p | Zneg p => z < 0 /\ - z = Z.pos p end.
-Proof. destruct z; lia. Qed.

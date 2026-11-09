@@ -132,6 +132,27 @@ Definition double_plus_one (a : num) : num := add (mul a two) one.
 Definition double (a : num) : num := mul a two.
 Definition id (a : num) : num := a.
 
+(** ** The views of the eliminators
+
+    The eliminator macros of [RustHybridRemaps.v] match on these: [nat] is
+    zero or a successor, [positive] is [xI], [xO] or [xH], [N] is zero or a
+    positive number, [Z] is zero, positive or negative. *)
+
+Definition nat_view (n : num) : onum := if num_eqb n zero then NNone else NSome (pred n).
+Definition N_view (n : num) : onum := if num_eqb n zero then NNone else NSome n.
+Definition pos_view (n : num) : posv :=
+  match num_small n with
+  | ISome v =>
+    if i_eqb v i_1 then PH else
+    let h := num_S (i_shr1 v) in
+    if i_odd v then PI h else PO h
+  | INone =>
+    let h := big_divf n two in
+    if num_eqb (big_modf n two) one then PI h else PO h
+  end.
+Definition Z_view (n : num) : zv :=
+  if num_eqb n zero then ZZ else if ltb n zero then ZN (neg n) else ZP n.
+
 (** ** Lemmas on the models *)
 
 Lemma smallb_spec v : smallb v = true <-> small v.
@@ -523,3 +544,57 @@ Section Z_table.
   Lemma Z_fromneg_ok (p : positive) : neg (of_pos p) = of_Z (Z.neg p).
   Proof. unfold of_pos, of_Z. num_ok. reflexivity. Qed.
 End Z_table.
+
+(** ** The views *)
+
+(** The small path of [pos_view] halves a small number into a small one, the
+    precondition of [num_S]. *)
+Theorem pos_view_fast_ok v : small v -> small (Z.shiftr v 1).
+Proof.
+  intros H. rewrite Z.shiftr_div_pow2 by lia. change (2 ^ 1) with 2. unfold small in *.
+  split; [apply Z.div_le_lower_bound | apply Z.div_le_upper_bound]; lia.
+Qed.
+
+Theorem nat_view_ok n :
+  nat_view (of_nat n) = match n with O => NNone | S m => NSome (of_nat m) end.
+Proof.
+  unfold nat_view, of_nat, zero, num_eqb, num_S, i_0. cbn [unI unN].
+  destruct n as [|m].
+  - reflexivity.
+  - replace (Z.of_nat (S m) =? 0) with false by (symmetry; apply Z.eqb_neq; lia).
+    unfold pred, one. rewrite sub_spec. unfold num_S, i_1. cbn [unI unN]. f_equal. f_equal. lia.
+Qed.
+
+Theorem N_view_ok n :
+  N_view (of_N n) = match n with N0 => NNone | Npos p => NSome (of_pos p) end.
+Proof. destruct n; reflexivity. Qed.
+
+Theorem Z_view_ok z :
+  Z_view (of_Z z) = match z with Z0 => ZZ | Zpos p => ZP (of_pos p) | Zneg p => ZN (of_pos p) end.
+Proof.
+  unfold Z_view, of_Z, zero. rewrite ltb_spec. unfold num_eqb, num_S, i_0. cbn [unI unN].
+  destruct z as [|p|p]; try reflexivity. cbn. rewrite neg_spec. reflexivity.
+Qed.
+
+Lemma odd_shiftr_pos (q : positive) :
+  Z.odd (Z.pos q~1) = true /\ Z.shiftr (Z.pos q~1) 1 = Z.pos q /\
+  Z.odd (Z.pos q~0) = false /\ Z.shiftr (Z.pos q~0) 1 = Z.pos q.
+Proof. repeat split; reflexivity. Qed.
+
+Theorem pos_view_ok p :
+  pos_view (of_pos p) = match p with xI q => PI (of_pos q) | xO q => PO (of_pos q) | xH => PH end.
+Proof.
+  unfold pos_view, of_pos. unfold_prims. unfold two, one, num_S, i_2, i_1. cbn [unI unN].
+  destruct (smallb (Z.pos p)) eqn:Hs; cbv beta iota.
+  - destruct p as [q|q|]; reflexivity.
+  - destruct p as [q|q|].
+    + rewrite Pos2Z.inj_xI.
+      replace ((2 * Z.pos q + 1) mod 2 =? 1) with true
+        by (symmetry; apply Z.eqb_eq; rewrite Z.add_comm, Z.mul_comm, Z.mod_add by lia; reflexivity).
+      f_equal. f_equal. rewrite Z.add_comm, Z.mul_comm, Z.div_add by lia. reflexivity.
+    + rewrite Pos2Z.inj_xO.
+      replace ((2 * Z.pos q) mod 2 =? 1) with false
+        by (symmetry; apply Z.eqb_neq; rewrite Z.mul_comm, Z.mod_mul by lia; lia).
+      f_equal. f_equal. rewrite Z.mul_comm, Z.div_mul by lia. reflexivity.
+    + discriminate Hs.
+Qed.
