@@ -88,6 +88,7 @@ From MetaRocq.Utils Require Import utils.
 From MetaRocq.Common Require Import BasicAst Kernames.
 From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils EInduction ELiftSubst
      ECSubst EReflect EGlobalEnv EProgram EWellformed EWcbvEval.
+From MetaRocq.Erasure Require EBeta.
 
 Import ListNotations.
 
@@ -232,18 +233,8 @@ Fixpoint replace (tbl : table) (t : term) : term :=
     end
   else
   match t with
-  | tEvar n ts => tEvar n (map (replace tbl) ts)
-  | tLambda na b => tLambda na (replace tbl b)
-  | tLetIn na v b => tLetIn na (replace tbl v) (replace tbl b)
-  | tApp f a => tApp (replace tbl f) (replace tbl a)
-  | tCase ci d brs => tCase ci (replace tbl d) (map (fun br => (br.1, replace tbl br.2)) brs)
-  | tProj p u => tProj p (replace tbl u)
-  | tFix mf idx => tFix (map (map_def (replace tbl)) mf) idx
-  | tCoFix mf idx => tCoFix (map (map_def (replace tbl)) mf) idx
-  | tConstruct ind c args => tConstruct ind c (map (replace tbl) args)
-  | tLazy u => tLazy (replace tbl u)
-  | tForce u => tForce (replace tbl u)
-  | _ => t
+  | tPrim _ => t  (* [collect_values] does not look into primitive values *)
+  | _ => EBeta.map_subterms (replace tbl) t
   end.
 
 (** ** Per-declaration processing *)
