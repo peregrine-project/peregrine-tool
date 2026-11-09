@@ -41,7 +41,11 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Wasm, "cofix", "--lower-cofix true"],
     // The unverified lambda-box simplifications, which the typed pipeline runs
     // too; Rust-lbox shares the expected failures of Rust
-    [Lang.Rust, "lbox", "--lbox-opts"]
+    [Lang.Rust, "lbox", "--lbox-opts"],
+    // Everything the PR adds, as Rocq's extraction does: recursor inlining,
+    // beta reduction, the simplifications and constant lifting
+    [Lang.OCaml, "lbox", "--inline-recursors --betared true --lbox-opts --lift-constants"],
+    [Lang.C, "lbox", "--inline-recursors --betared true --lbox-opts --lift-constants"]
 ];
 
 // The expected outputs of an Agda program that computes the natural number n,
