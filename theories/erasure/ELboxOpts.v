@@ -47,17 +47,19 @@
     axioms below.  Following the precedent of MetaRocq's [EBeta] (whose
     [betared] pass, like [EInlining]'s inlining pass, is assumed correct by the
     axioms [trust_betared_wf]/[trust_betared_pres]), the pipeline obligations
-    are discharged by the two axioms [trust_lbox_opts_wf] and
-    [trust_lbox_opts_pres] below, quantified over the set of enabled passes;
-    enabling any of the passes therefore adds exactly these two assumptions to
-    the trusted base of the pipeline, in addition to those of the passes it
-    relies on (inlining and beta reduction). *)
+    are discharged by four axioms below: [trust_case_id_wf] and
+    [trust_case_id_pres] for pass 3, and [trust_lbox_opts_wf] and
+    [trust_lbox_opts_pres] for passes 1, 2 and 4, quantified over the set of
+    enabled passes.  Enabling pass 3 adds the first two assumptions to the
+    trusted base of the pipeline, enabling any of the others the last two, in
+    addition to those of the passes they rely on (inlining and beta
+    reduction). *)
 
 From Stdlib Require Import List Bool Arith.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Common Require Import BasicAst Kernames Transform.
 From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils ELiftSubst EProgram EWellformed EWcbvEval EGlobalEnv EBeta.
-From MetaRocq.Erasure.Typed Require ExAst.
+From MetaRocq.Erasure.Typed Require ExAst Optimize.
 
 Import ListNotations.
 Local Open Scope bool_scope.
@@ -83,24 +85,8 @@ Definition any_lbox_opts (o : lbox_opts) : bool :=
 (** ** Term utilities (de Bruijn) *)
 
 (** Does [tRel n] occur free in [t]? *)
-Fixpoint occurs_rel (n : nat) (t : term) : bool :=
-  match t with
-  | tRel i => Nat.eqb i n
-  | tEvar _ ts => existsb (occurs_rel n) ts
-  | tLambda _ b => occurs_rel (S n) b
-  | tLetIn _ v b => occurs_rel n v || occurs_rel (S n) b
-  | tApp f a => occurs_rel n f || occurs_rel n a
-  | tConstruct _ _ args => existsb (occurs_rel n) args
-  | tCase _ d brs =>
-      occurs_rel n d || existsb (fun br => occurs_rel (#|br.1| + n) br.2) brs
-  | tProj _ c => occurs_rel n c
-  | tFix mfix _ => existsb (fun d => occurs_rel (#|mfix| + n) d.(dbody)) mfix
-  | tCoFix mfix _ => existsb (fun d => occurs_rel (#|mfix| + n) d.(dbody)) mfix
-  | tPrim p => test_prim (occurs_rel n) p
-  | tLazy c => occurs_rel n c
-  | tForce c => occurs_rel n c
-  | _ => false
-  end.
+Definition occurs_rel (n : nat) (t : term) : bool :=
+  negb (Optimize.is_dead n t).
 
 (** No free [tRel i] with [lo <= i < lo + n]. *)
 Definition nofree_range (lo n : nat) (t : term) : bool :=
@@ -199,15 +185,6 @@ Definition fix_eta_args_ok (mfix : mfixpoint term) (idx k j : nat) (args : list 
     | _ => false
     end) (combine (seq 0 n) args).
 
-Fixpoint option_map_list {A B} (f : A -> option B) (l : list A) : option (list B) :=
-  match l with
-  | [] => Some []
-  | a :: l => match f a, option_map_list f l with
-              | Some b, Some l' => Some (b :: l')
-              | _, _ => None
-              end
-  end.
-
 (** Drop argument positions [k .. n-1] of every application of [tRel f] (the
     fixpoint function, [f] is adjusted under binders); [None] if it occurs
     unapplied or applied to fewer than [n] arguments.  [args] accumulates the
@@ -231,24 +208,24 @@ Fixpoint drop_aux (f k n : nat) (args : list term) (t : term) : option term :=
       | Some v', Some b' => Some (mkApps (tLetIn na v' b') args) | _, _ => None end
   | tCase ci d brs =>
       match drop_aux f k n [] d,
-            option_map_list (fun br => match drop_aux (#|br.1| + f) k n [] br.2 with
-                                       | Some b' => Some (br.1, b') | None => None end) brs with
+            map_option_out (map (fun br => match drop_aux (#|br.1| + f) k n [] br.2 with
+                                       | Some b' => Some (br.1, b') | None => None end) brs) with
       | Some d', Some brs' => Some (mkApps (tCase ci d' brs') args) | _, _ => None end
   | tFix mfix idx =>
-      match option_map_list (fun d => match drop_aux (#|mfix| + f) k n [] d.(dbody) with
+      match map_option_out (map (fun d => match drop_aux (#|mfix| + f) k n [] d.(dbody) with
                                       | Some b' => Some {| dname := d.(dname); dbody := b'; rarg := d.(rarg) |}
-                                      | None => None end) mfix with
+                                      | None => None end) mfix) with
       | Some mfix' => Some (mkApps (tFix mfix' idx) args) | None => None end
   | tCoFix mfix idx =>
-      match option_map_list (fun d => match drop_aux (#|mfix| + f) k n [] d.(dbody) with
+      match map_option_out (map (fun d => match drop_aux (#|mfix| + f) k n [] d.(dbody) with
                                       | Some b' => Some {| dname := d.(dname); dbody := b'; rarg := d.(rarg) |}
-                                      | None => None end) mfix with
+                                      | None => None end) mfix) with
       | Some mfix' => Some (mkApps (tCoFix mfix' idx) args) | None => None end
   | tConstruct ind i cargs =>
-      match option_map_list (drop_aux f k n []) cargs with
+      match map_option_out (map (drop_aux f k n []) cargs) with
       | Some cargs' => Some (mkApps (tConstruct ind i cargs') args) | None => None end
   | tEvar e ts =>
-      match option_map_list (drop_aux f k n []) ts with
+      match map_option_out (map (drop_aux f k n []) ts) with
       | Some ts' => Some (mkApps (tEvar e ts') args) | None => None end
   | tProj p c =>
       match drop_aux f k n [] c with Some c' => Some (mkApps (tProj p c') args) | None => None end
@@ -266,7 +243,7 @@ Definition drop_fix_params (k n : nat) (t : term) : option term :=
   match t with
   | tFix mfix idx =>
       let f := #|mfix| - 1 - idx in
-      match option_map_list (fun '(i, d) =>
+      match map_option_out (map (fun '(i, d) =>
         match drop_aux f k n [] d.(dbody) with
         | Some b =>
             if Nat.eqb i idx then
@@ -282,7 +259,7 @@ Definition drop_fix_params (k n : nat) (t : term) : option term :=
               Some {| dname := d.(dname); dbody := b'; rarg := r' |}
             else Some {| dname := d.(dname); dbody := b; rarg := d.(rarg) |}
         | None => None
-        end) (combine (seq 0 #|mfix|) mfix) with
+        end) (combine (seq 0 #|mfix|) mfix)) with
       | Some mfix' => Some (tFix mfix' idx)
       | None => None
       end
@@ -511,7 +488,7 @@ Axiom trust_case_id_pres :
   exists v' : term,
   eval_eprogram wfl (lbox_opts_program case_id_opts p) v' /\ v' = optimize case_id_opts v.
 
-Import Transform.
+Import MetaRocq.Common.Transform.Transform.
 
 (** Fixpoint eta-hoisting, case/function and let/function permutation (the
     identity-case component of [o] is ignored, see [case_id_transformation]). *)
