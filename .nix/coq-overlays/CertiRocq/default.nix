@@ -39,13 +39,13 @@ mkCoqDerivation {
         metarocq-erasure-plugin.version
       ]
       [
-        (case "9.1" "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56" "4cf32ff201e942eee150b6ea9032267a6d49a5e3")
+        (case "9.1" "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56" "067211eb142f12e8d73f143ab4e1ce5db561e219")
       ]
       null;
   release = {
-    "4cf32ff201e942eee150b6ea9032267a6d49a5e3" = {
-      rev = "4cf32ff201e942eee150b6ea9032267a6d49a5e3";
-      hash = "sha256-uTEX06nhkarH5AbWtmTX7M3vftYSX2LIrY0WOHScP2I=";
+    "067211eb142f12e8d73f143ab4e1ce5db561e219" = {
+      rev = "067211eb142f12e8d73f143ab4e1ce5db561e219";
+      hash = "sha256-jktCF+xyYhXeU76dxcjSDnU7o1ydVda5ncaP6j3axXo=";
     };
   };
 
