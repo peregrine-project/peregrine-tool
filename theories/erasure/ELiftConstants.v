@@ -45,9 +45,11 @@
          maximal value registered in the table under [kn].
 
     A constant whose entire body is a closed constructor value of size at least
-    [lift_threshold] is itself registered in the table under its own name, so
-    later occurrences of that value refer to it directly instead of to a new
-    constant; its body is left untouched.  The main term is treated like a
+    [lift_threshold] is lifted like any other occurrence: its body becomes a
+    reference to the lifted constant, which it shares with the other
+    occurrences of the value.  The value is not registered under the
+    constant's own name, because the constant may be remapped to a foreign
+    value.  The main term is treated like a
     body, except that it is left alone when it is itself a value.
 
     The pass is the identity when the environment already contains a kername
@@ -263,10 +265,15 @@ Definition lift_decl (tbl : table) (kn : kername) (d : global_decl)
   match d with
   | ConstantDecl {| cst_body := Some t |} =>
       if liftable t then
-        (* The whole body is a liftable value: share it under its own name. *)
+        (* The whole body is a liftable value: it becomes a reference to the
+           shared lifted constant, which is created if needed.  The value is
+           not registered under [kn] itself: [kn] may be remapped to a foreign
+           value, which the other occurrences must not refer to. *)
         match lookup_table tbl t with
         | Some kn' => (ConstantDecl {| cst_body := Some (tConst kn') |}, [], tbl)
-        | None => (d, [], (t, kn) :: tbl)
+        | None =>
+            (ConstantDecl {| cst_body := Some (tConst (lift_kn #|tbl|)) |},
+             new_decls tbl [t], (t, lift_kn #|tbl|) :: tbl)
         end
       else
         let '(t', news, tbl') := lift_body tbl t in
@@ -407,7 +414,7 @@ Proof.
     try (injection H as <- <- <-; constructor).
   destruct (liftable t).
   - destruct (lookup_table tbl t); cbv beta iota in H;
-      injection H as <- <- <-; constructor.
+      injection H as <- <- <-; [constructor | now apply new_decls_names].
   - destruct (is_cvalue t); cbv beta iota in H; injection H as <- <- <-;
       [constructor | now apply new_decls_names].
 Qed.
@@ -571,6 +578,16 @@ Module LiftConstantsChecks.
     (lift_env [(b, cst (tLambda nAnon (lit 2))); (a, cst (tLambda nAnon (lit 2)))]).1
     = [(b, cst (tLambda nAnon (tConst (lift_kn 0))));
        (a, cst (tLambda nAnon (tConst (lift_kn 0))));
+       (lift_kn 0, cst (lit 2))].
+  Proof. vm_compute. reflexivity. Qed.
+
+  (* A constant whose body is a literal is not used as the shared constant
+     (it may be remapped to a foreign value): its body and the later
+     occurrences of the literal refer to a lifted constant. *)
+  Example lift_literal_body :
+    (lift_env [(b, cst (tLambda nAnon (lit 2))); (a, cst (lit 2))]).1
+    = [(b, cst (tLambda nAnon (tConst (lift_kn 0))));
+       (a, cst (tConst (lift_kn 0)));
        (lift_kn 0, cst (lit 2))].
   Proof. vm_compute. reflexivity. Qed.
 
