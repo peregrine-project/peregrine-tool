@@ -45,12 +45,12 @@ let copts_t =
                trust_lbox_opts_wf/trust_lbox_opts_pres (the other three). \
                Off by default; each \
                pass can be overridden individually with the --lbox-* options." in
-    Arg.(value & opt ~vopt:true bool false & info ["lbox-opts"] ~docs ~docv:"BOOL" ~doc)
+    Arg.(value & flag & info ["lbox-opts"] ~docs ~doc)
   in
   let lbox_pass_arg name what =
     let doc = Printf.sprintf "%s (unverified lambda-box pass, see --lbox-opts). \
-                              Defaults to the value of --lbox-opts." what in
-    Arg.(value & opt ~vopt:(Some true) (some bool) None & info [name] ~docs ~docv:"BOOL" ~doc)
+                              Defaults to on with --lbox-opts and off without it." what in
+    Arg.(value & opt (some bool) None & info [name] ~docs ~docv:"BOOL" ~doc)
   in
   let lbox_fix_eta_arg = lbox_pass_arg "lbox-fix-eta"
       "Fixpoint eta-hoisting: (fun xs => (fix F ..) xs) becomes the fixpoint" in

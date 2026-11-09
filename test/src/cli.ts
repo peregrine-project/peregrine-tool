@@ -21,6 +21,8 @@ const cli_tests: [string[], number, string][] = [
     [["rust", "x.lean", "--entry", "f"], 32, "is in no Lake project"],
     // A flag must not consume the input file as its value
     [["c", "--inline-recursors", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "--lbox-opts", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "--lbox-opts", "--lbox-case-id", "false", "x.ast"], 1, "Failed parsing input program"],
 ];
 
 // Run the checks with the peregrine binary `exec`, in `dir`, and return the
