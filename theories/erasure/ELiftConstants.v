@@ -172,8 +172,27 @@ Fixpoint collect_values (t : term) : list term :=
 
 Definition table := list (term × kername).
 
+(** Structural equality of closed constructor values, the only terms that the
+    table holds or is queried with ([false] on any other term).  Unlike the
+    [eqb] of [ReflectEq term], whose decision procedure goes through an opaque
+    proof, it computes inside Rocq, so that the checks at the end of this file
+    run by [vm_compute]. *)
+Fixpoint cvalue_eqb (t u : term) : bool :=
+  match t, u with
+  | tBox, tBox => true
+  | tConstruct ind c args, tConstruct ind' c' args' =>
+      eqb ind ind' && Nat.eqb c c' &&
+      (fix go (l l' : list term) : bool :=
+         match l, l' with
+         | [], [] => true
+         | a :: l, a' :: l' => cvalue_eqb a a' && go l l'
+         | _, _ => false
+         end) args args'
+  | _, _ => false
+  end.
+
 Definition lookup_table (tbl : table) (v : term) : option kername :=
-  match find (fun p => eqb p.1 v) tbl with
+  match find (fun p => cvalue_eqb p.1 v) tbl with
   | Some p => Some p.2
   | None => None
   end.
@@ -529,3 +548,30 @@ Axiom lift_constants_transformation_ext' :
   forall (efl : EEnvFlags) (wfl : WcbvFlags),
   TransformExt.t (lift_constants_transformation efl wfl)
     extends_eprogram extends_eprogram.
+
+(** ** Checks *)
+
+Module LiftConstantsChecks.
+
+  Local Open Scope bs_scope.
+
+  Definition nat_ind : inductive :=
+    {| inductive_mind := (MPfile ["Datatypes"], "nat"); inductive_ind := 0 |}.
+  Fixpoint lit (n : nat) : term :=
+    match n with
+    | 0 => tConstruct nat_ind 0 []
+    | S n => tConstruct nat_ind 1 [lit n]
+    end.
+  Definition a : kername := (MPfile ["T"], "a").
+  Definition b : kername := (MPfile ["T"], "b").
+  Definition cst (t : term) : global_decl := ConstantDecl {| cst_body := Some t |}.
+
+  (* Two occurrences of a literal share one lifted constant. *)
+  Example lift_shared :
+    (lift_env [(b, cst (tLambda nAnon (lit 2))); (a, cst (tLambda nAnon (lit 2)))]).1
+    = [(b, cst (tLambda nAnon (tConst (lift_kn 0))));
+       (a, cst (tLambda nAnon (tConst (lift_kn 0))));
+       (lift_kn 0, cst (lit 2))].
+  Proof. vm_compute. reflexivity. Qed.
+
+End LiftConstantsChecks.
