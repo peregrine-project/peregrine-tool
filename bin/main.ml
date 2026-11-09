@@ -120,9 +120,8 @@ let erasure_opts_t =
     Arg.(value & opt (some bool) None & info ["lower-cofix"] ~doc)
   in
   let lift_constants_arg =
-    let doc = "Lift closed constructor values (e.g. nat literals) to shared global constants. \
-               A bare $(b,--lift-constants) means $(b,--lift-constants=true)." in
-    Arg.(value & opt ~vopt:(Some true) (some bool) None & info ["lift-constants"] ~doc)
+    let doc = "Lift closed constructor values (e.g. nat literals) to shared global constants." in
+    Arg.(value & vflag None [Some true, info ["lift-constants"] ~doc])
   in
   Term.(const mk_erasure_opts $ betared_arg $ unbox_arg $ dearg_ctors_arg $ dearg_consts_arg $ specialize_instances_arg $ cse_arg $ lower_cofix_arg $ lift_constants_arg)
 

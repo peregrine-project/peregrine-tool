@@ -23,6 +23,7 @@ const cli_tests: [string[], number, string][] = [
     [["c", "--inline-recursors", "x.ast"], 1, "Failed parsing input program"],
     [["c", "--lbox-opts", "x.ast"], 1, "Failed parsing input program"],
     [["c", "--lbox-opts", "--lbox-case-id", "false", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "--lift-constants", "x.ast"], 1, "Failed parsing input program"],
 ];
 
 // Run the checks with the peregrine binary `exec`, in `dir`, and return the
