@@ -379,12 +379,13 @@ Definition check_lowered (c : config) (p : PAst) : result' unit :=
 
 (** [inline_recursors]: add the program's recursors ([I_rect]/[I_rec]) to the
     inlinings, as if an attribute file listing them had been passed
-    (see RecursorInlining.v). *)
+    (see RecursorInlining.v); the remapped ones are left to the remapping. *)
 Definition peregrine_pipeline (c : string + config') (attrs : list string) (inline_recursors : bool)
   (lbox : lbox_opts) (p : string) (f : string) : extraction_result :=
   p <- parse_ast p;; (* Parse input string into AST *)
   c <- get_config c attrs;; (* Parse or construct config *)
-  let c := if inline_recursors then merge_attributes_config c [recursor_attributes p] else c in
+  let remapped kn := List.existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) in
+  let c := if inline_recursors then merge_attributes_config c [recursor_attributes remapped p] else c in
   check_wf p;; (* Check that AST is wellformed *)
   p <- NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c) p;; (* Sanitize names in AST *)
   c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;; (* Sanitize names in config *)

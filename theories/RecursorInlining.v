@@ -11,9 +11,10 @@
     the configuration or from [--attributes] files).  [recursor_inlinings]
     computes such a list from the program itself: every constant named
     [mp.I_rect] or [mp.I_rec] such that the environment declares, under the
-    same module path [mp], a mutual inductive block with a body named [I].
-    Both the untyped ([EAst]) and the typed ([ExAst]) environments are
-    supported.
+    same module path [mp], a mutual inductive block with a body named [I],
+    except the recursors that the configuration remaps (the backend realises
+    those, and inlining them would bypass the remapping).  Both the untyped
+    ([EAst]) and the typed ([ExAst]) environments are supported.
 
     [recursor_attributes] packages the list as an [attributes_config]; the
     pipeline merges it into the configuration exactly as it merges the
@@ -74,19 +75,23 @@ Definition exast_inductive_names (d : ExAst.global_decl) : list ident :=
   | _ => []
   end.
 
-(** The recursors of the program's environment, in environment order. *)
-Definition recursor_inlinings (p : PAst) : list kername :=
-  match p with
+(** The recursors of the program's environment, in environment order,
+    except those for which [remapped] holds: a remapped constant is realised
+    by the backend, so inlining its body (which the remapping pass would
+    otherwise replace) would silently drop the remapping. *)
+Definition recursor_inlinings (remapped : kername -> bool) (p : PAst) : list kername :=
+  List.filter (fun kn => negb (remapped kn))
+  (match p with
   | Untyped env _ =>
       recursor_inlinings_env east_is_constant east_inductive_names env
   | Typed env _ =>
       recursor_inlinings_env exast_is_constant exast_inductive_names
         (List.map (fun '(kn, _, d) => (kn, d)) env)
-  end.
+  end).
 
 (** The same list, as the attribute file [--inline-recursors] stands for. *)
-Definition recursor_attributes (p : PAst) : attributes_config := {|
-  inlinings_opt         := recursor_inlinings p;
+Definition recursor_attributes (remapped : kername -> bool) (p : PAst) : attributes_config := {|
+  inlinings_opt         := recursor_inlinings remapped p;
   const_remappings_opt  := [];
   ind_remappings_opt    := [];
   cstr_reorders_opt     := [];
@@ -124,12 +129,18 @@ Module RecursorInliningChecks.
       ((mp', "Odd"), mib ["Odd"]) ].         (* [Odd] elsewhere does not make [mp.Odd_rec] twice *)
 
   Example recursor_inlinings_untyped :
-    recursor_inlinings (Untyped env None)
+    recursor_inlinings (fun _ => false) (Untyped env None)
     = [(mp, "nat_rect"); (mp, "nat_rec"); (mp, "Even_rect"); (mp, "Odd_rec")].
   Proof. vm_compute. reflexivity. Qed.
 
+  (* A remapped recursor is left alone (it is realised by the backend). *)
+  Example recursor_inlinings_remapped :
+    recursor_inlinings (fun kn => Kernames.eq_kername kn (mp, "nat_rec")) (Untyped env None)
+    = [(mp, "nat_rect"); (mp, "Even_rect"); (mp, "Odd_rec")].
+  Proof. vm_compute. reflexivity. Qed.
+
   Example recursor_inlinings_empty :
-    recursor_inlinings (Untyped [((mp, "nat"), mib ["nat"])] None) = [].
+    recursor_inlinings (fun _ => false) (Untyped [((mp, "nat"), mib ["nat"])] None) = [].
   Proof. vm_compute. reflexivity. Qed.
 
   (* Typed environment. *)
@@ -153,7 +164,7 @@ Module RecursorInliningChecks.
       ((mp', "nat_rect"), false, tcst) ].
 
   Example recursor_inlinings_typed :
-    recursor_inlinings (Typed tenv None) = [(mp, "nat_rec")].
+    recursor_inlinings (fun _ => false) (Typed tenv None) = [(mp, "nat_rec")].
   Proof. vm_compute. reflexivity. Qed.
 
 End RecursorInliningChecks.
