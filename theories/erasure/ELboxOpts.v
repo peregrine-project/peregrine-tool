@@ -271,7 +271,15 @@ Definition drop_fix_params (k n : nat) (t : term) : option term :=
         | Some b =>
             if Nat.eqb i idx then
               let b' := mk_lambdas (lambda_names k b) (subst (repeat tBox (n - k)) 0 (strip_lambdas n b)) in
-              Some {| dname := d.(dname); dbody := b'; rarg := Nat.min d.(rarg) (k - 1) |}
+              (* The recursive argument keeps its index if it comes before the
+                 dropped parameters and moves down by [n - k] if it comes
+                 after them.  If it is itself dropped (a dead structural
+                 argument, such as the erased [Acc] proof of a well-founded
+                 fixpoint), there is no structural parameter left; we point
+                 at the last kept one ([k >= 1] here). *)
+              let r := d.(rarg) in
+              let r' := if Nat.ltb r k then r else if Nat.ltb r n then k - 1 else r - (n - k) in
+              Some {| dname := d.(dname); dbody := b'; rarg := r' |}
             else Some {| dname := d.(dname); dbody := b; rarg := d.(rarg) |}
         | None => None
         end) (combine (seq 0 #|mfix|) mfix) with
@@ -580,6 +588,21 @@ Module LboxOptsChecks.
   Example fix_eta_acc :
     optimize O (tLambda (nm "n") (tLetIn (nm "H") tBox (tApp (tApp fixAcc (tRel 1)) (tRel 0))))
     = fix1 (tLambda (nm "n0") (tApp (tRel 1) (tRel 0))).
+  Proof. vm_compute. reflexivity. Qed.
+
+  (* 1''''''. a dead parameter before the structural one is dropped, and the
+     recursive-argument index moves with the structural parameter:
+     fun x => (fix F x0 H m {struct m} := F x0 □ m) x □
+       ==>  fix F x0 m {struct m} := F x0 m *)
+  Definition fixM := tFix [{| dname := nm "F";
+    dbody := tLambda (nm "x0") (tLambda (nm "H") (tLambda (nm "m")
+               (tApp (tApp (tApp (tRel 3) (tRel 2)) tBox) (tRel 0))));
+    rarg := 2 |}] 0.
+  Example fix_eta_rarg :
+    optimize O (tLambda (nm "x") (tApp (tApp fixM (tRel 0)) tBox))
+    = tFix [{| dname := nm "F";
+               dbody := tLambda (nm "x0") (tLambda (nm "m") (tApp (tApp (tRel 2) (tRel 1)) (tRel 0)));
+               rarg := 1 |}] 0.
   Proof. vm_compute. reflexivity. Qed.
 
   (* 1'''''. the function escapes unapplied: not hoisted *)

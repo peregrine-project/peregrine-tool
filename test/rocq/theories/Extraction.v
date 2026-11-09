@@ -6,6 +6,7 @@ From Peregrine.Tests Require Prims.
 From Peregrine.Tests Require Demo.
 From Peregrine.Tests Require Hello.
 From Peregrine.Tests Require EtaFix.
+From Peregrine.Tests Require FixEtaRarg.
 From Peregrine.Tests Require Id.
 From Peregrine.Tests Require Map.
 From Peregrine.Tests Require Mutual.
@@ -44,6 +45,10 @@ Peregrine Extract Typed "extraction/Hello_typed.ast" Hello.hello.
 (* EtaFix.v *)
 Peregrine Extract "extraction/EtaFix.ast" EtaFix.test.
 Peregrine Extract Typed "extraction/EtaFix_typed.ast" EtaFix.test.
+
+(* FixEtaRarg.v *)
+Peregrine Extract "extraction/FixEtaRarg.ast" FixEtaRarg.test.
+Peregrine Extract Typed "extraction/FixEtaRarg_typed.ast" FixEtaRarg.test.
 
 (* Id.v *)
 Peregrine Extract "extraction/Id.ast" Id.test.

@@ -5,6 +5,7 @@ theories/Closure.v
 theories/Demo.v
 theories/Hello.v
 theories/EtaFix.v
+theories/FixEtaRarg.v
 theories/Id.v
 theories/Map.v
 theories/CoStream.v
