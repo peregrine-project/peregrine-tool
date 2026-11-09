@@ -7,31 +7,28 @@
     representation is canonical: a value in the small range is always small.
     [Num] is [Copy] and 8 bytes, the size of an [i64], so it fits the backend's
     [<A: Copy>] discipline and a constructor field holding a number is as large
-    as in [rust-i64].  [Num::S(v)] builds a small number from a [v] known to be
-    in range (literals, a predecessor, a halving); [__int] range-checks.
+    as in [rust-i64].
 
-    Every operation computes on the tagged words when its arguments are small:
-    addition and subtraction add [2y] to [2x+1], multiplication multiplies
-    [2x] by [y], each with [checked_*] arithmetic, whose overflow is exactly
-    the overflow of the small range.  On overflow, or when an argument is big,
-    it computes with GMP on references to the arguments (a small argument is
-    converted into a stack temporary) and normalizes the result.  So, unlike
-    [rust-i64] (which wraps around silently) and [rust-mixed] (which panics on a
-    big argument and allocates a GMP integer for every result), the result is
-    always the exact one, and a small result allocates nothing.
+    The arithmetic is written in Rocq ([HybridRuntime.v], over the primitives
+    of [HybridPrims.v]) and printed by the typed Rust printer into
+    [HybridRuntimeGen.v] ([scripts/gen-hybrid-runtime.py]); this file puts
+    those methods into every program and sends the [nat], [positive], [N] and
+    [Z] operations to them.  [HybridRuntime.v] proves that each operation
+    computes the integer operation, that the fast paths stay in range and
+    build only canonical numbers, and that each function of the table agrees
+    with the Rocq function it replaces.  Trusted: the one line of Rust bound to
+    each primitive ([scripts/HybridRuntimeExtract.v]), the kernel
+    [mod __hybrid] below with its comparisons, the eliminator macros (modelled
+    in [RustHybridCoherence.v]), rug and GMP.  The only [unsafe] code
+    dereferences an even word; even words come only from [of_integer], which
+    builds one only for a value outside the small range, and [of_odd_word]
+    receives only odd words ([HybridRuntime.add_fast_ok] and the others).
 
     Memory: the arena frees nothing before the program ends, and it does not run
     destructors, so the limbs of a big number live as long as the arena.  GMP
     temporaries are owned values and are freed when the operation returns.
     Eliminators are [macro_rules!] (no [self]); a big predecessor is
     [Box::leak]ed, as in [RustGMPRemaps.v], and a small one is a plain value.
-    [RustHybridCoherence.v] proves, for a model over [Z], that the fast paths,
-    floor division, the comparisons, the eliminators and every entry of the
-    remap table compute what the Rocq functions compute; that the Rust strings
-    implement the model is trusted.  The only [unsafe] code dereferences an
-    even word, and the private field of [Num] in [mod __hybrid] makes
-    [of_big], which only [of_integer] calls on a value outside the small range,
-    the only source of even words.
     Cargo dependencies: [rug = "1"], [bumpalo = "3"]. *)
 
 From MetaRocq.Common Require Import Kernames.
@@ -41,6 +38,9 @@ From Peregrine Require Import ConfigUtils.
 From Peregrine Require Import RustBackend.
 From Peregrine Require Import RustGMPRemaps.
 From TypedExtraction Require Import Common.
+From TypedExtraction Require RustExtract.
+From Peregrine Require HybridPrims HybridRuntime.
+From Peregrine Require Import HybridRuntimeGen.
 
 From Stdlib Require Import Arith.
 From Stdlib Require Import ZArith.
@@ -67,79 +67,78 @@ Definition hybrid_ind_remaps : inductive_remappings := [
     (Some "__Z_elim!")
 ].
 
-(** A remap whose body calls the program-preamble method [m] on the arguments. *)
-Definition un (m : string) : remapped_constant :=
-  mk_const ("fn ##name##(&'a self, a: Int<'a>) -> Int<'a> { self." ++ m ++ "(a) }").
-Definition bin (m : string) : remapped_constant :=
-  mk_const ("fn ##name##(&'a self, a: Int<'a>, b: Int<'a>) -> Int<'a> { self." ++ m ++ "(a, b) }").
-Definition binv (body : string) : remapped_constant :=
-  mk_const ("fn ##name##(&'a self, a: Int<'a>, b: Int<'a>) -> Int<'a> { " ++ body ++ " }").
-Definition bpred (body : string) : remapped_constant :=
-  mk_const ("fn ##name##(&'a self, a: Int<'a>, b: Int<'a>) -> bool { " ++ body ++ " }").
-Definition cmp : remapped_constant :=
-  mk_const "fn ##name##(&'a self, a: Int<'a>, b: Int<'a>) -> std::cmp::Ordering { a.cmp(&b) }".
+(** The name the printer gives to the Rocq constant [kn] (full names). *)
+Definition rt (kn : kername) : string := RustExtract.clean_global_ident (string_of_kername kn).
+
+(** A remap that calls the runtime function [kn] on the arguments. *)
+Definition call1 (kn : kername) : remapped_constant :=
+  mk_const ("fn ##name##(&'a self, a: Int<'a>) -> Int<'a> { self." ++ rt kn ++ "(a) }").
+Definition call2 (kn : kername) : remapped_constant :=
+  mk_const ("fn ##name##(&'a self, a: Int<'a>, b: Int<'a>) -> Int<'a> { self." ++ rt kn ++ "(a, b) }").
+Definition pred2 (kn : kername) : remapped_constant :=
+  mk_const ("fn ##name##(&'a self, a: Int<'a>, b: Int<'a>) -> bool { self." ++ rt kn ++ "(a, b) }").
+Definition cmp2 (kn : kername) : remapped_constant :=
+  mk_const ("fn ##name##(&'a self, a: Int<'a>, b: Int<'a>) -> std::cmp::Ordering { self." ++ rt kn ++ "(a, b) }").
 Definition same : remapped_constant :=
   mk_const "fn ##name##(&'a self, a: Int<'a>) -> Int<'a> { a }".
 
-Definition min_ := binv "if a <= b { a } else { b }".
-Definition max_ := binv "if a >= b { a } else { b }".
-(** [max(x, lo)] *)
-Definition clamp (e lo : string) : string := "{ let r = " ++ e ++ "; if r < Num::S(" ++ lo ++ ") { Num::S(" ++ lo ++ ") } else { r } }".
-
+(** Each entry sends a Rocq function to the runtime function that the lemma
+    of the same name in [HybridRuntime.v] ([nat_add_ok], [pos_pred_ok], ...)
+    proves equal to it. *)
 Definition hybrid_const_remaps : constant_remappings := [
   (* --- positive --- *)
-  (<%% Pos.add %%>, bin "__add");
-  (<%% Pos.succ %%>, mk_const "fn ##name##(&'a self, a: Int<'a>) -> Int<'a> { self.__add(a, Num::S(1)) }");
-  (<%% Pos.pred %%>, mk_const ("fn ##name##(&'a self, a: Int<'a>) -> Int<'a> { " ++ clamp "self.__sub(a, Num::S(1))" "1" ++ " }"));
-  (<%% Pos.sub %%>, binv (clamp "self.__sub(a, b)" "1"));
-  (<%% Pos.mul %%>, bin "__mul");
-  (<%% Pos.min %%>, min_);
-  (<%% Pos.max %%>, max_);
-  (<%% Pos.eqb %%>, bpred "a == b");
-  (<%% Pos.compare %%>, cmp);
+  (<%% Pos.add %%>, call2 <%% HybridRuntime.add %%>);
+  (<%% Pos.succ %%>, call1 <%% HybridRuntime.succ %%>);
+  (<%% Pos.pred %%>, call1 <%% HybridRuntime.pred1 %%>);
+  (<%% Pos.sub %%>, call2 <%% HybridRuntime.sub1 %%>);
+  (<%% Pos.mul %%>, call2 <%% HybridRuntime.mul %%>);
+  (<%% Pos.min %%>, call2 <%% HybridRuntime.min %%>);
+  (<%% Pos.max %%>, call2 <%% HybridRuntime.max %%>);
+  (<%% Pos.eqb %%>, pred2 <%% HybridPrims.num_eqb %%>);
+  (<%% Pos.compare %%>, cmp2 <%% HybridPrims.num_compare %%>);
 
   (* --- N --- *)
-  (<%% N.add %%>, bin "__add");
-  (<%% N.succ %%>, mk_const "fn ##name##(&'a self, a: Int<'a>) -> Int<'a> { self.__add(a, Num::S(1)) }");
-  (<%% N.pred %%>, mk_const ("fn ##name##(&'a self, a: Int<'a>) -> Int<'a> { " ++ clamp "self.__sub(a, Num::S(1))" "0" ++ " }"));
-  (<%% N.sub %%>, binv (clamp "self.__sub(a, b)" "0"));
-  (<%% N.mul %%>, bin "__mul");
-  (<%% N.div %%>, bin "__divf");
-  (<%% N.modulo %%>, bin "__modf");
-  (<%% N.min %%>, min_);
-  (<%% N.max %%>, max_);
-  (<%% N.eqb %%>, bpred "a == b");
-  (<%% N.compare %%>, cmp);
+  (<%% N.add %%>, call2 <%% HybridRuntime.add %%>);
+  (<%% N.succ %%>, call1 <%% HybridRuntime.succ %%>);
+  (<%% N.pred %%>, call1 <%% HybridRuntime.pred0 %%>);
+  (<%% N.sub %%>, call2 <%% HybridRuntime.sub0 %%>);
+  (<%% N.mul %%>, call2 <%% HybridRuntime.mul %%>);
+  (<%% N.div %%>, call2 <%% HybridRuntime.divf %%>);
+  (<%% N.modulo %%>, call2 <%% HybridRuntime.modf %%>);
+  (<%% N.min %%>, call2 <%% HybridRuntime.min %%>);
+  (<%% N.max %%>, call2 <%% HybridRuntime.max %%>);
+  (<%% N.eqb %%>, pred2 <%% HybridPrims.num_eqb %%>);
+  (<%% N.compare %%>, cmp2 <%% HybridPrims.num_compare %%>);
 
   (* --- Z --- *)
-  (<%% Z.add %%>, bin "__add");
-  (<%% Z.succ %%>, mk_const "fn ##name##(&'a self, a: Int<'a>) -> Int<'a> { self.__add(a, Num::S(1)) }");
-  (<%% Z.pred %%>, mk_const "fn ##name##(&'a self, a: Int<'a>) -> Int<'a> { self.__sub(a, Num::S(1)) }");
-  (<%% Z.sub %%>, bin "__sub");
-  (<%% Z.mul %%>, bin "__mul");
-  (<%% Z.opp %%>, un "__neg");
-  (<%% Z.min %%>, min_);
-  (<%% Z.max %%>, max_);
-  (<%% Z.eqb %%>, bpred "a == b");
-  (<%% Z.div %%>, bin "__divf");
-  (<%% Z.modulo %%>, bin "__modf");
-  (<%% Z.compare %%>, cmp);
+  (<%% Z.add %%>, call2 <%% HybridRuntime.add %%>);
+  (<%% Z.succ %%>, call1 <%% HybridRuntime.succ %%>);
+  (<%% Z.pred %%>, call1 <%% HybridRuntime.pred %%>);
+  (<%% Z.sub %%>, call2 <%% HybridRuntime.sub %%>);
+  (<%% Z.mul %%>, call2 <%% HybridRuntime.mul %%>);
+  (<%% Z.opp %%>, call1 <%% HybridRuntime.neg %%>);
+  (<%% Z.min %%>, call2 <%% HybridRuntime.min %%>);
+  (<%% Z.max %%>, call2 <%% HybridRuntime.max %%>);
+  (<%% Z.eqb %%>, pred2 <%% HybridPrims.num_eqb %%>);
+  (<%% Z.div %%>, call2 <%% HybridRuntime.divf %%>);
+  (<%% Z.modulo %%>, call2 <%% HybridRuntime.modf %%>);
+  (<%% Z.compare %%>, cmp2 <%% HybridPrims.num_compare %%>);
   (<%% Z.of_N %%>, same);
-  (<%% Z.abs_N %%>, un "__abs");
+  (<%% Z.abs_N %%>, call1 <%% HybridRuntime.abs %%>);
 
   (* --- nat --- *)
-  (<%% Nat.add %%>, bin "__add");
-  (<%% Nat.mul %%>, bin "__mul");
-  (<%% Nat.sub %%>, binv (clamp "self.__sub(a, b)" "0"));
-  (<%% Nat.eqb %%>, bpred "a == b");
-  (<%% Nat.leb %%>, bpred "a <= b");
-  (<%% Nat.ltb %%>, bpred "a < b");
-  (<%% Nat.compare %%>, cmp);
-  (<%% Nat.max %%>, max_);
-  (<%% Nat.min %%>, min_);
-  (<%% Nat.div %%>, bin "__divf");
-  (<%% Nat.modulo %%>, bin "__modf");
-  (<%% Nat.pow %%>, bin "__pow")
+  (<%% Nat.add %%>, call2 <%% HybridRuntime.add %%>);
+  (<%% Nat.mul %%>, call2 <%% HybridRuntime.mul %%>);
+  (<%% Nat.sub %%>, call2 <%% HybridRuntime.sub0 %%>);
+  (<%% Nat.eqb %%>, pred2 <%% HybridPrims.num_eqb %%>);
+  (<%% Nat.leb %%>, pred2 <%% HybridRuntime.leb %%>);
+  (<%% Nat.ltb %%>, pred2 <%% HybridRuntime.ltb %%>);
+  (<%% Nat.compare %%>, cmp2 <%% HybridPrims.num_compare %%>);
+  (<%% Nat.max %%>, call2 <%% HybridRuntime.max %%>);
+  (<%% Nat.min %%>, call2 <%% HybridRuntime.min %%>);
+  (<%% Nat.div %%>, call2 <%% HybridRuntime.divf %%>);
+  (<%% Nat.modulo %%>, call2 <%% HybridRuntime.modf %%>);
+  (<%% Nat.pow %%>, call2 <%% HybridRuntime.pow %%>)
 ].
 
 (** Outside [impl<'a> Program]: the [Num] type, its comparisons and the
@@ -175,9 +174,10 @@ Definition hybrid_top_preamble : string :=
   "    #[inline(always)] pub fn small(self) -> Option<i64> { if self.0 & 1 == 1 { Some(self.0 >> 1) } else { None } }";
   "    #[inline(always)] pub fn view(self) -> View<'a> { if self.0 & 1 == 1 { View::S(self.0 >> 1) } else { View::B(unsafe { &*(self.0 as usize as *const rug::Integer) }) } }";
   "    /// Fast paths on two small numbers: None when an argument is big or the result leaves the small range.";
-  "    #[inline(always)] pub fn add_small(a: Num<'a>, b: Num<'a>) -> Option<Num<'a>> { if a.0 & b.0 & 1 == 1 { a.0.checked_add(b.0 - 1).map(|r| Num(r, std::marker::PhantomData)) } else { None } }";
-  "    #[inline(always)] pub fn sub_small(a: Num<'a>, b: Num<'a>) -> Option<Num<'a>> { if a.0 & b.0 & 1 == 1 { a.0.checked_sub(b.0 - 1).map(|r| Num(r, std::marker::PhantomData)) } else { None } }";
-  "    #[inline(always)] pub fn mul_small(a: Num<'a>, b: Num<'a>) -> Option<Num<'a>> { if a.0 & b.0 & 1 == 1 { (a.0 - 1).checked_mul(b.0 >> 1).map(|r| Num(r + 1, std::marker::PhantomData)) } else { None } }";
+  "    #[inline(always)] pub fn word(self) -> i64 { self.0 }";
+  "    #[inline(always)] pub fn both_small(a: Num<'a>, b: Num<'a>) -> bool { a.0 & b.0 & 1 == 1 }";
+  "    /// The small number w >> 1 of an odd word w; HybridRuntime.v proves that every call passes an odd word.";
+  "    #[inline(always)] pub fn of_odd_word(w: i64) -> Num<'a> { debug_assert!(w & 1 == 1); Num(w, std::marker::PhantomData) }";
   "  }";
   "}";
   "use __hybrid::{Num, View};";
@@ -198,6 +198,7 @@ Definition hybrid_top_preamble : string :=
   "macro_rules! __gmp1 { ($a:expr, |$x:ident| $e:expr) => { { let mut __t1 = rug::Integer::new(); let $x = __bref($a, &mut __t1); $e } } }";
   "macro_rules! __gmp2 { ($a:expr, $b:expr, |$x:ident, $y:ident| $e:expr) => { { let (mut __t1, mut __t2) = (rug::Integer::new(), rug::Integer::new()); let $x = __bref($a, &mut __t1); let $y = __bref($b, &mut __t2); $e } } }";
   "";
+  "macro_rules! __opt_elim { ($w:ident, $some:expr, $none:expr, $val:expr) => { match $val { Some($w) => $some, None => $none } } }";
   "macro_rules! __andb { ($b1:expr, $b2:expr) => { $b1 && $b2 } }";
   "macro_rules! __orb { ($b1:expr, $b2:expr) => { $b1 || $b2 } }";
   "macro_rules! __bool_elim { ($tcase:expr, $fcase:expr, $val:expr) => { if $val { $tcase } else { $fcase } } }";
@@ -237,44 +238,24 @@ Definition hybrid_top_preamble : string :=
   "}"
   ].
 
-(** Inside [impl<'a> Program]: the constructors and the arithmetic.  [__int]
-    and [__num] build the canonical [Num] of an [i64] and of a GMP integer, in
-    the arena.  [__divf] and [__modf] are floor division and its remainder
-    (Rocq's [Z.div] and [Z.modulo]; on naturals they are the truncating ones),
-    with [x / 0 = 0] and [x mod 0 = x]. *)
+(** Inside [impl<'a> Program]: [__int] and [__num], the canonical [Num] of
+    an [i64] and of a GMP integer in the arena (used by the primitives), the
+    constructor methods of the inductive remaps, and the runtime. *)
 Definition hybrid_program_preamble : string :=
-  String.concat MRString.nl [
+  String.concat MRString.nl (List.app [
   "fn __int(&'a self, v: i64) -> Num<'a> { if __fits(v) { Num::S(v) } else { Num::of_integer(self.alloc(rug::Integer::from(v))) } }";
   "fn __num(&'a self, x: rug::Integer) -> Num<'a> { match x.to_i64() { Some(v) if __fits(v) => Num::S(v), _ => Num::of_integer(self.alloc(x)) } }";
-  "fn __add(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if let Some(r) = Num::add_small(a, b) { return r } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x + y))) }";
-  "fn __sub(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if let Some(r) = Num::sub_small(a, b) { return r } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x - y))) }";
-  "fn __mul(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> { if let Some(r) = Num::mul_small(a, b) { return r } self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x * y))) }";
-  "fn __neg(&'a self, a: Num<'a>) -> Num<'a> { if let Some(x) = a.small() { return self.__int(-x) } self.__num(__gmp1!(a, |x| rug::Integer::from(-x))) }";
-  "fn __abs(&'a self, a: Num<'a>) -> Num<'a> { if let Some(x) = a.small() { return self.__int(x.abs()) } self.__num(__gmp1!(a, |x| rug::Integer::from(x.abs_ref()))) }";
-  "fn __divf(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> {";
-  "  if b == Num::S(0) { return Num::S(0) }";
-  "  if let (Some(x), Some(y)) = (a.small(), b.small()) { let (q, r) = (x / y, x % y); return self.__int(if r != 0 && ((r < 0) != (y < 0)) { q - 1 } else { q }) }";
-  "  self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x.div_floor(y)))) }";
-  "fn __modf(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> {";
-  "  if b == Num::S(0) { return a }";
-  "  if let (Some(x), Some(y)) = (a.small(), b.small()) { let r = x % y; return Num::S(if r != 0 && ((r < 0) != (y < 0)) { r + y } else { r }) }";
-  "  self.__num(__gmp2!(a, b, |x, y| rug::Integer::from(x.rem_floor(y)))) }";
-  "fn __pow(&'a self, a: Num<'a>, b: Num<'a>) -> Num<'a> {";
-  "  // b is a nat; 0 and 1 to any power are themselves";
-  "  let e: u32 = match b.small() { Some(v) if v >= 0 && v <= u32::MAX as i64 => v as u32, _ if a == Num::S(0) || a == Num::S(1) => return a, _ => panic!(""exponent out of range"") };";
-  "  if let Some(x) = a.small() { if let Some(r) = x.checked_pow(e) { return self.__int(r) } }";
-  "  self.__num(__gmp1!(a, |x| rug::Integer::from(x.pow(e)))) }";
   "fn __nat_zero(&'a self) -> Num<'a> { Num::S(0) }";
-  "fn __nat_succ(&'a self, x: Num<'a>) -> Num<'a> { self.__add(x, Num::S(1)) }";
+  "fn __nat_succ(&'a self, x: Num<'a>) -> Num<'a> { self." ++ rt <%% HybridRuntime.succ %%> ++ "(x) }";
   "fn __pos_one(&'a self) -> Num<'a> { Num::S(1) }";
-  "fn __pos_onebit(&'a self, x: Num<'a>) -> Num<'a> { self.__add(self.__mul(x, Num::S(2)), Num::S(1)) }";
-  "fn __pos_zerobit(&'a self, x: Num<'a>) -> Num<'a> { self.__mul(x, Num::S(2)) }";
+  "fn __pos_onebit(&'a self, x: Num<'a>) -> Num<'a> { self." ++ rt <%% HybridRuntime.double_plus_one %%> ++ "(x) }";
+  "fn __pos_zerobit(&'a self, x: Num<'a>) -> Num<'a> { self." ++ rt <%% HybridRuntime.double %%> ++ "(x) }";
   "fn __N_zero(&'a self) -> Num<'a> { Num::S(0) }";
   "fn __N_frompos(&'a self, z: Num<'a>) -> Num<'a> { z }";
   "fn __Z_zero(&'a self) -> Num<'a> { Num::S(0) }";
   "fn __Z_frompos(&'a self, z: Num<'a>) -> Num<'a> { z }";
-  "fn __Z_fromneg(&'a self, z: Num<'a>) -> Num<'a> { self.__neg(z) }"
-  ].
+  "fn __Z_fromneg(&'a self, z: Num<'a>) -> Num<'a> { self." ++ rt <%% HybridRuntime.neg %%> ++ "(z) }"
+  ] hybrid_runtime_lines).
 
 Definition hybrid_rust_config' : rust_config' := {|
   rust_preamble_top'       := Some hybrid_top_preamble;

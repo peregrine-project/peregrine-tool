@@ -121,9 +121,13 @@ Definition max (a b : num) : num := if leb b a then a else b.
 Definition clamp (lo r : num) : num := if ltb r lo then lo else r.
 
 Definition succ (a : num) : num := add a one.
-Definition clamped_sub (lo a b : num) : num := clamp lo (sub a b).
-Definition clamped_pred (lo a : num) : num := clamp lo (sub a one).
 Definition pred (a : num) : num := sub a one.
+(** [Nat.sub] and [N.sub] clamp at 0, [Pos.sub] at 1; [N.pred] and
+    [Pos.pred] likewise. *)
+Definition sub0 (a b : num) : num := clamp zero (sub a b).
+Definition sub1 (a b : num) : num := clamp one (sub a b).
+Definition pred0 (a : num) : num := clamp zero (sub a one).
+Definition pred1 (a : num) : num := clamp one (sub a one).
 Definition double_plus_one (a : num) : num := add (mul a two) one.
 Definition double (a : num) : num := mul a two.
 Definition id (a : num) : num := a.
@@ -394,8 +398,8 @@ Section nat_table.
   Proof. unfold of_nat. num_ok. f_equal. lia. Qed.
   Lemma nat_mul_ok : mul (of_nat n) (of_nat m) = of_nat (n * m).
   Proof. unfold of_nat. num_ok. f_equal. lia. Qed.
-  Lemma nat_sub_ok : clamped_sub zero (of_nat n) (of_nat m) = of_nat (n - m).
-  Proof. unfold clamped_sub, of_nat, zero. num_ok. unfold num_S, i_0. cbn [unI unN]. f_equal. lia. Qed.
+  Lemma nat_sub_ok : sub0 (of_nat n) (of_nat m) = of_nat (n - m).
+  Proof. unfold sub0, of_nat, zero. num_ok. unfold num_S, i_0. cbn [unI unN]. f_equal. lia. Qed.
   Lemma nat_eqb_ok : num_eqb (of_nat n) (of_nat m) = Nat.eqb n m.
   Proof.
     unfold of_nat, num_eqb. simpl. destruct (Z.eqb_spec (Z.of_nat n) (Z.of_nat m)), (Nat.eqb_spec n m); lia.
@@ -430,16 +434,16 @@ Section pos_table.
   Proof. unfold of_pos. num_ok. reflexivity. Qed.
   Lemma pos_succ_ok : succ (of_pos p) = of_pos (Pos.succ p).
   Proof. unfold succ, of_pos, one. num_ok. unfold num_S, i_1. cbn [unI unN]. f_equal. lia. Qed.
-  Lemma pos_pred_ok : clamped_pred one (of_pos p) = of_pos (Pos.pred p).
+  Lemma pos_pred_ok : pred1 (of_pos p) = of_pos (Pos.pred p).
   Proof.
-    unfold clamped_pred, of_pos, one. num_ok. unfold num_S, i_1. cbn [unI unN]. f_equal.
+    unfold pred1, of_pos, one. num_ok. unfold num_S, i_1. cbn [unI unN]. f_equal.
     destruct (Pos.eq_dec p 1) as [->|H]; [reflexivity|].
     rewrite Pos2Z.inj_pred by exact H.
     assert (Z.pos p <> 1) by (intros E; apply H; now injection E). lia.
   Qed.
-  Lemma pos_sub_ok : clamped_sub one (of_pos p) (of_pos q) = of_pos (p - q).
+  Lemma pos_sub_ok : sub1 (of_pos p) (of_pos q) = of_pos (p - q).
   Proof.
-    unfold clamped_sub, of_pos, one. num_ok. unfold num_S, i_1. cbn [unI unN]. f_equal.
+    unfold sub1, of_pos, one. num_ok. unfold num_S, i_1. cbn [unI unN]. f_equal.
     rewrite Pos2Z.inj_sub_max. reflexivity.
   Qed.
   Lemma pos_mul_ok : mul (of_pos p) (of_pos q) = of_pos (p * q).
@@ -464,10 +468,10 @@ Section N_table.
   Proof. unfold of_N. num_ok. f_equal. lia. Qed.
   Lemma N_succ_ok : succ (of_N n) = of_N (N.succ n).
   Proof. unfold succ, of_N, one. num_ok. unfold num_S, i_1. cbn [unI unN]. f_equal. lia. Qed.
-  Lemma N_pred_ok : clamped_pred zero (of_N n) = of_N (N.pred n).
-  Proof. unfold clamped_pred, of_N, zero, one. num_ok. unfold num_S, i_0, i_1. cbn [unI unN]. f_equal. lia. Qed.
-  Lemma N_sub_ok : clamped_sub zero (of_N n) (of_N m) = of_N (n - m).
-  Proof. unfold clamped_sub, of_N, zero. num_ok. unfold num_S, i_0. cbn [unI unN]. f_equal. lia. Qed.
+  Lemma N_pred_ok : pred0 (of_N n) = of_N (N.pred n).
+  Proof. unfold pred0, of_N, zero, one. num_ok. unfold num_S, i_0, i_1. cbn [unI unN]. f_equal. lia. Qed.
+  Lemma N_sub_ok : sub0 (of_N n) (of_N m) = of_N (n - m).
+  Proof. unfold sub0, of_N, zero. num_ok. unfold num_S, i_0. cbn [unI unN]. f_equal. lia. Qed.
   Lemma N_mul_ok : mul (of_N n) (of_N m) = of_N (n * m).
   Proof. unfold of_N. num_ok. f_equal. lia. Qed.
   Lemma N_div_ok : divf (of_N n) (of_N m) = of_N (N.div n m).
