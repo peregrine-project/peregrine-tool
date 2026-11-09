@@ -33,7 +33,7 @@ let copts_t =
                extraction always does this. Combine with --betared=true to \
                reduce the inlined recursors to direct recursion. Off by \
                default; ignored by $(b,erase) and $(b,validate)." in
-    Arg.(value & opt ~vopt:true bool false & info ["inline-recursors"] ~docs ~docv:"BOOL" ~doc)
+    Arg.(value & flag & info ["inline-recursors"] ~docs ~doc)
   in
   let lbox_opts_arg =
     let doc = "Enable all lambda-box simplifications of ELboxOpts.v: fixpoint \

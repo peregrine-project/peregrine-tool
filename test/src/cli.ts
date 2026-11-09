@@ -19,6 +19,8 @@ const cli_tests: [string[], number, string][] = [
     [["erase", "x.ast"], 32, "is a lambda box program already"],
     [["erase", "x.lean", "--entry", "f", "--typed"], 32, "the Lean frontend has no typed output"],
     [["rust", "x.lean", "--entry", "f"], 32, "is in no Lake project"],
+    // A flag must not consume the input file as its value
+    [["c", "--inline-recursors", "x.ast"], 1, "Failed parsing input program"],
 ];
 
 // Run the checks with the peregrine binary `exec`, in `dir`, and return the
