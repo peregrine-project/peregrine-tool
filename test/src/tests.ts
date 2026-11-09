@@ -511,6 +511,9 @@ var rocq_tests: TestCase[] =
             main: "CaseId_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S O)", "(S () (O))", "S O"],
+            // f builds Some with an erased proof (box) as its field, test
+            // applies it to Some 5
+            rejected: "#79: type inference cannot unify the type of Some applied to a box (in f) with Some applied to a nat (in test)",
             parameters: []
         },
         {
