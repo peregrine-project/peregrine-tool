@@ -39,8 +39,10 @@ depends: [
 pin-depends: [
   # The peregrine branch of peregrine-project/certirocq: CertiRocq main
   # (943b52ae) plus the LLVM backend, Peregrine's fixes and
-  # the shadow-stack change of CertiRocq/certirocq#155.
-  ["rocq-certirocq.dev" "git+https://github.com/peregrine-project/certirocq.git#c1c99e436d2cce95f8de5b87d10173ca56a30b48"]
+  # the shadow-stack change of CertiRocq/certirocq#155, and the
+  # tail-call rewrite of a tail-position match (peregrine-project/certirocq#4)
+  # and the proof of merge_dup_funs_correct (peregrine-project/certirocq#6).
+  ["rocq-certirocq.dev" "git+https://github.com/peregrine-project/certirocq.git#067211eb142f12e8d73f143ab4e1ce5db561e219"]
   ["rocq-vellvm.dev" "git+https://github.com/vellvm/vellvm.git#b63a28a0a36cbae73a454d99a97bb8171568343e"]
   # The peregrine branch of peregrine-project/rocq-verified-extraction: a
   # merge of its rocq-9.1 branch (64ced8c0, the same tree), which builds
