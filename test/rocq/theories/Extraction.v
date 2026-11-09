@@ -1,4 +1,5 @@
 From Peregrine.Plugin Require Import Loader.
+From Peregrine.Tests Require CaseId.
 From Peregrine.Tests Require Classy.
 From Peregrine.Tests Require Closure.
 From Peregrine.Tests Require CoStream.
@@ -17,6 +18,10 @@ From Peregrine.Tests Require Params.
 From Peregrine.Tests Require Phantom.
 From Peregrine.Tests Require Remap.
 From Peregrine.Tests Require PolyLet.
+
+(* CaseId.v *)
+Peregrine Extract "extraction/CaseId.ast" CaseId.test.
+Peregrine Extract Typed "extraction/CaseId_typed.ast" CaseId.test.
 
 (* Classy.v *)
 Peregrine Extract "extraction/Classy.ast" Classy.test.

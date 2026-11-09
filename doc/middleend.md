@@ -92,7 +92,7 @@ The transformations that will be applied will depend on both the AST type, backe
 * **common subexpression elimination**:
   a pass that binds a closed subterm occurring at least twice, always in evaluated positions, with a `let`; see [optional passes](#optional-passes)
 * **identity cases**:
-  a pass rewriting `match e with C xs => C xs` to `e` (boxes count as equal), as Rocq's extraction does; see [optional passes](#optional-passes)
+  a pass rewriting `match e with C xs => C xs` to `e`, as Rocq's extraction does; see [optional passes](#optional-passes)
 * **lambda-box simplifications**:
   fixpoint eta-hoisting (`fun xs => (fix F ..) xs` becomes the fixpoint, dead $\square$ parameters are dropped), case/function permutation (`match x with C => fun y => e` becomes `fun y => match x with C => e` for a variable `x`) and let/function permutation with applied lets and cases (the convoy pattern), as Rocq's extraction does in `Mlutil`; see [optional passes](#optional-passes)
 * **lift constants**:

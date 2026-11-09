@@ -57,7 +57,7 @@ let copts_t =
   let lbox_case_fun_arg = lbox_pass_arg "lbox-case-fun"
       "Case/function permutation: match x with C => fun y => e becomes fun y => match x with C => e" in
   let lbox_case_id_arg = lbox_pass_arg "lbox-case-id"
-      "Identity cases: match e with C xs => C xs becomes e (boxes count as equal)" in
+      "Identity cases: match e with C xs => C xs becomes e" in
   let lbox_let_fun_arg = lbox_pass_arg "lbox-let-fun"
       "Let/function permutation and applied lets: let z := a in fun y => e becomes fun y => let z := a in e, (let z := a in f) b becomes let z := a in f b" in
   Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg $ inline_recursors_arg

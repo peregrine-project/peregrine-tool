@@ -23,10 +23,11 @@
        into a binary fixpoint with saturated recursive calls.
     3. [case_id]: identity cases ([Mlutil.simpl_case]).
          match e with C_i ys_i => C_i ys_i   ==>   e
-       where a field of the rebuilt constructor may also be a box: erased
-       fields of constructor values are boxes after erasure, so the two sides
-       agree on well-erased programs (this is the one step which is not a
-       plain value equality, see the note on verification below).
+       where every field of the rebuilt constructor is the corresponding
+       pattern variable.  A box in place of a field does not count: whether
+       the scrutinee's field is a box depends on how it was erased (e.g.
+       [match o with Some _ => Some I] on [o : option nat], where the field is
+       a number), which this untyped pass cannot see.
     4. [let_fun]: let/function permutation and the applied-let redex.
          let z := a in fun ys => e          ==>  fun ys => let z := a in e
          (let z := a in f) b1 .. bn          ==>  let z := a in f b1 .. bn
@@ -42,9 +43,8 @@
     ** Verification status.  None of these rewrites is proved.  Passes 1, 2
     and 4 change the shape of the values a program evaluates to (a fixpoint
     instead of a closure, a closure instead of a case), so relating source and
-    target would need a logical relation; pass 3 would in addition need the
-    invariant that erased constructor fields hold boxes, which is not available
-    at this level.  Following the precedent of MetaRocq's [EBeta] (whose
+    target would need a logical relation; for pass 3 see the note before the
+    axioms below.  Following the precedent of MetaRocq's [EBeta] (whose
     [betared] pass, like [EInlining]'s inlining pass, is assumed correct by the
     axioms [trust_betared_wf]/[trust_betared_pres]), the pipeline obligations
     are discharged by the two axioms [trust_lbox_opts_wf] and
@@ -325,8 +325,8 @@ Definition case_fun (t : term) : term :=
 
 (** ** Pass 3: identity cases *)
 
-(** Branch [i] rebuilds constructor [i] of [ind] from its own fields (in order,
-    boxes allowed), in either the applied or the block representation of
+(** Branch [i] rebuilds constructor [i] of [ind] from its own fields (in
+    order), in either the applied or the block representation of
     constructors. *)
 Definition rebuilds (ind : inductive) (i : nat) (br : list name * term) : bool :=
   let n := #|br.1| in
@@ -338,7 +338,6 @@ Definition rebuilds (ind : inductive) (i : nat) (br : list name * term) : bool :
       forallb (fun '(p, a) =>
         match a with
         | tRel r => Nat.eqb r (n - 1 - p)
-        | tBox => true
         | _ => false
         end) (combine (seq 0 n) args)
   | _ => false
@@ -464,10 +463,6 @@ Definition optimize_typed_env (o : lbox_opts) (Σ : ExAst.global_env) : ExAst.gl
       [eval p v -> eval (case_id p) (optimize case_id_opts v)], which needs
       commutation of [optimize] with [csubst], [mkApps] and fixpoint unfolding
       (the same reason MetaRocq axiomatises EBeta);
-    - boxes: a branch may rebuild an erased field as [tBox]; the rule is then
-      only correct under the erasure invariant that this field of the
-      scrutinee's value is a box, which is not expressible in the
-      lambda-box semantics alone;
     - [eval_cofix_case]: a scrutinee evaluating to a cofixpoint application
       is not a constructor value; the rule needs the absence of cofixpoints
       (guaranteed in the pipeline by the earlier coinductive-to-inductive
@@ -649,12 +644,22 @@ Module LboxOptsChecks.
          ([], tRel 0)]))).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 3. identity case, blocks, with a box *)
+  (* 3. identity case, blocks *)
   Example case_id_1 :
     optimize O (tCase ci (tRel 7)
       [([], tConstruct ind 0 []);
-       ([nm "a"; nm "b"], tConstruct ind 1 [tRel 1; tBox])])
+       ([nm "a"; nm "b"], tConstruct ind 1 [tRel 1; tRel 0])])
     = tRel 7.
+  Proof. vm_compute. reflexivity. Qed.
+
+  (* 3'''. a box in place of a field is not the field: unchanged
+     (match o with None => None | Some _ => Some □, where the field of the
+     scrutinee need not be a box) *)
+  Definition case_box :=
+    tCase ci (tRel 7)
+      [([], tConstruct ind 0 []);
+       ([nm "x"], tConstruct ind 1 [tBox])].
+  Example case_id_box_not : optimize O case_box = case_box.
   Proof. vm_compute. reflexivity. Qed.
 
   (* 3'. applied representation of constructors (typed pipeline) *)

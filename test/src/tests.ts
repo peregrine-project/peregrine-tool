@@ -493,6 +493,16 @@ var rocq_tests: TestCase[] =
             parameters: []
         },
         {
+            // --lbox-case-id must not identify a box with a field (#132)
+            src: "rocq/extraction/CaseId.ast",
+            tsrc: "rocq/extraction/CaseId_typed.ast",
+            rust_i64_output: "1",
+            main: "CaseId_test",
+            output_type: SimpleType.Nat,
+            expected_output: ["(S O)", "(S () (O))", "S O"],
+            parameters: []
+        },
+        {
             // --lbox-opts drops a dead parameter before the structural one (#132)
             src: "rocq/extraction/FixEtaRarg.ast",
             tsrc: "rocq/extraction/FixEtaRarg_typed.ast",

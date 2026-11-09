@@ -1,5 +1,6 @@
 -Q theories Peregrine.Tests
 theories/Extraction.v
+theories/CaseId.v
 theories/Classy.v
 theories/Closure.v
 theories/Demo.v
