@@ -40,9 +40,9 @@ let
     "0.2.0".sha256 = "sha256-rgg39X45IXjcnejBhh8N7wMiH+gHQrfO8pBbFEWOGVI=";
     # v0.2.1 ported to the MetaRocq 9.1 snapshot, plus eliminators with leading
     # arguments (rocq-typed-extraction#27); see rocq-peregrine.opam
-    "0a487b3fa8103c1eabae533cc310634da576e2b4" = {
-      rev = "0a487b3fa8103c1eabae533cc310634da576e2b4";
-      sha256 = "sha256-0RyKRl+pl+UerWtoA9YgpJp+0tJhcSFuRNMqytyJeKk=";
+    "09b4f450912097344a58e1709fbfb3651d11a13e" = {
+      rev = "09b4f450912097344a58e1709fbfb3651d11a13e";
+      sha256 = "sha256-HMLfpTXDreXm2wjh94dLWaBYxha2wJa3xHcqcWGCNmo=";
     };
   };
   releaseRev = v: "v${v}";
