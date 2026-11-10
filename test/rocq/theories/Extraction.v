@@ -1,4 +1,5 @@
 From Peregrine.Plugin Require Import Loader.
+From Peregrine.Tests Require CaseId.
 From Peregrine.Tests Require Classy.
 From Peregrine.Tests Require Closure.
 From Peregrine.Tests Require CoStream.
@@ -7,6 +8,7 @@ From Peregrine.Tests Require PrimInt.
 From Peregrine.Tests Require Demo.
 From Peregrine.Tests Require Hello.
 From Peregrine.Tests Require EtaFix.
+From Peregrine.Tests Require FixEtaRarg.
 From Peregrine.Tests Require Id.
 From Peregrine.Tests Require Map.
 From Peregrine.Tests Require Mutual.
@@ -17,6 +19,10 @@ From Peregrine.Tests Require Params.
 From Peregrine.Tests Require Phantom.
 From Peregrine.Tests Require Remap.
 From Peregrine.Tests Require PolyLet.
+
+(* CaseId.v *)
+Peregrine Extract "extraction/CaseId.ast" CaseId.test.
+Peregrine Extract Typed "extraction/CaseId_typed.ast" CaseId.test.
 
 (* Classy.v *)
 Peregrine Extract "extraction/Classy.ast" Classy.test.
@@ -49,6 +55,10 @@ Peregrine Extract Typed "extraction/Hello_typed.ast" Hello.hello.
 (* EtaFix.v *)
 Peregrine Extract "extraction/EtaFix.ast" EtaFix.test.
 Peregrine Extract Typed "extraction/EtaFix_typed.ast" EtaFix.test.
+
+(* FixEtaRarg.v *)
+Peregrine Extract "extraction/FixEtaRarg.ast" FixEtaRarg.test.
+Peregrine Extract Typed "extraction/FixEtaRarg_typed.ast" FixEtaRarg.test.
 
 (* Id.v *)
 Peregrine Extract "extraction/Id.ast" Id.test.

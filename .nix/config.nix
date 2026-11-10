@@ -14,22 +14,23 @@
     coqPackages = {
       coq.override.version = "9.1";
 
-      metarocq-utils.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-common.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-template-rocq.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-pcuic.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-safechecker.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-safechecker-plugin.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-template-pcuic.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-erasure.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      metarocq-erasure-plugin.override.version = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
+      metarocq-utils.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-common.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-template-rocq.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-pcuic.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-safechecker.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-safechecker-plugin.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-template-pcuic.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-erasure.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      metarocq-erasure-plugin.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
 
-      TypedExtraction.override.version = "0.2.1";
+      # v0.2.1 ported to the MetaRocq snapshot, see rocq-peregrine.opam
+      TypedExtraction.override.version = "74dcbc960a8d4fa04496b84d6447611159bd6c70";
       # The peregrine branch of peregrine-project/certirocq, see rocq-peregrine.opam
-      CertiRocq.override.version = "a8dc26feadde902e109ae3a1bbdfacadfc4bb9f6";
+      CertiRocq.override.version = "d7aa46b5738a954d28d2ae235da4a9bc388d6401";
       # CertiRocq needs coq-wasm >= 2.2.1
       wasmcert.override.version = "2.2.1";
-      verified-extraction.override.version = "0305df76ac89a83488f12175e2c5d45e1a55d16c";
+      verified-extraction.override.version = "0ed8aa88560a518e0822b583f45e1ebb45b10f7f";
       ceres-bs.override.version = "1.0.0";
       CakeMLExtraction.override.version = "8df83a16525ca08bb9b5b375b3331b3f480d346b";
     }; rocqPackages = {

@@ -21,7 +21,7 @@ let
     # So the snapshot must be the default, or e.g. erasure-plugin at the
     # snapshot is built against erasure 1.5.1.
     lib.switch coq.coq-version [
-      (case "9.1" "c8cd46054518193103c3bb33aa6e15c7f489e72c")
+      (case "9.1" "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56")
       (case "9.0" "1.4-9.0.1")
     ] null;
   release = {
@@ -31,9 +31,9 @@ let
     "1.4.1-9.1".sha256 = "sha256-tzoAWX74lg7pArGVP11QBvDRKMvmGxXvrf3+1E3Y4DI=";
     "1.5.1-9.1".sha256 = "sha256-0iFnSzfbufn2XhJ8EPyWu3KIiHYwxfMVQa2KT6GSR7s=";
     # 9.1 snapshot needed by CertiRocq (EImplementLazyForce); no release has it
-    "c8cd46054518193103c3bb33aa6e15c7f489e72c" = {
-      rev = "c8cd46054518193103c3bb33aa6e15c7f489e72c";
-      sha256 = "sha256-Lcr6B4gYSS57zVinn+e2tk1Kfy9XzJs+sd3CTuSTvX0=";
+    "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56" = {
+      rev = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
+      sha256 = "sha256-sQ4q/ndbWiiXg4xhT3mNfPz1qjOi3hTu5wfLm27lIjQ=";
     };
   };
   releaseRev = v: "v${v}";
