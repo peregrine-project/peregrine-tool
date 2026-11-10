@@ -79,7 +79,7 @@ export type TestCase = {
   // lack, and the string is the reason, which names the open issue of that
   // limitation, as for `xfail`
   rejected?: true | string,
-  // The program has cofixpoints: C, Wasm, LLVM, OCaml and CakeML must reject it
+  // The program has cofixpoints: C, Wasm, LLVM, OCaml, CakeML, Lean, F# and Koka must reject it
   // without --lower-cofix
   cofix?: boolean,
   // The expected output of the Rust-i64 test configuration, where nat is i64

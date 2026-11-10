@@ -369,7 +369,10 @@ Definition check_lowered (c : config) (p : PAst) : result' unit :=
     | OCaml _ => Some "OCaml"
     | CakeML _ => Some "CakeML"
     | Eval _ => Some "eval"
-    | Rust _ | Elm _ | Lean _ | FSharp _ | Koka _ | KokaTyped _ | AST _ => None
+    | Lean _ => Some "Lean"
+    | FSharp _ => Some "F#"
+    | Koka _ => Some "Koka"
+    | Rust _ | Elm _ | KokaTyped _ | AST _ => None
     end in
   match backend, p with
   | Some b, Untyped env (Some t) => check_lowered_program b (env, t)

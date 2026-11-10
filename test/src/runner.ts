@@ -421,6 +421,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile peregrine
         const f_lean = compile_box(test.src, leandir, Lang.Lean, with_args(lang, opts, test));
+        if (test.cofix && !opts.includes("--lower-cofix")) {
+          print_cofix_rejected(f_lean, test.src);
+          continue;
+        }
         if (typeof f_lean !== "string") {
           print_result(f_lean, test.src);
           continue;
@@ -454,6 +458,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
       for (const c of compiled) {
         process.stdout.write(`  ${c.test.src}: `);
+        if (c.test.cofix && !opts.includes("--lower-cofix")) {
+          print_cofix_rejected(c.f_fs, c.test.src);
+          continue;
+        }
         if (typeof c.f_fs !== "string") {
           print_result(c.f_fs, c.test.src);
           continue;
@@ -486,6 +494,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         const f_kk = compile_box(src, outdir, Lang.Koka, with_args(lang, opts, test), undefined, rust_verb);
         if (typed && untyped && test.rejected) {
           print_rejected(f_kk, src, test.rejected);
+          return;
+        }
+        if (!typed && test.cofix && !opts.includes("--lower-cofix")) {
+          print_cofix_rejected(f_kk, src);
           return;
         }
         if (typeof f_kk !== "string") {

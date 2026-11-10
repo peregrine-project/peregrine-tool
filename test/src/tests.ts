@@ -39,6 +39,9 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.OCaml, "cofix", "--lower-cofix true"],
     [Lang.C, "cofix", "--lower-cofix true"],
     [Lang.Wasm, "cofix", "--lower-cofix true"],
+    [Lang.Lean, "cofix", "--lower-cofix true"],
+    [Lang.FSharp, "cofix", "--lower-cofix true"],
+    [Lang.Koka, "cofix", "--lower-cofix true"],
     // The unverified lambda-box simplifications, which the typed pipeline runs
     // too; Rust-lbox shares the expected failures of Rust
     [Lang.Rust, "lbox", "--lbox-opts"],
@@ -105,7 +108,7 @@ const rust_fn_fields = on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rus
     "#79: Debug and Serialize are derived for every type, which fails on the function-typed fields of the record (E0277)");
 const lean_untyped = on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox", "Koka-typed"],
     "peregrine-project/lean-to-lambdabox#21: the Lean frontend has no typed output, so a Lean program has no typed source");
-const lean_name_clash = on(["Lean", "FSharp-experimental", "Koka-experimental"],
+const lean_name_clash = on(["Lean", "FSharp-experimental", "Koka-experimental", "Lean-cofix", "FSharp-cofix", "Koka-cofix"],
     "#93, #99: two definitions whose module paths differ only in their last component (where-modules, record modules) get the same name: agda2lambox writes module paths outermost first, and the backend keeps only one component");
 
 // Agda Tests

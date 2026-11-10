@@ -22,8 +22,8 @@ Definition default_lean_config := {|
 
 Definition lean_phases := {|
   implement_box_c  := Required;
-  implement_lazy_c := Required;
-  cofix_to_laxy_c  := Required;
+  implement_lazy_c := Compatible false;
+  cofix_to_laxy_c  := Compatible false;
   betared_c        := Compatible false;
   unboxing_c       := Compatible false;
   dearg_ctors_c    := Compatible false;
