@@ -24,6 +24,7 @@ Definition koka_typed_phases := {|
   dearg_consts_c   := Compatible true;
   specialize_instances_c := Compatible false;
   cse_c            := Compatible false;
+  lift_constants_c := Compatible false;
 |}.
 
 (* A remapped constant is called with its arity, and its module, if any, is imported. *)
