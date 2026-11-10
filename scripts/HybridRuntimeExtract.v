@@ -33,7 +33,6 @@ Definition const_table : list (kername * string) := [
   (P "i_rem", "fn ##name##(&'a self, a: i64, b: i64) -> i64 { a % b }");
   (P "i_eqb", "fn ##name##(&'a self, a: i64, b: i64) -> bool { a == b }");
   (P "i_ltb", "fn ##name##(&'a self, a: i64, b: i64) -> bool { a < b }");
-  (P "i_odd", "fn ##name##(&'a self, a: i64) -> bool { a & 1 == 1 }");
   (P "i_0", "fn ##name##(&'a self) -> i64 { 0 }");
   (P "i_1", "fn ##name##(&'a self) -> i64 { 1 }");
   (P "i_2", "fn ##name##(&'a self) -> i64 { 2 }");
@@ -62,10 +61,7 @@ Definition ind_table : list (kername * remapped_inductive) := [
   (D "comparison", {| re_ind_name := "std::cmp::Ordering"; re_ind_ctors := ["std::cmp::Ordering::Equal"; "std::cmp::Ordering::Less"; "std::cmp::Ordering::Greater"]; re_ind_match := Some "__cmp_elim!" |});
   (P "i64", {| re_ind_name := "i64"; re_ind_ctors := ["__no_I"]; re_ind_match := None |});
   (P "oi64", {| re_ind_name := "Option<i64>"; re_ind_ctors := ["Some"; "None"]; re_ind_match := Some "__opt_elim!" |});
-  (P "num", {| re_ind_name := "Num<'a>"; re_ind_ctors := ["__no_Nm"]; re_ind_match := None |});
-  (P "onum", {| re_ind_name := "Option<Num<'a>>"; re_ind_ctors := ["Some"; "None"]; re_ind_match := Some "__opt_elim!" |});
-  (P "posv", {| re_ind_name := "PosView<'a>"; re_ind_ctors := ["PosView::I"; "PosView::O"; "PosView::H"]; re_ind_match := None |});
-  (P "zv", {| re_ind_name := "ZView<'a>"; re_ind_ctors := ["ZView::Z"; "ZView::P"; "ZView::N"]; re_ind_match := None |})
+  (P "num", {| re_ind_name := "Num<'a>"; re_ind_ctors := ["__no_Nm"]; re_ind_match := None |})
 ].
 
 Fixpoint lookup {A} (l : list (kername * A)) (kn : kername) : option A :=
@@ -79,8 +75,7 @@ Definition remaps : remaps := {|
 (** All the functions the remap table calls. *)
 Definition entry :=
   (add, sub, mul, neg, abs, divf, modf, pow, leb, ltb, min, max,
-   (succ, pred, sub0, sub1, pred0, pred1, double_plus_one, double, id, num_eqb, num_compare),
-   (nat_view, N_view, pos_view, Z_view)).
+   (succ, pred, sub0, sub1, pred0, pred1, double_plus_one, double, id, num_eqb, num_compare)).
 
 MetaRocq Quote Recursively Definition p := entry.
 

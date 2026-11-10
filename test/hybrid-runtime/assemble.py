@@ -8,8 +8,6 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 TH = HERE.parent.parent / "theories" / "backends"
 remaps = (TH / "RustHybridRemaps.v").read_text()
-# "..." ++ rt <%% HybridRuntime.f %%> ++ "..." is one string with the printed name of f.
-remaps = re.sub(r'" \+\+ rt <%% (\w+)\.(\w+) %%> \+\+ "', r'Peregrine_backends_\1_\2', remaps)
 gmp = (TH / "RustGMPRemaps.v").read_text()
 gen = (TH / "HybridRuntimeGen.v").read_text()
 

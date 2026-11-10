@@ -61,8 +61,6 @@ Definition i_quot (a b : i64) : i64 := I (Z.quot (unI a) (unI b)).
 Definition i_rem (a b : i64) : i64 := I (Z.rem (unI a) (unI b)).
 Definition i_eqb (a b : i64) : bool := Z.eqb (unI a) (unI b).
 Definition i_ltb (a b : i64) : bool := Z.ltb (unI a) (unI b).
-(** [a & 1 == 1]. *)
-Definition i_odd (a : i64) : bool := Z.odd (unI a).
 
 Definition i_0 : i64 := I 0.
 Definition i_1 : i64 := I 1.
@@ -86,12 +84,6 @@ Definition num_of_word (w : i64) : num := Nm (Z.shiftr (unI w) 1).
 Definition num_S (v : i64) : num := Nm (unI v).
 (** [self.__int(v)]: the canonical number of any [i64]. *)
 Definition num_int (v : i64) : num := Nm (unI v).
-
-(** The views the eliminators match on: [Option<Num<'a>>] (zero, or a
-    number) and the enums [PosView] and [ZView] of the kernel. *)
-Inductive onum := NSome (n : num) | NNone.
-Inductive posv := PI (p : num) | PO (p : num) | PH.
-Inductive zv := ZZ | ZP (p : num) | ZN (p : num).
 
 (** [PartialEq] and [Ord] of [Num], which use canonicity. *)
 Definition num_eqb (a b : num) : bool := Z.eqb (unN a) (unN b).

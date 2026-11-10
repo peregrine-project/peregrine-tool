@@ -71,27 +71,6 @@ fn main() {
             check(&format!("pow {x} {e}"), big(r), rug::Integer::from(x.pow(e as u32)));
         }
     }
-    // the eliminators, through the views
-    for (i, a) in nums.iter().enumerate() {
-        let x = &vals[i];
-        let rt = |n: Num| big(n);
-        if *x >= 0 {
-            let got = __nat_elim!(p, { None }, q, { Some(rt(q)) }, *a);
-            check(&format!("nat_elim {x}"), got.unwrap_or(rug::Integer::from(-1)), if *x == 0 { rug::Integer::from(-1) } else { rug::Integer::from(x - 1) });
-            let got = __N_elim!(p, { None }, q, { Some(rt(q)) }, *a);
-            check(&format!("N_elim {x}"), got.unwrap_or(rug::Integer::from(-1)), if *x == 0 { rug::Integer::from(-1) } else { x.clone() });
-        }
-        if *x > 0 {
-            let (tag, h) = __pos_elim!(p, q, { (1, rt(q)) }, q2, { (0, rt(q2)) }, { (2, rug::Integer::from(0)) }, *a);
-            let want = if *x == 1 { (2, rug::Integer::from(0)) } else { (if x.is_odd() { 1 } else { 0 }, rug::Integer::from(x >> 1u32)) };
-            check(&format!("pos_elim {x} tag"), rug::Integer::from(tag), rug::Integer::from(want.0));
-            check(&format!("pos_elim {x}"), h, want.1);
-        }
-        let (tag, v) = __Z_elim!(p, { (0, rug::Integer::from(0)) }, q, { (1, rt(q)) }, q2, { (2, rt(q2)) }, *a);
-        let want = if *x == 0 { (0, rug::Integer::from(0)) } else if *x > 0 { (1, x.clone()) } else { (2, rug::Integer::from(-x)) };
-        check(&format!("Z_elim {x} tag"), rug::Integer::from(tag), rug::Integer::from(want.0));
-        check(&format!("Z_elim {x}"), v, want.1);
-    }
     // pow with an exponent beyond u32 for the bases 0 and 1
     let huge = p.__num(rug::Integer::from(u32::MAX) + 1);
     check("pow 0 2^32", big(p.Peregrine_backends_HybridRuntime_pow(Num::S(0), huge)), rug::Integer::from(0));

@@ -54,9 +54,9 @@ pin-depends: [
   ["rocq-cakeml-extraction.0.1.1+dev" "git+https://github.com/peregrine-project/cakeml-backend.git#8df83a16525ca08bb9b5b375b3331b3f480d346b"]
   # rocq-typed-extraction v0.2.1 ported to MetaRocq 51b14e4b: a qualified
   # Import String and the plugin's module lists (branch metarocq-51b14e4b).
-  ["rocq-typed-extraction-common.0.2.1" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#09b4f450912097344a58e1709fbfb3651d11a13e"]
-  ["rocq-rust-extraction.0.2.1" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#09b4f450912097344a58e1709fbfb3651d11a13e"]
-  ["rocq-elm-extraction.0.2.1" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#09b4f450912097344a58e1709fbfb3651d11a13e"]
+  ["rocq-typed-extraction-common.0.2.1" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#74dcbc960a8d4fa04496b84d6447611159bd6c70"]
+  ["rocq-rust-extraction.0.2.1" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#74dcbc960a8d4fa04496b84d6447611159bd6c70"]
+  ["rocq-elm-extraction.0.2.1" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#74dcbc960a8d4fa04496b84d6447611159bd6c70"]
   ["rocq-metarocq-utils.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56"]
   ["rocq-metarocq-common.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56"]
   ["rocq-metarocq-template.1.5.1+9.1+dev" "git+https://github.com/MetaRocq/metarocq.git#51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56"]
