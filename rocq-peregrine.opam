@@ -43,7 +43,7 @@ pin-depends: [
   # tail-call rewrite of a tail-position match (peregrine-project/certirocq#4)
   # the proof of merge_dup_funs_correct (peregrine-project/certirocq#6)
   # and the fast Qed of LLVM_nonvacuity (peregrine-project/certirocq#7).
-  ["rocq-certirocq.dev" "git+https://github.com/peregrine-project/certirocq.git#d7aa46b5738a954d28d2ae235da4a9bc388d6401"]
+  ["rocq-certirocq.dev" "git+https://github.com/peregrine-project/certirocq.git#ee5779e65690db78f000890f3893131734a8ae9c"]
   ["rocq-vellvm.dev" "git+https://github.com/vellvm/vellvm.git#b63a28a0a36cbae73a454d99a97bb8171568343e"]
   # The peregrine branch of peregrine-project/rocq-verified-extraction: a
   # merge of its rocq-9.1 branch (64ced8c0, the same tree), which builds
