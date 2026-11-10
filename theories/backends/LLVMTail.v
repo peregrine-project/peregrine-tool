@@ -1,11 +1,12 @@
-(* An unverified pass over the LLVM module that CertiRocq emits. *)
+(* A pass over the LLVM module that CertiRocq emits. *)
 From Stdlib Require Import List String PArith ZArith.
 From Vellvm Require Import Syntax.LLVMAst.
 Import ListNotations.
 
-(* [tail] on a call whose result the block returns at once (#134).  Not verified:
-   Vellvm gives the marker no semantics, so the correctness theorem of the LLVM
-   backend does not cover it.  The marker promises that the callee reads nothing of
+(* [tail] on a call whose result the block returns at once (#134).  Vellvm gives
+   the marker no semantics: [LLVMTail_correct] shows that the pass preserves the
+   behaviour in Vellvm, and what the marker promises to LLVM is not proved.
+   The marker promises that the callee reads nothing of
    the caller's stack frame.  At such a call the emitter has unlinked every
    shadow-stack frame of the caller, and the pass also requires each argument to be
    an [i64] value or the caller's own first parameter, the thread info.  An [i64]
