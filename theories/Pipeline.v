@@ -387,6 +387,8 @@ Definition peregrine_pipeline (c : string + config') (attrs : list string) (inli
   let remapped kn := List.existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) in
   let c := if inline_recursors then merge_attributes_config c [recursor_attributes remapped p] else c in
   check_wf p;; (* Check that AST is wellformed *)
+  NameSanitize.check_sanitized_injective (NameSanitize.get_sanitizer c)
+    (List.app (NameSanitize.PAst_names p) (NameSanitize.config_names c));; (* Reject name collisions *)
   p <- NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c) p;; (* Sanitize names in AST *)
   c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;; (* Sanitize names in config *)
   p <- apply_transforms c lbox p (needs_typed c);; (* Apply program transformation *)

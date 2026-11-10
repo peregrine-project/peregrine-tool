@@ -4,7 +4,7 @@ From MetaRocq.Utils Require ByteCompare ByteCompareSpec.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import BasicAst.
 From MetaRocq.Utils Require Import ResultMonad.
-From MetaRocq.Erasure Require EAst.
+From MetaRocq.Erasure Require EAst EPrimitive.
 From MetaRocq.Erasure Require ExAst.
 From MetaRocq.Erasure Require EProgram.
 From Peregrine Require Import Unicode.
@@ -582,6 +582,20 @@ Definition sanitize_projection (f : utf8_string -> string) (p : projection) : re
     proj_arg := p.(proj_arg);
   |}.
 
+(** [map_prim] in the result monad: the elements and the default of an array
+    literal are terms and are sanitized like the others. *)
+Definition monad_map_prim {T T' : Set} (g : T -> result' T') (p : EPrimitive.prim_val T)
+  : result' (EPrimitive.prim_val T') :=
+  match p.π2 with
+  | EPrimitive.primIntModel i => Ok (EPrimitive.prim_int i)
+  | EPrimitive.primFloatModel x => Ok (EPrimitive.prim_float x)
+  | EPrimitive.primStringModel x => Ok (EPrimitive.prim_string x)
+  | EPrimitive.primArrayModel a =>
+    d <- g a.(EPrimitive.array_default);;
+    v <- monad_map g a.(EPrimitive.array_value);;
+    Ok (EPrimitive.prim_array {| EPrimitive.array_default := d; EPrimitive.array_value := v |})
+  end.
+
 Fixpoint sanitize_term (f : utf8_string -> string) (t : EAst.term) : result' EAst.term :=
   match t with
   | EAst.tBox | EAst.tRel _ | EAst.tVar _ => Ok t
@@ -643,7 +657,9 @@ Fixpoint sanitize_term (f : utf8_string -> string) (t : EAst.term) : result' EAs
         |}
       ) mfix;;
     Ok (EAst.tCoFix mfix idx)
-  | EAst.tPrim prim => Ok (EAst.tPrim prim) (* TODO: we don't sanitize prim arrays yet *)
+  | EAst.tPrim prim =>
+    prim <- monad_map_prim (sanitize_term f) prim;;
+    Ok (EAst.tPrim prim)
   | EAst.tLazy t =>
     t <- sanitize_term f t;;
     Ok (EAst.tLazy t)
@@ -862,3 +878,65 @@ Definition sanitize_config (f : utf8_string -> string) (c : Config.config) : res
     Config.cstr_reorders_opts     := cstr_reorders;
     Config.custom_attributes_opts := cust_attrs;
   |}.
+
+
+(** * Injectivity of the sanitization on global names
+
+    Two distinct global names with the same sanitized name would make the
+    renamed program refer to the wrong declaration.  [check_sanitized_injective]
+    rejects such programs; [NameSanitizeCorrect] proves that a program it accepts
+    is renamed injectively, so that sanitization preserves its evaluation. *)
+
+(** The sanitized kername, or the kername itself when it is not valid UTF-8 (in
+    which case [sanitize_PAst] fails anyway). *)
+Definition sanitized_kername (f : utf8_string -> string) (kn : kername) : kername :=
+  match sanitize_kername f kn with
+  | Ok kn' => kn'
+  | Err _ => kn
+  end.
+
+(** The first pair of distinct names of [l] with equal images, if any. *)
+Fixpoint find_collision (img : kername -> kername) (l : list kername) : option (kername * kername) :=
+  match l with
+  | nil => None
+  | cons kn l' =>
+    match List.find (fun kn' => negb (eq_kername kn kn') && eq_kername (img kn) (img kn')) l' with
+    | Some kn' => Some (kn, kn')
+    | None => find_collision img l'
+    end
+  end.
+
+Definition untyped_env_names (env : PAst.untyped_env) : list kername :=
+  List.map fst env.
+
+Definition typed_env_names (env : PAst.typed_env) : list kername :=
+  List.map (fun d => d.1.1) env.
+
+Definition PAst_names (p : PAst.PAst) : list kername :=
+  match p with
+  | PAst.Untyped env _ => untyped_env_names env
+  | PAst.Typed env _ => typed_env_names env
+  end.
+
+(** Every kername that the configuration refers to. *)
+Definition config_names (c : Config.config) : list kername :=
+  List.concat [
+    c.(Config.inlinings_opts);
+    List.map fst c.(Config.const_remappings_opts);
+    List.concat (List.map (fun r =>
+      match r with
+      | Config.KnIndRemap kn r =>
+        cons kn (List.concat (List.map (fun e => cons e.(EProgram.elim) e.(EProgram.cstrs)) r))
+      | Config.StringIndRemap ind _ => cons ind.(inductive_mind) nil
+      end) c.(Config.ind_remappings_opts));
+    List.map (fun x => x.1.(inductive_mind)) c.(Config.cstr_reorders_opts);
+    List.map fst c.(Config.custom_attributes_opts) ]%list.
+
+Definition check_sanitized_injective (f : utf8_string -> string) (names : list kername) : result' unit :=
+  match find_collision (sanitized_kername f) names with
+  | None => Ok tt
+  | Some (kn, kn') =>
+    Err ("Name sanitization maps " ^ string_of_kername kn ^ " and " ^
+         string_of_kername kn' ^ " to the same name " ^
+         string_of_kername (sanitized_kername f kn))
+  end.

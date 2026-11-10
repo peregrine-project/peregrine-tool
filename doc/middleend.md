@@ -50,6 +50,8 @@ If the configuration is invalid the pipeline either fails or prints a warning an
 
 ### Sanitize identifiers
 Some frontends have fewer restrictions on valid identifier names than the backends, thus a name sanitization pass is performed if necessary based on the target backend.
+The pipeline first checks that no two global names of the program or the configuration sanitize to the same name, and fails otherwise.
+Under that check the pass preserves well-formedness and evaluation: `NameSanitizeCorrect.sanitize_correct`, through the general renaming theorem `ERenameGlobals.eval_rename`.
 
 ### Apply transformations
 The transformations that will be applied will depend on both the AST type, backend, and user configuration. See support matrix below for more details.
