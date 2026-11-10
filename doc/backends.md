@@ -37,7 +37,7 @@ Implemented in [CertiRocq](https://github.com/CertiRocq/certirocq/).
 Output — a file the binary-encoded Wasm module. The CLI writes a `.wasm` file. The module exports the main function as `main_function`.
 The code can be executed by any Wasm 2.0 compatible runtime that supports the [tail-call extension](https://webassembly.org/features/) (e.g. recent Node.js, Wasmtime, modern browsers).
 
-The PrimInt63 operations (`add`, `sub`, `mul`, `div`, `mod`, the shifts and bitwise operations, `eqb`, `ltb`, `leb`, `compare`, the carry operations, `mulc`, `head0`, `tail0`, `diveucl`, `diveucl_21` and `addmuldiv`) compile to native Wasm code. CertiCoq-Wasm returns their booleans with `false` as constructor 0, so the backend swaps the constructors of Rocq's `bool` (`Corelib.Init.Datatypes.bool`), as CertiRocq's own plugin does. An `inductive_mapping` for `bool` in an attributes file replaces this default.
+The PrimInt63 operations (`add`, `sub`, `mul`, `div`, `mod`, the shifts and bitwise operations, `eqb`, `ltb`, `leb`, `compare`, the carry operations, `mulc`, `head0`, `tail0`, `diveucl`, `diveucl_21` and `addmuldiv`) compile to native Wasm code. CertiCoq-Wasm returns their booleans with `false` as constructor 0, so the backend swaps the constructors of Rocq's `bool` (`Corelib.Init.Datatypes.bool`), as CertiRocq's own plugin does. An `inductive_mapping` for `bool` in an attributes file replaces this default; a replacement must keep `false` first, or `eqb`, `ltb` and `leb` give wrong results.
 
 ## LLVM
 
