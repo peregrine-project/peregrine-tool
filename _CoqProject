@@ -48,6 +48,7 @@ theories/backends/CakeMLBackend.v
 theories/backends/CBackend.v
 theories/backends/WasmBackend.v
 theories/backends/LLVMTail.v
+theories/backends/LLVMTail_correct.v
 theories/backends/LLVMBackend.v
 theories/backends/CertiRocqBackend.v
 theories/backends/LeanBackend.v
