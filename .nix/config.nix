@@ -27,7 +27,7 @@
       # v0.2.1 ported to the MetaRocq snapshot, see rocq-peregrine.opam
       TypedExtraction.override.version = "74dcbc960a8d4fa04496b84d6447611159bd6c70";
       # The peregrine branch of peregrine-project/certirocq, see rocq-peregrine.opam
-      CertiRocq.override.version = "034737563a498b251d38f7ed56b1a0c66b8cb5e4";
+      CertiRocq.override.version = "1396dbfa9738254c1837b61f8a0242277e2dd506";
       # CertiRocq needs coq-wasm >= 2.2.1
       wasmcert.override.version = "2.2.1";
       verified-extraction.override.version = "0ed8aa88560a518e0822b583f45e1ebb45b10f7f";
