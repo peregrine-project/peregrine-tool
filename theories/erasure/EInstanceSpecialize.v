@@ -920,6 +920,293 @@ Proof. intros [hwf hm]. now apply (drive_env_wf (hasapp := hasapp)). Qed.
 
 From Peregrine Require Import EExtraFlags.
 
+(** * Evaluation preservation *)
+
+From Peregrine Require Import ESpecRel.
+
+Lemma All_F2 {A} (P : A -> Type) (R : A -> A -> Prop) g l :
+  All P l -> (forall x, P x -> R x (g x)) -> Forall2 R l (map g l).
+Proof. induction 1; cbn; constructor; auto. Qed.
+
+Section Static.
+  Context (Σa Σb : global_declarations).
+  Notation G := (G Σa Σb).
+
+  Lemma G_spec_beta args args' :
+    Forall2 G args args' -> forall g g', G g g' -> G (mkApps g args) (spec_beta g' args').
+  Proof.
+    induction 1; intros g g' Hg; cbn; auto.
+    destruct g'; try (apply G_mkApps; [apply G_s; constructor; auto| auto]; fail).
+    apply IHForall2. apply G_s. eapply Gs_beta; eauto.
+  Qed.
+
+  Lemma G_spec_aux t :
+    forall args args', Forall2 G args args' -> G (mkApps t args) (spec_aux args' t).
+  Proof.
+    induction t using term_forall_list_ind; intros sp sp' Ha;
+      cbn [spec_aux spec_map_subterms].
+    all: try (pose proof (IHt [] [] (Forall2_nil _)) as IH0; cbn in IH0).
+    all: try (pose proof (IHt1 [] [] (Forall2_nil _)) as IH1; cbn in IH1).
+    all: try (pose proof (IHt2 [] [] (Forall2_nil _)) as IH2; cbn in IH2).
+    all: try (apply G_mkApps; [apply G_s; constructor; eauto|exact Ha]; fail).
+    - apply G_mkApps; [apply G_s; constructor|exact Ha].
+      eapply All_F2; tea. cbn. intros x Hx. apply (Hx [] []). constructor.
+    - apply G_spec_beta; auto. apply G_s; constructor. apply (IHt [] []). constructor.
+    - apply (IHt1 (t2 :: sp) (spec_aux [] t2 :: sp')). constructor; auto.
+    - apply G_mkApps; [apply G_s; constructor|exact Ha].
+      eapply All_F2; tea. cbn. intros x Hx. apply (Hx [] []). constructor.
+    - destruct p as [ind npar].
+      assert (Hd : G t (spec_aux [] t)) by (apply (IHt [] []); constructor).
+      assert (Hb : brs_rel G l (map (on_snd (spec_aux [])) l)).
+      { eapply All_F2; tea. cbn. intros x Hx. split; auto. apply (Hx [] []). constructor. }
+      apply G_mkApps; [|exact Ha].
+      destruct (spec_aux [] t); try (apply G_s; constructor; auto; fail).
+      destruct nth_error eqn:hn; try (apply G_s; constructor; auto; fail).
+      destruct (Nat.eqb _ _) eqn:he; [apply Nat.eqb_eq in he|]; try (apply G_s; constructor; auto; fail).
+      apply G_s. eapply Gs_iota; eauto.
+    - apply G_mkApps; [apply G_s; constructor|exact Ha].
+      eapply All_F2; tea. cbn. intros x Hx. repeat split; auto. apply (Hx [] []). constructor.
+    - apply G_mkApps; [apply G_s; constructor|exact Ha].
+      eapply All_F2; tea. cbn. intros x Hx. repeat split; auto. apply (Hx [] []). constructor.
+    - apply G_mkApps; [|exact Ha].
+      destruct p as [? []]; try (apply G_s; constructor; fail). depelim X. destruct p as [Hd Hv].
+      destruct a; cbn in *. apply G_s; constructor.
+      + apply (Hd [] []). constructor.
+      + eapply All_F2; tea. cbn. intros y Hy. apply (Hy [] []). constructor.
+  Qed.
+
+  Lemma G_specialize t : G t (specialize_instances t).
+  Proof. apply (G_spec_aux t [] []). constructor. Qed.
+
+End Static.
+
+
+(** ** Redirection is a [G]-stage *)
+
+Lemma list_eqb_eq (l1 l2 : list term) : list_eqb (fun a b => eqb a b) l1 l2 -> l1 = l2.
+Proof.
+  induction l1 in l2 |- *; destruct l2; cbn; try easy.
+  move/andP => [h1 h2]. f_equal; auto. now destruct (eqb_spec a t).
+Qed.
+
+Lemma eqb_key_eq k1 k2 : eqb_key k1 k2 -> k1 = k2.
+Proof.
+  destruct k1 as [n1 l1], k2 as [n2 l2]; unfold eqb_key; cbn. move/andP => [h1 h2].
+  f_equal; [now destruct (eqb_spec n1 n2)|now apply list_eqb_eq].
+Qed.
+
+Lemma lookup_spec_In_key seen k fn : lookup_spec seen k = Some fn -> In (k, fn) seen.
+Proof.
+  unfold lookup_spec. destruct find as [[k' fn']|] eqn:hf => //. intros [= <-].
+  apply find_some in hf as [hin he]. cbn in he. apply eqb_key_eq in he. now subst.
+Qed.
+
+Lemma mkApps_eq_nonapp t sp u : ~~ isApp u -> mkApps t sp = u -> sp = [] /\ t = u.
+Proof.
+  destruct sp using rev_case; cbn; auto. rewrite mkApps_app. cbn. intros h <-. discriminate h.
+Qed.
+
+Lemma redirect_const_inv Σ seen c : ~ In c (map snd seen) ->
+  forall t sp, redirect Σ seen sp t = tConst c -> sp = [] /\ t = tConst c.
+Proof.
+  intros hc. induction t using term_forall_list_ind; intros sp; cbn [redirect spec_map_subterms];
+    try (intros h; apply mkApps_eq_nonapp in h as [-> h] => //; fail).
+  - intros h. apply IHt1 in h as [h _]. discriminate.
+  - destruct mk_key as [[key rest]|]; [destruct lookup_spec eqn:hl|]; intros h;
+      apply mkApps_eq_nonapp in h as [-> h] => //.
+    noconf h. apply lookup_spec_In in hl. contradiction.
+Qed.
+
+Lemma prefix_elt_closed Σ t r : prefix_elt Σ t = Some r -> closedn 0 t.
+Proof.
+  unfold prefix_elt, dict_value. destruct t => //.
+  destruct (closedn 0 (tConstruct _ _ _)) eqn:h => //. now rewrite andb_false_r.
+Qed.
+
+Lemma split_dicts_spec Σ sp :
+  exists pre, sp = pre ++ (split_dicts Σ sp).2 /\
+    Forall2 (fun a d => exists isd, prefix_elt Σ a = Some (isd, d)) pre (split_dicts Σ sp).1.2.
+Proof.
+  induction sp as [|a sp IH]; cbn.
+  - exists []; split; auto.
+  - destruct (prefix_elt Σ a) as [[isd v]|] eqn:hp.
+    + destruct IH as [pre [h1 h2]]. destruct (split_dicts Σ sp) as [[d' ds] rr]. cbn in *.
+      exists (a :: pre). split; [cbn; f_equal; exact h1|constructor; eauto].
+    + exists []. split; auto.
+Qed.
+
+Lemma split_dicts_saw Σ sp : (split_dicts Σ sp).1.1 = true -> (split_dicts Σ sp).1.2 <> [].
+Proof.
+  destruct sp; cbn; [discriminate|].
+  destruct prefix_elt as [[isd v]|]; [|discriminate].
+  destruct split_dicts as [[? ?] ?]; cbn. discriminate.
+Qed.
+
+Lemma forallb_map_inv {A} (P : A -> Type) (q q' : A -> bool) g l :
+  All P l -> (forall x, P x -> q' (g x) -> q x) -> forallb q' (map g l) -> forallb q l.
+Proof.
+  induction 1; cbn; auto. intros h. move/andP => [h1 h2]. apply/andP; split; auto.
+Qed.
+
+Lemma redirect_closed_inv Σ seen t :
+  forall k sp sp', Forall2 (fun a a' => closedn k a' -> closedn k a) sp sp' ->
+  closedn k (redirect Σ seen sp' t) -> closedn k (mkApps t sp).
+Proof.
+  assert (hsp : forall k sp sp', Forall2 (fun a a' => closedn k a' -> closedn k a) sp sp' ->
+            forallb (closedn k) sp' -> forallb (closedn k) sp).
+  { induction 1; cbn; auto. move/andP => [h1 h2]. apply/andP; split; auto. }
+  induction t using term_forall_list_ind; intros k sp sp' Hsp; cbn [redirect spec_map_subterms].
+  all: try (pose proof (fun k => IHt k [] [] (Forall2_nil _)) as IH0; cbn in IH0).
+  all: try (pose proof (fun k => IHt1 k [] [] (Forall2_nil _)) as IH1; cbn in IH1).
+  all: try (pose proof (fun k => IHt2 k [] [] (Forall2_nil _)) as IH2; cbn in IH2).
+  7:{ (* tApp *) intros h. apply (IHt1 k (t2 :: sp)) in h; auto. }
+  7:{ (* tConst *)
+      destruct mk_key as [[key rest]|] eqn:hk; [destruct lookup_spec eqn:hl|];
+      rewrite !closedn_mkApps; cbn; try (now apply hsp).
+      intros h. eapply hsp; tea.
+      unfold mk_key in hk. destruct callee_body => //.
+      destruct (split_dicts_spec Σ sp') as [pre [h1 h2]].
+      destruct (split_dicts Σ sp') as [[d ds] rr]. destruct d => //. noconf hk. cbn in *.
+      rewrite h1 forallb_app h andb_true_r.
+      clear -h2. induction h2; cbn; auto. destruct H as [isd H].
+      apply prefix_elt_closed in H. rewrite IHh2 andb_true_r.
+      eapply closed_upwards; tea. lia. }
+  all: rewrite !closedn_mkApps; move/andP => [hh hs]; apply/andP; split; [|now eapply hsp].
+  all: clear hs Hsp; cbn in hh |- *; rewrite ?length_map in hh; rtoProp; intuition eauto.
+  all: try (match goal with X : All _ ?l, h : is_true (forallb _ (map _ ?l)) |- _ =>
+         revert h; apply forallb_map_inv with (1 := X); cbn; intros x Hx;
+         (try unfold test_def); cbn; apply (Hx _ [] [] (Forall2_nil _)) end).
+  destruct p as [? []]; cbn in *; auto. depelim X. destruct p as [Hd Hv].
+  destruct a; cbn in *. unfold test_array_model in *; cbn in *.
+  move/andP: hh => [h1 h2]. apply/andP; split; [now apply (Hd _ [] [] (Forall2_nil _))|].
+  revert h2; apply forallb_map_inv with (1 := Hv); cbn; intros y Hy.
+  apply (Hy _ [] [] (Forall2_nil _)).
+Qed.
+
+Lemma Forall_F2 {A} (P : A -> Prop) (R : A -> A -> Prop) g l :
+  Forall P l -> (forall x, P x -> R x (g x)) -> Forall2 R l (map g l).
+Proof. induction 1; cbn; constructor; auto. Qed.
+
+Lemma All_F2_cond {A} (P : A -> Type) (Q : A -> bool) (R : A -> A -> Prop) g l :
+  All P l -> forallb Q l -> (forall x, P x -> Q x -> R x (g x)) -> Forall2 R l (map g l).
+Proof.
+  induction 1; cbn; [constructor|]. move/andP => [h1 h2] h. constructor; auto.
+Qed.
+
+Section Redirect.
+  Context {efl : EEnvFlags}.
+  Context (Σ Σs : global_declarations) (seen : list (dkey × kername)).
+  Context (Σa Σb : global_declarations).
+  Notation G := (G Σa Σb).
+  Notation rd := (redirect Σ seen []).
+
+  Hypothesis Hseen : forall k fn, In (k, fn) seen ->
+    lookup_env Σ fn = None /\
+    exists decl, declared_constant Σb fn decl /\ cst_body decl = Some (mkApps (tConst k.1) k.2).
+  Hypothesis Hraw : forall c d, lookup_env Σs c = Some d ->
+    lookup_env Σ c = Some d /\ lookup_env Σa c = Some d.
+
+  Lemma G_prefix_elt k a isd d :
+    wellformed Σs k a -> G a (rd a) -> prefix_elt Σ (rd a) = Some (isd, d) ->
+    G a d /\ closedn 0 a.
+  Proof.
+    intros hw hG hp. split.
+    2:{ apply prefix_elt_closed in hp.
+        apply (redirect_closed_inv Σ seen a 0 [] [] (Forall2_nil _) hp). }
+    unfold prefix_elt in hp. destruct (dict_value Σ (rd a)) as [d0|] eqn:hd.
+    - noconf hp. unfold dict_value in hd. destruct (rd a) eqn:ha => //.
+      + destruct (lookup_constant Σ k0) as [cb|] eqn:hl => //.
+        destruct (cst_body cb) as [[]|] eqn:hb => //.
+        destruct (_ && _) eqn:hc => //. noconf hd.
+        move/andP: hc => [_ hc].
+        assert (hnin : ~ In k0 (map snd seen)).
+        { intros hin. apply in_map_iff in hin as [[key fn] [<- hin]].
+          apply Hseen in hin as [hin _]. unfold lookup_constant in hl. cbn in hl.
+          now rewrite hin in hl. }
+        apply (redirect_const_inv _ _ _ hnin) in ha as [_ ->].
+        simpl in hw. move/andP: hw => [_ hw].
+        unfold lookup_constant in hw, hl.
+        destruct (lookup_env Σs k0) as [dd|] eqn:hls => //.
+        apply Hraw in hls as [h1 h2]. rewrite h1 in hl. destruct dd => //. noconf hl.
+        apply G_s. eapply Gs_unfold; [exact h2|exact hb|exact hc|apply G_refl].
+      + destruct (_ && _) => //. now noconf hd.
+    - destruct (rd a) eqn:ha => //. now noconf hp.
+  Qed.
+
+  Lemma G_prefix sp1 : forall k ds,
+    Forall (fun a => wellformed Σs k a /\ G a (rd a)) sp1 ->
+    Forall2 (fun a d => exists isd, prefix_elt Σ a = Some (isd, d)) (map rd sp1) ds ->
+    Forall2 G sp1 ds /\ forallb (closedn 0) sp1.
+  Proof.
+    induction sp1; intros k ds hf h2; cbn in h2.
+    - inversion h2; subst. split; auto.
+    - inversion h2 as [|? ? ? ? [isd hp] h2']; subst.
+      inversion hf as [|? ? [hw hg] hf']; subst.
+      destruct (G_prefix_elt _ _ _ _ hw hg hp) as [h1 hc].
+      destruct (IHsp1 _ _ hf' h2') as [h3 h4]. split; [constructor; auto|].
+      cbn. now rewrite hc h4.
+  Qed.
+
+  Lemma G_redirect t : forall k sp, wellformed Σs k t ->
+    Forall (fun a => wellformed Σs k a /\ G a (rd a)) sp ->
+    G (mkApps t sp) (redirect Σ seen (map rd sp) t).
+  Proof.
+    assert (hsp : forall k sp, Forall (fun a => wellformed Σs k a /\ G a (rd a)) sp ->
+              Forall2 G sp (map rd sp)).
+    { intros k sp h. eapply Forall_F2; tea. now intros x [_ h']. }
+    induction t using term_forall_list_ind; intros k sp hw Hsp; cbn [redirect spec_map_subterms].
+    all: try (pose proof (fun k h => IHt k [] h (Forall_nil _)) as IH0; cbn in IH0).
+    all: try (pose proof (fun k h => IHt1 k [] h (Forall_nil _)) as IH1; cbn in IH1).
+    all: try (pose proof (fun k h => IHt2 k [] h (Forall_nil _)) as IH2; cbn in IH2).
+    7:{ (* tApp *) simpl in hw. move/andP: hw => [/andP [happ h1] h2].
+        apply (IHt1 k (t2 :: sp)); [exact h1|]. constructor; [split; [exact h2|exact (IH2 k h2)]|exact Hsp]. }
+    7:{ (* tConst *)
+        destruct mk_key as [[key rest]|] eqn:hk; [destruct lookup_spec eqn:hl|];
+          try (apply G_mkApps; [apply G_refl|now eapply hsp]).
+        unfold mk_key in hk. destruct callee_body => //.
+        destruct (split_dicts_spec Σ (map rd sp)) as [pre [h1 h2]].
+        destruct (split_dicts Σ (map rd sp)) as [[d ds] rr]. destruct d => //. noconf hk.
+        cbn in h1, h2.
+        apply map_eq_app in h1 as (sp1 & sp2 & -> & <- & <-).
+        apply Forall_app in Hsp as [Hsp1 Hsp2].
+        destruct (G_prefix _ _ _ Hsp1 h2) as [hg hc].
+        rewrite mkApps_app. apply G_mkApps; [|now eapply hsp].
+        apply lookup_spec_In_key in hl. destruct (Hseen _ _ hl) as [hfr [decl [hd hb]]].
+        eapply G_fold; [exact hd|exact hb| |].
+        - rewrite closedn_mkApps. cbn. exact hc.
+        - apply G_mkApps; [apply G_refl|exact hg]. }
+    all: apply G_mkApps; [|now eapply hsp].
+    all: clear Hsp hsp; simpl in hw; rtoProp.
+    all: try (apply G_s; constructor; eauto; fail).
+    - apply G_s; constructor. eapply All_F2_cond; [exact X|exact H0|].
+      cbn; intros x Hx hx. exact (Hx k [] hx (Forall_nil _)).
+    - assert (ha : forallb (wellformed Σs k) args).
+      { destruct cstr_as_blocks; [now move/andP: H0 => [_ h]|now destruct args]. }
+      apply G_s; constructor. eapply All_F2_cond; [exact X|exact ha|].
+      cbn; intros x Hx hx. exact (Hx k [] hx (Forall_nil _)).
+    - apply G_s; constructor; [exact (IH0 k H2)|].
+      eapply All_F2_cond; [exact X|exact H1|].
+      cbn; intros x Hx hx. split; auto. exact (Hx _ [] hx (Forall_nil _)).
+    - unfold wf_fix_gen in H0. move/andP: H0 => [_ h].
+      apply G_s; constructor. eapply All_F2_cond; [exact X|exact h|].
+      cbn; intros x Hx hx. repeat split; auto. exact (Hx _ [] hx (Forall_nil _)).
+    - unfold wf_fix_gen in H0. move/andP: H0 => [_ h].
+      apply G_s; constructor. eapply All_F2_cond; [exact X|exact h|].
+      cbn; intros x Hx hx. repeat split; auto. exact (Hx _ [] hx (Forall_nil _)).
+    - destruct p as [? []]; try (apply G_s; constructor; fail).
+      depelim X. destruct p as [Hd Hv]. destruct a; cbn in *.
+      unfold test_array_model in H0; cbn in H0. move/andP: H0 => [h1 h2].
+      apply G_s; constructor; [exact (Hd k [] h1 (Forall_nil _))|].
+      eapply All_F2_cond; [exact Hv|exact h2|].
+      cbn; intros y Hy hy. exact (Hy k [] hy (Forall_nil _)).
+  Qed.
+
+  Lemma G_redirect0 k t : wellformed Σs k t -> G t (rd t).
+  Proof. intros h. exact (G_redirect t k [] h (Forall_nil _)). Qed.
+
+End Redirect.
+
+
 (** Termination only, at the flags of the pipeline. *)
 Axiom trust_specialize_instances_terminates :
   forall (p : Transform.program _ term) (v : term),
