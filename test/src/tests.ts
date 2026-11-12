@@ -38,7 +38,14 @@ export var test_configurations: TestConfiguration[] = [
     // The lowering of cofixpoints, a no-op on the programs without them
     [Lang.OCaml, "cofix", "--lower-cofix true"],
     [Lang.C, "cofix", "--lower-cofix true"],
-    [Lang.Wasm, "cofix", "--lower-cofix true"]
+    [Lang.Wasm, "cofix", "--lower-cofix true"],
+    // The unverified lambda-box simplifications, which the typed pipeline runs
+    // too; Rust-lbox shares the expected failures of Rust
+    [Lang.Rust, "lbox", "--lbox-opts"],
+    // Everything the PR adds, as Rocq's extraction does: recursor inlining,
+    // beta reduction, the simplifications and constant lifting
+    [Lang.OCaml, "lbox", "--inline-recursors --betared true --lbox-opts --lift-constants"],
+    [Lang.C, "lbox", "--inline-recursors --betared true --lbox-opts --lift-constants"]
 ];
 
 // The expected outputs of an Agda program that computes the natural number n,
@@ -90,13 +97,13 @@ const remap_attributes: TestCase["attributes"] = {
 // Known failures shared by several tests, by configuration
 const on = (configs: string[], reason: string) => Object.fromEntries(configs.map((c) => [c, reason]));
 const elm = (reason: string) => on(["Elm", "Elm-untyped"], reason);
-const rust = (reason: string) => on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"], reason);
+const rust = (reason: string) => on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"], reason);
 const elm_operator = elm("#79: Elm prints the names of operators and of other symbols ([], _∷_, ×, ℕ) with a leading underscore, which Elm rejects");
 const elm_ctor_clash = elm("#99: Elm prints the constructors of different types under the same name");
 const elm_module_clash = elm("#94: the Elm module is named after the file, which clashes with a module of the Elm core or test library");
-const rust_fn_fields = on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"],
+const rust_fn_fields = on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"],
     "#79: Debug and Serialize are derived for every type, which fails on the function-typed fields of the record (E0277)");
-const lean_untyped = on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Koka-typed"],
+const lean_untyped = on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox", "Koka-typed"],
     "peregrine-project/lean-to-lambdabox#21: the Lean frontend has no typed output, so a Lean program has no typed source");
 const lean_name_clash = on(["Lean", "FSharp-experimental", "Koka-experimental"],
     "#93, #99: two definitions whose module paths differ only in their last component (where-modules, record modules) get the same name: agda2lambox writes module paths outermost first, and the backend keeps only one component");
@@ -261,7 +268,7 @@ var agda_tests: TestCase[] =
             // The type of the result of eval depends on the type of the term
             rejected: true,
             xfail: {
-                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#127: the branches of eval have different types (the type of the value is indexed by the type of the term), and the Rust printer has no cast (E0308)"),
+                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"], "#127: the branches of eval have different types (the type of the value is indexed by the type of the term), and the Rust printer has no cast (E0308)"),
                 "Elm": "#79: Elm prints the type name ∋ as __UU00220b_, which Elm rejects",
                 "Koka-typed": "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express"
             },
@@ -376,6 +383,7 @@ var rocq_tests: TestCase[] =
             tsrc: "rocq/extraction/Classy_typed.ast",
             xfail: {
                 "Rust": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the records",
+                "Rust-lbox": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the records",
                 "Rust-verb": "#79: the rust verb derives Debug for every type, which fails on the function-typed fields of the records",
                 "Rust-i64": "#79: the rust-i64 verb derives Debug for every type, which fails on the function-typed fields of the records",
                 "Rust-hybrid": "#79: the rust-hybrid verb derives Debug for every type, which fails on the function-typed fields of the records",
@@ -394,7 +402,10 @@ var rocq_tests: TestCase[] =
             main: "Closure_test",
             output_type: SimpleType.Nat,
             expected_output: ["(S (S (S (S (S O)))))", "(S () (S () (S () (S () (S () (O))))))", "S (S (S (S (S O))))"],
-            parameters: []
+            parameters: [],
+            xfail: {
+                "Rust-lbox": "#127: after fixpoint eta-hoisting, walk returns a closure that captures d : A, and the Rust printer does not bound A by the lifetime of the closure (E0309)"
+            }
         },
         {
             src: "rocq/extraction/CoStream.ast",
@@ -411,7 +422,7 @@ var rocq_tests: TestCase[] =
             rust_i64_output: "(cons () 0 (cons () 1 (cons () 0 (cons () 1 (nil)))))",
             rejected: "#125: the Rust and Elm printers do not support cofixpoints, so neither does type inference",
             xfail: {
-                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)"),
+                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)"),
                 "Koka-typed": "#125: the typed Koka printer does not support cofixpoints"
             }
         },
@@ -429,7 +440,7 @@ var rocq_tests: TestCase[] =
             rust_i64_output: "(cons () 1 (cons () 0 (nil)))",
             rejected: "#125: the Rust and Elm printers do not support primitive values, so neither does type inference",
             xfail: {
-                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
+                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
                 "Koka-typed": "#125: the typed Koka printer does not support primitive values",
                 "WebAssembly": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cps": "#125: the Wasm backend does not support primitive strings",
@@ -489,6 +500,33 @@ var rocq_tests: TestCase[] =
                 "(S (S (S (S (S (S (S (S O))))))))",
                 "(S () (S () (S () (S () (S () (S () (S () (S () (O)))))))))",
                 "S (S (S (S (S (S (S (S O)))))))"
+            ],
+            parameters: []
+        },
+        {
+            // --lbox-case-id must not identify a box with a field
+            src: "rocq/extraction/CaseId.ast",
+            tsrc: "rocq/extraction/CaseId_typed.ast",
+            rust_i64_output: "1",
+            main: "CaseId_test",
+            output_type: SimpleType.Nat,
+            expected_output: ["(S O)", "(S () (O))", "S O"],
+            // f builds Some with an erased proof (box) as its field, test
+            // applies it to Some 5
+            rejected: "#79: type inference cannot unify the type of Some applied to a box (in f) with Some applied to a nat (in test)",
+            parameters: []
+        },
+        {
+            // --lbox-opts drops a dead parameter before the structural one
+            src: "rocq/extraction/FixEtaRarg.ast",
+            tsrc: "rocq/extraction/FixEtaRarg_typed.ast",
+            rust_i64_output: "7",
+            main: "FixEtaRarg_test",
+            output_type: SimpleType.Nat,
+            expected_output: [
+                "(S (S (S (S (S (S (S O)))))))",
+                "(S () (S () (S () (S () (S () (S () (S () (O))))))))",
+                "S (S (S (S (S (S (S O))))))"
             ],
             parameters: []
         },
@@ -575,6 +613,7 @@ var rocq_tests: TestCase[] =
             tsrc: "rocq/extraction/Phantom_typed.ast",
             xfail: {
                 "Rust": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
+                "Rust-lbox": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
                 "Rust-verb": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
                 "Rust-i64": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
                 "Rust-hybrid": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)"
@@ -593,7 +632,7 @@ var rocq_tests: TestCase[] =
             // extraction generalises the let, the type inference does not
             rejected: "#79: the type inference does not generalise let-bound definitions",
             xfail: {
-                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#127: the Rust printer binds the polymorphic id with a let, as a closure of a single type, so its uses at bool and at nat do not type-check (E0308)"),
+                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"], "#127: the Rust printer binds the polymorphic id with a let, as a closure of a single type, so its uses at bool and at nat do not type-check (E0308)"),
                 "Koka-typed": "#138: the typed Koka printer binds the polymorphic id with a val, which Koka does not generalise"
             },
             main: "PolyLet_test",

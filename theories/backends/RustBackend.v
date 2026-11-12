@@ -33,6 +33,7 @@ Definition rust_phases := {|
   dearg_consts_c   := Compatible true;
   specialize_instances_c := Compatible false;
   cse_c            := Compatible false;
+  lift_constants_c := Compatible false;
 |}.
 
 

@@ -25,7 +25,43 @@ let copts_t =
     let doc = "Attribute config files." in
     Arg.(value & opt (list file) [] & info ["attributes"] ~docs ~doc)
   in
-  Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg)
+  let inline_recursors_arg =
+    let doc = "Inline the recursors of the program: every constant \
+               $(i,I)_rect or $(i,I)_rec whose inductive $(i,I) is declared \
+               in the same module is added to the inlinings, exactly as if \
+               an attribute file listed it (see --attributes). Rocq's own \
+               extraction always does this. Combine with --betared=true to \
+               reduce the inlined recursors to direct recursion. Off by \
+               default; ignored by $(b,erase) and $(b,validate)." in
+    Arg.(value & flag & info ["inline-recursors"] ~docs ~doc)
+  in
+  let lbox_opts_arg =
+    let doc = "Enable all lambda-box simplifications of ELboxOpts.v: fixpoint \
+               eta-hoisting, case/function permutation, identity cases and \
+               let/function permutation, i.e. what Rocq's extraction does in \
+               Mlutil. They run after inlining and beta reduction, for every \
+               backend. UNVERIFIED: their correctness is assumed by the axioms \
+               trust_case_id_wf/trust_case_id_pres (identity cases) and \
+               trust_lbox_opts_wf/trust_lbox_opts_pres (the other three). \
+               Off by default; each \
+               pass can be overridden individually with the --lbox-* options." in
+    Arg.(value & flag & info ["lbox-opts"] ~docs ~doc)
+  in
+  let lbox_pass_arg name what =
+    let doc = Printf.sprintf "%s (unverified lambda-box pass, see --lbox-opts). \
+                              Defaults to on with --lbox-opts and off without it." what in
+    Arg.(value & opt (some bool) None & info [name] ~docs ~docv:"BOOL" ~doc)
+  in
+  let lbox_fix_eta_arg = lbox_pass_arg "lbox-fix-eta"
+      "Fixpoint eta-hoisting: (fun xs => (fix F ..) xs) becomes the fixpoint" in
+  let lbox_case_fun_arg = lbox_pass_arg "lbox-case-fun"
+      "Case/function permutation: match x with C => fun y => e becomes fun y => match x with C => e" in
+  let lbox_case_id_arg = lbox_pass_arg "lbox-case-id"
+      "Identity cases: match e with C xs => C xs becomes e" in
+  let lbox_let_fun_arg = lbox_pass_arg "lbox-let-fun"
+      "Let/function permutation and applied lets: let z := a in fun y => e becomes fun y => let z := a in e, (let z := a in f) b becomes let z := a in f b" in
+  Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg $ inline_recursors_arg
+        $ lbox_opts_arg $ lbox_fix_eta_arg $ lbox_case_fun_arg $ lbox_case_id_arg $ lbox_let_fun_arg)
 
 let certirocq_opts_t =
   let cps_arg =
@@ -83,7 +119,11 @@ let erasure_opts_t =
     let doc = "Translate cofixpoints, lazy and force to fixpoints and thunks. The correctness proofs of these passes are incomplete." in
     Arg.(value & opt (some bool) None & info ["lower-cofix"] ~doc)
   in
-  Term.(const mk_erasure_opts $ betared_arg $ unbox_arg $ dearg_ctors_arg $ dearg_consts_arg $ specialize_instances_arg $ cse_arg $ lower_cofix_arg)
+  let lift_constants_arg =
+    let doc = "Lift closed constructor values (e.g. nat literals) to shared global constants." in
+    Arg.(value & vflag None [Some true, info ["lift-constants"] ~doc])
+  in
+  Term.(const mk_erasure_opts $ betared_arg $ unbox_arg $ dearg_ctors_arg $ dearg_consts_arg $ specialize_instances_arg $ cse_arg $ lower_cofix_arg $ lift_constants_arg)
 
 let s_frontend = "FRONTEND OPTIONS"
 

@@ -177,7 +177,7 @@ These options apply to every command.
 
 ## Middle-end passes
 
-The backend commands (not `compile`, `validate` or `erase`) take these flags, which switch optional passes of the middle-end. Each takes `true` or `false`. Without the flag, the backend's default applies. The defaults are in the tables of [middleend.md](middleend.md#transformation-support-untyped-target-ast). A backend that requires a pass, or cannot run it, ignores the flag.
+The backend commands (not `compile`, `validate` or `erase`) take these flags, which switch optional passes of the middle-end. Each takes `true` or `false` (`--cse true` or `--cse=true`), except `--lift-constants`, a plain switch that takes no value. Without the flag, the backend's default applies. The defaults are in the tables of [middleend.md](middleend.md#transformation-support-untyped-target-ast). A backend that requires a pass, or cannot run it, ignores the flag.
 
 | Flag | Pass |
 |------|------|
@@ -187,10 +187,13 @@ The backend commands (not `compile`, `validate` or `erase`) take these flags, wh
 | `--dearg-consts` | trim the masks of dead constant arguments |
 | `--specialize-instances` | specialize functions at the call sites that pass a statically known dictionary (record) value |
 | `--cse` | bind closed subterms that occur more than once with a `let` |
+| `--lift-constants` | lift closed constructor values (for example unary `nat` literals `S (S (… O))`) out of function bodies into shared global constants |
 | `--lower-cofix` | translate cofixpoints, `lazy` and `force` to fixpoints and thunks |
 
 * Dearging removes dead constructor and constant arguments whenever MetaRocq's precondition holds; the two flags do not switch it. `--dearg-consts` drops the kept arguments at the end of a constant's mask. `--dearg-ctors` used to do the same for constructors, but MetaRocq rejects a trimmed constructor mask, and dearging was then skipped for the whole program, so constructor masks are never trimmed.
-* `--specialize-instances` and `--cse` are off by default and act only on the untyped targets. The typed pipeline of `rust` and `elm` does not run them. Their correctness rests on axioms ([middleend.md](middleend.md#optional-passes)).
+* `--specialize-instances`, `--cse` and `--lift-constants` are off by default and act only on the untyped targets. The typed pipeline of `rust` and `elm` does not run them. `--lift-constants` helps the backends that rebuild a constant value at every evaluation (C, Wasm, CakeML, Lean). Their correctness rests on axioms ([middleend.md](middleend.md#optional-passes)).
+* `--inline-recursors` (off by default; a plain switch, it takes no value) adds the program's recursors to the inlinings: every constant `I_rect` or `I_rec` whose inductive `I` is declared in the same module, exactly as if an attribute file listed it. Rocq's own extraction always does this; with `--betared=true` the inlined recursors become direct pattern matching and recursion ([RecursorInlining.v](/theories/RecursorInlining.v)). The inlining pass is MetaRocq's verified `EInlining`. The typed pipeline of `rust` and `elm` does not inline. Unlike the flags in the table, it is a common option: `compile` takes it too, `erase` and `validate` ignore it.
+* `--lbox-opts` (off by default) enables four $\lambda_\square$ simplifications that Rocq's extraction performs (`Mlutil`), for every backend: identity cases (`--lbox-case-id`: `match e with C xs => C xs` becomes `e`), fixpoint eta-hoisting (`--lbox-fix-eta`: `fun xs => (fix F ..) xs` becomes the fixpoint, dead $\square$ parameters are dropped), case/function permutation (`--lbox-case-fun`: `match x with C => fun y => e` becomes `fun y => match x with C => e` for a variable `x`) and let/function permutation with applied lets (`--lbox-let-fun`). Each per-pass flag takes a value (`--lbox-case-id false`, like `--cse true`) and overrides `--lbox-opts` for its pass. They run after inlining and beta reduction, so they are most useful with `--inline-recursors --betared=true`. Their correctness is assumed by axioms ([middleend.md](middleend.md#optional-passes)). Like `--inline-recursors`, they are common options taken by `compile` too.
 * `--lower-cofix` uses two passes whose evaluation-preservation proofs are admitted. Without it, `c`, `wasm`, `llvm`, `ocaml`, `cakeml` and `eval` reject a program that still has cofixpoints, `lazy` or `force` after the middle-end. `lean`, `fsharp` and `koka` always run these passes.
 
 
