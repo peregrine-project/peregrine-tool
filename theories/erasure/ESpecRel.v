@@ -651,3 +651,94 @@ Section Sim.
       lft. eexists; split; [|eassumption]. sq. eapply eval_force; tea.
   Qed.
 End Sim.
+
+(** ** Whole-program stages and chains *)
+
+Lemma G_simulation Σ Σ' :
+  closed_env Σ -> closed_env Σ' ->
+  (forall kn, lookup_minductive Σ kn = lookup_minductive Σ' kn) ->
+  (forall c decl b, declared_constant Σ c decl -> cst_body decl = Some b ->
+     exists decl' b', declared_constant Σ' c decl' /\ cst_body decl' = Some b' /\ G Σ Σ' b b') ->
+  forall t u v, closedn 0 t -> G Σ Σ' t u -> eval Σ t v ->
+  exists v', ∥ eval Σ' u v' ∥ /\ Gv Σ Σ' v v'.
+Proof.
+  intros cl cl' Hind Hcst t u v Hc HG ev.
+  eapply (sim_lift Σ Σ' t v ev); eauto.
+  eapply G_simulation_s; eauto.
+Qed.
+
+Definition gstage (p p' : program) : Prop :=
+  [/\ closed_env p.1, closed_env p'.1,
+      (forall kn, lookup_minductive p.1 kn = lookup_minductive p'.1 kn),
+      (forall c decl b, declared_constant p.1 c decl -> cst_body decl = Some b ->
+         exists decl' b', declared_constant p'.1 c decl' /\ cst_body decl' = Some b' /\ G p.1 p'.1 b b'),
+      closedn 0 p.2 & G p.1 p'.1 p.2 p'.2].
+
+Inductive gstages : program -> program -> Prop :=
+| gstages_refl p : gstages p p
+| gstages_step p p' p'' : gstage p p' -> gstages p' p'' -> gstages p p''.
+
+Lemma gstages_trans p p' p'' : gstages p p' -> gstages p' p'' -> gstages p p''.
+Proof. induction 1; auto. intros. econstructor; eauto. Qed.
+
+Lemma gstages_one p p' : gstage p p' -> gstages p p'.
+Proof. intros. econstructor; eauto. constructor. Qed.
+
+(** The relation between the values of the two ends of a chain of stages:
+    a chain of [Gv] steps, one per stage. *)
+Inductive gchain : program -> program -> term -> term -> Prop :=
+| gchain_refl p v : gchain p p v v
+| gchain_step p p' p'' v v' v'' :
+    gstage p p' -> Gv p.1 p'.1 v v' -> gchain p' p'' v' v'' -> gchain p p'' v v''.
+
+Theorem gstages_eval p p' : gstages p p' ->
+  forall v, ∥ eval p.1 p.2 v ∥ -> exists v', ∥ eval p'.1 p'.2 v' ∥ /\ gchain p p' v v'.
+Proof.
+  induction 1 as [p | p p' p'' Hst Hsts IH]; intros v [ev].
+  - exists v. split; [now sq | constructor].
+  - destruct Hst as [cl cl' Hind Hcst Hc HG].
+    destruct (G_simulation _ _ cl cl' Hind Hcst _ _ _ Hc HG ev) as (v' & ev' & Hv).
+    destruct (IH _ ev') as (v'' & ev'' & Hch).
+    exists v''. split; auto. econstructor; eauto. split; auto.
+Qed.
+
+(** *** Changing the body of one constant *)
+
+Lemma lookup_env_mid pre kn d d' lo c x :
+  lookup_env (pre ++ (kn, d) :: lo) c = Some x ->
+  lookup_env (pre ++ (kn, d') :: lo) c = Some x \/
+  (x = d /\ lookup_env (pre ++ (kn, d') :: lo) c = Some d').
+Proof.
+  induction pre as [|[kn' d0] pre IH]; cbn.
+  - destruct (eqb_spec c kn); [intros [= <-]; right; auto | intros; left; auto].
+  - destruct (eqb_spec c kn'); [intros; left; auto | auto].
+Qed.
+
+Lemma closed_env_app Σ1 Σ2 : closed_env (Σ1 ++ Σ2) = closed_env Σ1 && closed_env Σ2.
+Proof. unfold closed_env. now rewrite forallb_app. Qed.
+
+Lemma gstage_one pre lo kn B B' t :
+  let Σa := pre ++ (kn, ConstantDecl {| cst_body := Some B |}) :: lo in
+  let Σb := pre ++ (kn, ConstantDecl {| cst_body := Some B' |}) :: lo in
+  closed_env Σa -> closedn 0 t -> G Σa Σb B B' -> gstage (Σa, t) (Σb, t).
+Proof.
+  intros Σa Σb cl Hc HG.
+  have clB : closedn 0 B.
+  { subst Σa. rewrite closed_env_app in cl. move/andP: cl => [_ cl]. cbn in cl. now move/andP: cl => [cl _]. }
+  have clB' := G_closed _ _ _ _ _ clB HG.
+  split; cbn [fst snd]; auto.
+  - subst Σa Σb. rewrite closed_env_app in cl. rewrite closed_env_app.
+    move/andP: cl => [cl1 cl2]. rewrite cl1. cbn in cl2 |- *.
+    move/andP: cl2 => [_ cl2]. now rewrite clB' cl2.
+  - intros c. unfold lookup_minductive. subst Σa Σb.
+    destruct (lookup_env (pre ++ (kn, ConstantDecl {| cst_body := Some B |}) :: lo) c) eqn:E.
+    + destruct (lookup_env_mid _ _ _ (ConstantDecl {| cst_body := Some B' |}) _ _ _ E) as [-> | [-> ->]]; reflexivity.
+    + destruct (lookup_env (pre ++ (kn, ConstantDecl {| cst_body := Some B' |}) :: lo) c) eqn:E'; auto.
+      destruct (lookup_env_mid _ _ _ (ConstantDecl {| cst_body := Some B |}) _ _ _ E') as [E2 | [-> E2]];
+        rewrite E in E2; discriminate.
+  - intros c decl b Hd Hb. unfold declared_constant in *.
+    destruct (lookup_env_mid _ _ _ (ConstantDecl {| cst_body := Some B' |}) _ _ _ Hd) as [E | [[= ->] E]].
+    + exists decl, b. repeat split; auto. apply G_refl.
+    + cbn in Hb. injection Hb as <-. eexists _, B'. repeat split; eauto.
+  - apply G_refl.
+Qed.
