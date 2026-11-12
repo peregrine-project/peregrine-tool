@@ -40,17 +40,17 @@ let copts_t =
                eta-hoisting, case/function permutation, identity cases and \
                let/function permutation, i.e. what Rocq's extraction does in \
                Mlutil. They run after inlining and beta reduction, for every \
-               backend. UNVERIFIED: well-formedness preservation is proved \
-               (ELboxOptsWf.v), but evaluation preservation is not; only \
-               termination is assumed, by the axioms \
-               trust_case_id_terminates (identity cases) and \
-               trust_lbox_opts_terminates (the other three). \
+               backend. Well-formedness preservation is proved \
+               (ELboxOptsWf.v), and so is evaluation preservation, except \
+               for fixpoint eta-hoisting: when it is enabled, termination \
+               of the optimized program is assumed, by the axiom \
+               trust_fix_eta_terminates. \
                Off by default; each \
                pass can be overridden individually with the --lbox-* options." in
     Arg.(value & flag & info ["lbox-opts"] ~docs ~doc)
   in
   let lbox_pass_arg name what =
-    let doc = Printf.sprintf "%s (unverified lambda-box pass, see --lbox-opts). \
+    let doc = Printf.sprintf "%s (lambda-box pass, see --lbox-opts). \
                               Defaults to on with --lbox-opts and off without it." what in
     Arg.(value & opt (some bool) None & info [name] ~docs ~docv:"BOOL" ~doc)
   in

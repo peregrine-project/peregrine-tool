@@ -41,16 +41,18 @@
     enabled per pass ([--lbox-fix-eta] etc.) or all together ([--lbox-opts]).
 
     ** Verification status.  Well-formedness is proved in [ELboxOptsWf]
-    (from one lemma per rewrite).  Preservation of evaluation is not: passes
-    1, 2 and 4 change the shape of the values a program evaluates to (a
-    fixpoint instead of a closure, a closure instead of a case), and every
-    pass rewrites under binders, so even for pass 3 the value of the target is
-    not [optimize] of the value of the source once it is a closure.  The
-    pipeline transformations (in [ELboxOptsWf]) therefore relate values by
-    the trivial observational equivalence and assume only termination:
-    [trust_case_id_terminates] for pass 3 and [trust_lbox_opts_terminates] for
-    passes 1, 2 and 4, stated at the flags of the pipeline stage
-    ([EExtraFlags]). *)
+    (from one lemma per rewrite).  Preservation of evaluation is proved for
+    passes 2, 3 and 4, at the flags of the pipeline stage ([EExtraFlags]): if
+    the source program evaluates to [v], the target evaluates to some [v']
+    that is [v] with some subterms rewritten.  The passes change the shape of
+    values (a closure instead of a case) and rewrite under binders, so [v']
+    is not [optimize] of [v]; the relation between them is a chain of steps
+    of the rewrite relation [R] of [ELboxOptsSim], which is shown to be a
+    forward simulation in [ELboxOptsSimEval]; [ELboxOptsSimStatic] shows that
+    the passes are such chains.  Pass 1 is not covered: for option sets that
+    enable it, the pipeline transformation (in [ELboxOptsWf]) assumes that
+    the target terminates ([trust_fix_eta_terminates]) and states nothing
+    about its value. *)
 
 From Stdlib Require Import List Bool Arith.
 From MetaRocq.Utils Require Import utils.

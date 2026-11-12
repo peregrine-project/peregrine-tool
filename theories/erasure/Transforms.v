@@ -201,13 +201,14 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
     specialize_instances_transformation ▷
   ETransform.optional_self_transform cse
     (cse_transformation efl EImplementBox.block_wcbv_flags) ▷
-  (* Unverified lambda-box simplifications (fixpoint eta-hoisting, case/function
+  (* Lambda-box simplifications (fixpoint eta-hoisting, case/function
      permutation, identity cases, let/function permutation), after inlining and
      beta reduction and before boxes are implemented (ELboxOpts.v,
      ELboxOptsWf.v).  The identity-case pass runs first, as its own
-     transformation; the other three follow.  Wellformedness is proved; only
-     termination is assumed (axioms trust_case_id_terminates /
-     trust_lbox_opts_terminates).  Off by default. *)
+     transformation; the other three follow.  Wellformedness and evaluation
+     preservation are proved, except that with fixpoint eta-hoisting enabled
+     only termination is assumed (axiom trust_fix_eta_terminates).  Off by
+     default. *)
   ETransform.optional_self_transform lbox.(lbox_case_id)
     case_id_transformation ▷
   ETransform.optional_self_transform (any_lbox_opts (without_case_id lbox))
