@@ -40,9 +40,11 @@ let copts_t =
                eta-hoisting, case/function permutation, identity cases and \
                let/function permutation, i.e. what Rocq's extraction does in \
                Mlutil. They run after inlining and beta reduction, for every \
-               backend. UNVERIFIED: their correctness is assumed by the axioms \
-               trust_case_id_wf/trust_case_id_pres (identity cases) and \
-               trust_lbox_opts_wf/trust_lbox_opts_pres (the other three). \
+               backend. UNVERIFIED: well-formedness preservation is proved \
+               (ELboxOptsWf.v), but evaluation preservation is not; only \
+               termination is assumed, by the axioms \
+               trust_case_id_terminates (identity cases) and \
+               trust_lbox_opts_terminates (the other three). \
                Off by default; each \
                pass can be overridden individually with the --lbox-* options." in
     Arg.(value & flag & info ["lbox-opts"] ~docs ~doc)
