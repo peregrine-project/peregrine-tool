@@ -195,8 +195,7 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
      elimination do not see their output, then the lifting of closed
      constructor values to shared constants.  All three are off by default.
      The semantic obligations of the first two rest on axioms
-     (EInstanceSpecialize.v: termination only, and a wellformedness axiom
-     that is false, see trust_specialize_instances_wf_FALSE;
+     (EInstanceSpecialize.v: termination only, wellformedness is proved;
      ECommonSubexpr.v); those of the lifting are proved (ELiftConstants.v). *)
   ETransform.optional_self_transform spec_inst
     specialize_instances_transformation ▷

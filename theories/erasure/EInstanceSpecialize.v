@@ -57,15 +57,17 @@
         iota-on-constructor, and [EInlining] inlines *named constants* uniformly
         rather than specializing a shared function per call site.
 
-    Verification status.  Nothing about the pass is proved.  Evaluation
-    preservation is not even claimed: the transformation relates values by
-    the trivial observational equivalence and assumes only termination of the
-    target ([trust_specialize_instances_terminates], stated at the flags of
-    the pipeline stage, [EExtraFlags]); [v' = specialize_instances v] is false
-    once the value is a closure.  Wellformedness preservation is the axiom
-    [trust_specialize_instances_wf_FALSE], which is FALSE: the generated
-    names [fresh_name nm i] are not checked for freshness, so a program that
-    already defines [f$spec0] yields an environment with a duplicate name. *)
+    Verification status.  Wellformedness preservation is proved
+    ([specialize_instances_program_wf], for any environment flags with
+    [has_tApp]): generated names are checked against the input environment
+    and the earlier generated names ([fresh_name]), specializations are
+    emitted depth first so that each one refers only to declarations below it
+    ([spec_key]), and the iota step fires only when the constructor has as
+    many arguments as the branch binds.  Evaluation preservation is not
+    claimed: the transformation relates values by the trivial observational
+    equivalence and assumes only termination of the target
+    ([trust_specialize_instances_terminates], stated at the flags of the
+    pipeline stage, [EExtraFlags]). *)
 
 From Stdlib Require Import List.
 From MetaRocq.Utils Require Import utils ReflectEq.
@@ -127,7 +129,13 @@ Section specialize.
               match nth_error brs' c with
               (* Not [iota_red]: its [substl] assumes closed arguments, and here
                  they may refer to binders around the [tCase]. *)
-              | Some br => subst (List.rev (skipn npar cargs)) 0 (snd br)
+              | Some br =>
+                  (* Only when the constructor has as many arguments as the
+                     branch binds: otherwise the substitution would capture
+                     or free variables (the case is stuck anyway). *)
+                  if Nat.eqb #|skipn npar cargs| #|fst br|
+                  then subst (List.rev (skipn npar cargs)) 0 (snd br)
+                  else tCase (ind, npar) disc' brs'
               | None => tCase (ind, npar) disc' brs'
               end
           | _ => tCase (ind, npar) disc' brs'
@@ -169,9 +177,32 @@ Fixpoint list_eqb {A} (f : A -> A -> bool) (l1 l2 : list A) : bool :=
 Definition eqb_key (k1 k2 : dkey) : bool :=
   eqb (fst k1) (fst k2) && list_eqb (fun a b => eqb a b) (snd k1) (snd k2).
 
-(** Fresh, deterministic name for the [i]-th specialization of [nm]. *)
-Definition fresh_name (nm : kername) (i : nat) : kername :=
+(** Candidate name for the [i]-th specialization of [nm]. *)
+Definition spec_name (nm : kername) (i : nat) : kername :=
   (nm.1, (nm.2 ++ "$spec" ++ string_of_nat i)%bs).
+
+(** A name for a specialization of [nm] that is declared neither in [Σ] nor
+    for an earlier specialization (the names in [seen]): the first free
+    candidate from index [i] on.  [None] only when [fuel] runs out, which
+    cannot happen for [fuel > #|Σ| + #|seen|]. *)
+Fixpoint fresh_from (Σ : global_declarations) (seen : list (dkey × kername))
+  (nm : kername) (fuel i : nat) {struct fuel} : option kername :=
+  match fuel with
+  | 0 => None
+  | S fuel' =>
+      let c := spec_name nm i in
+      match lookup_env Σ c with
+      | None =>
+          if existsb (fun p => eqb (snd p) c) seen
+          then fresh_from Σ seen nm fuel' (S i)
+          else Some c
+      | Some _ => fresh_from Σ seen nm fuel' (S i)
+      end
+  end.
+
+Definition fresh_name (Σ : global_declarations) (seen : list (dkey × kername))
+  (nm : kername) : option kername :=
+  fresh_from Σ seen nm (S (#|Σ| + #|seen|)) #|seen|.
 
 (** Is [ind] a single-constructor record (the typeclass/dictionary shape)? *)
 Definition is_record_ind (Σ : global_declarations) (ind : inductive) : bool :=
@@ -278,33 +309,6 @@ Fixpoint collect_keys (Σ : global_declarations) (spine : list term) (t : term)
   | _ => []
   end.
 
-(** Fuel-bounded saturation: pop a key, and if not already specialized, emit its
-    specialized declaration and enqueue the keys newly exposed inside it. *)
-Fixpoint saturate (Σ : global_declarations) (fuel : nat) (worklist : list dkey)
-  (seen : list (dkey × kername)) (decls : list (kername × global_decl))
-  {struct fuel} : list (dkey × kername) × list (kername × global_decl) :=
-  match fuel with
-  | 0 => (seen, decls)
-  | S fuel' =>
-      match worklist with
-      | [] => (seen, decls)
-      | k :: rest =>
-          if existsb (fun p => eqb_key (fst p) k) seen
-          then saturate Σ fuel' rest seen decls
-          else
-            let '(nm, dicts) := k in
-            match callee_body Σ nm with
-            | Some b =>
-                let body := spec_body b dicts in
-                let fn := fresh_name nm #|seen| in
-                let new_keys := collect_keys Σ [] body in
-                saturate Σ fuel' (new_keys ++ rest) ((k, fn) :: seen)
-                         ((fn, ConstantDecl {| cst_body := Some body |}) :: decls)
-            | None => saturate Σ fuel' rest seen decls
-            end
-      end
-  end.
-
 Definition lookup_spec (seen : list (dkey × kername)) (k : dkey) : option kername :=
   match find (fun p => eqb_key (fst p) k) seen with
   | Some p => Some (snd p)
@@ -331,47 +335,83 @@ Fixpoint redirect (Σ : global_declarations) (seen : list (dkey × kername))
 
 Definition specialize_fuel : nat := 1000.
 
-(** Constants a term refers to. *)
-Fixpoint consts_of (t : term) : list kername :=
-  match t with
-  | tConst nm => [nm]
-  | tApp hd arg => consts_of hd ++ consts_of arg
-  | tLambda _ b | tProj _ b | tLazy b | tForce b => consts_of b
-  | tLetIn _ v b => consts_of v ++ consts_of b
-  | tCase _ disc brs => consts_of disc ++ concat (map (fun br => consts_of (snd br)) brs)
-  | tFix mfix _ | tCoFix mfix _ => concat (map (fun d => consts_of (dbody d)) mfix)
-  | tConstruct _ _ args | tEvar _ args => concat (map consts_of args)
-  | _ => []
-  end.
+(** State of the driver: the memo table, the output environment built so far
+    (newest first), and the number of specializations that may still be
+    generated in the current batch. *)
+Definition spec_state : Type :=
+  (list (dkey × kername) × global_declarations) × nat.
 
-Definition decl_consts (d : global_decl) : list kername :=
-  match d with
-  | ConstantDecl cb => match cst_body cb with Some b => consts_of b | None => [] end
-  | _ => []
-  end.
-
-(** Order generated declarations so that each comes after (is newer than)
-    the generated declarations it refers to: repeatedly emit those whose
-    references to still-pending declarations are all gone.  The result is
-    newest-first, like a [global_declarations].  The references form no cycle
-    (a specialization of [f] only calls specializations of constants older
-    than [f]); fuel stops the loop anyway, emitting what is left. *)
-Fixpoint order_decls (fuel : nat) (pending placed : global_declarations)
-  {struct fuel} : global_declarations :=
-  match fuel, pending with
-  | _, [] => placed
-  | 0, _ => pending ++ placed
-  | S fuel', _ =>
-      let is_ready p :=
-        forallb (fun kn => negb (existsb (fun q => eqb (fst q) kn) pending))
-                (decl_consts (snd p)) in
-      let ready := filter is_ready pending in
-      let rest := filter (fun p => negb (is_ready p)) pending in
-      match ready with
-      | [] => pending ++ placed
-      | _ => order_decls fuel' rest (List.rev ready ++ placed)
+(** Generate the specialization for key [k], after the specializations its
+    own body needs (depth first), and put it on top of the output
+    environment.  Its body is redirected with the memo table as it is at that
+    point, so it refers only to declarations that are already below it: the
+    output is well-ordered by construction.  The state is returned unchanged
+    when [k] is already specialized, is being specialized further up
+    ([stack], a cyclic key), has no body, or when the budget, the depth
+    [fuel] or the name search is exhausted; the call sites of [k] then keep
+    calling the original constant. *)
+Fixpoint spec_key (Σ : global_declarations) (fuel : nat) (stack : list dkey)
+  (st : spec_state) (k : dkey) {struct fuel} : spec_state :=
+  match fuel with
+  | 0 => st
+  | S fuel' =>
+      let '(seen, env, budget) := st in
+      match budget with
+      | 0 => st
+      | S budget' =>
+          if existsb (fun p => eqb_key (fst p) k) seen || existsb (eqb_key k) stack
+          then st
+          else
+            match callee_body Σ (fst k) with
+            | None => st
+            | Some b =>
+                let body := spec_body b (snd k) in
+                let '(seen', env', budget'') :=
+                  fold_left (spec_key Σ fuel' (k :: stack))
+                    (collect_keys Σ [] body) (seen, env, budget') in
+                match fresh_name Σ seen' (fst k) with
+                | None => (seen', env', budget'')
+                | Some fn =>
+                    let body' := specialize_instances (redirect Σ seen' [] body) in
+                    ((k, fn) :: seen',
+                     (fn, ConstantDecl {| cst_body := Some body' |}) :: env',
+                     budget'')
+                end
+            end
       end
   end.
+
+(** Generate the specializations [keys] need, with a fresh budget. *)
+Definition spec_keys (Σ : global_declarations) (keys : list dkey)
+  (seen : list (dkey × kername)) (env : global_declarations)
+  : list (dkey × kername) × global_declarations :=
+  (fold_left (spec_key Σ specialize_fuel []) keys (seen, env, specialize_fuel)).1.
+
+Definition body_keys (Σ : global_declarations) (d : global_decl) : list dkey :=
+  match d with
+  | ConstantDecl cb => match cst_body cb with
+                       | Some b => collect_keys Σ [] b
+                       | None => [] end
+  | _ => []
+  end.
+
+Definition red_decl (Σ : global_declarations) (seen : list (dkey × kername))
+  (d : global_decl) : global_decl :=
+  match d with
+  | ConstantDecl cb =>
+      ConstantDecl {| cst_body :=
+        option_map (fun b => specialize_instances (redirect Σ seen [] b))
+                   (cst_body cb) |}
+  | _ => d
+  end.
+
+(** One declaration [kd] of the input, given the output for the older ones:
+    the specializations its body needs go right below it. *)
+Definition drive_decl (Σ : global_declarations) (kd : kername × global_decl)
+  (acc : list (dkey × kername) × global_declarations)
+  : list (dkey × kername) × global_declarations :=
+  let '(seen', env') := spec_keys Σ (body_keys Σ (snd kd)) acc.1 acc.2 in
+  (seen', (fst kd, red_decl Σ seen' (snd kd)) :: env').
 
 (** Whole-program driver.  The environment is newest-first and a declaration
     may refer only to older ones, so the declarations are processed oldest
@@ -379,68 +419,506 @@ Fixpoint order_decls (fuel : nat) (pending placed : global_declarations)
     (and those their bodies need) are generated and placed right below [d].
     Everything such a specialization refers to (the callee, its body, the
     dictionaries and their fields) is older than [d], so the result is again a
-    well-ordered environment.  The specializations the main term needs go on
-    top.  Bodies and the main term are then redirected and locally reduced. *)
+    well-ordered environment ([drive_env_wf] below).  The specializations the
+    main term needs go on top.  Bodies and the main term are redirected and
+    locally reduced. *)
 Definition drive_env (Σ : global_declarations) (main : term)
   : global_declarations × term :=
-  let body_keys :=
-    fun d => match d with
-             | ConstantDecl cb => match cst_body cb with
-                                  | Some b => collect_keys Σ [] b
-                                  | None => [] end
-             | _ => [] end in
-  let red_decl seen :=
-    fun '(kn, d) =>
-      match d with
-      | ConstantDecl cb =>
-          (kn, ConstantDecl {| cst_body :=
-                 option_map (fun b => specialize_instances (redirect Σ seen [] b))
-                            (cst_body cb) |})
-      | _ => (kn, d)
-      end in
-  (* Generate the specializations [keys] need, given the memo table [seen];
-     return the new table and the new declarations, redirected, newest-first. *)
-  let gen seen keys :=
-    let '(seen', decls) := saturate Σ specialize_fuel keys seen [] in
-    (seen', order_decls specialize_fuel (map (red_decl seen') decls) []) in
-  let '(seen, Σ') :=
-    fold_right (fun kd '(seen, acc) =>
-        let '(seen', new) := gen seen (body_keys (snd kd)) in
-        (seen', red_decl seen' kd :: new ++ acc))
-      ([], []) Σ in
-  let '(seen', new) := gen seen (collect_keys Σ [] main) in
-  (new ++ Σ', specialize_instances (redirect Σ seen' [] main)).
-
-Definition specialize_instances_in_constant_body (cst : constant_body) : constant_body :=
-  {| cst_body := option_map specialize_instances (cst_body cst) |}.
-
-Definition specialize_instances_in_decl (d : global_decl) : global_decl :=
-  match d with
-  | ConstantDecl cst => ConstantDecl (specialize_instances_in_constant_body cst)
-  | _ => d
-  end.
-
-Definition specialize_instances_env (Σ : global_declarations) : global_declarations :=
-  map (fun '(kn, decl) => (kn, specialize_instances_in_decl decl)) Σ.
+  let acc := fold_right (drive_decl Σ) ([], []) Σ in
+  let '(seen', env') := spec_keys Σ (collect_keys Σ [] main) acc.1 acc.2 in
+  (env', specialize_instances (redirect Σ seen' [] main)).
 
 Definition specialize_instances_program (p : program) : program :=
   drive_env p.1 p.2.
 
-(** ** Transform wrapper (unverified, [Compatible]-class) *)
+(** ** Well-formedness preservation *)
 
-From MetaRocq.Erasure Require Import EWellformed EWcbvEval.
+From Stdlib Require Import ssreflect ssrbool.
+From MetaRocq.Erasure Require Import EWellformed EWcbvEval EInduction EExtends.
 From MetaRocq.Common Require Import Transform.
-From Peregrine Require Import EExtraFlags.
+From Equations Require Import Equations.
 
-(** FALSE as stated (see the header): [fresh_name] does not check that
-    [f$specN] is fresh in the environment, so [fresh_global] in [wf_glob] can
-    fail on the output.  To be replaced by a proof once the pass generates
-    fresh names. *)
-Axiom trust_specialize_instances_wf_FALSE :
-  forall efl : EEnvFlags,
-  WcbvFlags ->
-  forall (input : Transform.program _ term),
-  wf_eprogram efl input -> wf_eprogram efl (specialize_instances_program input).
+Lemma fold_left_inv {A B} (P : A -> Prop) (Q : B -> Prop) (f : A -> B -> A) l :
+  (forall a b, P a -> Q b -> P (f a b)) ->
+  Forall Q l -> forall a, P a -> P (fold_left f l a).
+Proof.
+  intros hf. induction 1; cbn; auto.
+Qed.
+
+Section WfTerm.
+  Context {efl : EEnvFlags} {hasapp : has_tApp}.
+
+  (** *** Terms *)
+
+  Ltac wf_congr :=
+    simpl in *; rewrite -> ?andb_and in *; autorewrite with map;
+    simpl wellformed in *; intuition auto;
+    unfold wf_fix, test_def, test_snd in *;
+    try solve [repeat (rtoProp; simpl in *; solve_all)]; try easy.
+
+  Lemma wf_closed_down Σ t :
+    forall k k', wellformed Σ k t -> closedn k' t -> wellformed Σ k' t.
+  Proof.
+    induction t using term_forall_list_ind; intros; wf_congr.
+    - destruct cstr_as_blocks; auto. rtoProp; intuition auto. solve_all.
+    - depelim X; simpl in *; rtoProp; intuition eauto; solve_all.
+      depelim H; constructor; cbn in *; intuition eauto; solve_all.
+  Qed.
+
+  Lemma wf_spec_beta Σ args :
+    forall body k, wellformed Σ k body -> forallb (wellformed Σ k) args ->
+    wellformed Σ k (spec_beta body args).
+  Proof.
+    induction args as [|a args IH]; intros body k hb ha; cbn; auto.
+    move/andP: ha => [ha has].
+    assert (hd : wellformed Σ k (mkApps body (a :: args))).
+    { rewrite wellformed_mkApps //. apply/andP; split => //. now apply/andP; split. }
+    destruct body; try exact hd.
+    apply IH; auto. cbn in hb. move/andP: hb => [_ hb].
+    apply (wellformed_subst [a]); cbn; [now rewrite ha|exact hb].
+  Qed.
+
+  Lemma wf_construct_args Σ k i c args :
+    wellformed Σ k (tConstruct i c args) -> forallb (wellformed Σ k) args.
+  Proof.
+    simpl. move/andP => [_]. destruct cstr_as_blocks.
+    - now move/andP => [_].
+    - now destruct args.
+  Qed.
+
+  Lemma wf_spec_aux Σ t :
+    forall k args, wellformed Σ k t -> forallb (wellformed Σ k) args ->
+    wellformed Σ k (spec_aux args t).
+  Proof.
+    induction t using term_forall_list_ind; intros k sp hw ha.
+    all: try solve [cbn [spec_aux spec_map_subterms]; rewrite wellformed_mkApps //;
+                    apply/andP; split; [|exact ha]; clear ha; wf_congr].
+    - (* tLambda *)
+      cbn [spec_aux]. apply wf_spec_beta; auto.
+      simpl in hw |- *. move/andP: hw => [hl hw]. rewrite hl /=. now apply IHt.
+    - (* tApp *)
+      cbn [spec_aux]. simpl in hw. move/andP: hw => [/andP [happ h1] h2].
+      apply IHt1 => //. cbn [forallb]. rewrite ha andb_true_r. now apply IHt2.
+    - (* tConstruct *)
+      cbn [spec_aux spec_map_subterms]. rewrite wellformed_mkApps //.
+      apply/andP; split; [|exact ha]. clear ha.
+      simpl in hw |- *. move/andP: hw => [-> hw] /=.
+      destruct cstr_as_blocks.
+      + move/andP: hw => [h1 h2]. rewrite length_map h1 /=. solve_all.
+      + destruct args => //.
+    - (* tCase *)
+      destruct p as [ind npar]. cbn [spec_aux].
+      simpl in hw. move/andP: hw => [hcase /andP [/andP [hcs hd] hbrs]].
+      assert (hd' : wellformed Σ k (spec_aux [] t)) by now apply IHt.
+      assert (hbrs' : forallb (fun br => wellformed Σ (#|br.1| + k) br.2)
+                        (map (on_snd (spec_aux [])) l)).
+      { clear -X hbrs. solve_all. }
+      assert (hc : wellformed Σ k (tCase (ind, npar) (spec_aux [] t)
+                                    (map (on_snd (spec_aux [])) l))).
+      { simpl. rewrite length_map hcase hcs hd' /=. exact hbrs'. }
+      rewrite wellformed_mkApps //. apply/andP; split; [|exact ha].
+      destruct (spec_aux [] t) eqn:hdisc; try exact hc.
+      destruct (nth_error _ n) as [br|] eqn:hnth; try exact hc.
+      destruct (Nat.eqb_spec #|skipn npar args| #|br.1|) as [hlen|]; try exact hc.
+      apply wellformed_subst.
+      + rewrite forallb_rev. apply wf_construct_args in hd'.
+        now apply forallb_skipn.
+      + rewrite List.length_rev hlen.
+        eapply nth_error_forallb in hbrs'; tea. exact hbrs'.
+    - (* tFix *)
+      cbn [spec_aux spec_map_subterms]. rewrite wellformed_mkApps //.
+      apply/andP; split; [|exact ha]. clear ha.
+      simpl in hw |- *. move/andP: hw => [hl hw].
+      apply/andP; split.
+      + clear hw X. move/andP: hl => [-> hl] /=. solve_all. destruct x as [? [] ?] => //.
+      + unfold wf_fix_gen in *. rewrite length_map.
+        move/andP: hw => [-> hw] /=. unfold test_def in *. solve_all.
+  Qed.
+
+  Lemma split_dicts_rest Σ0 (P : term -> bool) spine :
+    forallb P spine -> forallb P (split_dicts Σ0 spine).2.
+  Proof.
+    induction spine as [|a spine IH]; cbn [split_dicts]; auto.
+    intros h. destruct (prefix_elt Σ0 a) as [[isd v]|]; auto.
+    move/andP: h => [_ h]. specialize (IH h).
+    now destruct (split_dicts Σ0 spine) as [[d' ds] rr].
+  Qed.
+
+  Lemma mk_key_rest Σ0 (P : term -> bool) nm spine key rest :
+    mk_key Σ0 nm spine = Some (key, rest) -> forallb P spine -> forallb P rest.
+  Proof.
+    unfold mk_key. destruct callee_body => //. intros h hs.
+    apply (split_dicts_rest Σ0) in hs.
+    destruct (split_dicts Σ0 spine) as [[d' ds] rr]. destruct d' => //.
+    now noconf h.
+  Qed.
+
+  Lemma wf_redirect Σ0 seen Σ t :
+    (forall key fn, lookup_spec seen key = Some fn ->
+       exists cb, lookup_constant Σ fn = Some cb /\ isSome (cst_body cb)) ->
+    forall k sp, wellformed Σ k t -> forallb (wellformed Σ k) sp ->
+    wellformed Σ k (redirect Σ0 seen sp t).
+  Proof.
+    intros hseen.
+    induction t using term_forall_list_ind; intros k sp hw ha.
+    all: try solve [cbn [redirect spec_map_subterms]; rewrite wellformed_mkApps //;
+                    apply/andP; split; [|exact ha]; clear ha; wf_congr].
+    - (* tApp *)
+      cbn [redirect]. simpl in hw. move/andP: hw => [/andP [happ h1] h2].
+      apply IHt1 => //. cbn [forallb]. rewrite ha andb_true_r. now apply IHt2.
+    - (* tConst *)
+      cbn [redirect].
+      destruct mk_key as [[key rest]|] eqn:hk;
+        [destruct lookup_spec as [fn|] eqn:hls|].
+      all: rewrite wellformed_mkApps //; apply/andP; split; auto.
+      + simpl in hw |- *. move/andP: hw => [-> _] /=.
+        destruct (hseen _ _ hls) as [cb [-> hb]]. now rewrite hb orb_true_r.
+      + eapply mk_key_rest; tea.
+    - (* tConstruct *)
+      cbn [redirect spec_map_subterms]. rewrite wellformed_mkApps //.
+      apply/andP; split; [|exact ha]. clear ha.
+      simpl in hw |- *. move/andP: hw => [-> hw] /=.
+      destruct cstr_as_blocks.
+      + move/andP: hw => [h1 h2]. rewrite length_map h1 /=. solve_all.
+      + destruct args => //.
+    - (* tFix *)
+      cbn [redirect spec_map_subterms]. rewrite wellformed_mkApps //.
+      apply/andP; split; [|exact ha]. clear ha.
+      simpl in hw |- *. move/andP: hw => [hl hw].
+      apply/andP; split.
+      + clear hw X. move/andP: hl => [-> hl] /=. solve_all. destruct x as [? [] ?] => //.
+      + unfold wf_fix_gen in *. rewrite length_map.
+        move/andP: hw => [-> hw] /=. unfold test_def in *. solve_all.
+  Qed.
+
+  Lemma wf_spec_body Σ b dicts :
+    wellformed Σ 0 b -> forallb (wellformed Σ 0) dicts ->
+    wellformed Σ 0 (spec_body b dicts).
+  Proof.
+    intros hb hd. unfold spec_body, specialize_instances.
+    destruct b; try (apply wf_spec_aux => //; now apply wf_spec_beta).
+    destruct cunfold_fix as [[n f]|] eqn:hc; apply wf_spec_aux => //.
+    - apply wf_spec_beta => //. eapply wellformed_cunfold_fix; tea.
+    - now rewrite wellformed_mkApps // hb hd.
+  Qed.
+
+End WfTerm.
+
+(** *** Environments that agree up to constant bodies *)
+
+Definition decl_sim (d d' : global_decl) : Prop :=
+  match d, d' with
+  | ConstantDecl cb, ConstantDecl cb' => isSome (cst_body cb) -> isSome (cst_body cb')
+  | InductiveDecl m, InductiveDecl m' => m = m'
+  | _, _ => False
+  end.
+
+Definition env_sim (Σ Σ' : global_declarations) : Prop :=
+  forall kn d, lookup_env Σ kn = Some d ->
+  exists d', lookup_env Σ' kn = Some d' /\ decl_sim d d'.
+
+Section Sim.
+  Context {efl : EEnvFlags}.
+
+  Lemma sim_wellformed Σ Σ' :
+    env_sim Σ Σ' -> forall t n, wellformed Σ n t -> wellformed Σ' n t.
+  Proof.
+    intros hs t.
+    induction t using term_forall_list_ind; cbn => //; intros; rtoProp; intuition auto; solve_all.
+    all: try (destruct (lookup_env Σ _) as [g|] eqn:hl => //;
+              destruct (hs _ _ hl) as [d' [hl' hd]]; rewrite hl';
+              destruct g, d' => //; cbn in hd; subst).
+    all: try assumption.
+    - move/orP: H0 => [->|h] //. now rewrite (hd h) orb_true_r.
+    - destruct cstr_as_blocks; eauto; rtoProp; intuition auto; solve_all.
+    - move: H0. rewrite /wf_brs /lookup_inductive /lookup_minductive /=.
+      destruct (lookup_env Σ _) as [g|] eqn:hl => //.
+      destruct (hs _ _ hl) as [d' [-> hd]].
+      destruct g, d' => //; cbn in hd; subst => //.
+    - move/andP: H0 => [] hn hf. unfold wf_fix. rewrite hn /=. solve_all.
+    - move/andP: H0 => [] hn hf. unfold wf_fix. rewrite hn /=. solve_all.
+  Qed.
+
+End Sim.
+
+(** *** The driver preserves well-formedness *)
+
+Section Driver.
+  Context {efl : EEnvFlags} {hasapp : has_tApp}.
+  Context (Σ : global_declarations).
+
+  Lemma fresh_from_spec seen nm fuel i c :
+    fresh_from Σ seen nm fuel i = Some c ->
+    lookup_env Σ c = None /\ ~ In c (map snd seen).
+  Proof.
+    induction fuel in i |- *; simpl => //.
+    destruct (lookup_env Σ (spec_name nm i)) eqn:hl; [apply IHfuel|].
+    destruct (existsb _ seen) eqn:hex; [apply IHfuel|].
+    intros [= <-]. split => //.
+    intros hin. apply in_map_iff in hin as [p [hp hin]].
+    enough (existsb (fun p => snd p == spec_name nm i) seen = true) by congruence.
+    apply existsb_exists. exists p; split => //. rewrite hp. apply eqb_refl.
+  Qed.
+
+  Lemma lookup_spec_In seen k fn :
+    lookup_spec seen k = Some fn -> In fn (map snd seen).
+  Proof.
+    unfold lookup_spec. destruct find eqn:hf => //. intros [= <-].
+    apply find_some in hf as [hin _]. now apply in_map.
+  Qed.
+
+  Lemma lookup_None_fresh (E : global_declarations) kn :
+    lookup_env E kn = None -> fresh_global kn E.
+  Proof.
+    induction E as [|[kn' d] E IH]; cbn; [constructor|].
+    destruct (eqb_spec kn kn') => // h. constructor; [cbn; congruence|now apply IH].
+  Qed.
+
+  (** Invariant relating the part [Σs] of the input processed so far (a
+      suffix of [Σ]), the memo table and the output environment. *)
+  Record spec_inv (Σs : global_declarations) (seen : list (dkey × kername))
+    (env : global_declarations) : Prop :=
+    { inv_wf : wf_glob env;
+      inv_sim : env_sim Σs env;
+      inv_seen : forall fn, In fn (map snd seen) ->
+          lookup_env Σ fn = None /\
+          exists cb, lookup_constant env fn = Some cb /\ isSome (cst_body cb);
+      inv_names : forall kn d, lookup_env env kn = Some d ->
+          isSome (lookup_env Σs kn) \/ In kn (map snd seen) }.
+
+  Lemma wf_final Σs seen env t :
+    spec_inv Σs seen env -> wellformed Σs 0 t ->
+    wellformed env 0 (specialize_instances (redirect Σ seen [] t)).
+  Proof.
+    intros hi hw. apply (wf_spec_aux (hasapp := hasapp)) => //. apply (wf_redirect (hasapp := hasapp)) => //.
+    - intros key fn hl. apply lookup_spec_In in hl. now apply (inv_seen _ _ _ hi).
+    - eapply sim_wellformed; tea. apply hi.
+  Qed.
+
+  Lemma spec_inv_add Σs seen env k fn body :
+    extends Σs Σ ->
+    spec_inv Σs seen env ->
+    lookup_env Σ fn = None -> ~ In fn (map snd seen) ->
+    wellformed Σs 0 body ->
+    spec_inv Σs ((k, fn) :: seen)
+      ((fn, ConstantDecl {| cst_body :=
+           Some (specialize_instances (redirect Σ seen [] body)) |}) :: env).
+  Proof.
+    intros hext hi hfn hnin hb.
+    assert (hfresh : lookup_env env fn = None).
+    { destruct (lookup_env env fn) eqn:hl => //.
+      destruct (inv_names _ _ _ hi _ _ hl) as [h|h] => //.
+      destruct (lookup_env Σs fn) eqn:hl' => //. apply hext in hl'. congruence. }
+    split.
+    - apply wf_glob_cons; [apply hi| |now apply lookup_None_fresh].
+      cbn. now eapply wf_final.
+    - intros kn d hl. cbn. destruct (eqb_spec kn fn) as [->|hne].
+      + apply hext in hl. congruence.
+      + now apply (inv_sim _ _ _ hi).
+    - intros fn' hin. cbn in hin. destruct hin as [<-|hin].
+      + split => //. unfold lookup_constant. cbn. rewrite eqb_refl. cbn.
+        eexists; split; reflexivity.
+      + destruct (inv_seen _ _ _ hi _ hin) as [h0 [cb [hc hcb]]]. split => //.
+        unfold lookup_constant in *. cbn.
+        destruct (eqb_spec fn' fn); [eexists; split; reflexivity|now exists cb].
+    - intros kn d. cbn. destruct (eqb_spec kn fn) as [->|hne].
+      + intros _. right. now left.
+      + intros hl. destruct (inv_names _ _ _ hi _ _ hl); auto.
+  Qed.
+
+  (** Keys whose dictionaries and callee body are well-formed in [Σs]. *)
+  Definition good_key Σs (k : dkey) : Prop :=
+    forallb (wellformed Σs 0) k.2 /\
+    forall b, callee_body Σ k.1 = Some b -> wellformed Σs 0 b.
+
+  Lemma wf_const_body Σs k c :
+    wf_glob Σs -> extends Σs Σ -> wellformed Σs k (tConst c) ->
+    exists cb, lookup_constant Σ c = Some cb /\
+               forall b, cst_body cb = Some b -> wellformed Σs 0 b.
+  Proof.
+    intros hwfs hext. simpl. move/andP => [_]. unfold lookup_constant.
+    destruct (lookup_env Σs c) as [d|] eqn:hl => //=. destruct d as [cb|] => //= _.
+    rewrite (hext _ _ hl) /=. exists cb; split => // b hb.
+    apply lookup_env_wellformed in hl => //. cbn in hl. now rewrite hb in hl.
+  Qed.
+
+  Lemma wf_dict_value Σs k t v :
+    wf_glob Σs -> extends Σs Σ -> wellformed Σs k t ->
+    dict_value Σ t = Some v -> wellformed Σs 0 v.
+  Proof.
+    intros hwfs hext hw. destruct t; cbn [dict_value] => //.
+    - destruct (wf_const_body _ _ _ hwfs hext hw) as [cb [-> hb]].
+      destruct (cst_body cb) as [[]|] => //. destruct (_ && _) => //.
+      intros [= <-]. now apply hb.
+    - destruct (is_record_ind _ _ && _) eqn:h => //. intros [= <-].
+      move/andP: h => [_ hc]. eapply wf_closed_down; tea.
+  Qed.
+
+  Lemma wf_prefix_elt Σs k t isd v :
+    wf_glob Σs -> extends Σs Σ -> wellformed Σs k t ->
+    prefix_elt Σ t = Some (isd, v) -> wellformed Σs 0 v.
+  Proof.
+    intros hwfs hext hw. unfold prefix_elt. destruct dict_value eqn:hd.
+    - intros [= _ <-]. eapply wf_dict_value; tea.
+    - destruct t => //. intros [= _ <-]. exact hw.
+  Qed.
+
+  Lemma wf_split_dicts Σs k spine :
+    wf_glob Σs -> extends Σs Σ -> forallb (wellformed Σs k) spine ->
+    forallb (wellformed Σs 0) (split_dicts Σ spine).1.2.
+  Proof.
+    intros hwfs hext. induction spine as [|a spine IH]; cbn [split_dicts] => //.
+    move/andP => [ha hs]. destruct (prefix_elt Σ a) as [[isd v]|] eqn:hp => //.
+    specialize (IH hs). destruct (split_dicts Σ spine) as [[d' ds] rr]. cbn in *.
+    rewrite IH andb_true_r. eapply wf_prefix_elt; tea.
+  Qed.
+
+  Lemma mk_key_good Σs k nm spine key rest :
+    wf_glob Σs -> extends Σs Σ -> wellformed Σs k (tConst nm) ->
+    forallb (wellformed Σs k) spine ->
+    mk_key Σ nm spine = Some (key, rest) -> good_key Σs key.
+  Proof.
+    intros hwfs hext hw hs. unfold mk_key.
+    destruct (callee_body Σ nm) as [b|] eqn:hcb => //.
+    pose proof (wf_split_dicts _ _ _ hwfs hext hs) as hd.
+    destruct (split_dicts Σ spine) as [[d' ds] rr]. destruct d' => //.
+    intros [= <- _]. split; [exact hd|]. cbn. intros b'. rewrite hcb. intros [= <-].
+    destruct (wf_const_body _ _ _ hwfs hext hw) as [cb [hl hb]].
+    apply hb. unfold callee_body in hcb. now rewrite hl in hcb.
+  Qed.
+
+  Lemma collect_keys_good Σs :
+    wf_glob Σs -> extends Σs Σ ->
+    forall t k spine, wellformed Σs k t -> forallb (wellformed Σs k) spine ->
+    Forall (good_key Σs) (collect_keys Σ spine t).
+  Proof.
+    intros hwfs hext.
+    induction t using term_forall_list_ind; intros k spine hw hs;
+      cbn [collect_keys]; try solve [constructor].
+    5:{ destruct mk_key as [[key rest]|] eqn:hk; constructor; [|constructor].
+        eapply mk_key_good; tea. }
+    4:{ simpl in hw. move/andP: hw => [/andP [_ h1] h2]. apply List.Forall_app; split.
+        - now eapply IHt2.
+        - eapply IHt1; tea. cbn. now rewrite h2 hs. }
+    8:{ simpl in hw. unfold wf_fix_gen, test_def in hw.
+        move/andP: hw => [_ /andP [_ hw]].
+        apply Forall_concat, Forall_map, All_Forall. solve_all. }
+    7:{ simpl in hw. unfold wf_fix_gen, test_def in hw.
+        move/andP: hw => [_ /andP [_ hw]].
+        apply Forall_concat, Forall_map, All_Forall. solve_all. }
+    4:{ apply wf_construct_args in hw.
+        apply Forall_concat, Forall_map, All_Forall. solve_all. }
+    all: simpl in hw; rtoProp; repeat (apply List.Forall_app; split);
+      try (apply Forall_concat, Forall_map, All_Forall); intuition eauto; solve_all.
+  Qed.
+
+  Lemma spec_key_inv Σs :
+    wf_glob Σs -> extends Σs Σ ->
+    forall fuel stack st k, good_key Σs k -> spec_inv Σs st.1.1 st.1.2 ->
+    spec_inv Σs (spec_key Σ fuel stack st k).1.1 (spec_key Σ fuel stack st k).1.2.
+  Proof.
+    intros hwfs hext.
+    induction fuel as [|fuel IH]; intros stack [[seen env] budget] k [hd hb] hi;
+      cbn [spec_key]; auto.
+    destruct budget as [|budget]; auto.
+    destruct (_ || _); auto.
+    destruct (callee_body Σ k.1) as [b|] eqn:hcb; auto.
+    assert (hbody : wellformed Σs 0 (spec_body b k.2))
+      by (apply (wf_spec_body (hasapp := hasapp)); auto).
+    pose proof (fold_left_inv (fun st => spec_inv Σs st.1.1 st.1.2) (good_key Σs)
+                  (spec_key Σ fuel (k :: stack))
+                  (collect_keys Σ [] (spec_body b k.2))) as hf.
+    forward hf. { intros a c ha hc. now apply IH. }
+    forward hf. { now apply (collect_keys_good Σs hwfs hext _ 0). }
+    specialize (hf (seen, env, budget) hi).
+    destruct fold_left as [[seen' env'] budget'']. cbn in hf.
+    destruct fresh_name as [fn|] eqn:hfn; cbn; auto.
+    apply fresh_from_spec in hfn as [h1 h2]. now apply spec_inv_add.
+  Qed.
+
+  Lemma spec_keys_inv Σs keys seen env :
+    wf_glob Σs -> extends Σs Σ ->
+    Forall (good_key Σs) keys -> spec_inv Σs seen env ->
+    spec_inv Σs (spec_keys Σ keys seen env).1 (spec_keys Σ keys seen env).2.
+  Proof.
+    intros hwfs hext hk hi. unfold spec_keys.
+    apply (fold_left_inv (fun st => spec_inv Σs st.1.1 st.1.2) (good_key Σs)) => //.
+    intros a b ha hb. now apply spec_key_inv.
+  Qed.
+
+  Lemma drive_decl_inv Σs kd acc :
+    wf_glob (kd :: Σs) -> extends (kd :: Σs) Σ -> spec_inv Σs acc.1 acc.2 ->
+    spec_inv (kd :: Σs) (drive_decl Σ kd acc).1 (drive_decl Σ kd acc).2.
+  Proof.
+    intros hwf hext hi. destruct kd as [kn d].
+    assert (hwfs : wf_glob Σs) by now depelim hwf.
+    assert (hfr : fresh_global kn Σs) by now depelim hwf.
+    assert (hd : wf_global_decl Σs d) by now depelim hwf.
+    assert (hexts : extends Σs Σ).
+    { intros kn' d' hl. apply hext. cbn. destruct (eqb_spec kn' kn) as [->|] => //.
+      now apply lookup_env_Some_fresh in hl. }
+    assert (hkn : lookup_env Σ kn = Some d). { apply hext. cbn. now rewrite eqb_refl. }
+    unfold drive_decl. cbn [fst snd].
+    pose proof (spec_keys_inv Σs (body_keys Σ d) acc.1 acc.2 hwfs hexts) as hk.
+    forward hk.
+    { destruct d as [[[b|]]|]; cbn; try constructor. now apply (collect_keys_good Σs hwfs hexts _ 0). }
+    specialize (hk hi). destruct spec_keys as [seen' env']. cbn in hk |- *.
+    assert (hfresh : lookup_env env' kn = None).
+    { destruct (lookup_env env' kn) eqn:hl => //.
+      destruct (inv_names _ _ _ hk _ _ hl) as [h|h].
+      - destruct (lookup_env Σs kn) eqn:hl' => //. now apply lookup_env_Some_fresh in hl'.
+      - apply (inv_seen _ _ _ hk) in h as [h _]. congruence. }
+    split.
+    - apply wf_glob_cons; [apply hk| |now apply lookup_None_fresh].
+      destruct d as [[[b|]]|]; cbn in hd |- *; auto. now eapply wf_final.
+    - intros kn' d' hl. cbn in hl |- *. destruct (eqb_spec kn' kn) as [->|hne].
+      + noconf hl. eexists; split; [reflexivity|]. destruct d as [[[b|]]|]; cbn; auto.
+      + now apply (inv_sim _ _ _ hk).
+    - intros fn hin. destruct (inv_seen _ _ _ hk _ hin) as [h0 [cb [hc hb]]]. split => //.
+      unfold lookup_constant in *. cbn.
+      destruct (eqb_spec fn kn) as [->|hne]; [congruence|]. now exists cb.
+    - intros kn' d'. cbn. destruct (eqb_spec kn' kn) as [->|hne]; [now left|].
+      intros hl. now apply (inv_names _ _ _ hk) in hl.
+  Qed.
+
+  Lemma drive_fold_inv :
+    wf_glob Σ -> forall Σs Σ1, Σ = Σ1 ++ Σs ->
+    spec_inv Σs (fold_right (drive_decl Σ) ([], []) Σs).1
+                (fold_right (drive_decl Σ) ([], []) Σs).2.
+  Proof.
+    intros hwf. induction Σs as [|kd Σs IH]; intros Σ1 heq; cbn [fold_right].
+    - split; cbn; try easy. constructor.
+    - assert (hp : extends_prefix (kd :: Σs) Σ) by (exists Σ1; exact heq).
+      apply drive_decl_inv.
+      + exact (extends_wf_glob efl hp hwf).
+      + exact (extends_prefix_extends efl _ _ hp hwf).
+      + apply (IH (Σ1 ++ [kd])). now rewrite -app_assoc.
+  Qed.
+
+  Theorem drive_env_wf main :
+    wf_glob Σ -> wellformed Σ 0 main ->
+    wf_eprogram efl (drive_env Σ main).
+  Proof.
+    intros hwf hm. unfold wf_eprogram, drive_env.
+    pose proof (drive_fold_inv hwf Σ [] eq_refl) as hi.
+    set (acc := fold_right _ _ _) in *.
+    pose proof (spec_keys_inv Σ (collect_keys Σ [] main) acc.1 acc.2 hwf) as hk.
+    forward hk. { now intros ? ? ?. }
+    forward hk. { apply (collect_keys_good Σ hwf) with (k := 0) => //. }
+    specialize (hk hi). destruct spec_keys as [seen' env']. cbn in *.
+    split; [apply hk|]. now eapply wf_final.
+  Qed.
+
+End Driver.
+
+Theorem specialize_instances_program_wf {efl : EEnvFlags} {hasapp : has_tApp}
+  (p : eprogram) :
+  wf_eprogram efl p -> wf_eprogram efl (specialize_instances_program p).
+Proof. intros [hwf hm]. now apply (drive_env_wf (hasapp := hasapp)). Qed.
+
+(** ** Transform wrapper (termination assumed) *)
+
+From Peregrine Require Import EExtraFlags.
 
 (** Termination only, at the flags of the pipeline. *)
 Axiom trust_specialize_instances_terminates :
@@ -460,7 +938,7 @@ Program Definition specialize_instances_transformation :
      post p := wf_eprogram extra_env_flags p;
      obseq _ _ _ _ _ := True |}.
 Next Obligation.
-  intros. now apply (trust_specialize_instances_wf_FALSE _ extra_wcbv_flags).
+  intros. now apply (specialize_instances_program_wf (efl := extra_env_flags) (hasapp := eq_refl)).
 Qed.
 Next Obligation.
   edestruct trust_specialize_instances_terminates as [v' ev]; eauto.
