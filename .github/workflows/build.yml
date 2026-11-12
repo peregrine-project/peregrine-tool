@@ -127,10 +127,23 @@ jobs:
       - name: Generate Rocq ASTs
         run: opam exec -- make -C test/rocq build-ci
 
+      # HybridRuntimeGen.v is printed from HybridRuntime.v; fail if it is stale.
+      - name: Check the generated rust-hybrid runtime
+        run: |
+          opam exec -- python3 scripts/gen-hybrid-runtime.py --installed
+          git diff --exit-code theories/backends/HybridRuntimeGen.v
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: 1.85.0
+
+      # The rust-hybrid runtime against GMP on boundary values
+      - name: Test the rust-hybrid runtime
+        run: |
+          cd test/hybrid-runtime
+          python3 assemble.py
+          cargo run --release
 
       - name: Set up Elm
         run: |

@@ -42,6 +42,9 @@ theories/backends/RustMixedRemaps.v
 theories/backends/RustHybridRemaps.v
 theories/backends/RustMixedCoherence.v
 theories/backends/RustHybridCoherence.v
+theories/backends/HybridPrims.v
+theories/backends/HybridRuntime.v
+theories/backends/HybridRuntimeGen.v
 theories/backends/ElmBackend.v
 theories/backends/OCamlBackend.v
 theories/backends/CakeMLBackend.v
