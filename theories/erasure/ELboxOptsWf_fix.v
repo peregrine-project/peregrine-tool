@@ -312,6 +312,7 @@ Proof.
   destruct (wf_mkApps_inv Σ _ _ _ H2) as (Hhd & _ & Happ).
   destruct hd; try exact H.
   destruct (nofree_range _ _ _ && fix_eta_args_ok _ _ _ _ _) eqn:Hc; [|exact H].
+  destruct (fix_arity_ok _ _ _); [|exact H].
   assert (Hsub : wellformed Σ k (subst0 (repeat tBox (count_lambdas t + j)) (tFix mfix idx))).
   { eapply wellformed_subst; [apply wf_repeat_box; exact Hbox|]. rewrite repeat_length.
     replace (count_lambdas t + j + k) with (j + (count_lambdas t + k)) by lia. exact Hhd. }

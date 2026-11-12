@@ -263,6 +263,17 @@ Definition drop_fix_params (k n : nat) (t : term) : option term :=
   | _ => None
   end.
 
+(** The [idx]-th function of [mfix] has at least [n] leading lambdas, so
+    that each of its partial applications to fewer than [n] arguments
+    evaluates to a closure, like the eta-expansion it replaces.  Without this
+    [fun x y => (fix f x := f x) x y], whose partial applications are
+    values, would become [fix f x := f x], whose applications diverge. *)
+Definition fix_arity_ok (mfix : mfixpoint term) (idx n : nat) : bool :=
+  match nth_error mfix idx with
+  | Some d => has_lambdas n d.(dbody)
+  | None => false
+  end.
+
 Definition fix_eta (t : term) : term :=
   let k := count_lambdas t in
   if Nat.eqb k 0 then t else
@@ -273,9 +284,11 @@ Definition fix_eta (t : term) : term :=
       let n := #|args| in
       if nofree_range 0 (k + j) hd && fix_eta_args_ok mfix idx k j args
       then
-        let hd := subst (repeat tBox (k + j)) 0 hd in  (* lowers the free variables by k + j *)
-        if Nat.eqb n k then hd
-        else match drop_fix_params k n hd with Some hd' => hd' | None => t end
+        if fix_arity_ok mfix idx n then
+          let hd := subst (repeat tBox (k + j)) 0 hd in  (* lowers the free variables by k + j *)
+          if Nat.eqb n k then hd
+          else match drop_fix_params k n hd with Some hd' => hd' | None => t end
+        else t
       else t
   | _ => t
   end.
