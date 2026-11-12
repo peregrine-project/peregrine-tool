@@ -20,7 +20,7 @@ From Stdlib Require Import List Bool Arith ssreflect ssrbool.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Common Require Import BasicAst Kernames Transform.
 From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils ELiftSubst EProgram EWellformed EWcbvEval EGlobalEnv EBeta EInduction.
-From Peregrine Require Import ELboxOpts ELboxOptsWf_case ELboxOptsWf_fix ELboxOptsWf_let EExtraFlags.
+From Peregrine Require Import ELboxOpts ELboxOptsSim ELboxOptsSimStatic ELboxOptsWf_case ELboxOptsWf_fix ELboxOptsWf_let EExtraFlags.
 
 Import ListNotations.
 Local Open Scope bool_scope.
@@ -207,11 +207,32 @@ Axiom trust_lbox_opts_terminates :
   eval_eprogram extra_wcbv_flags p v ->
   exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program (without_case_id o) p) v'.
 
-Axiom trust_case_id_terminates :
+(** Evaluation preservation at the pipeline flags, for any set of rewrites
+    whose node rewrite is a step of the rewrite relation [R] of [ELboxOptsSim]:
+    the values are related by [lbox_obs], a chain of such steps. *)
+Definition lbox_obs : term -> term -> Prop := obs (wfl := extra_wcbv_flags).
+
+Lemma lbox_opts_program_eval (o : lbox_opts) :
+  (forall t, Rall (wfl := extra_wcbv_flags) t (rewrite_node o t)) ->
   forall (p : program) (v : term),
   wf_eprogram extra_env_flags p ->
   eval_eprogram extra_wcbv_flags p v ->
-  exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program case_id_opts p) v'.
+  exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program o p) v' /\ lbox_obs v v'.
+Proof.
+  intros Hnode p v [wfΣ wft] [ev].
+  unfold eval_eprogram, lbox_obs.
+  refine (lbox_opts_program_pres (wfl := extra_wcbv_flags) eq_refl eq_refl eq_refl o Hnode p v _ _ _ ev).
+  - now eapply wellformed_closed_env.
+  - intros kn mdecl. now eapply (EImplementBox.wellformed_lookup_inductive_pars (efl := extra_env_flags)).
+  - now eapply wellformed_closed.
+Qed.
+
+Lemma case_id_terminates :
+  forall (p : program) (v : term),
+  wf_eprogram extra_env_flags p ->
+  eval_eprogram extra_wcbv_flags p v ->
+  exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program case_id_opts p) v' /\ lbox_obs v v'.
+Proof. apply lbox_opts_program_eval, case_id_node. Qed.
 
 Import MetaRocq.Common.Transform.Transform.
 
@@ -235,14 +256,14 @@ Qed.
 Program Definition case_id_transformation :
   Transform.t _ _ EAst.term EAst.term _ _
     (eval_eprogram extra_wcbv_flags) (eval_eprogram extra_wcbv_flags) :=
-  {| name := "lambda-box identity cases (unverified)";
+  {| name := "lambda-box identity cases";
      transform p _ := lbox_opts_program case_id_opts p;
      pre p := wf_eprogram extra_env_flags p;
      post p := wf_eprogram extra_env_flags p;
-     obseq _ _ _ _ _ := True |}.
+     obseq _ _ _ v v' := lbox_obs v v' |}.
 Next Obligation.
   intros. apply wf_eprogram_lbox_opts_program => //. apply rewrite_node_wf_extra.
 Qed.
 Next Obligation.
-  edestruct trust_case_id_terminates as [v' ev]; eauto.
+  intros. cbn. now apply case_id_terminates.
 Qed.

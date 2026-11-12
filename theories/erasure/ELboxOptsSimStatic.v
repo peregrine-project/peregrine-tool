@@ -1,0 +1,348 @@
+(** * The lambda-box passes are chains of rewrite steps, and preserve evaluation
+
+    [optimize o t] is reached from [t] by finitely many parallel steps of the
+    rewrite relation [R] of [ELboxOptsSim] (one step per level of nesting),
+    and each step is simulated by evaluation ([ELboxOptsSimEval]). *)
+
+From Stdlib Require Import List Arith Lia ssreflect ssrbool.
+From MetaRocq.Utils Require Import utils.
+From MetaRocq.Common Require Import BasicAst Kernames.
+From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils EInduction ELiftSubst
+  ECSubst EGlobalEnv EWcbvEval EProgram EWellformed EBeta.
+From Peregrine Require Import ELboxOpts ELboxOptsSim ELboxOptsSimEval.
+From Peregrine Require ELiftConstants.
+From Equations Require Import Equations.
+
+Local Open Scope bool_scope.
+Set Default Goal Selector "!".
+
+(** ** Iterated relations *)
+
+Fixpoint itr {A} (r : A -> A -> Prop) n x y : Prop :=
+  match n with 0 => x = y | S n => exists z, r x z /\ itr r n z y end.
+
+Lemma itr_S {A} (r : A -> A -> Prop) n x y :
+  (forall x, r x x) -> itr r n x y -> itr r (S n) x y.
+Proof. intros rf H. exists x. split; auto. Qed.
+
+Lemma itr_pad {A} (r : A -> A -> Prop) n m x y :
+  (forall x, r x x) -> n <= m -> itr r n x y -> itr r m x y.
+Proof. intros rf Hle H. induction Hle; auto. now apply itr_S. Qed.
+
+Lemma itr_snoc {A} (r : A -> A -> Prop) n x y z :
+  itr r n x y -> r y z -> itr r (S n) x z.
+Proof.
+  induction n in x |- *; cbn.
+  - intros -> H. exists z; split; auto.
+  - intros (w & H1 & H2) H. exists w; split; auto. now apply IHn.
+Qed.
+
+Lemma itr_map1 {A B} (rA : A -> A -> Prop) (rB : B -> B -> Prop) (c : A -> B) n x y :
+  (forall x y, rA x y -> rB (c x) (c y)) -> itr rA n x y -> itr rB n (c x) (c y).
+Proof.
+  intros Hc. induction n in x |- *; cbn.
+  - now intros ->.
+  - intros (z & H1 & H2). exists (c z). split; auto.
+Qed.
+
+Lemma itr_map2 {A B C} (rA : A -> A -> Prop) (rB : B -> B -> Prop) (rC : C -> C -> Prop)
+  (c : A -> B -> C) n x x' y y' :
+  (forall x x' y y', rA x x' -> rB y y' -> rC (c x y) (c x' y')) ->
+  itr rA n x x' -> itr rB n y y' -> itr rC n (c x y) (c x' y').
+Proof.
+  intros Hc. induction n in x, y |- *; cbn.
+  - now intros -> ->.
+  - intros (z & H1 & H2) (w & H3 & H4). exists (c z w). split; auto.
+Qed.
+
+Lemma itr_lift2 {A B C} (rA : A -> A -> Prop) (rB : B -> B -> Prop) (rC : C -> C -> Prop)
+  (c : A -> B -> C) x x' y y' :
+  (forall x, rA x x) -> (forall y, rB y y) ->
+  (forall x x' y y', rA x x' -> rB y y' -> rC (c x y) (c x' y')) ->
+  (exists n, itr rA n x x') -> (exists n, itr rB n y y') ->
+  exists n, itr rC n (c x y) (c x' y').
+Proof.
+  intros fA fB Hc [n Hn] [m Hm]. exists (Nat.max n m).
+  eapply itr_map2; tea; eapply itr_pad; tea; lia.
+Qed.
+
+Lemma itr_lift1 {A B} (rA : A -> A -> Prop) (rB : B -> B -> Prop) (c : A -> B) x x' :
+  (forall x y, rA x y -> rB (c x) (c y)) ->
+  (exists n, itr rA n x x') -> exists n, itr rB n (c x) (c x').
+Proof. intros Hc [n Hn]. exists n. eapply itr_map1; tea. Qed.
+
+(** ** The static part *)
+
+Section Static.
+  Context {wfl : WcbvFlags}.
+
+  Definition Rall t t' := forall Σ', R Σ' t t'.
+  Definition Rsall l l' := forall Σ', Rs Σ' l l'.
+  Definition Rbrsall l l' := forall Σ', Rbrs Σ' l l'.
+  Definition Rdefsall l l' := forall Σ', Rdefs Σ' l l'.
+
+  Lemma Rall_refl t : Rall t t.
+  Proof. intros Σ'. apply R_refl. Qed.
+  Lemma Rsall_refl l : Rsall l l.
+  Proof. intros Σ'. apply Rs_refl. Qed.
+  Lemma Rbrsall_refl l : Rbrsall l l.
+  Proof. intros Σ'. induction l as [|[n b] l]; constructor; auto. apply R_refl. Qed.
+  Lemma Rdefsall_refl l : Rdefsall l l.
+  Proof. intros Σ'. induction l as [|[na b r] l]; constructor; auto. apply R_refl. Qed.
+
+  Definition chain t t' := exists n, itr Rall n t t'.
+
+  Lemma chain_refl t : chain t t.
+  Proof. now exists 0. Qed.
+
+  Variable o : lbox_opts.
+  Hypothesis Hnode : forall t, Rall t (rewrite_node o t).
+
+  Lemma chain_node t t' : chain t t' -> chain t (rewrite_node o t').
+  Proof. intros [n Hn]. exists (S n). eapply itr_snoc; tea. apply Hnode. Qed.
+
+  Lemma chains_map f l :
+    All (fun t => chain t (f t)) l -> exists n, itr Rsall n l (map f l).
+  Proof.
+    induction 1; cbn; [now exists 0|].
+    eapply (itr_lift2 Rall Rsall Rsall cons); tea;
+      [apply Rall_refl|apply Rsall_refl|].
+    intros ? ? ? ? H1 H2 Σ'. constructor; auto.
+  Qed.
+
+  Lemma chbrs_map f (l : list (list name × term)) :
+    All (fun x => chain x.2 (f x.2)) l -> exists n, itr Rbrsall n l (map (on_snd f) l).
+  Proof.
+    induction 1 as [|[na b] l H X IH]; cbn; [now exists 0|].
+    eapply (itr_lift2 Rall Rbrsall Rbrsall (fun b l => (na, b) :: l)); tea;
+      [apply Rall_refl|apply Rbrsall_refl|].
+    intros ? ? ? ? H1 H2 Σ'. constructor; auto.
+  Qed.
+
+  Lemma chdefs_map g (l : mfixpoint term) :
+    All (fun x => chain (dbody x) (g (dbody x))) l ->
+    exists n, itr Rdefsall n l (map (map_def g) l).
+  Proof.
+    induction 1 as [|[na b r] l H X IH]; cbn; [now exists 0|].
+    eapply (itr_lift2 Rall Rdefsall Rdefsall
+              (fun b l => {| dname := na; dbody := b; rarg := r |} :: l)); tea;
+      [apply Rall_refl|apply Rdefsall_refl|].
+    intros ? ? ? ? H1 H2 Σ'. constructor; auto.
+  Qed.
+
+  Ltac cg := intros; intros Σ'; apply R_head; constructor; auto.
+
+  Lemma optimize_chain t :
+    chain t (optimize o t) /\ chain t (optimize_fix_body (optimize o) t).
+  Proof.
+    induction t using term_forall_list_ind.
+    all: try (match goal with |- chain (tLambda _ _) _ /\ _ => fail 1 | _ => idtac end;
+              match goal with |- chain ?T _ /\ _ =>
+                enough (H : chain T (optimize o T)) by (split; exact H) end;
+              apply chain_node; cbn [map_subterms_fix map_subterms]).
+    - apply chain_refl.
+    - apply chain_refl.
+    - apply chain_refl.
+    - eapply (itr_lift1 Rsall Rall (tEvar n)); [cg|].
+      apply chains_map. eapply All_impl; [exact X|]. now intros ? [].
+    - destruct IHt as [IH _].
+      assert (H : chain (tLambda n t) (tLambda n (optimize o t))).
+      { eapply (itr_lift1 Rall Rall (tLambda n)); [cg|exact IH]. }
+      split; [|exact H]. now apply chain_node.
+    - destruct IHt1 as [IH1 _], IHt2 as [IH2 _].
+      eapply (itr_lift2 Rall Rall Rall (tLetIn n)); tea; try apply Rall_refl. cg.
+    - destruct IHt1 as [IH1 _], IHt2 as [IH2 _].
+      eapply (itr_lift2 Rall Rall Rall tApp); tea; try apply Rall_refl. cg.
+    - apply chain_refl.
+    - eapply (itr_lift1 Rsall Rall (tConstruct i n)); [cg|].
+      apply chains_map. eapply All_impl; [exact X|]. now intros ? [].
+    - destruct IHt as [IH _].
+      eapply (itr_lift2 Rall Rbrsall Rall (tCase p)); tea;
+        [apply Rall_refl|apply Rbrsall_refl|cg|].
+      apply chbrs_map. eapply All_impl; [exact X|]. now intros ? [].
+    - destruct IHt as [IH _].
+      eapply (itr_lift1 Rall Rall (tProj s)); [cg|exact IH].
+    - eapply (itr_lift1 Rdefsall Rall (fun m => tFix m n)); [cg|].
+      apply chdefs_map. eapply All_impl; [exact X|]. now intros ? [].
+    - eapply (itr_lift1 Rdefsall Rall (fun m => tCoFix m n)); [cg|].
+      apply chdefs_map. eapply All_impl; [exact X|]. now intros ? [].
+    - destruct p as [? []]; cbn; try apply chain_refl.
+      depelim X. destruct p as [Hd Hv]. destruct a; cbn in *.
+      destruct Hd as [Hd _].
+      eapply (itr_lift2 Rall Rsall Rall
+                (fun d v => tPrim (prim_array {| array_default := d; array_value := v |}))); tea;
+        [apply Rall_refl|apply Rsall_refl|cg|].
+      apply chains_map. eapply All_impl; [exact Hv|]. now intros ? [].
+    - destruct IHt as [IH _].
+      eapply (itr_lift1 Rall Rall tLazy); [cg|exact IH].
+    - destruct IHt as [IH _].
+      eapply (itr_lift1 Rall Rall tForce); [cg|exact IH].
+  Qed.
+
+End Static.
+
+(** ** Environments and programs *)
+
+Section Program.
+  Context {wfl : WcbvFlags}.
+  Hypothesis Hblock : with_constructor_as_block = true.
+  Hypothesis Hguard : with_guarded_fix = false.
+  Hypothesis Hprop : with_prop_case = false.
+
+  Definition decl_step (d d' : global_decl) : Prop :=
+    match d, d' with
+    | ConstantDecl cb, ConstantDecl cb' =>
+        match cst_body cb, cst_body cb' with
+        | Some b, Some b' => Rall b b'
+        | None, None => True
+        | _, _ => False
+        end
+    | InductiveDecl m, InductiveDecl m' => m = m'
+    | _, _ => False
+    end.
+
+  Inductive env_step : global_declarations -> global_declarations -> Prop :=
+  | es_nil : env_step [] []
+  | es_cons kn d d' Σ Σ' :
+      decl_step d d' -> env_step Σ Σ' -> env_step ((kn, d) :: Σ) ((kn, d') :: Σ').
+
+  Lemma decl_step_refl d : decl_step d d.
+  Proof. destruct d as [[[b|]]|m]; cbn; auto. apply Rall_refl. Qed.
+
+  Lemma env_step_refl Σ : env_step Σ Σ.
+  Proof. induction Σ as [|[kn d] Σ]; constructor; auto. apply decl_step_refl. Qed.
+
+  Lemma env_step_lookup Σ Σ' kn :
+    env_step Σ Σ' ->
+    match lookup_env Σ kn with
+    | Some d => exists d', lookup_env Σ' kn = Some d' /\ decl_step d d'
+    | None => lookup_env Σ' kn = None
+    end.
+  Proof.
+    induction 1; cbn; auto.
+    destruct (eq_kername kn kn0); eauto.
+  Qed.
+
+  Lemma env_step_minductive Σ Σ' kn :
+    env_step Σ Σ' -> lookup_minductive Σ kn = lookup_minductive Σ' kn.
+  Proof.
+    intros H. pose proof (env_step_lookup _ _ kn H) as L.
+    unfold lookup_minductive. destruct (lookup_env Σ kn) as [d|]; cbn.
+    - destruct L as (d' & -> & Hd). cbn.
+      destruct d as [cb|m], d' as [cb'|m']; cbn in *; try contradiction; congruence.
+    - now rewrite L.
+  Qed.
+
+  Lemma env_step_constant Σ Σ' kn b :
+    env_step Σ Σ' -> declared_constant Σ kn {| cst_body := Some b |} ->
+    exists b', declared_constant Σ' kn {| cst_body := Some b' |} /\ R Σ' b b'.
+  Proof.
+    intros H Hd. pose proof (env_step_lookup _ _ kn H) as L.
+    unfold declared_constant in *. rewrite Hd in L.
+    destruct L as (d' & L & Hs). destruct d' as [[[b'|]]|]; cbn in Hs; try contradiction.
+    exists b'. split; auto.
+  Qed.
+
+  Lemma env_step_closed Σ Σ' : env_step Σ Σ' -> closed_env Σ -> closed_env Σ'.
+  Proof.
+    induction 1; cbn; auto.
+    move/andP => [Hd Hcl]. apply/andP; split; auto.
+    unfold test_snd in *; cbn in *.
+    destruct d as [[[b|]]|m], d' as [[[b'|]]|m']; cbn in *; try contradiction; auto.
+    exact (R_closed [] _ _ 0 (H []) Hd).
+  Qed.
+
+  Definition pars0 (Σ : global_declarations) :=
+    forall kn mdecl, lookup_minductive Σ kn = Some mdecl -> ind_npars mdecl = 0.
+
+  Lemma pars0_isprop Σ : pars0 Σ -> forall ind c b pars cdecl,
+    constructor_isprop_pars_decl Σ ind c = Some (b, pars, cdecl) -> pars = 0.
+  Proof.
+    intros H ind c b pars cdecl.
+    unfold constructor_isprop_pars_decl, lookup_constructor, lookup_inductive.
+    destruct (lookup_minductive Σ (inductive_mind ind)) as [m|] eqn:E; cbn; try discriminate.
+    destruct nth_error; cbn; try discriminate.
+    destruct nth_error; cbn; try discriminate.
+    intros [= _ <- _]. eauto.
+  Qed.
+
+  (** the observable relation on values: a chain of rewrite steps *)
+  Inductive obs : term -> term -> Prop :=
+  | obs_refl v : obs v v
+  | obs_step Σ' v v' v'' : R Σ' v v' -> obs v' v'' -> obs v v''.
+
+  Lemma step_pres Σ Σ' t t' v :
+    env_step Σ Σ' -> Rall t t' -> closed_env Σ -> pars0 Σ -> closed t ->
+    eval Σ t v ->
+    (closed_env Σ' /\ pars0 Σ' /\ closed t') /\
+    exists v', ∥ eval Σ' t' v' ∥ /\ R Σ' v v'.
+  Proof.
+    intros He Ht Hcl Hp Hct ev.
+    assert (Hcl' : closed_env Σ') by (eapply env_step_closed; tea).
+    split.
+    - split; auto. split.
+      + intros kn m. rewrite -(env_step_minductive _ _ kn He). apply Hp.
+      + exact (R_closed [] _ _ 0 (Ht []) Hct).
+    - eapply (simulation Hblock Hguard Hprop Σ Σ'); tea.
+      + intros kn. now apply env_step_minductive.
+      + intros kn b. now apply env_step_constant.
+      + now apply pars0_isprop.
+      + apply Ht.
+  Qed.
+
+  Lemma chain_pres n : forall Σ Σ' t t' v,
+    itr env_step n Σ Σ' -> itr Rall n t t' -> closed_env Σ -> pars0 Σ -> closed t ->
+    eval Σ t v ->
+    exists v', ∥ eval Σ' t' v' ∥ /\ obs v v'.
+  Proof.
+    induction n; cbn; intros Σ Σ' t t' v He Ht Hcl Hp Hct ev.
+    - subst. exists v. split; [now sq|constructor].
+    - destruct He as (Σ1 & He1 & He), Ht as (t1 & Ht1 & Ht).
+      destruct (step_pres _ _ _ _ _ He1 Ht1 Hcl Hp Hct ev) as [(Hcl1 & Hp1 & Hct1) (v1 & [ev1] & Hv1)].
+      destruct (IHn _ _ _ _ _ He Ht Hcl1 Hp1 Hct1 ev1) as (v' & ev' & Hv').
+      exists v'. split; auto. econstructor; tea.
+  Qed.
+
+  Variable o : lbox_opts.
+  Hypothesis Hnode : forall t, Rall t (rewrite_node o t).
+
+  Lemma optimize_decl_chain d : exists n, itr decl_step n d (optimize_decl o d).
+  Proof.
+    destruct d as [[[b|]]|m]; cbn; try (now exists 0).
+    destruct (optimize_chain o Hnode b) as [[n Hn] _]. exists n.
+    eapply (itr_map1 Rall decl_step (fun b => ConstantDecl {| cst_body := Some b |})); tea.
+    now cbn.
+  Qed.
+
+  Lemma optimize_env_chain Σ : exists n, itr env_step n Σ (optimize_env o Σ).
+  Proof.
+    induction Σ as [|[kn d] Σ IH]; cbn; [now exists 0|].
+    eapply (itr_lift2 decl_step env_step env_step (fun d Σ => (kn, d) :: Σ)); tea;
+      [apply decl_step_refl|apply env_step_refl| |apply optimize_decl_chain].
+    intros; now constructor.
+  Qed.
+
+  Theorem lbox_opts_program_pres (p : eprogram) v :
+    closed_env p.1 -> pars0 p.1 -> closed p.2 ->
+    eval p.1 p.2 v ->
+    exists v', ∥ eval (lbox_opts_program o p).1 (lbox_opts_program o p).2 v' ∥ /\ obs v v'.
+  Proof.
+    intros Hcl Hp Hct ev.
+    destruct (optimize_env_chain p.1) as [n Hn].
+    destruct (optimize_chain o Hnode p.2) as [[m Hm] _].
+    eapply (chain_pres (Nat.max n m)); tea.
+    - eapply itr_pad; tea; [apply env_step_refl|lia].
+    - eapply itr_pad; tea; [apply Rall_refl|lia].
+  Qed.
+
+End Program.
+
+(** ** The identity-case pass *)
+
+Lemma case_id_node {wfl : WcbvFlags} t : Rall t (rewrite_node case_id_opts t).
+Proof.
+  intros Σ'. destruct t as [| | | | | | | | |[ind pars] d l| | | | | |]; try apply R_refl. cbn.
+  destruct l as [|br brs]; [apply R_refl|].
+  match goal with |- context [if ?c then _ else _] => destruct c eqn:E end; [|apply R_refl].
+  apply R_head, Rh_case_id; [apply R_refl|exact E].
+Qed.

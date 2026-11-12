@@ -26,6 +26,7 @@ theories/erasure/ELboxOptsWf_fix.v
 theories/erasure/ELboxOptsWf_let.v
 theories/erasure/ELboxOptsSim.v
 theories/erasure/ELboxOptsSimEval.v
+theories/erasure/ELboxOptsSimStatic.v
 theories/erasure/ELboxOptsWf.v
 theories/erasure/EExtraFlags.v
 theories/erasure/ELiftConstants.v
