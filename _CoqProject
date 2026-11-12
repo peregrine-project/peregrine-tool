@@ -18,6 +18,7 @@ theories/erasure/ERenameGlobals.v
 theories/erasure/Erasure.v
 theories/erasure/ErasureTyped.v
 theories/erasure/Transforms.v
+theories/erasure/ESpecRel.v
 theories/erasure/EInstanceSpecialize.v
 theories/erasure/ECommonSubexpr.v
 theories/erasure/ELboxOpts.v
