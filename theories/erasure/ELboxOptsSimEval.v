@@ -1,0 +1,757 @@
+(** * Forward simulation for the rewrite relation of [ELboxOptsSim]
+
+    If [t] evaluates to [v] in [Σ] and [R Σ' t t'], then [t'] evaluates in
+    [Σ'] to some [v'] with [R Σ' v v'].  The flags are those of the pipeline
+    stage where the lambda-box passes run: constructors as blocks, unguarded
+    fixpoints, no propositional cases. *)
+
+From Stdlib Require Import List Arith Lia ssreflect ssrbool.
+From MetaRocq.Utils Require Import utils.
+From MetaRocq.Common Require Import BasicAst Kernames.
+From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils EInduction ELiftSubst
+  ECSubst EGlobalEnv EWcbvEval EProgram EWellformed.
+From Peregrine Require Import ELboxOpts ELboxOptsSimDB ELboxOptsSim.
+From Peregrine Require ELiftConstants.
+From Equations Require Import Equations.
+
+Local Open Scope bool_scope.
+Set Default Goal Selector "!".
+
+Section Sim.
+  Context {wfl : WcbvFlags}.
+  Hypothesis Hblock : with_constructor_as_block = true.
+  Hypothesis Hguard : with_guarded_fix = false.
+  Hypothesis Hprop : with_prop_case = false.
+  Variables Σ Σ' : global_declarations.
+
+  Lemma Rs_app l l' m m' : Rs Σ' l l' -> Rs Σ' m m' -> Rs Σ' (l ++ m) (l' ++ m').
+  Proof. rewrite !Rs_Forall2. apply Forall2_app. Qed.
+
+  Lemma R_mk_lambdas xs ys e e' :
+    #|xs| = #|ys| -> R Σ' e e' -> R Σ' (mk_lambdas xs e) (mk_lambdas ys e').
+  Proof.
+    revert ys; induction xs; destruct ys; cbn; intros; try discriminate; auto.
+    apply R_head; constructor. apply IHxs; auto; lia.
+  Qed.
+
+  Lemma R_substl_at k s s' t t' :
+    Rs Σ' s s' -> forallb (closedn 0) s' -> R Σ' t t' ->
+    R Σ' (substl_at k s t) (substl_at k s' t').
+  Proof.
+    intros H; revert t t'; induction H; cbn; intros t0 t0' cl Ht; auto.
+    move/andP: cl => [c1 c2]. apply IHRs; auto. apply R_csubst; auto.
+  Qed.
+
+  (** *** Target head reductions *)
+
+  Lemma value_tred t u : tred Σ' t u -> value Σ' t -> False.
+  Proof.
+    intros H v.
+    assert (N : forall f args, args <> [] -> mkApps f args = t -> False).
+    { intros f args nn E. destruct (exists_last nn) as (l & x & ->).
+      rewrite mkApps_app in E. cbn in E. destruct H; discriminate. }
+    destruct v as [t X|? ? ? ? ? ? ? ? ? ?|f0 args vh nn al].
+    - destruct X as [t i|p ?].
+      + destruct H; cbn in i; discriminate.
+      + inversion H.
+    - inversion H.
+    - exact (N _ _ nn eq_refl).
+  Qed.
+
+  Lemma tred_csubst a j t u :
+    closed a -> tred Σ' t u -> tred Σ' (csubst a j t) (csubst a j u).
+  Proof.
+    intros ca H.
+    destruct H as [z v w b e cv cw
+                  |ind pars cdecl d c args brs br e cd cargs Hc Hn Hl1 Hl2
+                  |ip d mfix idx args narg fn brs e cd Hcu cfn
+                  |ip d v brs e cd cv]; cbn.
+    - rewrite (csubst_closed a j v); [eapply closed_upwards; tea; lia|].
+      rewrite csubst_csubst //. now constructor.
+    - rewrite (csubst_closed a j d); [eapply closed_upwards; tea; lia|].
+      rewrite /iota_red csubst_substl //. { rewrite forallb_rev forallb_skipn //. }
+      rewrite List.length_rev Hl2.
+      change (substl (List.rev (skipn pars args)) (csubst a (#|br.1| + j) br.2))
+        with (iota_red pars args (br.1, csubst a (#|br.1| + j) br.2)).
+      eapply tred_iota; tea. rewrite nth_error_map Hn //.
+    - rewrite (csubst_closed a j d); [eapply closed_upwards; tea; lia|].
+      rewrite (csubst_closed a j (mkApps fn args)); [eapply closed_upwards; tea; lia|].
+      eapply tred_cofix; tea.
+    - rewrite (csubst_closed a j d); [eapply closed_upwards; tea; lia|].
+      rewrite (csubst_closed a j v); [eapply closed_upwards; tea; lia|].
+      now constructor.
+  Qed.
+
+  Lemma tred_eval t u r : tred Σ' t u -> eval Σ' u r -> ∥ eval Σ' t r ∥.
+  Proof.
+    intros H ev.
+    destruct H as [z v w b [e] cv cw
+                  |ind pars cdecl d c args brs br [e] cd cargs Hc Hn Hl1 Hl2
+                  |ip d mfix idx args narg fn brs [e] cd Hcu cfn
+                  |ip d v brs [e] cd cv]; sq.
+    - eapply eval_zeta; tea.
+    - eapply eval_iota_block;
+        [exact Hblock|exact e|exact Hc|exact Hn|exact Hl1|exact Hl2|exact ev].
+    - eapply eval_cofix_case; tea.
+    - eapply eval_case_scrut; tea.
+  Qed.
+
+  (** *** Inversion of the relation at a target value *)
+
+  Lemma value_lambda y b : value Σ' (tLambda y b).
+  Proof. eapply eval_to_value; eapply eval_atom; reflexivity. Qed.
+
+  Lemma R_value_elim (P : term -> term -> Prop) :
+    (forall t w, Rh Σ' t w -> ∥ value Σ' w ∥ -> P t w) ->
+    (forall ind c args w, R Σ' (tConstruct ind c args) w -> P (tConstruct ind c args) w) ->
+    (forall y ys u t' s, R Σ' s (tLambda y (mk_lambdas ys u)) ->
+       P s (tLambda y (mk_lambdas ys u)) -> tred Σ' t' u ->
+       closed (tLambda y (mk_lambdas ys u)) -> closed (tLambda y (mk_lambdas ys t')) ->
+       P s (tLambda y (mk_lambdas ys t'))) ->
+    forall t w, R Σ' t w -> ∥ value Σ' w ∥ -> P t w.
+  Proof.
+    intros Hh Hc He.
+    induction 1 as [t w H
+                   |ind c args v0 mfix idx args' narg fn H IH e Hcu vv cl cl0
+                   |t v0 t' H IH e cl cl0
+                   |ys s u t' H IH Ht cu ct]; intros [vw].
+    - apply Hh; auto. now sq.
+    - apply Hc. eapply R_cofix; tea.
+    - destruct e as [e]. have E := eval_value _ _ vw e. subst. apply IH. now sq.
+    - destruct ys as [|y ys]; cbn in *.
+      + destruct (value_tred _ _ Ht vw).
+      + eapply He; tea. apply IH. sq. apply value_lambda.
+  Qed.
+
+  Lemma R_box_inv w : R Σ' tBox w -> ∥ value Σ' w ∥ -> w = tBox.
+  Proof.
+    intros H v.
+    refine (R_value_elim (fun t w => t = tBox -> w = tBox) _ _ _ _ _ H v eq_refl).
+    - intros t0 w0 H' _ ->. now inversion H'.
+    - intros; discriminate.
+    - intros y ys u t' s _ IH _ _ _ E. specialize (IH E). discriminate.
+  Qed.
+
+  Lemma R_lambda_inv na b w :
+    R Σ' (tLambda na b) w -> ∥ value Σ' w ∥ ->
+    exists na' b', w = tLambda na' b' /\
+      forall a a', R Σ' a a' -> closed a' -> R Σ' (csubst a 0 b) (csubst a' 0 b').
+  Proof.
+    intros H v.
+    refine (R_value_elim (fun t w => forall na b, t = tLambda na b ->
+      exists na' b', w = tLambda na' b' /\
+        forall a a', R Σ' a a' -> closed a' -> R Σ' (csubst a 0 b) (csubst a' 0 b'))
+      _ _ _ _ _ H v _ _ eq_refl).
+    - intros t0 w0 H' _ na0 b0 ->. inversion H'; subst.
+      eexists _, _; split; [reflexivity|]. intros. apply R_csubst; auto.
+    - intros; discriminate.
+    - intros y ys u t' s _ IH Ht cu ct na0 b0 E.
+      destruct (IH _ _ E) as (na' & b' & E' & Hb). injection E' as <- <-.
+      eexists _, _; split; [reflexivity|]. intros a a' Ha ca'.
+      cbn in cu, ct.
+      rewrite csubst_mk_lambdas. eapply (R_exp _ ys _ (csubst a' (#|ys| + 0) u)).
+      + rewrite -csubst_mk_lambdas. apply Hb; auto.
+      + apply tred_csubst; tea.
+      + rewrite -csubst_mk_lambdas. apply closed_csubst; auto.
+      + rewrite -csubst_mk_lambdas. apply closed_csubst; auto.
+  Qed.
+
+  Lemma R_fix_inv mf idx w :
+    R Σ' (tFix mf idx) w -> ∥ value Σ' w ∥ -> exists mf', w = tFix mf' idx /\ Rdefs Σ' mf mf'.
+  Proof.
+    intros H v.
+    refine (R_value_elim (fun t w => forall mf idx, t = tFix mf idx ->
+      exists mf', w = tFix mf' idx /\ Rdefs Σ' mf mf') _ _ _ _ _ H v _ _ eq_refl).
+    - intros t0 w0 H' _ mf0 idx0 ->. inversion H'; subst; eauto.
+    - intros; discriminate.
+    - intros y ys u t' s _ IH _ _ _ mf0 idx0 E. destruct (IH _ _ E) as (? & ? & ?). discriminate.
+  Qed.
+
+  Lemma R_lazy_inv b w :
+    R Σ' (tLazy b) w -> ∥ value Σ' w ∥ -> exists b', w = tLazy b' /\ R Σ' b b'.
+  Proof.
+    intros H v.
+    refine (R_value_elim (fun t w => forall b, t = tLazy b ->
+      exists b', w = tLazy b' /\ R Σ' b b') _ _ _ _ _ H v _ eq_refl).
+    - intros t0 w0 H' _ b0 ->. inversion H'; subst; eauto.
+    - intros; discriminate.
+    - intros y ys u t' s _ IH _ _ _ b0 E. destruct (IH _ E) as (? & ? & ?). discriminate.
+  Qed.
+
+  Lemma R_mkApps_cofix_inv mf idx args w :
+    R Σ' (mkApps (tCoFix mf idx) args) w -> ∥ value Σ' w ∥ ->
+    exists mf' args', w = mkApps (tCoFix mf' idx) args' /\ Rdefs Σ' mf mf' /\ Rs Σ' args args'.
+  Proof.
+    pose (Q := fun args t w => t = mkApps (tCoFix mf idx) args ->
+      exists mf' args', w = mkApps (tCoFix mf' idx) args' /\ Rdefs Σ' mf mf' /\ Rs Σ' args args').
+    assert (Hexp : forall args y ys u t' s, R Σ' s (tLambda y (mk_lambdas ys u)) ->
+       Q args s (tLambda y (mk_lambdas ys u)) -> tred Σ' t' u ->
+       closed (tLambda y (mk_lambdas ys u)) -> closed (tLambda y (mk_lambdas ys t')) ->
+       Q args s (tLambda y (mk_lambdas ys t'))).
+    { intros args0 y ys u t' s _ IH _ _ _ E.
+      destruct (IH E) as (mf' & args' & E' & _).
+      have Hhd := mkApps_cofix_head mf' idx args'. rewrite -E' in Hhd. destruct Hhd. }
+    revert w. induction args using rev_ind; intros w H v.
+    - refine (R_value_elim (Q []) _ _ (Hexp []) _ _ H v eq_refl).
+      + intros t0 w0 H' _ E. cbn in E. subst t0. inversion H'; subst.
+        eexists _, []. cbn. repeat split; eauto. constructor.
+      + intros ? ? ? ? ? E. discriminate.
+    - refine (R_value_elim (Q (args ++ [x])) _ _ (Hexp _) _ _ H v eq_refl).
+      + intros t0 w0 H' v0 E. subst t0. rewrite mkApps_app in H'. cbn in H'.
+        have Hhd := mkApps_cofix_head mf idx args.
+        inversion H'; subst.
+        * destruct v0 as [v0].
+          match goal with H : R _ (mkApps _ args) _ |- _ =>
+            destruct (IHargs _ H) as (mf' & args' & -> & ? & ?) end.
+          { sq. eapply value_app_head; tea. }
+          eexists mf', (args' ++ [_]). rewrite mkApps_app. cbn. repeat split; eauto.
+          apply Rs_app; auto. constructor; auto. constructor.
+        * match goal with E : _ = mkApps _ args |- _ => rewrite -E in Hhd end. destruct Hhd.
+        * match goal with E : _ = mkApps _ args |- _ => rewrite -E in Hhd end. destruct Hhd.
+        * match goal with E : _ = mkApps _ args |- _ => rewrite -E in Hhd end. destruct Hhd.
+      + intros ? ? ? ? ? E. rewrite mkApps_app in E. discriminate.
+  Qed.
+
+  Lemma R_construct_unfolds t w :
+    R Σ' t w -> forall ind c args, t = tConstruct ind c args ->
+    ∥ value Σ' w ∥ -> closed w ->
+    exists args', unfolds Σ' w (tConstruct ind c args') /\ Rs Σ' args args' /\
+      ∥ value Σ' (tConstruct ind c args') ∥ /\ closed (tConstruct ind c args').
+  Proof.
+    induction 1; intros ind0 c0 args0 E vw clw.
+    - subst. match goal with H : Rh _ _ _ |- _ => inversion H; subst end.
+      eexists; split; [constructor|]. auto.
+    - injection E; intros; subst.
+      destruct (IHR _ _ _ eq_refl) as (args'' & U & HR & vv & clv); auto.
+      { match goal with H : ∥ eval _ _ v0 ∥ |- _ => destruct H as [e] end.
+        sq. eapply eval_to_value; tea. }
+      exists args''. split; [eapply unfolds_step; tea|auto].
+    - destruct vw as [vw].
+      match goal with H : ∥ eval _ _ _ ∥ |- _ => destruct H as [e] end.
+      have E' := eval_value _ _ vw e. subst. apply IHR; auto. now sq.
+    - destruct ys as [|y ys]; cbn in *.
+      + destruct vw as [vw]. destruct (value_tred _ _ ltac:(eassumption) vw).
+      + destruct (IHR _ _ _ E) as (args'' & U & _); auto.
+        { sq. apply value_lambda. }
+        inversion U; subst.
+        match goal with E : mkApps (tCoFix ?m ?i) ?a = tLambda _ _ |- _ =>
+          have Hhd := mkApps_cofix_head m i a; rewrite E in Hhd; destruct Hhd end.
+  Qed.
+
+  Hypothesis Hind : forall kn, lookup_minductive Σ kn = lookup_minductive Σ' kn.
+  Hypothesis Hcst : forall kn b, declared_constant Σ kn {| cst_body := Some b |} ->
+    exists b', declared_constant Σ' kn {| cst_body := Some b' |} /\ R Σ' b b'.
+  Hypothesis HclΣ : closed_env Σ.
+  Hypothesis HclΣ' : closed_env Σ'.
+  Hypothesis Hpars : forall ind c b pars cdecl,
+    constructor_isprop_pars_decl Σ ind c = Some (b, pars, cdecl) -> pars = 0.
+
+  Lemma value_cofix_shape f :
+    value Σ f ->
+    ~~ (isLambda f || (if with_guarded_fix then isFixApp f else isFix f) || isBox f
+        || isConstructApp f || isPrimApp f || isLazyApp f) ->
+    exists mfix idx args, f = mkApps (tCoFix mfix idx) args.
+  Proof.
+    rewrite Hguard. intros [t X|? ? ? ? ? ? ? ? ? ?|f0 args vh nn al].
+    - destruct X as [t i|p ?].
+      + destruct t; cbn in i |- *; try discriminate.
+        all: try (intros; discriminate).
+        intros _. now eexists _, _, [].
+      + cbn. intros; discriminate.
+    - cbn. rewrite ?orb_true_r. intros; discriminate.
+    - destruct vh.
+      + congruence.
+      + intros _. now eexists _, _, _.
+      + rewrite Hguard in y. destruct y.
+  Qed.
+
+  Definition goal t' v := exists v', ∥ eval Σ' t' v' ∥ /\ R Σ' v v'.
+
+  Lemma sim_layer t v :
+    eval Σ t v -> (forall t', Rh Σ' t t' -> goal t' v) -> forall t', R Σ' t t' -> goal t' v.
+  Proof.
+    intros ev Hh t' H. revert v ev Hh. induction H; intros v ev Hh.
+    - now apply Hh.
+    - destruct (IHR v ev Hh) as (v0' & [e0] & Hv).
+      match goal with H : ∥ eval _ _ v0 ∥ |- _ => destruct H as [e1] end.
+      have vv0 := eval_to_value _ _ e1.
+      have E : v0 = v0' by (eapply eval_value; tea). subst v0'.
+      eexists. split.
+      { match goal with H : ∥ value _ _ ∥ |- _ => destruct H as [vv] end.
+        sq. now apply value_final. }
+      eapply eval_Construct_inv in ev as (args'' & -> & _).
+      eapply R_cofix; tea. now sq.
+    - destruct (IHR v ev Hh) as (v0' & [e0] & Hv).
+      match goal with H : ∥ eval _ _ v0 ∥ |- _ => destruct H as [e1] end.
+      have E : v0 = v0' by (eapply eval_value; [eapply eval_to_value; exact e1|exact e0]).
+      subst v0'. exists v0. split; [now sq|auto].
+    - destruct (IHR v ev Hh) as (v0' & [e0] & Hv).
+      destruct ys as [|y ys]; cbn in *.
+      + destruct (tred_eval _ _ _ ltac:(eassumption) e0) as [e']. exists v0'. split; [now sq|auto].
+      + apply eval_lambda_inv in e0. subst v0'.
+        eexists; split; [sq; apply eval_atom; reflexivity|].
+        match goal with Ht : tred _ ?t' ?u |- _ =>
+          exact (R_exp _ (y :: ys) _ u t' Hv Ht ltac:(assumption) ltac:(assumption)) end.
+  Qed.
+
+  Lemma exp_goal ys u t' v :
+    tred Σ' t' u -> closed (mk_lambdas ys u) -> closed (mk_lambdas ys t') ->
+    goal (mk_lambdas ys u) v -> goal (mk_lambdas ys t') v.
+  Proof.
+    intros Ht cu ct (v0 & [e] & Hv). destruct ys as [|y ys]; cbn in *.
+    - destruct (tred_eval _ _ _ Ht e) as [e']. exists v0. split; [now sq|auto].
+    - apply eval_lambda_inv in e. subst v0.
+      eexists; split; [sq; apply eval_atom; reflexivity|].
+      exact (R_exp _ (y :: ys) _ u t' Hv Ht cu ct).
+  Qed.
+
+  Lemma closed_case_scrut ys ip X Y B :
+    closed X -> closed (mk_lambdas ys (tCase ip Y B)) -> closed (mk_lambdas ys (tCase ip X B)).
+  Proof.
+    intros cX. rewrite !closedn_mk_lambdas. cbn. move/andP => [_ ->].
+    rewrite andb_true_r. eapply closed_upwards; tea. lia.
+  Qed.
+
+  Lemma unfolds_exp ys ip B w v res :
+    unfolds Σ' w v -> closed w -> closed (mk_lambdas ys (tCase ip w B)) ->
+    goal (mk_lambdas ys (tCase ip v B)) res -> goal (mk_lambdas ys (tCase ip w B)) res.
+  Proof.
+    induction 1 as [|mfix idx args narg fn v0 v Hcu [vv] [e1] U IH]; intros cw cT G; auto.
+    have cfn : closed (mkApps fn args).
+    { move: cw. rewrite !closedn_mkApps. move/andP => [x1 x2]. apply/andP; split; auto.
+      eapply closed_cunfold_cofix; tea. }
+    have cv0 := eval_closed Σ' HclΣ' _ _ cfn e1.
+    eapply (exp_goal ys (tCase ip (mkApps fn args) B)).
+    - eapply tred_cofix; tea. sq. now apply value_final.
+    - eapply closed_case_scrut; [exact cfn|exact cT].
+    - exact cT.
+    - eapply (exp_goal ys (tCase ip v0 B)).
+      + apply tred_scrut; auto. now sq.
+      + eapply closed_case_scrut; [exact cv0|exact cT].
+      + eapply closed_case_scrut; [exact cfn|exact cT].
+      + apply IH; auto. eapply closed_case_scrut; [exact cv0|exact cT].
+  Qed.
+
+  Lemma sim_args args args' (a : All2_Set (eval Σ) args args') :
+    All2_over a (fun x y _ => closed x -> forall t', Rh Σ' x t' -> goal t' y) ->
+    forallb (closedn 0) args ->
+    forall args0, Rs Σ' args args0 ->
+    exists args1, ∥ All2_Set (eval Σ') args0 args1 ∥ /\ Rs Σ' args' args1.
+  Proof.
+    induction a; cbn; intros iha cl args0 Hargs; inversion Hargs; subst.
+    - exists []. split; [sq; constructor|constructor].
+    - destruct iha as [hx hl]. move/andP: cl => [cx cl].
+      match goal with H : R _ x _ |- _ =>
+        destruct (sim_layer _ _ r (hx cx) _ H) as (y' & [ey] & Hy) end.
+      match goal with H : Rs _ l _ |- _ =>
+        destruct (IHa hl cl _ H) as (l1 & [el] & Hl) end.
+      exists (y' :: l1). split; [sq; now constructor|now constructor].
+  Qed.
+
+  Lemma closed_iota_red ip d pars args br brs c :
+    closed (tCase ip d brs) -> forallb (closedn 0) args ->
+    nth_error brs c = Some br -> #|skipn pars args| = #|br.1| ->
+    closed (iota_red pars args br).
+  Proof.
+    cbn. move/andP => [_ Hc'] cla e2 e4. rewrite /iota_red.
+    eapply closed_substl. { now rewrite forallb_rev forallb_skipn. }
+    len. rewrite e4. eapply nth_error_forallb in Hc'; tea.
+    now rewrite Nat.add_0_r in Hc'.
+  Qed.
+
+  Ltac sim_with_n t t' w e Hw :=
+    match goal with
+    | IH : is_true (closedn 0 t) -> forall t', Rh _ t t' -> goal t' ?v, ev : eval _ t ?v |- _ =>
+      let c := fresh "c" in
+      assert (c : closed t);
+      [| destruct (sim_layer _ _ ev (IH c) t') as (w & [e] & Hw); [|clear IH]]
+    end.
+  Ltac sim_ev ev w e Hw :=
+    match type of ev with eval _ ?t _ =>
+      match goal with HR : R _ t ?t' |- _ => sim_with_n t t' w e Hw; [ | exact HR | ] end end.
+  Ltac sim_ev_with ev t' w e Hw :=
+    match type of ev with eval _ ?t _ => sim_with_n t t' w e Hw end.
+  Ltac ind_tac :=
+    first [ now rewrite -(ELiftConstants.same_constructor_isprop_pars_decl _ _ Hind)
+          | now rewrite -(ELiftConstants.same_inductive_isprop_and_pars _ _ Hind)
+          | now rewrite -(ELiftConstants.same_lookup_constructor _ _ Hind) ].
+  Ltac split_cl cl c1 c2 := cbn in cl; move/andP: cl => [c1 c2].
+  Ltac tgt_closed Ht cl cl0 :=
+    have cl0 := R_closed _ _ _ 0 (R_head _ _ _ Ht) cl.
+
+  (** The rules for applications: all of them reduce to the congruence
+      rule, except for the contraction of a source beta redex. *)
+  Lemma app_head f a res t0 :
+    closed (tApp f a) ->
+    (forall f' a', R Σ' f f' -> R Σ' a a' -> closed f' -> closed a' ->
+      goal (tApp f' a') res) ->
+    (forall na b b' a', f = tLambda na b -> R Σ' b b' -> R Σ' a a' ->
+      closedn 1 b' -> closed a' -> goal (csubst a' 0 b') res) ->
+    Rh Σ' (tApp f a) t0 -> goal t0 res.
+  Proof.
+    intros cl Hc Hb Ht. split_cl cl c1 c2. inversion Ht; subst.
+    - apply Hc; auto; eapply R_closed; tea.
+    - have ca' := R_closed _ _ _ 0 ltac:(eassumption) c2.
+      cbn in c1.
+      match goal with H : R _ b _ |- _ => have cb' := R_closed _ _ _ 1 H c1 end.
+      unfold subst1. rewrite -closed_subst //.
+      eapply Hb; eauto.
+    - have ca' := R_closed _ _ _ 0 ltac:(eassumption) c2.
+      edestruct (Hc (tLetIn z v' b')) as (w & [e] & Hw).
+      + apply R_head; constructor; eassumption.
+      + eassumption.
+      + eapply R_closed; [|exact c1]. apply R_head; constructor; eassumption.
+      + exact ca'.
+      + exists w. split; [|exact Hw]. sq. eapply eval_app_let; tea.
+    - have ca' := R_closed _ _ _ 0 ltac:(eassumption) c2.
+      edestruct (Hc (tCase ci d' brs')) as (w & [e] & Hw).
+      + apply R_head; constructor; eassumption.
+      + eassumption.
+      + eapply R_closed; [|exact c1]. apply R_head; constructor; eassumption.
+      + exact ca'.
+      + exists w. split; [|exact Hw]. sq. eapply eval_app_case; tea.
+  Qed.
+
+  Ltac vof e := sq; eapply eval_to_value; exact e.
+
+  Lemma simulation_head t v (ev : eval Σ t v) :
+    closed t -> forall t', Rh Σ' t t' -> goal t' v.
+  Proof.
+    induction ev using eval_rect; intros cl t0 Ht.
+    all: try (exfalso; unfold is_true in *; congruence).
+    - (* box *)
+      eapply app_head; [exact cl| | |exact Ht].
+      2:{ intros; subst. apply eval_lambda_inv in ev1. discriminate. }
+      intros f' a' Hf Ha c1' c2'. split_cl cl c1 c2.
+      sim_ev ev1 w ee0 Hw; [auto|]. sim_ev ev2 w2 ee2 Hw2; [auto|].
+      apply R_box_inv in Hw; [subst|vof ee0].
+      exists tBox. split; [sq; eapply eval_box; tea|apply R_refl].
+    - (* beta *)
+      eapply app_head; [exact cl| | |exact Ht].
+      2:{ intros na0 b0 b0' a0' -> Hb0 Ha0 cb0' ca0'. split_cl cl c1 c2.
+          apply eval_lambda_inv in ev1. injection ev1 as <- <-.
+          sim_ev ev2 w2 ee2 Hw2; [auto|].
+          have cw2 := eval_closed Σ' HclΣ' _ _ ca0' ee2.
+          have Ha2 : R Σ' a' a0' by (eapply R_eval; [exact Hw2|sq; exact ee2|auto|auto]).
+          have ca' := eval_closed Σ HclΣ _ _ c2 ev2.
+          sim_ev_with ev3 (csubst a0' 0 b0') w3 ee3 Hw3;
+            [apply closed_csubst; auto | apply R_csubst; auto | ].
+          exists w3. split; [now sq|auto]. }
+      intros f' a0' Hf Ha c1' c2'. split_cl cl c1 c2.
+      sim_ev ev1 w ee0 Hw; [auto|]. sim_ev ev2 w2 ee2 Hw2; [auto|].
+      apply R_lambda_inv in Hw as (na' & b' & -> & Hb); [|vof ee0].
+      have cw2 := eval_closed Σ' HclΣ' _ _ c2' ee2.
+      have ca' := eval_closed Σ HclΣ _ _ c2 ev2.
+      have clam := eval_closed Σ HclΣ _ _ c1 ev1. cbn in clam.
+      sim_ev_with ev3 (csubst w2 0 b') w3 ee3 Hw3;
+        [apply closed_csubst; auto | apply Hb; auto | ].
+      exists w3. split; [sq; eapply eval_beta; tea|auto].
+    - (* zeta *)
+      tgt_closed Ht cl cl0. inversion Ht; subst.
+      + split_cl cl c1 c2. split_cl cl0 c1' c2'.
+        sim_ev ev1 w ee0 Hw; [auto|].
+        have cw := eval_closed Σ' HclΣ' _ _ c1' ee0.
+        have cb0' := eval_closed Σ HclΣ _ _ c1 ev1.
+        match type of ev2 with eval _ (csubst _ 0 ?b1) _ =>
+          match goal with HR : R _ b1 ?b1' |- _ =>
+          sim_ev_with ev2 (csubst w 0 b1') w3 ee3 Hw3;
+          [apply closed_csubst; auto | apply R_csubst; auto | ] end end.
+        exists w3. split; [sq; eapply eval_zeta; tea|auto].
+      + (* let_fun *)
+        split_cl cl c1 c2.
+        match goal with |- goal (mk_lambdas ?a (tLetIn _ (lift0 _ ?b) (exchange _ 1 0 ?c))) _ =>
+          rename a into xs1; rename b into v1; rename c into e1 end.
+        match goal with HRv : R _ _ v1, HRe : R _ ?e e1 |- _ =>
+          rename HRv into Hv1; rename HRe into He1; rename e into e0 end.
+        have cv' := R_closed _ _ _ 0 Hv1 c1.
+        destruct (sim_layer _ _ ev1 (IHev1 c1) _ Hv1) as (w & [ee0] & Hw).
+        have cw := eval_closed Σ' HclΣ' _ _ cv' ee0.
+        have cb0' := eval_closed Σ HclΣ _ _ c1 ev1.
+        have HRl : R Σ' (mk_lambdas xs1 e0) (mk_lambdas xs1 e1) by (apply R_mk_lambdas; auto).
+        have cle' := R_closed _ _ _ 1 HRl c2.
+        destruct (sim_layer _ _ ev2 (IHev2 ltac:(apply closed_csubst; auto))
+                    (csubst w 0 (mk_lambdas xs1 e1))) as (w3 & [ee3] & Hw3);
+          [apply R_csubst; auto|].
+        have E : csubst w 0 (exchange #|xs1| 1 0 e1) = csubst w (#|xs1| + 0) e1.
+        { rewrite (csubst_exchange_near _ _ _ _ (#|xs1| + 0)) // exchange_0 //. }
+        eapply (exp_goal xs1 (csubst w (#|xs1| + 0) e1)).
+        * rewrite (lift_closed _ _ _ cv') -E. apply tred_zeta; [now sq|auto|auto].
+        * rewrite -csubst_mk_lambdas. apply closed_csubst; auto.
+        * exact cl0.
+        * rewrite -csubst_mk_lambdas. exists w3; split; [now sq|auto].
+    - (* iota block *)
+      tgt_closed Ht cl cl0. inversion Ht; subst.
+      + (* congruence *)
+        have cl' := cl. split_cl cl c1 c2. split_cl cl0 c1' c2'.
+        sim_ev ev1 w ee5 Hw; [auto|].
+        have cw := eval_closed Σ' HclΣ' _ _ c1' ee5.
+        have cargs := eval_closed Σ HclΣ _ _ c1 ev1. cbn in cargs.
+        destruct (R_construct_unfolds _ _ Hw _ _ _ eq_refl) as (args' & U & Hargs & [vv] & clv);
+          [sq; eapply eval_to_value; tea|auto|].
+        cbn in clv.
+        match goal with HR : Rbrs _ ?brs ?brs', Hn : nth_error ?brs _ = Some _ |- _ =>
+          destruct (Rbrs_nth_error _ _ _ _ _ HR Hn) as (br' & Hn' & Hb1 & Hb2) end.
+        match type of ev2 with eval _ (iota_red ?pars _ _) _ =>
+          sim_ev_with ev2 (iota_red pars args' br') w3 ee6 Hw3;
+          [eapply closed_iota_red; tea | apply R_iota_red; auto | ] end.
+        exists w3. split; [|auto].
+        match goal with |- ∥ eval _ (tCase ?ip _ ?brs') _ ∥ =>
+          match type of U with unfolds _ _ ?k =>
+            assert (ev' : eval Σ' (tCase ip k brs') w3) end end.
+        { eapply eval_iota_block;
+            [exact Hblock | apply value_final; exact vv
+            | rewrite -(ELiftConstants.same_constructor_isprop_pars_decl _ _ Hind); eassumption
+            | exact Hn' | rewrite -(Rs_length _ _ _ Hargs); eassumption
+            | rewrite -Hb1 -(Rs_length _ _ _ (Rs_skipn _ _ _ _ Hargs)); eassumption
+            | exact ee6]. }
+        destruct (unfolds_case _ _ _ _ _ _ U ev') as [ev'']. sq.
+        eapply eval_case_scrut; tea.
+      + (* identity case *)
+        split_cl cl c1 c2.
+        sim_ev ev1 w ee5 Hw; [auto|].
+        exists w. split; [now sq|].
+        have cargs := eval_closed Σ HclΣ _ _ c1 ev1. cbn in cargs.
+        match goal with H : constructor_isprop_pars_decl _ _ _ = Some (_, ?q, _) |- _ =>
+          pose proof (Hpars _ _ _ _ _ H) as Hq; subst q end.
+        match goal with H : #|skipn 0 _| = _ |- _ => rewrite skipn_0 in H end.
+        match type of ev2 with eval _ _ ?r => match type of ev1 with eval _ _ ?k =>
+          enough (E : r = k) by (rewrite E; exact Hw) end end.
+        eapply case_id_iota; tea.
+        * eapply all_rebuild_nth; tea.
+        * eapply eval_to_value; tea.
+      + (* case_fun *)
+        have cl' := cl. split_cl cl c1 c2.
+        match goal with |- goal (mk_lambdas ?a (tCase _ (lift0 _ ?b) (map _ ?c))) _ =>
+          rename a into ys1; rename b into d1; rename c into brsx end.
+        assert (HRd : R Σ' discr d1) by assumption.
+        assert (HRb : Rbrs Σ' (map (fun br => (br.1, strip_lambdas #|ys1| br.2)) brs) brsx)
+          by assumption.
+        assert (Hhl : forallb (fun br => has_lambdas #|ys1| br.2) brs) by assumption.
+        have cd' := R_closed _ _ _ 0 HRd c1.
+        destruct (sim_layer _ _ ev1 (IHev1 c1) _ HRd) as (w & [ee5] & Hw).
+        have cw := eval_closed Σ' HclΣ' _ _ cd' ee5.
+        have cargs := eval_closed Σ HclΣ _ _ c1 ev1. cbn in cargs.
+        destruct (R_construct_unfolds _ _ Hw _ _ _ eq_refl ltac:(vof ee5) cw)
+          as (args' & U & Hargs & [vv] & clv).
+        cbn in clv.
+        have Hn1 : nth_error (map (fun br => (br.1, strip_lambdas #|ys1| br.2)) brs) c
+                   = Some (br.1, strip_lambdas #|ys1| br.2) by (rewrite nth_error_map e2 //).
+        destruct (Rbrs_nth_error _ _ _ _ _ HRb Hn1) as (br1 & Hn' & Hb1 & Hb2).
+        cbn in Hb1, Hb2.
+        have hl : has_lambdas #|ys1| br.2
+          by exact (proj1 (forallb_forall _ _) Hhl _ (nth_error_In _ _ e2)).
+        have Esrc : iota_red pars args br =
+          mk_lambdas (lambda_names #|ys1| br.2)
+            (substl_at #|ys1| (List.rev (skipn pars args)) (strip_lambdas #|ys1| br.2)).
+        { rewrite /iota_red. rewrite {1}(mk_lambdas_strip _ _ hl). rewrite substl_mk_lambdas.
+          rewrite (length_lambda_names_has _ _ hl). reflexivity. }
+        have clsrc : closed (iota_red pars args br) by (eapply closed_iota_red; tea).
+        have cargs' : forallb (closedn 0) (List.rev (skipn pars args'))
+          by rewrite forallb_rev forallb_skipn //.
+        have HR2 : R Σ' (iota_red pars args br)
+          (mk_lambdas ys1 (substl_at #|ys1| (List.rev (skipn pars args')) br1.2)).
+        { rewrite Esrc. apply R_mk_lambdas; [apply length_lambda_names_has; auto|].
+          apply R_substl_at; auto. apply Rs_rev, Rs_skipn; auto. }
+        destruct (sim_layer _ _ ev2 (IHev2 clsrc) _ HR2) as (w3 & [ee6] & Hw3).
+        have cT2 := R_closed _ _ _ 0 HR2 clsrc.
+        rewrite (lift_closed _ _ _ cd') in cl0 |- *.
+        set (B := map _ brsx) in *.
+        have clT : forall X, closed X -> closed (mk_lambdas ys1 (tCase (ind, pars) X B))
+          by (intros X cX; eapply closed_case_scrut; [exact cX|exact cl0]).
+        eapply (exp_goal ys1 (tCase (ind, pars) w B));
+          [apply tred_scrut; [now sq|auto|auto] | apply clT; auto | apply clT; auto | ].
+        eapply unfolds_exp; [exact U | exact cw | apply clT; auto |].
+        have L : #|br1.1| = #|List.rev (skipn pars args')|.
+        { rewrite List.length_rev -Hb1 -(Rs_length _ _ _ (Rs_skipn _ _ _ _ Hargs)). symmetry; exact e4. }
+        have Eb : iota_red pars args' (br1.1, exchange #|ys1| #|br1.1| 0 br1.2) =
+                  substl_at #|ys1| (List.rev (skipn pars args')) br1.2.
+        { rewrite /iota_red. cbn. rewrite -substl_at_0.
+          rewrite L substl_at_exchange // Nat.add_0_r //. }
+        eapply (exp_goal ys1 (substl_at #|ys1| (List.rev (skipn pars args')) br1.2));
+          [ | exact cT2 | apply clT; auto | exists w3; split; [now sq|auto] ].
+        rewrite -Eb. eapply tred_iota.
+        * sq. apply value_final. exact vv.
+        * exact clv.
+        * exact clv.
+        * rewrite -(ELiftConstants.same_constructor_isprop_pars_decl _ _ Hind); eassumption.
+        * subst B. rewrite nth_error_map Hn' //.
+        * rewrite -(Rs_length _ _ _ Hargs); eassumption.
+        * cbn. rewrite -Hb1 -(Rs_length _ _ _ (Rs_skipn _ _ _ _ Hargs)). exact e4.
+    - (* fix' *)
+      eapply app_head; [exact cl| | |exact Ht].
+      2:{ intros; subst. apply eval_lambda_inv in ev1. discriminate. }
+      intros f' a0' Hf Ha c1' c2'. split_cl cl c1 c2.
+      sim_ev ev1 w ee0 Hw; [auto|]. sim_ev ev2 w2 ee2 Hw2; [auto|].
+      apply R_fix_inv in Hw as (mf' & -> & Hmf); [|vof ee0].
+      have cfx := eval_closed Σ' HclΣ' _ _ c1' ee0.
+      have cfs := eval_closed Σ HclΣ _ _ c1 ev1.
+      edestruct R_cunfold_fix as (fn' & Hfn' & HRfn); [exact Hmf|exact cfx|eassumption|].
+      sim_ev_with ev3 (tApp fn' w2) w3 ee3 Hw3.
+      { cbn. apply/andP; split; [eapply closed_cunfold_fix; [exact cfs|eassumption]|exact (eval_closed Σ HclΣ _ _ c2 ev2)]. }
+      { apply R_head; constructor; auto. }
+      exists w3. split; [sq; eapply eval_fix'; tea|auto].
+    - (* cofix case *)
+      tgt_closed Ht cl cl0. inversion Ht; subst.
+      + split_cl cl c1 c2. split_cl cl0 c1' c2'.
+        sim_ev ev1 w ee0 Hw; [auto|].
+        apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
+        have cw := eval_closed Σ' HclΣ' _ _ c1' ee0.
+        rewrite closedn_mkApps in cw. move/andP: cw => [cw1 cw2].
+        edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact cw1|eassumption|].
+        match type of ev2 with eval _ (tCase _ ?d _) _ => assert (csrc : closed d) end.
+        { have := eval_closed Σ HclΣ _ _ c1 ev1. rewrite !closedn_mkApps.
+          move/andP => [x1 x2]. apply/andP; split; auto. eapply closed_cunfold_cofix; tea. }
+        match goal with HR : Rbrs _ _ ?brs' |- _ =>
+          match type of ev2 with eval _ (tCase ?ip _ _) _ =>
+          sim_ev_with ev2 (tCase ip (mkApps fn' args') brs') w3 ee3 Hw3 end end.
+        { cbn. apply/andP; split; auto. }
+        { apply R_head; constructor; auto. apply R_mkApps; auto. }
+        exists w3. split; [sq; eapply eval_cofix_case; tea|auto].
+      + split_cl cl c1 c2.
+        sim_ev ev1 w ee0 Hw; [auto|].
+        apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
+        have cw := eval_closed Σ' HclΣ' _ _ cl0 ee0.
+        have cw' := cw.
+        rewrite closedn_mkApps in cw. move/andP: cw => [cw1 cw2].
+        edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact cw1|eassumption|].
+        match type of ev2 with eval _ (tCase _ ?d _) _ => assert (csrc : closed d) end.
+        { have := eval_closed Σ HclΣ _ _ c1 ev1. rewrite !closedn_mkApps.
+          move/andP => [x1 x2]. apply/andP; split; auto. eapply closed_cunfold_cofix; tea. }
+        sim_ev_with ev2 (mkApps fn' args') w3 ee3 Hw3.
+        { cbn. apply/andP; split; auto. }
+        { apply R_head; apply Rh_case_id; auto. apply R_mkApps; auto. }
+        edestruct case_id_result as (cc & argsc & E); [..|exact ev2|reflexivity|exact csrc|eassumption|]; tea.
+        rewrite E in Hw3 |- *.
+        exists (mkApps (tCoFix mf' idx) args'). split; [now sq|].
+        eapply R_cofix; tea.
+        * now sq.
+        * sq. eapply eval_to_value; tea.
+        * eapply eval_closed; [exact HclΣ'| |exact ee3].
+          rewrite closedn_mkApps. apply/andP; split; auto. eapply closed_cunfold_cofix; tea.
+      + (* case_fun *)
+        split_cl cl c1 c2.
+        match goal with |- goal (mk_lambdas ?a (tCase _ (lift0 _ ?b) (map _ ?c))) _ =>
+          rename a into ys1; rename b into d1; rename c into brsx end.
+        assert (HRd : R Σ' discr d1) by assumption.
+        have cd' := R_closed _ _ _ 0 HRd c1.
+        destruct (sim_layer _ _ ev1 (IHev1 c1) _ HRd) as (w & [ee0] & Hw).
+        apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
+        have cw := eval_closed Σ' HclΣ' _ _ cd' ee0.
+        rewrite closedn_mkApps in cw. move/andP: cw => [cw1 cw2].
+        edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact cw1|eassumption|].
+        assert (csrc : closed (mkApps fn args)).
+        { have := eval_closed Σ HclΣ _ _ c1 ev1. rewrite !closedn_mkApps.
+          move/andP => [x1 x2]. apply/andP; split; auto. eapply closed_cunfold_cofix; tea. }
+        have cfn' : closed (mkApps fn' args').
+        { rewrite closedn_mkApps. apply/andP; split; auto. eapply closed_cunfold_cofix; tea. }
+        have HR2 : Rh Σ' (tCase ip (mkApps fn args) brs)
+          (mk_lambdas ys1 (tCase ip (lift0 #|ys1| (mkApps fn' args'))
+             (map (fun br => (br.1, exchange #|ys1| #|br.1| 0 br.2)) brsx))).
+        { apply Rh_case_fun; auto. apply R_mkApps; auto. }
+        destruct (IHev2 ltac:(cbn; apply/andP; split; auto) _ HR2) as (w3 & [ee3] & Hw3).
+        rewrite (lift_closed _ _ _ cfn') in ee3. rewrite (lift_closed _ _ _ cd') in cl0 |- *.
+        eapply exp_goal;
+          [eapply tred_cofix; [sq; exact ee0|exact cd'|exact Hfn'|exact cfn']
+          | eapply closed_case_scrut; [exact cfn'|exact cl0] | exact cl0
+          | exists w3; split; [now sq|auto]].
+    - (* cofix proj *)
+      tgt_closed Ht cl cl0. inversion Ht; subst.
+      cbn in cl, cl0.
+      sim_ev ev1 w ee0 Hw; [auto|].
+      apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
+      have cw := eval_closed Σ' HclΣ' _ _ cl0 ee0.
+      rewrite closedn_mkApps in cw. move/andP: cw => [cw1 cw2].
+      edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact cw1|eassumption|].
+      match type of ev2 with eval _ (tProj ?p ?d) _ =>
+        assert (csrc : closed d);
+        [|sim_ev_with ev2 (tProj p (mkApps fn' args')) w3 ee3 Hw3] end.
+      { have := eval_closed Σ HclΣ _ _ cl ev1. rewrite !closedn_mkApps.
+        move/andP => [x1 x2]. apply/andP; split; auto. eapply closed_cunfold_cofix; tea. }
+      { exact csrc. }
+      { apply R_head; constructor; auto. apply R_mkApps; auto. }
+      exists w3. split; [sq; eapply eval_cofix_proj; tea|auto].
+    - (* delta *)
+      inversion Ht; subst.
+      destruct decl as [body0]. cbn in e. subst body0.
+      destruct (Hcst _ _ isdecl) as (b' & Hd & Hb).
+      sim_ev_with ev b' w ee0 Hw.
+      { move/(lookup_env_closed HclΣ): isdecl. now rewrite /closed_decl /=. }
+      { exact Hb. }
+      exists w. split; [sq; eapply eval_delta; tea; reflexivity|auto].
+    - (* proj block *)
+      tgt_closed Ht cl cl0. inversion Ht; subst.
+      cbn in cl, cl0.
+      sim_ev ev1 w ee0 Hw; [auto|].
+      have cw := eval_closed Σ' HclΣ' _ _ cl0 ee0.
+      have cargs := eval_closed Σ HclΣ _ _ cl ev1. cbn in cargs.
+      destruct (R_construct_unfolds _ _ Hw _ _ _ eq_refl) as (args' & U & Hargs & [vv] & clv);
+        [sq; eapply eval_to_value; tea|auto|].
+      match goal with Hn : nth_error _ _ = Some _ |- _ =>
+        destruct (Rs_nth_error _ _ _ _ _ Hargs Hn) as (a' & Hn' & Ha');
+        have ca := nth_error_forallb Hn cargs end.
+      sim_ev_with ev2 a' w3 ee3 Hw3; [exact ca|exact Ha'|].
+      exists w3. split; [|auto].
+      match goal with |- ∥ eval _ (tProj ?p _) _ ∥ =>
+        match type of U with unfolds _ _ ?k =>
+          assert (ev' : eval Σ' (tProj p k) w3) end end.
+      { eapply eval_proj_block;
+          [exact Hblock | apply value_final; exact vv
+          | rewrite -(ELiftConstants.same_constructor_isprop_pars_decl _ _ Hind); eassumption
+          | rewrite -(Rs_length _ _ _ Hargs); eassumption
+          | exact Hn' | exact ee3]. }
+      destruct (unfolds_proj _ _ _ _ _ U ev') as [ev'']. sq.
+      eapply eval_proj_scrut; tea.
+    - (* construct block *)
+      inversion Ht; subst. cbn in cl.
+      match goal with H : Rs _ args _ |- _ =>
+        destruct (sim_args _ _ a iha cl _ H) as (args1 & [evs] & Hargs1);
+        have Hlen := Rs_length _ _ _ H end.
+      eexists. split; [|apply R_head; constructor; eassumption].
+      sq. eapply eval_construct_block;
+        [exact Hblock
+        | rewrite -(ELiftConstants.same_lookup_constructor _ _ Hind); eassumption
+        | rewrite -Hlen; eassumption | exact evs].
+    - (* app cong *)
+      eapply app_head; [exact cl| | |exact Ht].
+      2:{ intros; subst. apply eval_lambda_inv in ev1. subst. discriminate. }
+      intros f0' a0' Hf Ha c1' c2'. split_cl cl c1 c2.
+      sim_ev ev1 w ee0 Hw; [auto|]. sim_ev ev2 w2 ee2 Hw2; [auto|].
+      destruct (value_cofix_shape _ (eval_to_value _ _ ev1) i) as (mfix & idx & args & E).
+      rewrite E in Hw |- *.
+      apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
+      eexists. split; [sq; eapply eval_app_cong; tea|].
+      + rewrite Hguard isConstructApp_mkApps isPrimApp_mkApps isLazyApp_mkApps.
+        destruct args' using rev_case; rewrite ?mkApps_app; reflexivity.
+      + apply R_head; constructor; auto. apply R_mkApps; auto. apply R_head; constructor; auto.
+    - (* prim *)
+      depelim X; inversion Ht; subst.
+      1-3: eexists; split; [sq; eapply eval_prim; constructor|apply R_refl].
+      cbn in cl. unfold test_array_model in cl. cbn in cl.
+      move/andP: cl => [cd cv].
+      match goal with H : Rs _ v _ |- _ =>
+        destruct (sim_args _ _ ev a cv _ H) as (v1 & [evs] & Hv1) end.
+      match goal with H : R _ def _ |- _ =>
+        destruct (sim_layer _ _ ed (g cd) _ H) as (d1 & [evd] & Hd1) end.
+      exists (tPrim (prim_array {| array_default := d1; array_value := v1 |})).
+      split; [sq; eapply eval_prim; now constructor|apply R_head; now constructor].
+    - (* force *)
+      tgt_closed Ht cl cl0. inversion Ht; subst. cbn in cl, cl0.
+      sim_ev ev1 w ee0 Hw; [auto|].
+      apply R_lazy_inv in Hw as (b' & -> & Hb); [|vof ee0].
+      have cv := eval_closed Σ HclΣ _ _ cl ev1. cbn in cv.
+      sim_ev_with ev2 b' w3 ee3 Hw3; [exact cv|exact Hb|].
+      exists w3. split; [sq; eapply eval_force; tea|auto].
+    - (* atoms *)
+      destruct t; cbn in i; try discriminate.
+      all: try (rewrite Hblock in i; destruct args; discriminate).
+      all: inversion Ht; subst.
+      all: eexists; split; [sq; apply eval_atom; reflexivity|apply R_head; exact Ht].
+  Qed.
+
+  Theorem simulation t v t' :
+    eval Σ t v -> closed t -> R Σ' t t' -> goal t' v.
+  Proof.
+    intros ev cl H. exact (sim_layer _ _ ev (simulation_head _ _ ev cl) _ H).
+  Qed.
+
+End Sim.

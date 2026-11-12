@@ -20,7 +20,7 @@ From Stdlib Require Import List Bool Arith ssreflect ssrbool.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Common Require Import BasicAst Kernames Transform.
 From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils ELiftSubst EProgram EWellformed EWcbvEval EGlobalEnv EBeta EInduction.
-From Peregrine Require Import ELboxOpts ELboxOptsWf_case ELboxOptsWf_fix ELboxOptsWf_let EExtraFlags.
+From Peregrine Require Import ELboxOpts ELboxOptsSim ELboxOptsSimStatic ELboxOptsWf_case ELboxOptsWf_fix ELboxOptsWf_let EExtraFlags.
 
 Import ListNotations.
 Local Open Scope bool_scope.
@@ -194,24 +194,74 @@ End env.
 
 (** ** Pipeline transformations
 
-    Stated at the flags of the pipeline stage ([EExtraFlags]).  Evaluation is
-    not shown to be preserved (see the header of [ELboxOpts]): the values of
-    source and target are related by the trivial observational equivalence,
-    and only termination of the target is assumed.  (A stronger relation such
-    as [v' = optimize o v] is false once the value is a closure, since the
-    pass also rewrites under binders.) *)
+    Stated at the flags of the pipeline stage ([EExtraFlags]).
 
-Axiom trust_lbox_opts_terminates :
+    Evaluation is preserved by the identity-case, case/function,
+    let/function and beta/let rewrites: if the source program evaluates to
+    [v], the target program evaluates to some [v'] with [lbox_obs v v'],
+    where [lbox_obs] is a chain of steps of the rewrite relation [R] of
+    [ELboxOptsSim] ("[v'] is [v] with some subterms rewritten").  A stronger
+    relation such as [v' = optimize o v] is false once the value is a
+    closure, since substitution creates and destroys redexes of the pass.
+
+    This is proved in [ELboxOptsSim] (the relation), [ELboxOptsSimEval] (the
+    simulation) and [ELboxOptsSimStatic] (the passes are chains of steps).
+
+    The fixpoint eta-hoisting rewrite [fix_eta] is not covered by [R]: for
+    option sets that enable it, termination of the target is assumed
+    ([trust_fix_eta_terminates]) and nothing is stated about the values. *)
+
+(** Evaluation preservation at the pipeline flags, for any set of rewrites
+    whose node rewrite is a step of the rewrite relation [R] of [ELboxOptsSim]:
+    the values are related by [lbox_obs], a chain of such steps. *)
+Definition lbox_obs : term -> term -> Prop := obs (wfl := extra_wcbv_flags).
+
+Lemma lbox_opts_program_eval (o : lbox_opts) :
+  (forall t, chain (wfl := extra_wcbv_flags) t (rewrite_node o t)) ->
+  forall (p : program) (v : term),
+  wf_eprogram extra_env_flags p ->
+  eval_eprogram extra_wcbv_flags p v ->
+  exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program o p) v' /\ lbox_obs v v'.
+Proof.
+  intros Hnode p v [wfΣ wft] [ev].
+  unfold eval_eprogram, lbox_obs.
+  refine (lbox_opts_program_pres (wfl := extra_wcbv_flags) eq_refl eq_refl eq_refl o Hnode p v _ _ _ ev).
+  - now eapply wellformed_closed_env.
+  - intros kn mdecl. now eapply (EImplementBox.wellformed_lookup_inductive_pars (efl := extra_env_flags)).
+  - now eapply wellformed_closed.
+Qed.
+
+Lemma case_id_terminates :
+  forall (p : program) (v : term),
+  wf_eprogram extra_env_flags p ->
+  eval_eprogram extra_wcbv_flags p v ->
+  exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program case_id_opts p) v' /\ lbox_obs v v'.
+Proof. apply lbox_opts_program_eval, case_id_node. Qed.
+
+(** The only assumption: programs optimized with [fix_eta] enabled still
+    terminate.  (With [fix_eta] disabled this is [lbox_opts_eval] below,
+    which is proved.) *)
+Axiom trust_fix_eta_terminates :
   forall (o : lbox_opts) (p : program) (v : term),
+  lbox_fix_eta o = true ->
   wf_eprogram extra_env_flags p ->
   eval_eprogram extra_wcbv_flags p v ->
   exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program (without_case_id o) p) v'.
 
-Axiom trust_case_id_terminates :
+Lemma lbox_opts_eval (o : lbox_opts) :
   forall (p : program) (v : term),
   wf_eprogram extra_env_flags p ->
   eval_eprogram extra_wcbv_flags p v ->
-  exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program case_id_opts p) v'.
+  exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program (without_case_id o) p) v' /\
+    (lbox_fix_eta o = false -> lbox_obs v v').
+Proof.
+  intros p v wfp ev. destruct (lbox_fix_eta o) eqn:E.
+  - destruct (trust_fix_eta_terminates o p v E wfp ev) as [v' ev'].
+    exists v'. split; [exact ev'|discriminate].
+  - destruct (lbox_opts_program_eval (without_case_id o)
+      (fun t => lbox_node (without_case_id o) t E) p v wfp ev) as (v' & ev' & Hv).
+    exists v'. split; auto.
+Qed.
 
 Import MetaRocq.Common.Transform.Transform.
 
@@ -220,29 +270,29 @@ Import MetaRocq.Common.Transform.Transform.
 Program Definition lbox_opts_transformation (o : lbox_opts) :
   Transform.t _ _ EAst.term EAst.term _ _
     (eval_eprogram extra_wcbv_flags) (eval_eprogram extra_wcbv_flags) :=
-  {| name := "lambda-box simplifications (fix eta, case/fun, let/fun; unverified)";
+  {| name := "lambda-box simplifications (fix eta, case/fun, let/fun)";
      transform p _ := lbox_opts_program (without_case_id o) p;
      pre p := wf_eprogram extra_env_flags p;
      post p := wf_eprogram extra_env_flags p;
-     obseq _ _ _ _ _ := True |}.
+     obseq _ _ _ v v' := lbox_fix_eta o = false -> lbox_obs v v' |}.
 Next Obligation.
   intros. apply wf_eprogram_lbox_opts_program => //. apply rewrite_node_wf_extra.
 Qed.
 Next Obligation.
-  edestruct trust_lbox_opts_terminates as [v' ev]; eauto.
+  intros. cbn. now apply lbox_opts_eval.
 Qed.
 
 Program Definition case_id_transformation :
   Transform.t _ _ EAst.term EAst.term _ _
     (eval_eprogram extra_wcbv_flags) (eval_eprogram extra_wcbv_flags) :=
-  {| name := "lambda-box identity cases (unverified)";
+  {| name := "lambda-box identity cases";
      transform p _ := lbox_opts_program case_id_opts p;
      pre p := wf_eprogram extra_env_flags p;
      post p := wf_eprogram extra_env_flags p;
-     obseq _ _ _ _ _ := True |}.
+     obseq _ _ _ v v' := lbox_obs v v' |}.
 Next Obligation.
   intros. apply wf_eprogram_lbox_opts_program => //. apply rewrite_node_wf_extra.
 Qed.
 Next Obligation.
-  edestruct trust_case_id_terminates as [v' ev]; eauto.
+  intros. cbn. now apply case_id_terminates.
 Qed.
