@@ -63,11 +63,12 @@
     and the earlier generated names ([fresh_name]), specializations are
     emitted depth first so that each one refers only to declarations below it
     ([spec_key]), and the iota step fires only when the constructor has as
-    many arguments as the branch binds.  Evaluation preservation is not
-    claimed: the transformation relates values by the trivial observational
-    equivalence and assumes only termination of the target
-    ([trust_specialize_instances_terminates], stated at the flags of the
-    pipeline stage, [EExtraFlags]). *)
+    many arguments as the branch binds.  Evaluation preservation is proved
+    at the flags of the pipeline stage ([EExtraFlags]):
+    [specialize_instances_program_pres] shows that the output is reached from
+    the input by a chain of whole-program stages ([gstages], [ESpecRel]),
+    each simulated under call-by-value ([G_simulation]), so that the target
+    evaluates to a value related to the source value by [spec_rel]. *)
 
 From Stdlib Require Import List.
 From MetaRocq.Utils Require Import utils ReflectEq.
@@ -1555,12 +1556,25 @@ Proof.
 Qed.
 
 
-(** Termination only, at the flags of the pipeline. *)
-Axiom trust_specialize_instances_terminates :
-  forall (p : Transform.program _ term) (v : term),
+(** Evaluation preservation at the flags of the pipeline stage: the value of
+    the specialized program is related to the source value by [spec_rel], a
+    chain of the hereditary value relation [Gv] of [ESpecRel] (one link per
+    stage: redirection of calls on known dictionaries to their
+    specializations, unfolding/beta/iota inside specialized bodies). *)
+Definition spec_rel (p p' : program) (v v' : term) : Prop := gchain p p' v v'.
+
+Theorem specialize_instances_program_pres (p : eprogram) (v : term) :
   wf_eprogram extra_env_flags p ->
   eval_eprogram extra_wcbv_flags p v ->
-  exists v' : term, eval_eprogram extra_wcbv_flags (specialize_instances_program p) v'.
+  exists v' : term,
+    eval_eprogram extra_wcbv_flags (specialize_instances_program p) v' /\
+    spec_rel p (specialize_instances_program p) v v'.
+Proof.
+  intros hwf ev.
+  pose proof (specialize_instances_program_gstages (efl := extra_env_flags)
+                (hasapp := eq_refl) p hwf) as hs.
+  exact (gstages_eval _ _ hs v ev).
+Qed.
 
 Import Transform.
 
@@ -1571,10 +1585,10 @@ Program Definition specialize_instances_transformation :
      transform p _ := specialize_instances_program p;
      pre p := wf_eprogram extra_env_flags p;
      post p := wf_eprogram extra_env_flags p;
-     obseq _ _ _ _ _ := True |}.
+     obseq p _ p' v v' := spec_rel p p' v v' |}.
 Next Obligation.
   intros. now apply (specialize_instances_program_wf (efl := extra_env_flags) (hasapp := eq_refl)).
 Qed.
 Next Obligation.
-  edestruct trust_specialize_instances_terminates as [v' ev]; eauto.
+  cbn in *. eapply specialize_instances_program_pres; eauto.
 Qed.
