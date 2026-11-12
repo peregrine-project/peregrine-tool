@@ -283,4 +283,371 @@ Section Rel.
     Qed.
   End Subst.
 
+  Lemma G_subst0 σ σ' t u :
+    Forall2 G σ σ' -> forallb (closedn 0) σ -> forallb (closedn 0) σ' ->
+    G t u -> G (subst σ 0 t) (subst σ' 0 u).
+  Proof. intros. now apply G_subst. Qed.
+
+  Lemma G_csubst a a' b b' :
+    G a a' -> closedn 0 a -> closedn 0 a' -> G b b' -> G (csubst a 0 b) (csubst a' 0 b').
+  Proof.
+    intros Ha Hc Hc' Hb. rewrite !closed_subst //.
+    apply G_subst0; auto; cbn; rewrite ?Hc ?Hc' //.
+  Qed.
+
+  Lemma G_substl σ σ' t u :
+    Forall2 G σ σ' -> forallb (closedn 0) σ -> forallb (closedn 0) σ' ->
+    G t u -> G (substl σ t) (substl σ' u).
+  Proof. intros. rewrite !substl_subst //. now apply G_subst0. Qed.
+
+  Lemma G_fix_subst mf mf' : fix_rel G mf mf' -> Forall2 G (fix_subst mf) (fix_subst mf').
+  Proof.
+    intros H. unfold fix_subst. rewrite (Forall2_length H).
+    induction #|mf'|; constructor; auto. apply G_s. now constructor.
+  Qed.
+
+  Lemma G_cofix_subst mf mf' : fix_rel G mf mf' -> Forall2 G (cofix_subst mf) (cofix_subst mf').
+  Proof.
+    intros H. unfold cofix_subst. rewrite (Forall2_length H).
+    induction #|mf'|; constructor; auto. apply G_s. now constructor.
+  Qed.
+
+  Lemma G_cunfold_fix mf mf' idx narg fn :
+    fix_rel G mf mf' -> closedn 0 (tFix mf idx) -> closedn 0 (tFix mf' idx) ->
+    cunfold_fix mf idx = Some (narg, fn) ->
+    exists fn', cunfold_fix mf' idx = Some (narg, fn') /\ G fn fn'.
+  Proof.
+    intros H Hc Hc'. unfold cunfold_fix. destruct nth_error eqn:E; [|discriminate].
+    intros [= <- <-]. destruct (Forall2_nth_error_l _ _ _ _ _ H E) as (d' & -> & ? & Hr & Hb).
+    eexists; split; [now rewrite Hr|]. apply G_substl; auto.
+    - now apply G_fix_subst.
+    - now apply closed_fix_subst.
+    - now apply closed_fix_subst.
+  Qed.
+
+  Lemma G_cunfold_cofix mf mf' idx narg fn :
+    fix_rel G mf mf' -> closedn 0 (tCoFix mf idx) -> closedn 0 (tCoFix mf' idx) ->
+    cunfold_cofix mf idx = Some (narg, fn) ->
+    exists fn', cunfold_cofix mf' idx = Some (narg, fn') /\ G fn fn'.
+  Proof.
+    intros H Hc Hc'. unfold cunfold_cofix. destruct nth_error eqn:E; [|discriminate].
+    intros [= <- <-]. destruct (Forall2_nth_error_l _ _ _ _ _ H E) as (d' & -> & ? & Hr & Hb).
+    eexists; split; [now rewrite Hr|]. apply G_substl; auto.
+    - now apply G_cofix_subst.
+    - now apply closed_cofix_subst.
+    - now apply closed_cofix_subst.
+  Qed.
+
 End Rel.
+
+Lemma eval_construct_block_inv Σ ind c args w :
+  eval Σ (tConstruct ind c args) w ->
+  exists args', w = tConstruct ind c args' /\ ∥ All2_Set (eval Σ) args args' ∥.
+Proof.
+  intros ev. depelim ev.
+  - eexists; split; [reflexivity|]. now sq.
+  - destruct args; cbn in i; discriminate.
+Qed.
+
+Section Sim.
+  Variables Σ Σ' : global_declarations.
+  Hypothesis clΣ : closed_env Σ.
+  Hypothesis clΣ' : closed_env Σ'.
+  Hypothesis Hind : forall kn, lookup_minductive Σ kn = lookup_minductive Σ' kn.
+  Hypothesis Hcst : forall c decl b,
+    declared_constant Σ c decl -> cst_body decl = Some b ->
+    exists decl' b', declared_constant Σ' c decl' /\ cst_body decl' = Some b' /\ G Σ Σ' b b'.
+
+  Notation G := (G Σ Σ').
+  Notation Gs := (Gs Σ Σ').
+  Notation Gv := (Gv Σ Σ').
+
+  Definition simQ (v u : term) := exists v', ∥ eval Σ' u v' ∥ /\ Gv v v'.
+  Definition sim_s (t v : term) := closedn 0 t -> forall u, Gs t u -> simQ v u.
+  Definition sim_g (t v : term) := closedn 0 t -> forall u, G t u -> simQ v u.
+
+  Lemma sim_lift t v : eval Σ t v -> sim_s t v -> sim_g t v.
+  Proof.
+    intros ev Hs Hc u H. revert ev Hs Hc.
+    induction H as [t u H | fn decl' b' t Hd Hb Hcl H IH | va a' va' Hcl Hcl' [ev1] [ev2] Hv];
+      intros ev Hs Hc.
+    - now apply Hs.
+    - destruct (IH ev Hs Hc) as (v' & [ev'] & Hv). exists v'. split; auto.
+      sq. eapply eval_delta; tea.
+    - have e := eval_deterministic ev ev1. subst v.
+      exists va'. split; auto. now sq.
+  Qed.
+
+  Lemma Gv_head_shape v w : Gv v w ->
+    [/\ isLambda v = isLambda w, isFix v = isFix w, isBox v = isBox w,
+        isConstructApp v = isConstructApp w, isPrimApp v = isPrimApp w & isLazyApp v = isLazyApp w].
+  Proof.
+    unfold isConstructApp, isPrimApp, isLazyApp.
+    induction 1; try (split; reflexivity).
+    rewrite !head_tApp. destruct IHGv1. split; auto.
+  Qed.
+
+  Lemma Gv_mkApps_cofix mfix idx args w :
+    Gv (mkApps (tCoFix mfix idx) args) w ->
+    exists mfix' args', w = mkApps (tCoFix mfix' idx) args' /\ fix_rel G mfix mfix' /\ Forall2 Gv args args'.
+  Proof.
+    revert w; induction args as [|a args IH] using rev_ind; intros w H.
+    - cbn in H. inversion H; subst. exists mf', []. cbn. auto.
+    - rewrite mkApps_app in H. cbn in H. inversion H; subst.
+      match goal with H : Gv (mkApps _ _) _ |- _ => destruct (IH _ H) as (mf' & args' & -> & ? & ?) end.
+      eexists mf', (args' ++ [_]). rewrite mkApps_app. split; [reflexivity|split; auto].
+      apply Forall2_app; auto.
+  Qed.
+
+  Lemma sim_args args args' (a : All2_Set (eval Σ) args args') :
+    All2_over a (fun x y _ => sim_s x y) -> forallb (closedn 0) args ->
+    forall args0, Forall2 G args args0 ->
+    exists args1, ∥ All2_Set (eval Σ') args0 args1 ∥ /\ Forall2 Gv args' args1.
+  Proof.
+    induction a; cbn; intros iha Hc args0 H.
+    - inversion H; subst. exists []. split; [sq; constructor | constructor].
+    - destruct iha as [hx hl]. move/andP: Hc => [Hc1 Hc2]. inversion H; subst.
+      match goal with ev : eval Σ ?x ?y, HG : G ?x _ |- _ =>
+        destruct (sim_lift _ _ ev hx Hc1 _ HG) as (y' & [evy] & Hy) end.
+      match goal with HG : Forall2 G _ _ |- _ =>
+        destruct (IHa hl Hc2 _ HG) as (lr & [evl] & Hl) end.
+      exists (y' :: lr). split; [sq; now constructor | now constructor].
+  Qed.
+
+  Lemma Gcl t u : closedn 0 t -> G t u -> closedn 0 u.
+  Proof. apply G_closed. Qed.
+  Lemma evcl t v : closedn 0 t -> eval Σ t v -> closedn 0 v.
+  Proof. now apply eval_closed. Qed.
+  Lemma evcl' t v : closedn 0 t -> eval Σ' t v -> closedn 0 v.
+  Proof. now apply eval_closed. Qed.
+
+  Lemma atom_eval_eq t w : atom Σ' t -> eval Σ' t w -> w = t.
+  Proof. intros Ha ev. exact (eval_deterministic ev (eval_atom _ _ Ha)). Qed.
+
+  Lemma All2_Set_diag (P : term -> term -> Set) l : All2_Set P l l -> Forall (fun x => ∥ P x x ∥) l.
+  Proof.
+    induction l; intros H; depelim H; constructor; auto. now sq.
+  Qed.
+
+  Lemma All2_Set_Forall2 (P : term -> term -> Set) l l' : All2_Set P l l' -> Forall2 (fun x y => ∥ P x y ∥) l l'.
+  Proof. induction 1; constructor; auto. now sq. Qed.
+
+  Lemma G_val_list args cargs args1 :
+    Forall2 Gv args args1 -> Forall2 (fun x y => ∥ eval Σ' x y ∥) cargs args1 ->
+    Forall (fun x => ∥ eval Σ x x ∥) args ->
+    forallb (closedn 0) args -> forallb (closedn 0) cargs ->
+    Forall2 G args cargs.
+  Proof.
+    intros H; revert cargs. induction H; intros cargs H2 Hv Hc Hc'; inversion H2; subst; constructor.
+    - cbn in Hc, Hc'. rtoProp. inversion Hv; subst. eapply G_val; tea.
+    - cbn in Hc, Hc'. rtoProp. inversion Hv; subst. eapply IHForall2; tea.
+  Qed.
+
+  Lemma value_args_diag ind c args v :
+    eval Σ v (tConstruct ind c args) -> Forall (fun x => ∥ eval Σ x x ∥) args.
+  Proof.
+    intros ev. apply eval_to_value in ev. apply value_final in ev.
+    apply eval_construct_block_inv in ev as (args' & [= <-] & [H]).
+    now apply All2_Set_diag.
+  Qed.
+
+  Lemma mkApps_cofix_not_construct mfix idx args i c l :
+    tConstruct i c l = mkApps (tCoFix mfix idx) args -> False.
+  Proof.
+    destruct args using rev_case; [discriminate|]. rewrite mkApps_app. discriminate.
+  Qed.
+
+  Ltac lft := repeat match goal with
+    | ev : eval Σ ?t ?v, IH : sim_s ?t ?v, Hc : is_true (closedn 0 ?t), HG : ESpecRel.G Σ Σ' ?t ?u |- _ =>
+      let w := fresh "w" in let evw := fresh "evw" in let Hw := fresh "Hw" in
+      destruct (sim_lift _ _ ev IH Hc _ HG) as (w & [evw] & Hw); clear IH end.
+
+  Lemma G_simulation_s t v (ev : eval Σ t v) : sim_s t v.
+  Proof.
+    induction ev using eval_rect; intros Hc u Hs.
+    all: try (match goal with
+              | H : context [with_guarded_fix] |- _ => cbv in H; discriminate H
+              | H : context [with_constructor_as_block] |- _ => cbv in H; discriminate H
+              | H : context [with_prop_case] |- _ => cbv in H; discriminate H end).
+    all: cbn in Hc; rtoProp; inversion Hs; subst; lft.
+    (* atoms *)
+    all: try (match goal with i : is_true (atom _ (tConstruct _ _ ?args)) |- _ => destruct args; cbn in i; discriminate i end).
+    all: try (match goal with i : is_true (atom _ _) |- _ => cbn in i; discriminate i end).
+    all: try (match goal with i : is_true (atom _ _) |- _ =>
+              eexists; split; [sq; eapply eval_atom; exact i | constructor; eassumption] end).
+    (* box *)
+    - inversion Hw0; subst. exists tBox. split; [|constructor]. sq. eapply eval_box; tea.
+    - apply atom_eval_eq in evw0; [|reflexivity]. subst. inversion Hw0.
+    - apply atom_eval_eq in evw0; [|reflexivity]. subst. inversion Hw0.
+    (* beta *)
+    - match goal with HGf : G f0 ?f', HGa : G a ?a0 |- _ =>
+        have Hcf' := Gcl _ _ H HGf; have Hca0 := Gcl _ _ H0 HGa end.
+      have Hcl := evcl _ _ H ev1. have Hca' := evcl _ _ H0 ev2.
+      have Hcw := evcl' _ _ Hca0 evw. have Hcw0 := evcl' _ _ Hcf' evw0.
+      inversion Hw0; subst.
+      match goal with HGb : G b ?b' |- _ =>
+        have HG3 : G (csubst a' 0 b) (csubst w 0 b') by (apply G_csubst; auto using Gv_G) end.
+      have Hc3 : closedn 0 (csubst a' 0 b) by now apply closed_csubst.
+      lft. eexists. split; [|eassumption]. sq. eapply eval_beta; tea.
+    - match goal with HGf : G f0 ?f', HGa : G a ?a0 |- _ =>
+        have Hcf' := Gcl _ _ H HGf; have Hca0 := Gcl _ _ H0 HGa end.
+      have Hcl := evcl _ _ H ev1. have Hca' := evcl _ _ H0 ev2.
+      apply atom_eval_eq in evw0; [|reflexivity]. subst. inversion Hw0; subst.
+      match goal with HGb : G b ?b' |- _ =>
+        have HG3 : G (csubst a' 0 b) (subst0 [a'0] b') end.
+      { rewrite closed_subst //. apply G_subst0; cbn; rewrite ?Hca' ?Hca0 //.
+        constructor; [|constructor]. eapply (G_val _ _ a' a'0 w); auto; [sq; apply value_final; eapply eval_to_value; tea | now sq]. }
+      have Hc3 : closedn 0 (csubst a' 0 b) by now apply closed_csubst.
+      lft. eexists. split; [|eassumption]. now sq.
+    - apply atom_eval_eq in evw0; [|reflexivity]. subst. inversion Hw0.
+    (* zeta *)
+    - match goal with HG0 : G b0 ?v' |- _ => have Hcv' := Gcl _ _ H HG0 end.
+      have Hcb0' := evcl _ _ H ev1. have Hcw := evcl' _ _ Hcv' evw.
+      match goal with HG1 : G b1 ?b' |- _ =>
+        have HG3 : G (csubst b0' 0 b1) (csubst w 0 b') by (apply G_csubst; auto using Gv_G) end.
+      have Hc3 : closedn 0 (csubst b0' 0 b1) by now apply closed_csubst.
+      lft. eexists; split; [|eassumption]. sq. eapply eval_zeta; tea.
+    (* iota *)
+    - inversion Hw; subst.
+      match goal with HG0 : G discr ?d' |- _ => have Hcd' := Gcl _ _ H HG0 end.
+      have Hca := evcl _ _ H ev1. have Hca' := evcl' _ _ Hcd' evw. cbn in Hca, Hca'.
+      match goal with Hb : brs_rel G brs _ |- _ =>
+        destruct (Forall2_nth_error_l _ _ _ _ _ Hb e2) as (br' & e2' & Hb1 & Hb2) end.
+      have HG3 : G (iota_red pars args br) (iota_red pars args' br').
+      { unfold iota_red. apply G_substl; auto.
+        - apply Forall2_List_rev, Forall2_skipn. now apply Forall2_Gv_G.
+        - now rewrite forallb_rev forallb_skipn.
+        - now rewrite forallb_rev forallb_skipn. }
+      have Hc3 : closedn 0 (iota_red pars args br).
+      { unfold iota_red. apply closed_substl; [now rewrite forallb_rev forallb_skipn|].
+        rewrite List.length_rev e4. eapply (forallb_nth_error _ _ c) in H0. rewrite e2 in H0. exact H0. }
+      lft. eexists; split; [|eassumption]. sq.
+      match goal with Ha : Forall2 Gv args args' |- _ => have Hlen := Forall2_length Ha end.
+      eapply eval_iota_block; tea.
+      + rewrite -(same_constructor_isprop_pars_decl _ _ Hind). eassumption.
+      + now rewrite -Hlen.
+      + rewrite -Hb1 -e4 !length_skipn Hlen //.
+    - apply eval_construct_block_inv in evw as (args1 & -> & [Hargs1]).
+      inversion Hw; subst.
+      match goal with HG0 : G discr ?d' |- _ => have Hcd' := Gcl _ _ H HG0 end.
+      have Hca := evcl _ _ H ev1. cbn in Hca, Hcd'.
+      match goal with Hb : brs_rel G brs _ |- _ =>
+        destruct (Forall2_nth_error_l _ _ _ _ _ Hb e2) as (br'' & e2' & Hb1 & Hb2) end.
+      match goal with Hn : nth_error brs' _ = Some br' |- _ => rewrite Hn in e2'; injection e2' as <- end.
+      have HG3 : G (iota_red pars args br) (subst0 (List.rev (skipn pars cargs')) br'.2).
+      { unfold iota_red. rewrite substl_subst; [now rewrite forallb_rev forallb_skipn|].
+        apply G_subst0; auto.
+        - apply Forall2_List_rev, Forall2_skipn. eapply G_val_list; tea.
+          + now apply All2_Set_Forall2.
+          + eapply value_args_diag; tea.
+        - now rewrite forallb_rev forallb_skipn.
+        - now rewrite forallb_rev forallb_skipn. }
+      have Hc3 : closedn 0 (iota_red pars args br).
+      { unfold iota_red. apply closed_substl; [now rewrite forallb_rev forallb_skipn|].
+        rewrite List.length_rev e4. eapply forallb_nth_error in H0. erewrite e2 in H0. exact H0. }
+      lft. eexists; split; [|eassumption]. now sq.
+    (* fix *)
+    - inversion Hw0; subst.
+      match goal with HG0 : G f7 ?f' |- _ => have Hcf' := Gcl _ _ H HG0 end.
+      match goal with HG0 : G a ?a' |- _ => have Hca0 := Gcl _ _ H0 HG0 end.
+      have Hcfx := evcl _ _ H ev1. have Hcfx' := evcl' _ _ Hcf' evw0.
+      have Hcav := evcl _ _ H0 ev2.
+      match goal with Hf : fix_rel G mfix _ |- _ =>
+        destruct (G_cunfold_fix _ _ _ _ _ _ _ Hf Hcfx Hcfx' e0) as (fn' & e0' & Hfn) end.
+      have HG3 : G (tApp fn av) (tApp fn' w) by (apply G_s; constructor; auto using Gv_G).
+      have Hc3 : closedn 0 (tApp fn av) by (cbn; rewrite Hcav (closed_cunfold_fix _ _ _ _ Hcfx e0) //).
+      lft. eexists; split; [|eassumption]. sq. eapply eval_fix'; tea.
+    - apply atom_eval_eq in evw0; [|reflexivity]. subst. inversion Hw0.
+    - apply atom_eval_eq in evw0; [|reflexivity]. subst. inversion Hw0; subst.
+      match goal with HG0 : G a ?a' |- _ => have Hca0 := Gcl _ _ H0 HG0 end.
+      have Hcfx := evcl _ _ H ev1. have Hcav := evcl _ _ H0 ev2.
+      match goal with Hf : fix_rel G mfix _, Hcfx' : is_true (closed (tFix mfix' _)) |- _ =>
+        destruct (G_cunfold_fix _ _ _ _ _ _ _ Hf Hcfx Hcfx' e0) as (fn'' & e0' & Hfn) end.
+      match goal with Hn : cunfold_fix mfix' _ = Some (n, fn') |- _ => rewrite Hn in e0'; injection e0' as -> <- end.
+      have HG3 : G (tApp fn av) (tApp fn' a').
+      { apply G_s; constructor; auto. eapply (G_val _ _ av a' w); auto; [sq; apply value_final; eapply eval_to_value; tea | now sq]. }
+      have Hc3 : closedn 0 (tApp fn av) by (cbn; rewrite Hcav (closed_cunfold_fix _ _ _ _ Hcfx e0) //).
+      lft. eexists; split; [|eassumption]. now sq.
+    (* cofix case *)
+    - rename H into HCD.
+      destruct (Gv_mkApps_cofix _ _ _ _ Hw) as (mfix' & args' & -> & Hmf & Hargs).
+      match goal with HG0 : G discr ?d' |- _ => have Hcd' := Gcl _ _ HCD HG0 end.
+      have Hcv := evcl _ _ HCD ev1. have Hcv' := evcl' _ _ Hcd' evw.
+      rewrite closedn_mkApps in Hcv. rewrite closedn_mkApps in Hcv'.
+      move/andP: Hcv => [Hcf Hcargs]. move/andP: Hcv' => [Hcf' Hcargs'].
+      destruct (G_cunfold_cofix _ _ _ _ _ _ _ Hmf Hcf Hcf' e0) as (fn' & e0' & Hfn).
+      have Hcfn := closed_cunfold_cofix _ _ _ _ Hcf e0.
+      have HG3 : G (tCase ip (mkApps fn args) brs) (tCase ip (mkApps fn' args') brs').
+      { apply G_s; constructor; auto. apply G_mkApps; auto using Forall2_Gv_G. }
+      have Hc3 : closedn 0 (tCase ip (mkApps fn args) brs).
+      { cbn. rewrite closedn_mkApps Hcfn Hcargs H0 //. }
+      lft. eexists; split; [|eassumption]. sq. eapply eval_cofix_case; tea.
+    - apply eval_construct_block_inv in evw as (args1 & -> & _).
+      destruct (Gv_mkApps_cofix _ _ _ _ Hw) as (mfix' & args' & E & _).
+      now apply mkApps_cofix_not_construct in E.
+    (* cofix proj *)
+    - rename Hc into HCD.
+      destruct (Gv_mkApps_cofix _ _ _ _ Hw) as (mfix' & args' & -> & Hmf & Hargs).
+      match goal with HG0 : G discr ?d' |- _ => have Hcd' := Gcl _ _ HCD HG0 end.
+      have Hcv := evcl _ _ HCD ev1. have Hcv' := evcl' _ _ Hcd' evw.
+      rewrite closedn_mkApps in Hcv. rewrite closedn_mkApps in Hcv'.
+      move/andP: Hcv => [Hcf Hcargs]. move/andP: Hcv' => [Hcf' Hcargs'].
+      destruct (G_cunfold_cofix _ _ _ _ _ _ _ Hmf Hcf Hcf' e0) as (fn' & e0' & Hfn).
+      have Hcfn := closed_cunfold_cofix _ _ _ _ Hcf e0.
+      have HG3 : G (tProj p (mkApps fn args)) (tProj p (mkApps fn' args')).
+      { apply G_s; constructor; auto. apply G_mkApps; auto using Forall2_Gv_G. }
+      have Hc3 : closedn 0 (tProj p (mkApps fn args)).
+      { cbn. rewrite closedn_mkApps Hcfn Hcargs //. }
+      lft. eexists; split; [|eassumption]. sq. eapply eval_cofix_proj; tea.
+    (* delta *)
+    - destruct (Hcst _ _ _ isdecl e) as (decl' & b' & Hd' & Hb' & HG).
+      have Hcb := lookup_env_closed clΣ isdecl. cbn in Hcb. rewrite e in Hcb. cbn in Hcb.
+      lft. eexists; split; [|eassumption]. sq. eapply eval_delta; tea.
+    - unfold declared_constant in *.
+      match goal with Hd : lookup_env Σ c = Some (ConstantDecl decl0) |- _ =>
+        rewrite isdecl in Hd; injection Hd as <- end.
+      match goal with Hb : cst_body decl = Some b |- _ => rewrite e in Hb; injection Hb as <- end.
+      have Hcb := lookup_env_closed clΣ isdecl. cbn in Hcb. rewrite e in Hcb. cbn in Hcb.
+      lft. eexists; split; [|eassumption]. now sq.
+    (* proj block *)
+    - inversion Hw; subst.
+      match goal with Ha : Forall2 Gv args ?args' |- _ =>
+        have Hlen := Forall2_length Ha;
+        destruct (Forall2_nth_error_l _ _ _ _ _ Ha e3) as (a' & e3' & Ha') end.
+      have Hca := evcl _ _ Hc ev1. cbn in Hca.
+      eapply forallb_nth_error in Hca. erewrite e3 in Hca. cbn in Hca.
+      apply Gv_G in Ha'.
+      lft. eexists; split; [|eassumption]. sq. eapply eval_proj_block; tea.
+      + rewrite -(same_constructor_isprop_pars_decl _ _ Hind). eassumption.
+      + now rewrite -Hlen.
+    (* construct block *)
+    - match goal with Ha : Forall2 G args _ |- _ =>
+        have Hlen := Forall2_length Ha;
+        destruct (sim_args _ _ a iha Hc _ Ha) as (args1 & [evs] & Hargs1) end.
+      eexists. split; [|constructor; eassumption].
+      sq. eapply eval_construct_block; tea.
+      + rewrite -(same_lookup_constructor _ _ Hind). eassumption.
+      + now rewrite -Hlen.
+    (* app cong *)
+    - destruct (Gv_head_shape _ _ Hw0) as [E1 E2 E3 E4 E5 E6].
+      eexists. split; [|constructor; eassumption].
+      sq. eapply eval_app_cong; tea. cbn in i |- *.
+      rewrite -E1 -E2 -E3 -E4 -E5 -E6. exact i.
+    - apply atom_eval_eq in evw0; [|reflexivity]. subst. inversion Hw0; subst. cbn in i. discriminate.
+    - apply atom_eval_eq in evw0; [|reflexivity]. subst. inversion Hw0; subst. cbn in i. discriminate.
+    (* prim *)
+    - depelim X. eexists. split; [sq; eapply eval_prim; constructor|constructor].
+    - depelim X. eexists. split; [sq; eapply eval_prim; constructor|constructor].
+    - depelim X. eexists. split; [sq; eapply eval_prim; constructor|constructor].
+    - depelim X. cbn in Hc. move/andP: Hc => [Hcd Hcv].
+      match goal with ev : All2_Set _ ?v _, a : All2_over ?ev _, H : Forall2 _ ?v _ |- _ =>
+        destruct (sim_args _ _ ev a Hcv _ H) as (v1 & [evs] & Hv1) end.
+      lft.
+      eexists (tPrim (prim_array {| array_default := _; array_value := v1 |})).
+      split; [sq; eapply eval_prim; now constructor|now constructor].
+    (* force *)
+    - inversion Hw; subst.
+      have Hct' := evcl _ _ Hc ev1. cbn in Hct'.
+      lft. eexists; split; [|eassumption]. sq. eapply eval_force; tea.
+  Qed.
+End Sim.
