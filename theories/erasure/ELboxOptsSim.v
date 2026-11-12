@@ -104,6 +104,9 @@ Section Rel.
       ∥ value Σ' (mkApps (tCoFix mfix idx) args') ∥ ->
       closed (mkApps (tCoFix mfix idx) args') -> closed v0 ->
       R (tConstruct ind c args) (mkApps (tCoFix mfix idx) args')
+  (** the target is any closed term evaluating to something related *)
+  | R_eval t v0 t' :
+      R t v0 -> ∥ eval Σ' t' v0 ∥ -> closed t' -> closed v0 -> R t t'
   with Rh : term -> term -> Prop :=
   | Rh_box : Rh tBox tBox
   | Rh_rel n : Rh (tRel n) (tRel n)
@@ -130,6 +133,17 @@ Section Rel.
   (** [case_id] *)
   | Rh_case_id ind p d d' brs :
       R d d' -> all_rebuild ind brs -> Rh (tCase (ind, p) d brs) d'
+  (** [beta_let]: beta-reduction, and pushing an argument into a let or
+      into the branches of a case *)
+  | Rh_beta na b b' a a' :
+      R b b' -> R a a' -> Rh (tApp (tLambda na b) a) (subst1 a' 0 b')
+  | Rh_app_let z v v' b b' a a' :
+      R v v' -> R b b' -> R a a' ->
+      Rh (tApp (tLetIn z v b) a) (tLetIn z v' (tApp b' (lift0 1 a')))
+  | Rh_app_case ci d d' brs brs' a a' :
+      R d d' -> Rbrs brs brs' -> R a a' ->
+      Rh (tApp (tCase ci d brs) a)
+         (tCase ci d' (map (fun br => (br.1, tApp br.2 (lift0 #|br.1| a'))) brs'))
   with Rs : list term -> list term -> Prop :=
   | Rs_nil : Rs [] []
   | Rs_cons t t' l l' : R t t' -> Rs l l' -> Rs (t :: l) (t' :: l')
@@ -201,6 +215,19 @@ Section Rel.
 
   (** *** Closedness *)
 
+  Lemma csubst_subst1 a k x b :
+    closed a -> csubst a k (subst1 x 0 b) = subst1 (csubst a k x) 0 (csubst a (S k) b).
+  Proof.
+    intros cl. rewrite !closed_subst //. unfold subst1. now rewrite distr_subst.
+  Qed.
+
+  Lemma csubst_lift0 a n k x :
+    closed a -> csubst a (n + k) (lift0 n x) = lift0 n (csubst a k x).
+  Proof.
+    intros cl. rewrite !closed_subst //.
+    rewrite (commut_lift_subst_rec x [a] n k 0); [lia|]. now rewrite Nat.add_comm.
+  Qed.
+
   Lemma R_closed_mut :
     (forall t t', R t t' -> forall k, closedn k t -> closedn k t') /\
     (forall t t', Rh t t' -> forall k, closedn k t -> closedn k t') /\
@@ -214,9 +241,18 @@ Section Rel.
     apply R_mutind; intros; cbn in *; auto.
     all: try (rtoProp; intuition eauto; fail).
     - eapply closed_upwards; tea. lia.
+    - eapply closed_upwards; tea. lia.
     - rewrite -(Rdefs_length _ _ H). auto.
     - rewrite -(Rdefs_length _ _ H). auto.
     - unfold test_array_model in *; cbn in *. rtoProp; intuition eauto.
+    - (* beta *)
+      move/andP: H3 => [cb ca]. apply closedn_subst; cbn; rewrite ?H2 //. apply H0. exact cb.
+    - (* app let *)
+      rtoProp. intuition eauto. rewrite -Nat.add_1_r. apply closedn_lift. eauto.
+    - (* app case *)
+      rtoProp. intuition eauto. rewrite forallb_map. cbn.
+      specialize (H2 k ltac:(assumption)). specialize (H4 k ltac:(assumption)).
+      solve_all. rtoProp. split; auto. rewrite Nat.add_comm. now apply closedn_lift.
   Qed.
 
   Lemma R_closed t t' k : R t t' -> closedn k t -> closedn k t'.
@@ -244,10 +280,24 @@ Section Rel.
       rewrite (csubst_closed a' k (mkApps _ _)); [eapply closed_upwards; tea; lia|].
       specialize (H0 k). rewrite (csubst_closed a' k v0) in H0; [eapply closed_upwards; tea; lia|].
       cbn in H0. eapply R_cofix; eauto.
+    - (* evaluation *)
+      rewrite (csubst_closed a' k t'); [eapply closed_upwards; tea; lia|].
+      specialize (H0 k). rewrite (csubst_closed a' k v0) in H0; [eapply closed_upwards; tea; lia|].
+      eapply R_eval; eauto.
     - destruct (Nat.compare k n); auto; apply R_head; constructor.
     - apply R_head. rewrite -(Rdefs_length _ _ H). constructor. auto.
     - apply R_head. rewrite -(Rdefs_length _ _ H). constructor. auto.
     - erewrite all_rebuild_csubst; tea. apply R_head. constructor; auto.
+    - rewrite csubst_subst1 //. apply R_head, Rh_beta; auto.
+    - rewrite (csubst_lift0 a' 1 k) //. apply R_head, Rh_app_let; auto.
+    - assert (E : forall L x,
+        map (fun br : list name × term => (br.1, csubst a' (#|br.1| + k) br.2))
+          (map (fun br : list name × term => (br.1, tApp br.2 (lift0 #|br.1| x))) L) =
+        map (fun br : list name × term => (br.1, tApp br.2 (lift0 #|br.1| (csubst a' k x))))
+          (map (fun br : list name × term => (br.1, csubst a' (#|br.1| + k) br.2)) L)).
+      { intros L x. rewrite !map_map. apply map_ext. intros [n b0]. cbn. now rewrite csubst_lift0. }
+      rewrite E.
+      apply R_head, Rh_app_case; auto.
   Qed.
 
   Lemma R_csubst a a' t t' k :
@@ -486,6 +536,95 @@ Section Flags.
       move/andP: clv => [clf cla]. rewrite closedn_mkApps. apply/andP; split; auto.
       eapply closed_cunfold_cofix; tea.
     - subst. cbn in i. discriminate.
+  Qed.
+
+  (** *** Applications: pushing an argument into a let or a case *)
+
+  Lemma eval_lambda_inv na b v : eval Σ (tLambda na b) v -> v = tLambda na b.
+  Proof. intros ev. exact (eval_deterministic ev (eval_atom Σ (tLambda na b) eq_refl)). Qed.
+
+  Lemma value_app_head f a : value Σ (tApp f a) -> value Σ f.
+  Proof.
+    intros H. destruct (value_tApp_inv _ _ H) as (mfix & idx & args & -> & Hall).
+    apply value_cofix_app. eapply All_app in Hall as [? _]. assumption.
+  Qed.
+
+  Lemma mkApps_cofix_head mf idx args :
+    match mkApps (tCoFix mf idx) args with
+    | tLambda _ _ | tLetIn _ _ _ | tCase _ _ _ => False
+    | _ => True
+    end.
+  Proof. destruct args using rev_case; rewrite ?mkApps_app; cbn; auto. Qed.
+
+  Ltac flag_contra :=
+    solve [ exfalso; unfold is_true in *; congruence
+          | match goal with H : atom _ _ |- _ => cbn in H; discriminate end
+          | match goal with H : is_true (atom _ _) |- _ => cbn in H; discriminate end ].
+
+  Lemma eval_app_inv f a r :
+    eval Σ (tApp f a) r -> ∑ fv, eval Σ f fv × eval Σ (tApp fv a) r.
+  Proof.
+    intros ev. depelim ev; try flag_contra.
+    all: eexists; split; [eassumption|].
+    all: let fin := try eassumption; try (eapply value_final, eval_to_value; eassumption) in
+      first [ solve [eapply eval_box; fin] | solve [eapply eval_beta; fin]
+            | solve [eapply eval_fix'; fin] | solve [eapply eval_app_cong; fin] ].
+  Qed.
+
+  Lemma eval_app_value x fv a r :
+    eval Σ x fv -> eval Σ (tApp fv a) r -> eval Σ (tApp x a) r.
+  Proof.
+    intros ex ev. have vf := eval_to_value _ _ ex.
+    depelim ev; try flag_contra.
+    all: match goal with vf : value _ ?F, H : eval Σ ?F ?y |- _ =>
+           eapply eval_value in H; [|exact vf]; subst end.
+    all: first [ solve [eapply eval_box; eassumption] | solve [eapply eval_beta; eassumption]
+               | solve [eapply eval_fix'; eassumption] | solve [eapply eval_app_cong; eassumption] ].
+  Qed.
+
+  Lemma substl_tApp s x y : substl s (tApp x y) = tApp (substl s x) (substl s y).
+  Proof. induction s in x, y |- *; cbn; auto. Qed.
+
+  Lemma substl_closed s x : closed x -> substl s x = x.
+  Proof. intros cl. induction s; cbn; auto. now rewrite csubst_closed. Qed.
+
+  Lemma eval_app_let z v b a r :
+    closed a ->
+    eval Σ (tApp (tLetIn z v b) a) r -> eval Σ (tLetIn z v (tApp b (lift0 1 a))) r.
+  Proof.
+    intros cl ev. apply eval_app_inv in ev as (fv & ef & ev).
+    depelim ef; try flag_contra.
+    eapply eval_zeta; [eassumption|]. cbn.
+    rewrite (lift_closed 1 0 a) // (csubst_closed _ 0 a) //.
+    eapply eval_app_value; eassumption.
+  Qed.
+
+  Definition push_arg (a : term) (brs : list (list name × term)) :=
+    map (fun br => (br.1, tApp br.2 (lift0 #|br.1| a))) brs.
+
+  Lemma eval_case_app a r t fv :
+    closed a -> eval Σ t fv -> forall ci d brs, t = tCase ci d brs ->
+    eval Σ (tApp fv a) r -> eval Σ (tCase ci d (push_arg a brs)) r.
+  Proof.
+    intros cl ev. induction ev; intros ci0 d0 brs0 E ea; try discriminate; try flag_contra;
+      try (subst; flag_contra).
+    - injection E as <- <- <-.
+      eapply eval_iota_block with (br := (br.1, tApp br.2 (lift0 #|br.1| a))); tea.
+      + unfold push_arg. rewrite nth_error_map.
+        match goal with H : nth_error _ _ = Some _ |- _ => now rewrite H end.
+      + unfold iota_red. cbn. rewrite substl_tApp.
+        rewrite (lift_closed _ 0 a) // (substl_closed _ a) //.
+        eapply eval_app_value; eassumption.
+    - injection E as <- <- <-.
+      eapply eval_cofix_case; tea. eapply IHev2; auto.
+  Qed.
+
+  Lemma eval_app_case ci d brs a r :
+    closed a ->
+    eval Σ (tApp (tCase ci d brs) a) r -> eval Σ (tCase ci d (push_arg a brs)) r.
+  Proof.
+    intros cl ev. apply eval_app_inv in ev as (fv & ef & ev).
+    exact (eval_case_app a r _ fv cl ef ci d brs eq_refl ev).
   Qed.
 
 End Flags.

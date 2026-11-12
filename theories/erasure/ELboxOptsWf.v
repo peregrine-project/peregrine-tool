@@ -213,7 +213,7 @@ Axiom trust_lbox_opts_terminates :
 Definition lbox_obs : term -> term -> Prop := obs (wfl := extra_wcbv_flags).
 
 Lemma lbox_opts_program_eval (o : lbox_opts) :
-  (forall t, Rall (wfl := extra_wcbv_flags) t (rewrite_node o t)) ->
+  (forall t, chain (wfl := extra_wcbv_flags) t (rewrite_node o t)) ->
   forall (p : program) (v : term),
   wf_eprogram extra_env_flags p ->
   eval_eprogram extra_wcbv_flags p v ->

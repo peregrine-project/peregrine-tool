@@ -17,40 +17,65 @@ From Equations Require Import Equations.
 Local Open Scope bool_scope.
 Set Default Goal Selector "!".
 
-Section Inv.
-  Context {wfl : WcbvFlags} (Σ' : global_declarations).
+Section Sim.
+  Context {wfl : WcbvFlags}.
+  Hypothesis Hblock : with_constructor_as_block = true.
+  Hypothesis Hguard : with_guarded_fix = false.
+  Hypothesis Hprop : with_prop_case = false.
+  Variables Σ Σ' : global_declarations.
 
   Lemma Rs_app l l' m m' : Rs Σ' l l' -> Rs Σ' m m' -> Rs Σ' (l ++ m) (l' ++ m').
   Proof. rewrite !Rs_Forall2. apply Forall2_app. Qed.
 
-  Lemma R_box_inv w : R Σ' tBox w -> w = tBox.
-  Proof. intros H; inversion H as [? ? H'|]; subst. now inversion H'. Qed.
+  (** A value on the right is related by a head rule, unless it is an
+      unevaluated cofixpoint standing for a constructor. *)
+  Lemma R_value t w :
+    R Σ' t w -> ∥ value Σ' w ∥ -> Rh Σ' t w \/ exists ind c args, t = tConstruct ind c args.
+  Proof.
+    induction 1; intros [vw].
+    - now left.
+    - right. eauto.
+    - match goal with H : ∥ eval _ _ _ ∥ |- _ => destruct H as [e] end.
+      have E := eval_value _ _ vw e. subst. apply IHR. now sq.
+  Qed.
+
+  Ltac rvalue H v H' :=
+    destruct (R_value _ _ H v) as [H'|(?&?&?&?)]; [|discriminate].
+
+  Lemma R_box_inv w : R Σ' tBox w -> ∥ value Σ' w ∥ -> w = tBox.
+  Proof. intros H v. rvalue H v H'. now inversion H'. Qed.
 
   Lemma R_lambda_inv na b w :
-    R Σ' (tLambda na b) w -> exists b', w = tLambda na b' /\ R Σ' b b'.
-  Proof. intros H; inversion H as [? ? H'|]; subst. inversion H'; subst; eauto. Qed.
+    R Σ' (tLambda na b) w -> ∥ value Σ' w ∥ -> exists b', w = tLambda na b' /\ R Σ' b b'.
+  Proof. intros H v. rvalue H v H'. inversion H'; subst; eauto. Qed.
 
   Lemma R_fix_inv mf idx w :
-    R Σ' (tFix mf idx) w -> exists mf', w = tFix mf' idx /\ Rdefs Σ' mf mf'.
-  Proof. intros H; inversion H as [? ? H'|]; subst. inversion H'; subst; eauto. Qed.
+    R Σ' (tFix mf idx) w -> ∥ value Σ' w ∥ -> exists mf', w = tFix mf' idx /\ Rdefs Σ' mf mf'.
+  Proof. intros H v. rvalue H v H'. inversion H'; subst; eauto. Qed.
 
   Lemma R_lazy_inv b w :
-    R Σ' (tLazy b) w -> exists b', w = tLazy b' /\ R Σ' b b'.
-  Proof. intros H; inversion H as [? ? H'|]; subst. inversion H'; subst; eauto. Qed.
+    R Σ' (tLazy b) w -> ∥ value Σ' w ∥ -> exists b', w = tLazy b' /\ R Σ' b b'.
+  Proof. intros H v. rvalue H v H'. inversion H'; subst; eauto. Qed.
 
   Lemma R_mkApps_cofix_inv mf idx args w :
-    R Σ' (mkApps (tCoFix mf idx) args) w ->
+    R Σ' (mkApps (tCoFix mf idx) args) w -> ∥ value Σ' w ∥ ->
     exists mf' args', w = mkApps (tCoFix mf' idx) args' /\ Rdefs Σ' mf mf' /\ Rs Σ' args args'.
   Proof.
-    revert w. induction args using rev_ind; intros w H.
-    - cbn in H. inversion H as [? ? H'|]; subst. inversion H'; subst.
+    revert w. induction args using rev_ind; intros w H v.
+    - cbn in H. rvalue H v H'. inversion H'; subst.
       eexists _, []. cbn. repeat split; eauto. constructor.
-    - rewrite mkApps_app in H. cbn in H. inversion H as [? ? H'|]; subst.
+    - rewrite mkApps_app in H. cbn in H. rvalue H v H'.
+      have Hhd := mkApps_cofix_head mf idx args.
       inversion H'; subst.
-      match goal with H : R _ (mkApps _ args) _ |- _ =>
-        destruct (IHargs _ H) as (mf' & args' & -> & ? & ?) end.
-      eexists mf', (args' ++ [_]). rewrite mkApps_app. cbn. repeat split; eauto.
-      apply Rs_app; auto. constructor; auto. constructor.
+      + destruct v as [v].
+        match goal with H : R _ (mkApps _ args) _ |- _ =>
+          destruct (IHargs _ H) as (mf' & args' & -> & ? & ?) end.
+        { sq. eapply value_app_head; tea. }
+        eexists mf', (args' ++ [_]). rewrite mkApps_app. cbn. repeat split; eauto.
+        apply Rs_app; auto. constructor; auto. constructor.
+      + match goal with E : _ = mkApps _ args |- _ => rewrite -E in Hhd end. destruct Hhd.
+      + match goal with E : _ = mkApps _ args |- _ => rewrite -E in Hhd end. destruct Hhd.
+      + match goal with E : _ = mkApps _ args |- _ => rewrite -E in Hhd end. destruct Hhd.
   Qed.
 
   Lemma R_construct_unfolds t w :
@@ -67,16 +92,11 @@ Section Inv.
       { match goal with H : ∥ eval _ _ v0 ∥ |- _ => destruct H as [e] end.
         sq. eapply eval_to_value; tea. }
       exists args''. split; [eapply unfolds_step; tea|auto].
+    - destruct vw as [vw].
+      match goal with H : ∥ eval _ _ _ ∥ |- _ => destruct H as [e] end.
+      have E' := eval_value _ _ vw e. subst. apply IHR; auto. now sq.
   Qed.
 
-End Inv.
-
-Section Sim.
-  Context {wfl : WcbvFlags}.
-  Hypothesis Hblock : with_constructor_as_block = true.
-  Hypothesis Hguard : with_guarded_fix = false.
-  Hypothesis Hprop : with_prop_case = false.
-  Variables Σ Σ' : global_declarations.
   Hypothesis Hind : forall kn, lookup_minductive Σ kn = lookup_minductive Σ' kn.
   Hypothesis Hcst : forall kn b, declared_constant Σ kn {| cst_body := Some b |} ->
     exists b', declared_constant Σ' kn {| cst_body := Some b' |} /\ R Σ' b b'.
@@ -120,6 +140,10 @@ Section Sim.
         sq. now apply value_final. }
       eapply eval_Construct_inv in ev as (args'' & -> & _).
       eapply R_cofix; tea. now sq.
+    - destruct (IHR v ev Hh) as (v0' & [e0] & Hv).
+      match goal with H : ∥ eval _ _ v0 ∥ |- _ => destruct H as [e1] end.
+      have E : v0 = v0' by (eapply eval_value; [eapply eval_to_value; exact e1|exact e0]).
+      subst v0'. exists v0. split; [now sq|auto].
   Qed.
 
   Lemma sim_args args args' (a : All2_Set (eval Σ) args args') :
@@ -169,22 +193,67 @@ Section Sim.
   Ltac tgt_closed Ht cl cl0 :=
     have cl0 := R_closed _ _ _ 0 (R_head _ _ _ Ht) cl.
 
+  (** The rules for applications: all of them reduce to the congruence
+      rule, except for the contraction of a source beta redex. *)
+  Lemma app_head f a res t0 :
+    closed (tApp f a) ->
+    (forall f' a', R Σ' f f' -> R Σ' a a' -> closed f' -> closed a' ->
+      goal (tApp f' a') res) ->
+    (forall na b b' a', f = tLambda na b -> R Σ' b b' -> R Σ' a a' ->
+      closedn 1 b' -> closed a' -> goal (csubst a' 0 b') res) ->
+    Rh Σ' (tApp f a) t0 -> goal t0 res.
+  Proof.
+    intros cl Hc Hb Ht. split_cl cl c1 c2. inversion Ht; subst.
+    - apply Hc; auto; eapply R_closed; tea.
+    - have ca' := R_closed _ _ _ 0 ltac:(eassumption) c2.
+      cbn in c1.
+      match goal with H : R _ b _ |- _ => have cb' := R_closed _ _ _ 1 H c1 end.
+      unfold subst1. rewrite -closed_subst //.
+      eapply Hb; eauto.
+    - have ca' := R_closed _ _ _ 0 ltac:(eassumption) c2.
+      edestruct (Hc (tLetIn z v' b')) as (w & [e] & Hw).
+      + apply R_head; constructor; eassumption.
+      + eassumption.
+      + eapply R_closed; [|exact c1]. apply R_head; constructor; eassumption.
+      + exact ca'.
+      + exists w. split; [|exact Hw]. sq. eapply eval_app_let; tea.
+    - have ca' := R_closed _ _ _ 0 ltac:(eassumption) c2.
+      edestruct (Hc (tCase ci d' brs')) as (w & [e] & Hw).
+      + apply R_head; constructor; eassumption.
+      + eassumption.
+      + eapply R_closed; [|exact c1]. apply R_head; constructor; eassumption.
+      + exact ca'.
+      + exists w. split; [|exact Hw]. sq. eapply eval_app_case; tea.
+  Qed.
+
+  Ltac vof e := sq; eapply eval_to_value; exact e.
+
   Lemma simulation_head t v (ev : eval Σ t v) :
     closed t -> forall t', Rh Σ' t t' -> goal t' v.
   Proof.
     induction ev using eval_rect; intros cl t0 Ht.
     all: try (exfalso; unfold is_true in *; congruence).
     - (* box *)
-      tgt_closed Ht cl cl0. inversion Ht; subst.
-      split_cl cl c1 c2. split_cl cl0 c1' c2'.
+      eapply app_head; [exact cl| | |exact Ht].
+      2:{ intros; subst. apply eval_lambda_inv in ev1. discriminate. }
+      intros f' a' Hf Ha c1' c2'. split_cl cl c1 c2.
       sim_ev ev1 w ee0 Hw; [auto|]. sim_ev ev2 w2 ee2 Hw2; [auto|].
-      apply R_box_inv in Hw; subst.
+      apply R_box_inv in Hw; [subst|vof ee0].
       exists tBox. split; [sq; eapply eval_box; tea|apply R_refl].
     - (* beta *)
-      tgt_closed Ht cl cl0. inversion Ht; subst.
-      split_cl cl c1 c2. split_cl cl0 c1' c2'.
+      eapply app_head; [exact cl| | |exact Ht].
+      2:{ intros na0 b0 b0' a0' -> Hb0 Ha0 cb0' ca0'. split_cl cl c1 c2.
+          apply eval_lambda_inv in ev1. injection ev1 as <- <-.
+          sim_ev ev2 w2 ee2 Hw2; [auto|].
+          have cw2 := eval_closed Σ' HclΣ' _ _ ca0' ee2.
+          have Ha2 : R Σ' a' a0' by (eapply R_eval; [exact Hw2|sq; exact ee2|auto|auto]).
+          have ca' := eval_closed Σ HclΣ _ _ c2 ev2.
+          sim_ev_with ev3 (csubst a0' 0 b0') w3 ee3 Hw3;
+            [apply closed_csubst; auto | apply R_csubst; auto | ].
+          exists w3. split; [now sq|auto]. }
+      intros f' a0' Hf Ha c1' c2'. split_cl cl c1 c2.
       sim_ev ev1 w ee0 Hw; [auto|]. sim_ev ev2 w2 ee2 Hw2; [auto|].
-      apply R_lambda_inv in Hw as (b' & -> & Hb).
+      apply R_lambda_inv in Hw as (b' & -> & Hb); [|vof ee0].
       have cw2 := eval_closed Σ' HclΣ' _ _ c2' ee2.
       have ca' := eval_closed Σ HclΣ _ _ c2 ev2.
       have clam := eval_closed Σ HclΣ _ _ c1 ev1. cbn in clam.
@@ -209,7 +278,7 @@ Section Sim.
         sim_ev ev1 w ee5 Hw; [auto|].
         have cw := eval_closed Σ' HclΣ' _ _ c1' ee5.
         have cargs := eval_closed Σ HclΣ _ _ c1 ev1. cbn in cargs.
-        destruct (R_construct_unfolds _ _ _ Hw _ _ _ eq_refl) as (args' & U & Hargs & [vv] & clv);
+        destruct (R_construct_unfolds _ _ Hw _ _ _ eq_refl) as (args' & U & Hargs & [vv] & clv);
           [sq; eapply eval_to_value; tea|auto|].
         cbn in clv.
         match goal with HR : Rbrs _ ?brs ?brs', Hn : nth_error ?brs _ = Some _ |- _ =>
@@ -243,10 +312,11 @@ Section Sim.
         * eapply all_rebuild_nth; tea.
         * eapply eval_to_value; tea.
     - (* fix' *)
-      tgt_closed Ht cl cl0. inversion Ht; subst.
-      split_cl cl c1 c2. split_cl cl0 c1' c2'.
+      eapply app_head; [exact cl| | |exact Ht].
+      2:{ intros; subst. apply eval_lambda_inv in ev1. discriminate. }
+      intros f' a0' Hf Ha c1' c2'. split_cl cl c1 c2.
       sim_ev ev1 w ee0 Hw; [auto|]. sim_ev ev2 w2 ee2 Hw2; [auto|].
-      apply R_fix_inv in Hw as (mf' & -> & Hmf).
+      apply R_fix_inv in Hw as (mf' & -> & Hmf); [|vof ee0].
       have cfx := eval_closed Σ' HclΣ' _ _ c1' ee0.
       have cfs := eval_closed Σ HclΣ _ _ c1 ev1.
       edestruct R_cunfold_fix as (fn' & Hfn' & HRfn); [exact Hmf|exact cfx|eassumption|].
@@ -258,7 +328,7 @@ Section Sim.
       tgt_closed Ht cl cl0. inversion Ht; subst.
       + split_cl cl c1 c2. split_cl cl0 c1' c2'.
         sim_ev ev1 w ee0 Hw; [auto|].
-        apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs).
+        apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
         have cw := eval_closed Σ' HclΣ' _ _ c1' ee0.
         rewrite closedn_mkApps in cw. move/andP: cw => [cw1 cw2].
         edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact cw1|eassumption|].
@@ -273,7 +343,7 @@ Section Sim.
         exists w3. split; [sq; eapply eval_cofix_case; tea|auto].
       + split_cl cl c1 c2.
         sim_ev ev1 w ee0 Hw; [auto|].
-        apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs).
+        apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
         have cw := eval_closed Σ' HclΣ' _ _ cl0 ee0.
         have cw' := cw.
         rewrite closedn_mkApps in cw. move/andP: cw => [cw1 cw2].
@@ -296,7 +366,7 @@ Section Sim.
       tgt_closed Ht cl cl0. inversion Ht; subst.
       cbn in cl, cl0.
       sim_ev ev1 w ee0 Hw; [auto|].
-      apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs).
+      apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
       have cw := eval_closed Σ' HclΣ' _ _ cl0 ee0.
       rewrite closedn_mkApps in cw. move/andP: cw => [cw1 cw2].
       edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact cw1|eassumption|].
@@ -322,7 +392,7 @@ Section Sim.
       sim_ev ev1 w ee0 Hw; [auto|].
       have cw := eval_closed Σ' HclΣ' _ _ cl0 ee0.
       have cargs := eval_closed Σ HclΣ _ _ cl ev1. cbn in cargs.
-      destruct (R_construct_unfolds _ _ _ Hw _ _ _ eq_refl) as (args' & U & Hargs & [vv] & clv);
+      destruct (R_construct_unfolds _ _ Hw _ _ _ eq_refl) as (args' & U & Hargs & [vv] & clv);
         [sq; eapply eval_to_value; tea|auto|].
       match goal with Hn : nth_error _ _ = Some _ |- _ =>
         destruct (Rs_nth_error _ _ _ _ _ Hargs Hn) as (a' & Hn' & Ha');
@@ -350,12 +420,13 @@ Section Sim.
         | rewrite -(ELiftConstants.same_lookup_constructor _ _ Hind); eassumption
         | rewrite -Hlen; eassumption | exact evs].
     - (* app cong *)
-      tgt_closed Ht cl cl0. inversion Ht; subst.
-      split_cl cl c1 c2. split_cl cl0 c1' c2'.
+      eapply app_head; [exact cl| | |exact Ht].
+      2:{ intros; subst. apply eval_lambda_inv in ev1. subst. discriminate. }
+      intros f0' a0' Hf Ha c1' c2'. split_cl cl c1 c2.
       sim_ev ev1 w ee0 Hw; [auto|]. sim_ev ev2 w2 ee2 Hw2; [auto|].
       destruct (value_cofix_shape _ (eval_to_value _ _ ev1) i) as (mfix & idx & args & E).
       rewrite E in Hw |- *.
-      apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs).
+      apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
       eexists. split; [sq; eapply eval_app_cong; tea|].
       + rewrite Hguard isConstructApp_mkApps isPrimApp_mkApps isLazyApp_mkApps.
         destruct args' using rev_case; rewrite ?mkApps_app; reflexivity.
@@ -374,7 +445,7 @@ Section Sim.
     - (* force *)
       tgt_closed Ht cl cl0. inversion Ht; subst. cbn in cl, cl0.
       sim_ev ev1 w ee0 Hw; [auto|].
-      apply R_lazy_inv in Hw as (b' & -> & Hb).
+      apply R_lazy_inv in Hw as (b' & -> & Hb); [|vof ee0].
       have cv := eval_closed Σ HclΣ _ _ cl ev1. cbn in cv.
       sim_ev_with ev2 b' w3 ee3 Hw3; [exact cv|exact Hb|].
       exists w3. split; [sq; eapply eval_force; tea|auto].

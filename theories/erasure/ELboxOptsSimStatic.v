@@ -71,6 +71,14 @@ Lemma itr_lift1 {A B} (rA : A -> A -> Prop) (rB : B -> B -> Prop) (c : A -> B) x
   (exists n, itr rA n x x') -> exists n, itr rB n (c x) (c x').
 Proof. intros Hc [n Hn]. exists n. eapply itr_map1; tea. Qed.
 
+Lemma itr_app {A} (r : A -> A -> Prop) n m x y z :
+  itr r n x y -> itr r m y z -> itr r (n + m) x z.
+Proof.
+  induction n in x |- *; cbn.
+  - now intros ->.
+  - intros (w & H1 & H2) H. exists w; split; auto.
+Qed.
+
 (** ** The static part *)
 
 Section Static.
@@ -95,11 +103,17 @@ Section Static.
   Lemma chain_refl t : chain t t.
   Proof. now exists 0. Qed.
 
+  Lemma chain_trans t u v : chain t u -> chain u v -> chain t v.
+  Proof. intros [n Hn] [m Hm]. exists (n + m). eapply itr_app; tea. Qed.
+
+  Lemma chain_one t t' : Rall t t' -> chain t t'.
+  Proof. intros H. exists 1, t'. split; auto. reflexivity. Qed.
+
   Variable o : lbox_opts.
-  Hypothesis Hnode : forall t, Rall t (rewrite_node o t).
+  Hypothesis Hnode : forall t, chain t (rewrite_node o t).
 
   Lemma chain_node t t' : chain t t' -> chain t (rewrite_node o t').
-  Proof. intros [n Hn]. exists (S n). eapply itr_snoc; tea. apply Hnode. Qed.
+  Proof. intros H. eapply chain_trans; [exact H|apply Hnode]. Qed.
 
   Lemma chains_map f l :
     All (fun t => chain t (f t)) l -> exists n, itr Rsall n l (map f l).
@@ -304,7 +318,7 @@ Section Program.
   Qed.
 
   Variable o : lbox_opts.
-  Hypothesis Hnode : forall t, Rall t (rewrite_node o t).
+  Hypothesis Hnode : forall t, chain t (rewrite_node o t).
 
   Lemma optimize_decl_chain d : exists n, itr decl_step n d (optimize_decl o d).
   Proof.
@@ -337,10 +351,100 @@ Section Program.
 
 End Program.
 
+(** ** The rewrites, one node at a time *)
+
+Section Nodes.
+  Context {wfl : WcbvFlags}.
+
+  Lemma chain_letin z v b b' : chain b b' -> chain (tLetIn z v b) (tLetIn z v b').
+  Proof.
+    eapply (itr_lift1 Rall Rall (tLetIn z v)). intros x y H Σ'.
+    apply R_head; constructor; [apply R_refl|apply H].
+  Qed.
+
+  Lemma chain_app f f' a : chain f f' -> chain (tApp f a) (tApp f' a).
+  Proof.
+    eapply (itr_lift1 Rall Rall (fun f => tApp f a)). intros x y H Σ'.
+    apply R_head; constructor; [apply H|apply R_refl].
+  Qed.
+
+  Lemma chain_mkApps f f' args : chain f f' -> chain (mkApps f args) (mkApps f' args).
+  Proof. induction args in f, f' |- *; cbn; auto. intros H. apply IHargs. now apply chain_app. Qed.
+
+  Lemma chain_case ci d brs brs' :
+    (exists n, itr Rbrsall n brs brs') -> chain (tCase ci d brs) (tCase ci d brs').
+  Proof.
+    eapply (itr_lift1 Rbrsall Rall (tCase ci d)). intros x y H Σ'.
+    apply R_head; constructor; [apply R_refl|apply H].
+  Qed.
+
+  Lemma chbrs_pointwise (g h : list name × term -> term) l :
+    (forall br, chain (g br) (h br)) ->
+    exists n, itr Rbrsall n (map (fun br => (br.1, g br)) l) (map (fun br => (br.1, h br)) l).
+  Proof.
+    intros H. induction l as [|br l IH]; cbn; [now exists 0|].
+    eapply (itr_lift2 Rall Rbrsall Rbrsall (fun b l => (br.1, b) :: l)); tea;
+      [apply Rall_refl|apply Rbrsall_refl| |apply H].
+    intros ? ? ? ? H1 H2 Σ'. constructor; auto.
+  Qed.
+
+  (** *** beta_let *)
+
+  Lemma chain_app_let z v b args :
+    chain (mkApps (tLetIn z v b) args) (tLetIn z v (mkApps b (map (lift0 1) args))).
+  Proof.
+    induction args in b |- *; cbn; [apply chain_refl|].
+    eapply chain_trans; [|apply IHargs].
+    apply chain_mkApps, chain_one. intros Σ'. apply R_head, Rh_app_let; apply R_refl.
+  Qed.
+
+  Lemma chain_app_case ci d brs args :
+    chain (mkApps (tCase ci d brs) args)
+          (tCase ci d (map (fun br => (br.1, mkApps br.2 (map (lift0 #|br.1|) args))) brs)).
+  Proof.
+    induction args in brs |- *; cbn.
+    - rewrite (map_ext _ id); [now intros []|]. rewrite map_id. apply chain_refl.
+    - eapply chain_trans.
+      { apply chain_mkApps, chain_one. intros Σ'. apply R_head, Rh_app_case; try apply R_refl.
+        apply Rbrsall_refl. }
+      eapply chain_trans; [apply IHargs|].
+      rewrite map_map. cbn. apply chain_refl.
+  Qed.
+
+  Lemma chain_push_args fuel hd args : chain (mkApps hd args) (push_args fuel hd args).
+  Proof.
+    induction fuel in hd, args |- *; cbn; [apply chain_refl|].
+    destruct args as [|a rest]; [apply chain_refl|].
+    destruct hd; try apply chain_refl.
+    - eapply chain_trans; [|apply IHfuel].
+      cbn. apply chain_mkApps, chain_one. intros Σ'. apply R_head, Rh_beta; apply R_refl.
+    - eapply chain_trans; [apply (chain_app_let _ _ _ (a :: rest))|].
+      apply chain_letin, IHfuel.
+  Qed.
+
+  Lemma beta_let_chain t : chain t (beta_let t).
+  Proof.
+    unfold beta_let. destruct (decompose_app t) as [hd args] eqn:da.
+    apply decompose_app_inv in da. subst t.
+    destruct hd; try apply chain_refl; destruct args as [|a args]; try apply chain_refl.
+    - match goal with |- context [if ?c then _ else _] => destruct c end;
+        [apply chain_push_args|apply chain_refl].
+    - match goal with |- context [if ?c then _ else _] => destruct c end;
+        [apply chain_push_args|apply chain_refl].
+    - match goal with |- context [if ?c then _ else _] => destruct c end; [|apply chain_refl].
+      eapply chain_trans; [apply chain_app_case|]. apply chain_case.
+      refine (chbrs_pointwise _
+        (fun br => push_args (S (spine_len br.2)) br.2 (map (lift0 #|br.1|) (a :: args))) _ _).
+      intros br. apply chain_push_args.
+  Qed.
+
+End Nodes.
+
 (** ** The identity-case pass *)
 
-Lemma case_id_node {wfl : WcbvFlags} t : Rall t (rewrite_node case_id_opts t).
+Lemma case_id_node {wfl : WcbvFlags} t : chain t (rewrite_node case_id_opts t).
 Proof.
+  apply chain_one.
   intros Σ'. destruct t as [| | | | | | | | |[ind pars] d l| | | | | |]; try apply R_refl. cbn.
   destruct l as [|br brs]; [apply R_refl|].
   match goal with |- context [if ?c then _ else _] => destruct c eqn:E end; [|apply R_refl].
