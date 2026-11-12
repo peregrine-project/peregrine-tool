@@ -5,7 +5,7 @@
     rewrite of [rewrite_node] preserves [wellformed].  The latter are the five
     per-rewrite lemmas [wellformed_fix_eta] ([ELboxOptsWf_fix]),
     [wellformed_case_fun] and [wellformed_case_id] ([ELboxOptsWf_case]), and
-    [wellformed_let_fun] and [wellformed_beta_let] (below).
+    [wellformed_let_fun] and [wellformed_beta_let] ([ELboxOptsWf_let]).
 
     Threading extra hypotheses of the per-rewrite lemmas: the composition is
     generic over [rewrite_node_wf efl o], which may assume [wf_glob Σ].  Only
@@ -20,19 +20,11 @@ From Stdlib Require Import List Bool Arith ssreflect ssrbool.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Common Require Import BasicAst Kernames Transform.
 From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils ELiftSubst EProgram EWellformed EWcbvEval EGlobalEnv EBeta EInduction.
-From Peregrine Require Import ELboxOpts ELboxOptsWf_case ELboxOptsWf_fix EExtraFlags.
+From Peregrine Require Import ELboxOpts ELboxOptsWf_case ELboxOptsWf_fix ELboxOptsWf_let EExtraFlags.
 
 Import ListNotations.
 Local Open Scope bool_scope.
 Set Default Goal Selector "!".
-
-(** ** Per-rewrite lemmas not yet proved *)
-
-Lemma wellformed_let_fun {efl : EEnvFlags} Σ k t : wellformed Σ k t -> wellformed Σ k (let_fun t).
-Admitted.
-
-Lemma wellformed_beta_let {efl : EEnvFlags} Σ k t : wellformed Σ k t -> wellformed Σ k (beta_let t).
-Admitted.
 
 (** ** One node *)
 

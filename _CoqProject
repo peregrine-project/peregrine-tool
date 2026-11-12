@@ -23,6 +23,7 @@ theories/erasure/ECommonSubexpr.v
 theories/erasure/ELboxOpts.v
 theories/erasure/ELboxOptsWf_case.v
 theories/erasure/ELboxOptsWf_fix.v
+theories/erasure/ELboxOptsWf_let.v
 theories/erasure/ELboxOptsWf.v
 theories/erasure/EExtraFlags.v
 theories/erasure/ELiftConstants.v
