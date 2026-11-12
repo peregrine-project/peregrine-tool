@@ -194,9 +194,9 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
      They run after [optional_unsafe_transforms], so betared and dead-argument
      elimination do not see their output, then the lifting of closed
      constructor values to shared constants.  All three are off by default.
-     The semantic obligations of the first two rest on axioms
-     (EInstanceSpecialize.v: termination only, wellformedness is proved;
-     ECommonSubexpr.v); those of the lifting are proved (ELiftConstants.v). *)
+     The semantic obligations of the specialization and of the lifting are
+     proved (EInstanceSpecialize.v with ESpecRel.v; ELiftConstants.v); those
+     of the CSE rest on axioms (ECommonSubexpr.v). *)
   ETransform.optional_self_transform spec_inst
     specialize_instances_transformation ▷
   ETransform.optional_self_transform cse

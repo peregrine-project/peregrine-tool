@@ -63,11 +63,12 @@
     and the earlier generated names ([fresh_name]), specializations are
     emitted depth first so that each one refers only to declarations below it
     ([spec_key]), and the iota step fires only when the constructor has as
-    many arguments as the branch binds.  Evaluation preservation is not
-    claimed: the transformation relates values by the trivial observational
-    equivalence and assumes only termination of the target
-    ([trust_specialize_instances_terminates], stated at the flags of the
-    pipeline stage, [EExtraFlags]). *)
+    many arguments as the branch binds.  Evaluation preservation is proved
+    at the flags of the pipeline stage ([EExtraFlags]):
+    [specialize_instances_program_pres] shows that the output is reached from
+    the input by a chain of whole-program stages ([gstages], [ESpecRel]),
+    each simulated under call-by-value ([G_simulation]), so that the target
+    evaluates to a value related to the source value by [spec_rel]. *)
 
 From Stdlib Require Import List.
 From MetaRocq.Utils Require Import utils ReflectEq.
@@ -643,6 +644,13 @@ End Sim.
 
 (** *** The driver preserves well-formedness *)
 
+Lemma split_dicts_saw Σ sp : (split_dicts Σ sp).1.1 = true -> (split_dicts Σ sp).1.2 <> [].
+Proof.
+  destruct sp; cbn; [discriminate|].
+  destruct prefix_elt as [[isd v]|]; [|discriminate].
+  destruct split_dicts as [[? ?] ?]; cbn. discriminate.
+Qed.
+
 Section Driver.
   Context {efl : EEnvFlags} {hasapp : has_tApp}.
   Context (Σ : global_declarations).
@@ -729,7 +737,8 @@ Section Driver.
   (** Keys whose dictionaries and callee body are well-formed in [Σs]. *)
   Definition good_key Σs (k : dkey) : Prop :=
     forallb (wellformed Σs 0) k.2 /\
-    forall b, callee_body Σ k.1 = Some b -> wellformed Σs 0 b.
+    (forall b, callee_body Σ k.1 = Some b -> wellformed Σs 0 b) /\
+    k.2 <> [] /\ isSome (lookup_env Σs k.1).
 
   Lemma wf_const_body Σs k c :
     wf_glob Σs -> extends Σs Σ -> wellformed Σs k (tConst c) ->
@@ -781,10 +790,14 @@ Section Driver.
     intros hwfs hext hw hs. unfold mk_key.
     destruct (callee_body Σ nm) as [b|] eqn:hcb => //.
     pose proof (wf_split_dicts _ _ _ hwfs hext hs) as hd.
+    pose proof (split_dicts_saw Σ spine) as hne.
     destruct (split_dicts Σ spine) as [[d' ds] rr]. destruct d' => //.
-    intros [= <- _]. split; [exact hd|]. cbn. intros b'. rewrite hcb. intros [= <-].
-    destruct (wf_const_body _ _ _ hwfs hext hw) as [cb [hl hb]].
-    apply hb. unfold callee_body in hcb. now rewrite hl in hcb.
+    intros [= <- _]. split; [exact hd|split; [|split; [now apply hne|]]].
+    - cbn. intros b'. rewrite hcb. intros [= <-].
+      destruct (wf_const_body _ _ _ hwfs hext hw) as [cb [hl hb]].
+      apply hb. unfold callee_body in hcb. now rewrite hl in hcb.
+    - cbn. simpl in hw. unfold lookup_constant in hw.
+      destruct (lookup_env Σs nm) => //. now rewrite andb_false_r in hw.
   Qed.
 
   Lemma collect_keys_good Σs :
@@ -818,7 +831,7 @@ Section Driver.
     spec_inv Σs (spec_key Σ fuel stack st k).1.1 (spec_key Σ fuel stack st k).1.2.
   Proof.
     intros hwfs hext.
-    induction fuel as [|fuel IH]; intros stack [[seen env] budget] k [hd hb] hi;
+    induction fuel as [|fuel IH]; intros stack [[seen env] budget] k [hd [hb _]] hi;
       cbn [spec_key]; auto.
     destruct budget as [|budget]; auto.
     destruct (_ || _); auto.
@@ -920,12 +933,648 @@ Proof. intros [hwf hm]. now apply (drive_env_wf (hasapp := hasapp)). Qed.
 
 From Peregrine Require Import EExtraFlags.
 
-(** Termination only, at the flags of the pipeline. *)
-Axiom trust_specialize_instances_terminates :
-  forall (p : Transform.program _ term) (v : term),
+(** * Evaluation preservation *)
+
+From Peregrine Require Import ESpecRel.
+
+Lemma All_F2 {A} (P : A -> Type) (R : A -> A -> Prop) g l :
+  All P l -> (forall x, P x -> R x (g x)) -> Forall2 R l (map g l).
+Proof. induction 1; cbn; constructor; auto. Qed.
+
+Section Static.
+  Context (Σa Σb : global_declarations).
+  Notation G := (G Σa Σb).
+
+  Lemma G_spec_beta args args' :
+    Forall2 G args args' -> forall g g', G g g' -> G (mkApps g args) (spec_beta g' args').
+  Proof.
+    induction 1; intros g g' Hg; cbn; auto.
+    destruct g'; try (apply G_mkApps; [apply G_s; constructor; auto| auto]; fail).
+    apply IHForall2. apply G_s. eapply Gs_beta; eauto.
+  Qed.
+
+  Lemma G_spec_aux t :
+    forall args args', Forall2 G args args' -> G (mkApps t args) (spec_aux args' t).
+  Proof.
+    induction t using term_forall_list_ind; intros sp sp' Ha;
+      cbn [spec_aux spec_map_subterms].
+    all: try (pose proof (IHt [] [] (Forall2_nil _)) as IH0; cbn in IH0).
+    all: try (pose proof (IHt1 [] [] (Forall2_nil _)) as IH1; cbn in IH1).
+    all: try (pose proof (IHt2 [] [] (Forall2_nil _)) as IH2; cbn in IH2).
+    all: try (apply G_mkApps; [apply G_s; constructor; eauto|exact Ha]; fail).
+    - apply G_mkApps; [apply G_s; constructor|exact Ha].
+      eapply All_F2; tea. cbn. intros x Hx. apply (Hx [] []). constructor.
+    - apply G_spec_beta; auto. apply G_s; constructor. apply (IHt [] []). constructor.
+    - apply (IHt1 (t2 :: sp) (spec_aux [] t2 :: sp')). constructor; auto.
+    - apply G_mkApps; [apply G_s; constructor|exact Ha].
+      eapply All_F2; tea. cbn. intros x Hx. apply (Hx [] []). constructor.
+    - destruct p as [ind npar].
+      assert (Hd : G t (spec_aux [] t)) by (apply (IHt [] []); constructor).
+      assert (Hb : brs_rel G l (map (on_snd (spec_aux [])) l)).
+      { eapply All_F2; tea. cbn. intros x Hx. split; auto. apply (Hx [] []). constructor. }
+      apply G_mkApps; [|exact Ha].
+      destruct (spec_aux [] t); try (apply G_s; constructor; auto; fail).
+      destruct nth_error eqn:hn; try (apply G_s; constructor; auto; fail).
+      destruct (Nat.eqb _ _) eqn:he; [apply Nat.eqb_eq in he|]; try (apply G_s; constructor; auto; fail).
+      apply G_s. eapply Gs_iota; eauto.
+    - apply G_mkApps; [apply G_s; constructor|exact Ha].
+      eapply All_F2; tea. cbn. intros x Hx. repeat split; auto. apply (Hx [] []). constructor.
+    - apply G_mkApps; [apply G_s; constructor|exact Ha].
+      eapply All_F2; tea. cbn. intros x Hx. repeat split; auto. apply (Hx [] []). constructor.
+    - apply G_mkApps; [|exact Ha].
+      destruct p as [? []]; try (apply G_s; constructor; fail). depelim X. destruct p as [Hd Hv].
+      destruct a; cbn in *. apply G_s; constructor.
+      + apply (Hd [] []). constructor.
+      + eapply All_F2; tea. cbn. intros y Hy. apply (Hy [] []). constructor.
+  Qed.
+
+  Lemma G_specialize t : G t (specialize_instances t).
+  Proof. apply (G_spec_aux t [] []). constructor. Qed.
+
+End Static.
+
+
+(** ** Redirection is a [G]-stage *)
+
+Lemma list_eqb_eq (l1 l2 : list term) : list_eqb (fun a b => eqb a b) l1 l2 -> l1 = l2.
+Proof.
+  induction l1 in l2 |- *; destruct l2; cbn; try easy.
+  move/andP => [h1 h2]. f_equal; auto. now destruct (eqb_spec a t).
+Qed.
+
+Lemma eqb_key_eq k1 k2 : eqb_key k1 k2 -> k1 = k2.
+Proof.
+  destruct k1 as [n1 l1], k2 as [n2 l2]; unfold eqb_key; cbn. move/andP => [h1 h2].
+  f_equal; [now destruct (eqb_spec n1 n2)|now apply list_eqb_eq].
+Qed.
+
+Lemma lookup_spec_In_key seen k fn : lookup_spec seen k = Some fn -> In (k, fn) seen.
+Proof.
+  unfold lookup_spec. destruct find as [[k' fn']|] eqn:hf => //. intros [= <-].
+  apply find_some in hf as [hin he]. cbn in he. apply eqb_key_eq in he. now subst.
+Qed.
+
+Lemma mkApps_eq_nonapp t sp u : ~~ isApp u -> mkApps t sp = u -> sp = [] /\ t = u.
+Proof.
+  destruct sp using rev_case; cbn; auto. rewrite mkApps_app. cbn. intros h <-. discriminate h.
+Qed.
+
+Lemma redirect_const_inv Σ seen c : ~ In c (map snd seen) ->
+  forall t sp, redirect Σ seen sp t = tConst c -> sp = [] /\ t = tConst c.
+Proof.
+  intros hc. induction t using term_forall_list_ind; intros sp; cbn [redirect spec_map_subterms];
+    try (intros h; apply mkApps_eq_nonapp in h as [-> h] => //; fail).
+  - intros h. apply IHt1 in h as [h _]. discriminate.
+  - destruct mk_key as [[key rest]|]; [destruct lookup_spec eqn:hl|]; intros h;
+      apply mkApps_eq_nonapp in h as [-> h] => //.
+    noconf h. apply lookup_spec_In in hl. contradiction.
+Qed.
+
+Lemma prefix_elt_closed Σ t r : prefix_elt Σ t = Some r -> closedn 0 t.
+Proof.
+  unfold prefix_elt, dict_value. destruct t => //.
+  destruct (closedn 0 (tConstruct _ _ _)) eqn:h => //. now rewrite andb_false_r.
+Qed.
+
+Lemma split_dicts_spec Σ sp :
+  exists pre, sp = pre ++ (split_dicts Σ sp).2 /\
+    Forall2 (fun a d => exists isd, prefix_elt Σ a = Some (isd, d)) pre (split_dicts Σ sp).1.2.
+Proof.
+  induction sp as [|a sp IH]; cbn.
+  - exists []; split; auto.
+  - destruct (prefix_elt Σ a) as [[isd v]|] eqn:hp.
+    + destruct IH as [pre [h1 h2]]. destruct (split_dicts Σ sp) as [[d' ds] rr]. cbn in *.
+      exists (a :: pre). split; [cbn; f_equal; exact h1|constructor; eauto].
+    + exists []. split; auto.
+Qed.
+
+Lemma forallb_map_inv {A} (P : A -> Type) (q q' : A -> bool) g l :
+  All P l -> (forall x, P x -> q' (g x) -> q x) -> forallb q' (map g l) -> forallb q l.
+Proof.
+  induction 1; cbn; auto. intros h. move/andP => [h1 h2]. apply/andP; split; auto.
+Qed.
+
+Lemma redirect_closed_inv Σ seen t :
+  forall k sp sp', Forall2 (fun a a' => closedn k a' -> closedn k a) sp sp' ->
+  closedn k (redirect Σ seen sp' t) -> closedn k (mkApps t sp).
+Proof.
+  assert (hsp : forall k sp sp', Forall2 (fun a a' => closedn k a' -> closedn k a) sp sp' ->
+            forallb (closedn k) sp' -> forallb (closedn k) sp).
+  { induction 1; cbn; auto. move/andP => [h1 h2]. apply/andP; split; auto. }
+  induction t using term_forall_list_ind; intros k sp sp' Hsp; cbn [redirect spec_map_subterms].
+  all: try (pose proof (fun k => IHt k [] [] (Forall2_nil _)) as IH0; cbn in IH0).
+  all: try (pose proof (fun k => IHt1 k [] [] (Forall2_nil _)) as IH1; cbn in IH1).
+  all: try (pose proof (fun k => IHt2 k [] [] (Forall2_nil _)) as IH2; cbn in IH2).
+  7:{ (* tApp *) intros h. apply (IHt1 k (t2 :: sp)) in h; auto. }
+  7:{ (* tConst *)
+      destruct mk_key as [[key rest]|] eqn:hk; [destruct lookup_spec eqn:hl|];
+      rewrite !closedn_mkApps; cbn; try (now apply hsp).
+      intros h. eapply hsp; tea.
+      unfold mk_key in hk. destruct callee_body => //.
+      destruct (split_dicts_spec Σ sp') as [pre [h1 h2]].
+      destruct (split_dicts Σ sp') as [[d ds] rr]. destruct d => //. noconf hk. cbn in *.
+      rewrite h1 forallb_app h andb_true_r.
+      clear -h2. induction h2; cbn; auto. destruct H as [isd H].
+      apply prefix_elt_closed in H. rewrite IHh2 andb_true_r.
+      eapply closed_upwards; tea. lia. }
+  all: rewrite !closedn_mkApps; move/andP => [hh hs]; apply/andP; split; [|now eapply hsp].
+  all: clear hs Hsp; cbn in hh |- *; rewrite ?length_map in hh; rtoProp; intuition eauto.
+  all: try (match goal with X : All _ ?l, h : is_true (forallb _ (map _ ?l)) |- _ =>
+         revert h; apply forallb_map_inv with (1 := X); cbn; intros x Hx;
+         (try unfold test_def); cbn; apply (Hx _ [] [] (Forall2_nil _)) end).
+  destruct p as [? []]; cbn in *; auto. depelim X. destruct p as [Hd Hv].
+  destruct a; cbn in *. unfold test_array_model in *; cbn in *.
+  move/andP: hh => [h1 h2]. apply/andP; split; [now apply (Hd _ [] [] (Forall2_nil _))|].
+  revert h2; apply forallb_map_inv with (1 := Hv); cbn; intros y Hy.
+  apply (Hy _ [] [] (Forall2_nil _)).
+Qed.
+
+Lemma Forall_F2 {A} (P : A -> Prop) (R : A -> A -> Prop) g l :
+  Forall P l -> (forall x, P x -> R x (g x)) -> Forall2 R l (map g l).
+Proof. induction 1; cbn; constructor; auto. Qed.
+
+Lemma All_F2_cond {A} (P : A -> Type) (Q : A -> bool) (R : A -> A -> Prop) g l :
+  All P l -> forallb Q l -> (forall x, P x -> Q x -> R x (g x)) -> Forall2 R l (map g l).
+Proof.
+  induction 1; cbn; [constructor|]. move/andP => [h1 h2] h. constructor; auto.
+Qed.
+
+Section Redirect.
+  Context {efl : EEnvFlags}.
+  Context (Σ Σs : global_declarations) (seen : list (dkey × kername)).
+  Context (Σa Σb : global_declarations).
+  Notation G := (G Σa Σb).
+  Notation rd := (redirect Σ seen []).
+
+  Hypothesis Hseen : forall k fn, In (k, fn) seen ->
+    lookup_env Σ fn = None /\
+    exists decl, declared_constant Σb fn decl /\ cst_body decl = Some (mkApps (tConst k.1) k.2).
+  Hypothesis Hraw : forall c d, lookup_env Σs c = Some d ->
+    lookup_env Σ c = Some d /\ lookup_env Σa c = Some d.
+
+  Lemma G_prefix_elt k a isd d :
+    wellformed Σs k a -> G a (rd a) -> prefix_elt Σ (rd a) = Some (isd, d) ->
+    G a d /\ closedn 0 a.
+  Proof.
+    intros hw hG hp. split.
+    2:{ apply prefix_elt_closed in hp.
+        apply (redirect_closed_inv Σ seen a 0 [] [] (Forall2_nil _) hp). }
+    unfold prefix_elt in hp. destruct (dict_value Σ (rd a)) as [d0|] eqn:hd.
+    - noconf hp. unfold dict_value in hd. destruct (rd a) eqn:ha => //.
+      + destruct (lookup_constant Σ k0) as [cb|] eqn:hl => //.
+        destruct (cst_body cb) as [[]|] eqn:hb => //.
+        destruct (_ && _) eqn:hc => //. noconf hd.
+        move/andP: hc => [_ hc].
+        assert (hnin : ~ In k0 (map snd seen)).
+        { intros hin. apply in_map_iff in hin as [[key fn] [<- hin]].
+          apply Hseen in hin as [hin _]. unfold lookup_constant in hl. cbn in hl.
+          now rewrite hin in hl. }
+        apply (redirect_const_inv _ _ _ hnin) in ha as [_ ->].
+        simpl in hw. move/andP: hw => [_ hw].
+        unfold lookup_constant in hw, hl.
+        destruct (lookup_env Σs k0) as [dd|] eqn:hls => //.
+        apply Hraw in hls as [h1 h2]. rewrite h1 in hl. destruct dd => //. noconf hl.
+        apply G_s. eapply Gs_unfold; [exact h2|exact hb|exact hc|apply G_refl].
+      + destruct (_ && _) => //. now noconf hd.
+    - destruct (rd a) eqn:ha => //. now noconf hp.
+  Qed.
+
+  Lemma G_prefix sp1 : forall k ds,
+    Forall (fun a => wellformed Σs k a /\ G a (rd a)) sp1 ->
+    Forall2 (fun a d => exists isd, prefix_elt Σ a = Some (isd, d)) (map rd sp1) ds ->
+    Forall2 G sp1 ds /\ forallb (closedn 0) sp1.
+  Proof.
+    induction sp1; intros k ds hf h2; cbn in h2.
+    - inversion h2; subst. split; auto.
+    - inversion h2 as [|? ? ? ? [isd hp] h2']; subst.
+      inversion hf as [|? ? [hw hg] hf']; subst.
+      destruct (G_prefix_elt _ _ _ _ hw hg hp) as [h1 hc].
+      destruct (IHsp1 _ _ hf' h2') as [h3 h4]. split; [constructor; auto|].
+      cbn. now rewrite hc h4.
+  Qed.
+
+  Lemma G_redirect t : forall k sp, wellformed Σs k t ->
+    Forall (fun a => wellformed Σs k a /\ G a (rd a)) sp ->
+    G (mkApps t sp) (redirect Σ seen (map rd sp) t).
+  Proof.
+    assert (hsp : forall k sp, Forall (fun a => wellformed Σs k a /\ G a (rd a)) sp ->
+              Forall2 G sp (map rd sp)).
+    { intros k sp h. eapply Forall_F2; tea. now intros x [_ h']. }
+    induction t using term_forall_list_ind; intros k sp hw Hsp; cbn [redirect spec_map_subterms].
+    all: try (pose proof (fun k h => IHt k [] h (Forall_nil _)) as IH0; cbn in IH0).
+    all: try (pose proof (fun k h => IHt1 k [] h (Forall_nil _)) as IH1; cbn in IH1).
+    all: try (pose proof (fun k h => IHt2 k [] h (Forall_nil _)) as IH2; cbn in IH2).
+    7:{ (* tApp *) simpl in hw. move/andP: hw => [/andP [happ h1] h2].
+        apply (IHt1 k (t2 :: sp)); [exact h1|]. constructor; [split; [exact h2|exact (IH2 k h2)]|exact Hsp]. }
+    7:{ (* tConst *)
+        destruct mk_key as [[key rest]|] eqn:hk; [destruct lookup_spec eqn:hl|];
+          try (apply G_mkApps; [apply G_refl|now eapply hsp]).
+        unfold mk_key in hk. destruct callee_body => //.
+        destruct (split_dicts_spec Σ (map rd sp)) as [pre [h1 h2]].
+        destruct (split_dicts Σ (map rd sp)) as [[d ds] rr]. destruct d => //. noconf hk.
+        cbn in h1, h2.
+        apply map_eq_app in h1 as (sp1 & sp2 & -> & <- & <-).
+        apply Forall_app in Hsp as [Hsp1 Hsp2].
+        destruct (G_prefix _ _ _ Hsp1 h2) as [hg hc].
+        rewrite mkApps_app. apply G_mkApps; [|now eapply hsp].
+        apply lookup_spec_In_key in hl. destruct (Hseen _ _ hl) as [hfr [decl [hd hb]]].
+        eapply G_fold; [exact hd|exact hb| |].
+        - rewrite closedn_mkApps. cbn. exact hc.
+        - apply G_mkApps; [apply G_refl|exact hg]. }
+    all: apply G_mkApps; [|now eapply hsp].
+    all: clear Hsp hsp; simpl in hw; rtoProp.
+    all: try (apply G_s; constructor; eauto; fail).
+    - apply G_s; constructor. eapply All_F2_cond; [exact X|exact H0|].
+      cbn; intros x Hx hx. exact (Hx k [] hx (Forall_nil _)).
+    - assert (ha : forallb (wellformed Σs k) args).
+      { destruct cstr_as_blocks; [now move/andP: H0 => [_ h]|now destruct args]. }
+      apply G_s; constructor. eapply All_F2_cond; [exact X|exact ha|].
+      cbn; intros x Hx hx. exact (Hx k [] hx (Forall_nil _)).
+    - apply G_s; constructor; [exact (IH0 k H2)|].
+      eapply All_F2_cond; [exact X|exact H1|].
+      cbn; intros x Hx hx. split; auto. exact (Hx _ [] hx (Forall_nil _)).
+    - unfold wf_fix_gen in H0. move/andP: H0 => [_ h].
+      apply G_s; constructor. eapply All_F2_cond; [exact X|exact h|].
+      cbn; intros x Hx hx. repeat split; auto. exact (Hx _ [] hx (Forall_nil _)).
+    - unfold wf_fix_gen in H0. move/andP: H0 => [_ h].
+      apply G_s; constructor. eapply All_F2_cond; [exact X|exact h|].
+      cbn; intros x Hx hx. repeat split; auto. exact (Hx _ [] hx (Forall_nil _)).
+    - destruct p as [? []]; try (apply G_s; constructor; fail).
+      depelim X. destruct p as [Hd Hv]. destruct a; cbn in *.
+      unfold test_array_model in H0; cbn in H0. move/andP: H0 => [h1 h2].
+      apply G_s; constructor; [exact (Hd k [] h1 (Forall_nil _))|].
+      eapply All_F2_cond; [exact Hv|exact h2|].
+      cbn; intros y Hy hy. exact (Hy k [] hy (Forall_nil _)).
+  Qed.
+
+  Lemma G_redirect0 k t : wellformed Σs k t -> G t (rd t).
+  Proof. intros h. exact (G_redirect t k [] h (Forall_nil _)). Qed.
+
+End Redirect.
+
+
+(** ** The driver: the output is reached by a chain of [G]-stages *)
+
+Notation cdecl b := (ConstantDecl {| cst_body := Some b |}).
+
+Definition wrapper (k : dkey) : term := mkApps (tConst k.1) k.2.
+
+Definition spec_head (b : term) : term :=
+  match b with
+  | tFix mfix idx =>
+      match cunfold_fix mfix idx with Some (_, f) => f | None => b end
+  | _ => b
+  end.
+
+Lemma spec_body_head b ds :
+  spec_body b ds = specialize_instances (spec_beta (spec_head b) ds).
+Proof.
+  destruct b; cbn; auto. destruct cunfold_fix as [[]|]; auto. now destruct ds.
+Qed.
+
+Lemma G_spec_head Σa Σb nm cb b ds :
+  declared_constant Σa nm cb -> cst_body cb = Some b -> closedn 0 b -> ds <> [] ->
+  G Σa Σb (mkApps (tConst nm) ds) (mkApps (spec_head b) ds).
+Proof.
+  intros hd hb hc hne.
+  assert (hu : G Σa Σb (tConst nm) b).
+  { apply G_s. eapply Gs_unfold; tea. apply G_refl. }
+  destruct b; try (apply G_mkApps; [exact hu|apply Forall2_G_refl]).
+  cbn. destruct cunfold_fix as [[n f]|] eqn:hcu;
+    [|apply G_mkApps; [exact hu|apply Forall2_G_refl]].
+  destruct ds as [|d ds] => //. cbn. apply G_mkApps; [|apply Forall2_G_refl].
+  apply G_s. eapply Gs_fix_unfold; [exact hu|exact hc|exact hcu|apply G_refl].
+Qed.
+
+Lemma lookup_env_app_None (pre E : global_declarations) kn :
+  lookup_env pre kn = None -> lookup_env (pre ++ E) kn = lookup_env E kn.
+Proof.
+  induction pre as [|[c d] pre IH]; cbn; auto. destruct (eqb_spec kn c) => //.
+Qed.
+
+Lemma lookup_mid pre (E : global_declarations) kn d c :
+  lookup_env pre c = None -> c <> kn ->
+  lookup_env (pre ++ (kn, d) :: E) c = lookup_env E c.
+Proof.
+  intros h hne. rewrite lookup_env_app_None //. cbn. destruct (eqb_spec c kn) => //.
+Qed.
+
+Lemma gstages_closed p p' : gstages p p' -> closed_env p.1 -> closed_env p'.1.
+Proof. induction 1; auto. intros _. apply IHgstages. now destruct H. Qed.
+
+Lemma body_stage pre lo kn B B' t :
+  closed_env (pre ++ (kn, cdecl B) :: lo) -> closedn 0 t ->
+  G (pre ++ (kn, cdecl B) :: lo) (pre ++ (kn, cdecl B') :: lo) B B' ->
+  gstage (pre ++ (kn, cdecl B) :: lo, t) (pre ++ (kn, cdecl B') :: lo, t) /\
+  closed_env (pre ++ (kn, cdecl B') :: lo).
+Proof.
+  intros h1 h2 h3. pose proof (gstage_one pre lo kn B B' t h1 h2 h3) as hs.
+  split; auto. now destruct hs.
+Qed.
+
+Lemma gstage_term Σ0 t t' :
+  closed_env Σ0 -> closedn 0 t -> G Σ0 Σ0 t t' -> gstage (Σ0, t) (Σ0, t').
+Proof.
+  intros h1 h2 h3. split; cbn; auto.
+  intros c decl b hd hb. exists decl, b. repeat split; auto. apply G_refl.
+Qed.
+
+Section Chain.
+  Context {efl : EEnvFlags} {hasapp : has_tApp}.
+  Context (Σ : global_declarations).
+
+  Record chain_inv (Σs : global_declarations) (seen : list (dkey × kername))
+    (env ienv : global_declarations) : Prop :=
+    { ci_inv : spec_inv Σ Σs seen env;
+      ci_raw : forall c d, lookup_env Σs c = Some d -> lookup_env ienv c = Some d;
+      ci_seen : forall k fn, In (k, fn) seen ->
+          lookup_env ienv fn = Some (cdecl (wrapper k));
+      ci_names : forall kn d, lookup_env ienv kn = Some d ->
+          lookup_env Σs kn = Some d \/ In kn (map snd seen);
+      ci_closed : closed_env ienv;
+      ci_chain : forall pre t, closedn 0 t -> closed_env pre ->
+          (forall kn, isSome (lookup_env ienv kn) -> lookup_env pre kn = None) ->
+          gstages (pre ++ ienv, t) (pre ++ env, t) }.
+
+  Lemma chain_tail Σs seen env ienv kn d pre t :
+    chain_inv Σs seen env ienv -> lookup_env ienv kn = None -> closedn 0 t ->
+    closed_env (pre ++ (kn, d) :: ienv) ->
+    (forall c, c = kn \/ isSome (lookup_env ienv c) -> lookup_env pre c = None) ->
+    gstages (pre ++ (kn, d) :: ienv, t) (pre ++ (kn, d) :: env, t).
+  Proof.
+    intros hi hfr hc hcl hdisj.
+    replace (pre ++ (kn, d) :: ienv) with ((pre ++ [(kn, d)]) ++ ienv) in *
+      by now rewrite -app_assoc.
+    replace (pre ++ (kn, d) :: env) with ((pre ++ [(kn, d)]) ++ env)
+      by now rewrite -app_assoc.
+    apply (ci_chain _ _ _ _ hi); auto.
+    - rewrite closed_env_app in hcl. now move/andP: hcl => [h1 _].
+    - intros c hs. rewrite lookup_env_app_None; [apply hdisj; now right|].
+      cbn. destruct (eqb_spec c kn) as [->|] => //. now rewrite hfr in hs.
+  Qed.
+
+  Lemma chain_add Σs seen env ienv k fn b :
+    wf_glob Σs -> extends Σs Σ -> chain_inv Σs seen env ienv ->
+    lookup_env Σ fn = None -> ~ In fn (map snd seen) -> good_key Σ Σs k ->
+    callee_body Σ k.1 = Some b ->
+    chain_inv Σs ((k, fn) :: seen)
+      ((fn, cdecl (specialize_instances (redirect Σ seen [] (spec_body b k.2)))) :: env)
+      ((fn, cdecl (wrapper k)) :: ienv).
+  Proof.
+    intros hwfs hext hi hfn hnin [hd [hb [hne hnm]]] hcb.
+    specialize (hb _ hcb).
+    pose proof hi as [hinv hraw hseenI hnames hcl hch].
+    pose proof hinv as [_ _ hseen _].
+    assert (hfr : lookup_env ienv fn = None).
+    { destruct (lookup_env ienv fn) eqn:hl => //.
+      destruct (hnames _ _ hl) as [h|h] => //. apply hext in h. congruence. }
+    assert (hW : closedn 0 (wrapper k)).
+    { unfold wrapper. rewrite closedn_mkApps /=. solve_all. now eapply wellformed_closed. }
+    assert (hX : wellformed Σs 0 (spec_body b k.2))
+      by now apply (wf_spec_body (hasapp := hasapp)).
+    split.
+    - apply (spec_inv_add (hasapp := hasapp)); auto.
+    - intros c d hl. cbn. destruct (eqb_spec c fn) as [->|]; [apply hext in hl; congruence|].
+      now apply hraw.
+    - intros k' fn' [[= <- <-]|hin]; cbn; [now rewrite eqb_refl|].
+      destruct (eqb_spec fn' fn) as [->|]; [|now apply hseenI].
+      exfalso. apply hnin. apply in_map_iff. now exists (k', fn).
+    - intros kn d. cbn. destruct (eqb_spec kn fn) as [->|]; [intros _; right; now left|].
+      intros hl. destruct (hnames _ _ hl); auto.
+    - unfold closed_env in *. cbn. rewrite hcl andb_true_r. exact hW.
+    - intros pre t hc hpre hdisj.
+      assert (hdisj' : forall c, c = fn \/ isSome (lookup_env ienv c) -> lookup_env pre c = None).
+      { intros c [->|h]; apply hdisj; cbn; [now rewrite eqb_refl|].
+        destruct (eqb_spec c fn) => //. }
+      assert (hlk : forall d' c x, lookup_env ienv c = Some x ->
+                lookup_env (pre ++ (fn, d') :: ienv) c = Some x).
+      { intros d' c x hl. rewrite lookup_mid //; [apply hdisj'; right; now rewrite hl|].
+        intros ->. congruence. }
+      destruct (lookup_env Σs k.1) as [dnm|] eqn:hlnm => //.
+      pose proof (hext _ _ hlnm) as hlΣ.
+      unfold callee_body, lookup_constant in hcb. rewrite hlΣ in hcb.
+      destruct dnm as [cb|] => //. cbn in hcb.
+      assert (clE : closed_env (pre ++ (fn, cdecl (wrapper k)) :: ienv)).
+      { rewrite closed_env_app hpre. unfold closed_env in *. cbn. rewrite hcl andb_true_r. exact hW. }
+      destruct (body_stage pre ienv fn (wrapper k) (mkApps (spec_head b) k.2) t clE hc)
+        as [s1 cl1].
+      { apply G_spec_head with cb; auto.
+        - apply hlk, hraw, hlnm.
+        - now eapply wellformed_closed. }
+      destruct (body_stage pre ienv fn _ (spec_beta (spec_head b) k.2) t cl1 hc) as [s2 cl2].
+      { apply G_spec_beta; [apply Forall2_G_refl|apply G_refl]. }
+      destruct (body_stage pre ienv fn _ (spec_body b k.2) t cl2 hc) as [s3 cl3].
+      { rewrite spec_body_head. apply G_specialize. }
+      destruct (body_stage pre ienv fn _ (redirect Σ seen [] (spec_body b k.2)) t cl3 hc)
+        as [s4 cl4].
+      { eapply G_redirect0 with (Σs := Σs) (k := 0).
+        - intros k' fn' hin. split.
+          + apply hseen, in_map_iff. now exists (k', fn').
+          + eexists; split; [apply hlk, hseenI, hin|reflexivity].
+        - intros c d hl. split; [now apply hext|]. now apply hlk, hraw.
+        - exact hX. }
+      destruct (body_stage pre ienv fn _
+                  (specialize_instances (redirect Σ seen [] (spec_body b k.2))) t cl4 hc)
+        as [s5 cl5].
+      { apply G_specialize. }
+      do 5 (eapply gstages_step; [eassumption|]).
+      now apply (chain_tail Σs seen).
+  Qed.
+
+  Lemma spec_key_chain Σs :
+    wf_glob Σs -> extends Σs Σ ->
+    forall fuel stack st k, good_key Σ Σs k ->
+    (exists ienv, chain_inv Σs st.1.1 st.1.2 ienv) ->
+    exists ienv, chain_inv Σs (spec_key Σ fuel stack st k).1.1
+                   (spec_key Σ fuel stack st k).1.2 ienv.
+  Proof.
+    intros hwfs hext.
+    induction fuel as [|fuel IH]; intros stack [[seen env] budget] k hk hi;
+      cbn [spec_key]; auto.
+    destruct budget as [|budget]; auto.
+    destruct (_ || _); auto.
+    destruct (callee_body Σ k.1) as [b|] eqn:hcb; auto.
+    pose proof hk as [hd [hb _]].
+    assert (hbody : wellformed Σs 0 (spec_body b k.2))
+      by (apply (wf_spec_body (hasapp := hasapp)); auto).
+    pose proof (fold_left_inv (fun st => exists ienv, chain_inv Σs st.1.1 st.1.2 ienv)
+                  (good_key Σ Σs)
+                  (spec_key Σ fuel (k :: stack))
+                  (collect_keys Σ [] (spec_body b k.2))) as hf.
+    forward hf. { intros a c ha hc. now apply IH. }
+    forward hf. { now apply (collect_keys_good Σ Σs hwfs hext _ 0). }
+    specialize (hf (seen, env, budget) hi).
+    destruct fold_left as [[seen' env'] budget'']. cbn in hf.
+    destruct fresh_name as [fn|] eqn:hfn; cbn; auto.
+    apply fresh_from_spec in hfn as [h1 h2]. destruct hf as [ienv' hf].
+    eexists. now apply chain_add.
+  Qed.
+
+  Lemma spec_keys_chain Σs keys seen env :
+    wf_glob Σs -> extends Σs Σ ->
+    Forall (good_key Σ Σs) keys -> (exists ienv, chain_inv Σs seen env ienv) ->
+    exists ienv, chain_inv Σs (spec_keys Σ keys seen env).1 (spec_keys Σ keys seen env).2 ienv.
+  Proof.
+    intros hwfs hext hk hi. unfold spec_keys.
+    apply (fold_left_inv (fun st => exists ienv, chain_inv Σs st.1.1 st.1.2 ienv)
+             (good_key Σ Σs)) => //.
+    intros a b ha hb. now apply spec_key_chain.
+  Qed.
+
+  Lemma drive_decl_chain Σs kd acc :
+    wf_glob (kd :: Σs) -> extends (kd :: Σs) Σ ->
+    (exists ienv, chain_inv Σs acc.1 acc.2 ienv) ->
+    exists ienv, chain_inv (kd :: Σs) (drive_decl Σ kd acc).1 (drive_decl Σ kd acc).2 ienv.
+  Proof.
+    intros hwf hext [ienv0 hi0]. destruct kd as [kn d].
+    pose proof (drive_decl_inv (hasapp := hasapp) Σ Σs (kn, d) acc hwf hext (ci_inv _ _ _ _ hi0)) as hinv.
+    assert (hwfs : wf_glob Σs) by now depelim hwf.
+    assert (hfrs : fresh_global kn Σs) by now depelim hwf.
+    assert (hd : wf_global_decl Σs d) by now depelim hwf.
+    assert (hexts : extends Σs Σ).
+    { intros kn' d' hl. apply hext. cbn. destruct (eqb_spec kn' kn) as [->|] => //.
+      now apply lookup_env_Some_fresh in hl. }
+    assert (hkn : lookup_env Σ kn = Some d). { apply hext. cbn. now rewrite eqb_refl. }
+    unfold drive_decl in *. cbn [fst snd] in *.
+    pose proof (spec_keys_chain Σs (body_keys Σ d) acc.1 acc.2 hwfs hexts) as hk.
+    forward hk.
+    { destruct d as [[[b|]]|]; cbn; try constructor.
+      now apply (collect_keys_good Σ Σs hwfs hexts _ 0). }
+    forward hk. { now exists ienv0. }
+    destruct spec_keys as [seen env]. cbn in hk, hinv |- *. destruct hk as [ienv hi].
+    pose proof hi as [hinv' hraw hseenI hnames hcl hch].
+    pose proof hinv' as [_ _ hseen _].
+    assert (hfr : lookup_env ienv kn = None).
+    { destruct (lookup_env ienv kn) eqn:hl => //.
+      destruct (hnames _ _ hl) as [h|h].
+      - now apply lookup_env_Some_fresh in h.
+      - apply hseen in h as [h _]. congruence. }
+    assert (hcd : closed_decl d).
+    { destruct d as [[[b|]]|]; cbn in hd |- *; auto. now eapply wellformed_closed. }
+    exists ((kn, d) :: ienv). split.
+    - exact hinv.
+    - intros c d' hl. cbn in hl |- *. destruct (eqb_spec c kn) as [->|] => //. now apply hraw.
+    - intros k' fn' hin. cbn. destruct (eqb_spec fn' kn) as [->|]; [|now apply hseenI].
+      exfalso. assert (h : In kn (map snd seen)) by (apply in_map_iff; now exists (k', kn)).
+      apply hseen in h as [h _]. congruence.
+    - intros c d'. cbn. destruct (eqb_spec c kn) as [->|]; [intros [= <-]; now left|].
+      intros hl. now apply hnames in hl.
+    - unfold closed_env in *. cbn. rewrite hcl andb_true_r. exact hcd.
+    - intros pre t hc hpre hdisj.
+      assert (hdisj' : forall c, c = kn \/ isSome (lookup_env ienv c) -> lookup_env pre c = None).
+      { intros c [->|h]; apply hdisj; cbn; [now rewrite eqb_refl|].
+        destruct (eqb_spec c kn) => //. }
+      assert (hlk : forall d' c x, lookup_env ienv c = Some x ->
+                lookup_env (pre ++ (kn, d') :: ienv) c = Some x).
+      { intros d' c x hl. rewrite lookup_mid //; [apply hdisj'; right; now rewrite hl|].
+        intros ->. congruence. }
+      assert (clE : closed_env (pre ++ (kn, d) :: ienv)).
+      { rewrite closed_env_app hpre. unfold closed_env in *. cbn. rewrite hcl andb_true_r. exact hcd. }
+      destruct d as [[[b|]]|]; cbn [red_decl cst_body option_map];
+        try (now apply (chain_tail Σs seen)).
+      cbn in hd.
+      destruct (body_stage pre ienv kn b (redirect Σ seen [] b) t clE hc) as [s1 cl1].
+      { eapply G_redirect0 with (Σs := Σs) (k := 0).
+        - intros k' fn' hin. split.
+          + apply hseen, in_map_iff. now exists (k', fn').
+          + eexists; split; [apply hlk, hseenI, hin|reflexivity].
+        - intros c d hl. split; [now apply hexts|]. now apply hlk, hraw.
+        - exact hd. }
+      destruct (body_stage pre ienv kn _ (specialize_instances (redirect Σ seen [] b)) t cl1 hc)
+        as [s2 cl2].
+      { apply G_specialize. }
+      do 2 (eapply gstages_step; [eassumption|]).
+      now apply (chain_tail Σs seen).
+  Qed.
+
+  Lemma drive_fold_chain :
+    wf_glob Σ -> forall Σs Σ1, Σ = Σ1 ++ Σs ->
+    exists ienv, chain_inv Σs (fold_right (drive_decl Σ) ([], []) Σs).1
+                (fold_right (drive_decl Σ) ([], []) Σs).2 ienv.
+  Proof.
+    intros hwf. induction Σs as [|kd Σs IH]; intros Σ1 heq; cbn [fold_right].
+    - exists []. split; cbn; try easy.
+      + split; cbn; try easy. constructor.
+      + intros pre t _ _ _. constructor.
+    - assert (hp : extends_prefix (kd :: Σs) Σ) by (exists Σ1; exact heq).
+      apply drive_decl_chain.
+      + exact (extends_wf_glob efl hp hwf).
+      + exact (extends_prefix_extends efl _ _ hp hwf).
+      + apply (IH (Σ1 ++ [kd])). now rewrite -app_assoc.
+  Qed.
+
+  Theorem drive_env_gstages main :
+    wf_glob Σ -> wellformed Σ 0 main -> gstages (Σ, main) (drive_env Σ main).
+  Proof.
+    intros hwf hm. unfold drive_env.
+    pose proof (drive_fold_chain hwf Σ [] eq_refl) as hi.
+    set (acc := fold_right _ _ _) in *.
+    pose proof (spec_keys_chain Σ (collect_keys Σ [] main) acc.1 acc.2 hwf) as hk.
+    forward hk. { now intros ? ? ?. }
+    forward hk. { apply (collect_keys_good Σ Σ hwf) with (k := 0) => //. }
+    specialize (hk hi). destruct spec_keys as [seen env]. cbn in hk.
+    destruct hk as [ienv hk].
+    pose proof hk as [hinv hraw hseenI hnames hcl hch].
+    pose proof hinv as [_ _ hseen _].
+    assert (clΣ : closed_env Σ) by now eapply wellformed_closed_env.
+    assert (hcm : closedn 0 main) by now eapply wellformed_closed.
+    assert (hG : G Σ ienv main (redirect Σ seen [] main)).
+    { eapply G_redirect0 with (Σs := Σ) (k := 0).
+      - intros k' fn' hin. split.
+        + apply hseen, in_map_iff. now exists (k', fn').
+        + eexists; split; [apply hseenI, hin|reflexivity].
+      - intros c d hl. split; auto.
+      - exact hm. }
+    assert (hc1 : closedn 0 (redirect Σ seen [] main)) by (eapply G_closed; tea).
+    assert (hG2 : G ienv ienv (redirect Σ seen [] main)
+                    (specialize_instances (redirect Σ seen [] main))) by apply G_specialize.
+    assert (hc2 : closedn 0 (specialize_instances (redirect Σ seen [] main)))
+      by (eapply G_closed; tea).
+    apply gstages_step with (ienv, redirect Σ seen [] main);
+      [|apply gstages_step with (ienv, specialize_instances (redirect Σ seen [] main));
+        [apply gstage_term; tea|]].
+    - split; cbn; auto.
+      + intros kn. unfold lookup_minductive.
+        destruct (lookup_env Σ kn) as [d|] eqn:hl; [now rewrite (hraw _ _ hl)|].
+        destruct (lookup_env ienv kn) as [d|] eqn:hl' => //.
+        destruct (hnames _ _ hl') as [h|h]; [congruence|].
+        apply in_map_iff in h as [[k' fn'] [<- hin]]. apply hseenI in hin. cbn in hin.
+        rewrite hin in hl'. now noconf hl'.
+      + intros c decl b hd hb. exists decl, b. repeat split; auto.
+        * now apply hraw.
+        * apply G_refl.
+    - apply (hch [] _ hc2); auto.
+  Qed.
+
+End Chain.
+
+Theorem specialize_instances_program_gstages {efl : EEnvFlags} {hasapp : has_tApp}
+  (p : eprogram) :
+  wf_eprogram efl p -> gstages p (specialize_instances_program p).
+Proof.
+  destruct p as [Σ main]. intros [hwf hm]. now apply (drive_env_gstages (hasapp := hasapp)).
+Qed.
+
+
+(** Evaluation preservation at the flags of the pipeline stage: the value of
+    the specialized program is related to the source value by [spec_rel], a
+    chain of the hereditary value relation [Gv] of [ESpecRel] (one link per
+    stage: redirection of calls on known dictionaries to their
+    specializations, unfolding/beta/iota inside specialized bodies). *)
+Definition spec_rel (p p' : program) (v v' : term) : Prop := gchain p p' v v'.
+
+Theorem specialize_instances_program_pres (p : eprogram) (v : term) :
   wf_eprogram extra_env_flags p ->
   eval_eprogram extra_wcbv_flags p v ->
-  exists v' : term, eval_eprogram extra_wcbv_flags (specialize_instances_program p) v'.
+  exists v' : term,
+    eval_eprogram extra_wcbv_flags (specialize_instances_program p) v' /\
+    spec_rel p (specialize_instances_program p) v v'.
+Proof.
+  intros hwf ev.
+  pose proof (specialize_instances_program_gstages (efl := extra_env_flags)
+                (hasapp := eq_refl) p hwf) as hs.
+  exact (gstages_eval _ _ hs v ev).
+Qed.
 
 Import Transform.
 
@@ -936,10 +1585,10 @@ Program Definition specialize_instances_transformation :
      transform p _ := specialize_instances_program p;
      pre p := wf_eprogram extra_env_flags p;
      post p := wf_eprogram extra_env_flags p;
-     obseq _ _ _ _ _ := True |}.
+     obseq p _ p' v v' := spec_rel p p' v v' |}.
 Next Obligation.
   intros. now apply (specialize_instances_program_wf (efl := extra_env_flags) (hasapp := eq_refl)).
 Qed.
 Next Obligation.
-  edestruct trust_specialize_instances_terminates as [v' ev]; eauto.
+  cbn in *. eapply specialize_instances_program_pres; eauto.
 Qed.
