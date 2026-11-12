@@ -9,7 +9,8 @@ From MetaRocq.Utils Require Import utils.
 From MetaRocq.Common Require Import BasicAst Kernames.
 From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils EInduction ELiftSubst
   ECSubst EGlobalEnv EWcbvEval EProgram EWellformed EBeta.
-From Peregrine Require Import ELboxOpts ELboxOptsSim ELboxOptsSimEval.
+From Peregrine Require ELboxOptsWf_case.
+From Peregrine Require Import ELboxOptsSimDB ELboxOpts ELboxOptsSim ELboxOptsSimEval.
 From Peregrine Require ELiftConstants.
 From Equations Require Import Equations.
 
@@ -449,4 +450,67 @@ Proof.
   destruct l as [|br brs]; [apply R_refl|].
   match goal with |- context [if ?c then _ else _] => destruct c eqn:E end; [|apply R_refl].
   apply R_head, Rh_case_id; [apply R_refl|exact E].
+Qed.
+
+(** ** The other node rewrites *)
+
+Lemma case_id_Rall {wfl : WcbvFlags} t : Rall t (case_id t).
+Proof.
+  intros Σ'. destruct t as [| | | | | | | | |[ind pars] d l| | | | | |]; try apply R_refl. cbn.
+  destruct l as [|br brs]; [apply R_refl|].
+  match goal with |- context [if ?c then _ else _] => destruct c eqn:E end; [|apply R_refl].
+  apply R_head, Rh_case_id; [apply R_refl|exact E].
+Qed.
+
+Lemma let_fun_node {wfl : WcbvFlags} t : Rall t (let_fun t).
+Proof.
+  intros Σ'. destruct t as [| | | | |z v b| | | | | | | | | |]; try apply R_refl.
+  unfold let_fun. destruct (atomic v); [|apply R_refl].
+  cbv zeta.
+  destruct (Nat.eqb_spec (count_lambdas b) 0) as [|nz]; [apply R_refl|].
+  have hl : has_lambdas (count_lambdas b) b by (apply count_has_lambdas; lia).
+  have E := mk_lambdas_strip _ _ hl. have L := length_lambda_names_has _ _ hl.
+  set (m := count_lambdas b) in *. set (xs := lambda_names m b) in *.
+  set (e := strip_lambdas m b) in *.
+  clearbody xs e m. subst b m. apply R_head, Rh_let_fun; apply R_refl.
+Qed.
+
+Lemma case_fun_node {wfl : WcbvFlags} t : Rall t (case_fun t).
+Proof.
+  intros Σ'. destruct t as [| | | | | | | | |ci d brs| | | | | |]; try apply R_refl.
+  destruct d; try apply R_refl. destruct brs as [|br0 brs]; [apply R_refl|].
+  unfold case_fun. cbv zeta.
+  pose proof (ELboxOptsWf_case.fold_left_min_le (fun br : list name × term => count_lambdas br.2)
+    (br0 :: brs) (count_lambdas br0.2)) as [_ hmin].
+  cbv beta in hmin.
+  set (m := fold_left _ _ _) in *.
+  destruct (Nat.eqb_spec m 0) as [|nz]; [apply R_refl|].
+  have hall : forall br, In br (br0 :: brs) -> has_lambdas m br.2.
+  { intros br hin. apply count_has_lambdas. now apply hmin. }
+  have L := length_lambda_names_has _ _ (hall br0 (or_introl eq_refl)).
+  set (ys := lambda_names m br0.2) in *. clearbody ys m. subst m.
+  replace (tRel (n + #|ys|)) with (lift0 #|ys| (tRel n)) by (cbn; now rewrite (Nat.add_comm n)).
+  match goal with |- R _ _ (mk_lambdas _ (tCase _ _ ?B)) =>
+    replace B with
+      (map (fun br : list name × term => (br.1, exchange #|ys| #|br.1| 0 br.2))
+         (map (fun br : list name × term => (br.1, strip_lambdas #|ys| br.2)) (br0 :: brs)))
+      by (rewrite map_map; reflexivity) end.
+  apply R_head, Rh_case_fun.
+  - apply R_refl.
+  - apply forallb_forall. exact hall.
+  - apply Rbrsall_refl.
+Qed.
+
+(** Every node rewrite other than [fix_eta]. *)
+Lemma lbox_node {wfl : WcbvFlags} o t :
+  lbox_fix_eta o = false -> chain t (rewrite_node o t).
+Proof.
+  intros Hf. destruct t; try apply chain_refl; unfold rewrite_node; rewrite ?Hf;
+    try apply chain_refl.
+  - destruct (lbox_let_fun o); [apply chain_one, let_fun_node|apply chain_refl].
+  - destruct (lbox_let_fun o); [apply beta_let_chain|apply chain_refl].
+  - cbv zeta.
+    eapply chain_trans;
+      [|destruct (lbox_case_fun o); [apply chain_one, case_fun_node|apply chain_refl]].
+    destruct (lbox_case_id o); [apply chain_one, case_id_Rall|apply chain_refl].
 Qed.
