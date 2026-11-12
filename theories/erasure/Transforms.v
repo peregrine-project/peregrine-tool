@@ -193,9 +193,10 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
      elimination, both in the constructors-as-blocks regime of [implement_box].
      They run after [optional_unsafe_transforms], so betared and dead-argument
      elimination do not see their output, then the lifting of closed
-     constructor values to shared constants.  All three are off by default,
-     and their semantic obligations rest on axioms (EInstanceSpecialize.v,
-     ECommonSubexpr.v, ELiftConstants.v). *)
+     constructor values to shared constants.  All three are off by default.
+     The semantic obligations of the first two rest on axioms
+     (EInstanceSpecialize.v, ECommonSubexpr.v); those of the lifting are
+     proved (ELiftConstants.v). *)
   ETransform.optional_self_transform spec_inst
     (specialize_instances_transformation efl EImplementBox.block_wcbv_flags) ▷
   ETransform.optional_self_transform cse
@@ -211,8 +212,8 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
   ETransform.optional_self_transform (any_lbox_opts (without_case_id lbox))
     (lbox_opts_transformation lbox efl EImplementBox.block_wcbv_flags) ▷
   (* Lifting of closed constructor values (nat literals, ...) to shared global
-     constants (ELiftConstants.v; axioms trust_lift_constants_wf /
-     trust_lift_constants_pres).  Last of the simplifications, so that it sees
+     constants (ELiftConstants.v; proved, lift_program_wf /
+     lift_program_pres).  Last of the simplifications, so that it sees
      the simplified terms, and before boxes are implemented.  Off by default. *)
   ETransform.optional_self_transform lift_consts
     (lift_constants_transformation efl EImplementBox.block_wcbv_flags) ▷
