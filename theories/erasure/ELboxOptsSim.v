@@ -19,7 +19,7 @@ From MetaRocq.Utils Require Import utils.
 From MetaRocq.Common Require Import BasicAst Kernames.
 From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils EInduction ELiftSubst ECSubst
   EGlobalEnv EWcbvEval EProgram EWellformed.
-From Peregrine Require Import ELboxOpts.
+From Peregrine Require Import ELboxOpts ELboxOptsSimDB.
 From Equations Require Import Equations.
 
 Import ListNotations.
@@ -93,6 +93,24 @@ Qed.
 Section Rel.
   Context {wfl : WcbvFlags} (Σ' : global_declarations).
 
+  (** Head reduction steps of the target whose principal part is closed
+      and evaluates. *)
+  Inductive tred : term -> term -> Prop :=
+  | tred_zeta z v w b :
+      ∥ eval Σ' v w ∥ -> closed v -> closed w -> tred (tLetIn z v b) (csubst w 0 b)
+  | tred_iota ind pars cdecl d c args brs br :
+      ∥ eval Σ' d (tConstruct ind c args) ∥ -> closed d -> forallb (closedn 0) args ->
+      constructor_isprop_pars_decl Σ' ind c = Some (false, pars, cdecl) ->
+      nth_error brs c = Some br ->
+      #|args| = pars + cstr_nargs cdecl -> #|skipn pars args| = #|br.1| ->
+      tred (tCase (ind, pars) d brs) (iota_red pars args br)
+  | tred_cofix ip d mfix idx args narg fn brs :
+      ∥ eval Σ' d (mkApps (tCoFix mfix idx) args) ∥ -> closed d ->
+      cunfold_cofix mfix idx = Some (narg, fn) -> closed (mkApps fn args) ->
+      tred (tCase ip d brs) (tCase ip (mkApps fn args) brs)
+  | tred_scrut ip d v brs :
+      ∥ eval Σ' d v ∥ -> closed d -> closed v -> tred (tCase ip d brs) (tCase ip v brs).
+
   Inductive R : term -> term -> Prop :=
   | R_head t t' : Rh t t' -> R t t'
   (** the target is a cofixpoint whose unfolding evaluates to (something
@@ -107,13 +125,18 @@ Section Rel.
   (** the target is any closed term evaluating to something related *)
   | R_eval t v0 t' :
       R t v0 -> ∥ eval Σ' t' v0 ∥ -> closed t' -> closed v0 -> R t t'
+  (** the target, under some lambdas, head-reduces to something related *)
+  | R_exp ys s u t' :
+      R s (mk_lambdas ys u) -> tred t' u ->
+      closed (mk_lambdas ys u) -> closed (mk_lambdas ys t') ->
+      R s (mk_lambdas ys t')
   with Rh : term -> term -> Prop :=
   | Rh_box : Rh tBox tBox
   | Rh_rel n : Rh (tRel n) (tRel n)
   | Rh_var na : Rh (tVar na) (tVar na)
   | Rh_const kn : Rh (tConst kn) (tConst kn)
   | Rh_evar n ts ts' : Rs ts ts' -> Rh (tEvar n ts) (tEvar n ts')
-  | Rh_lambda na b b' : R b b' -> Rh (tLambda na b) (tLambda na b')
+  | Rh_lambda na na' b b' : R b b' -> Rh (tLambda na b) (tLambda na' b')
   | Rh_letin na v v' b b' : R v v' -> R b b' -> Rh (tLetIn na v b) (tLetIn na v' b')
   | Rh_app f f' a a' : R f f' -> R a a' -> Rh (tApp f a) (tApp f' a')
   | Rh_case ci d d' brs brs' : R d d' -> Rbrs brs brs' -> Rh (tCase ci d brs) (tCase ci d' brs')
@@ -144,6 +167,18 @@ Section Rel.
       R d d' -> Rbrs brs brs' -> R a a' ->
       Rh (tApp (tCase ci d brs) a)
          (tCase ci d' (map (fun br => (br.1, tApp br.2 (lift0 #|br.1| a'))) brs'))
+  (** [let_fun] *)
+  | Rh_let_fun xs z v v' e e' :
+      R v v' -> R e e' ->
+      Rh (tLetIn z v (mk_lambdas xs e))
+         (mk_lambdas xs (tLetIn z (lift0 #|xs| v') (exchange #|xs| 1 0 e')))
+  (** [case_fun] *)
+  | Rh_case_fun ci d d' brs brs1 ys :
+      R d d' -> forallb (fun br => has_lambdas #|ys| br.2) brs ->
+      Rbrs (map (fun br => (br.1, strip_lambdas #|ys| br.2)) brs) brs1 ->
+      Rh (tCase ci d brs)
+         (mk_lambdas ys (tCase ci (lift0 #|ys| d')
+            (map (fun br => (br.1, exchange #|ys| #|br.1| 0 br.2)) brs1)))
   with Rs : list term -> list term -> Prop :=
   | Rs_nil : Rs [] []
   | Rs_cons t t' l l' : R t t' -> Rs l l' -> Rs (t :: l) (t' :: l')
@@ -242,6 +277,7 @@ Section Rel.
     all: try (rtoProp; intuition eauto; fail).
     - eapply closed_upwards; tea. lia.
     - eapply closed_upwards; tea. lia.
+    - eapply closed_upwards; tea. lia.
     - rewrite -(Rdefs_length _ _ H). auto.
     - rewrite -(Rdefs_length _ _ H). auto.
     - unfold test_array_model in *; cbn in *. rtoProp; intuition eauto.
@@ -253,6 +289,21 @@ Section Rel.
       rtoProp. intuition eauto. rewrite forallb_map. cbn.
       specialize (H2 k ltac:(assumption)). specialize (H4 k ltac:(assumption)).
       solve_all. rtoProp. split; auto. rewrite Nat.add_comm. now apply closedn_lift.
+    - (* let_fun *)
+      move/andP: H3 => [cv ce]. rewrite closedn_mk_lambdas in ce.
+      rewrite closedn_mk_lambdas. cbn. apply/andP; split.
+      + rewrite Nat.add_comm. apply closedn_lift. auto.
+      + apply closedn_exchange; [lia|].
+        replace (S (#|xs| + k)) with (#|xs| + S k) by lia. auto.
+    - (* case_fun *)
+      move/andP: H4 => [cd cb]. rewrite closedn_mk_lambdas. cbn. apply/andP; split.
+      + rewrite Nat.add_comm. apply closedn_lift. auto.
+      + specialize (H3 (#|ys| + k)). rewrite forallb_map in H3. cbn in H3.
+        rewrite forallb_map. cbn.
+        forward H3.
+        { solve_all. replace (#|x.1| + (#|ys| + k)) with (#|ys| + (#|x.1| + k)) by lia.
+          now apply closedn_strip_lambdas. }
+        solve_all. apply closedn_exchange; [lia|auto].
   Qed.
 
   Lemma R_closed t t' k : R t t' -> closedn k t -> closedn k t'.
@@ -284,6 +335,11 @@ Section Rel.
       rewrite (csubst_closed a' k t'); [eapply closed_upwards; tea; lia|].
       specialize (H0 k). rewrite (csubst_closed a' k v0) in H0; [eapply closed_upwards; tea; lia|].
       eapply R_eval; eauto.
+    - (* head expansion *)
+      rewrite (csubst_closed a' k (mk_lambdas ys t')); [eapply closed_upwards; tea; lia|].
+      specialize (H0 k).
+      rewrite (csubst_closed a' k (mk_lambdas ys u)) in H0; [eapply closed_upwards; tea; lia|].
+      eapply R_exp; eauto.
     - destruct (Nat.compare k n); auto; apply R_head; constructor.
     - apply R_head. rewrite -(Rdefs_length _ _ H). constructor. auto.
     - apply R_head. rewrite -(Rdefs_length _ _ H). constructor. auto.
@@ -298,6 +354,29 @@ Section Rel.
       { intros L x. rewrite !map_map. apply map_ext. intros [n b0]. cbn. now rewrite csubst_lift0. }
       rewrite E.
       apply R_head, Rh_app_case; auto.
+    - (* let_fun *)
+      rewrite !csubst_mk_lambdas. cbn.
+      rewrite (csubst_lift0 a' #|xs| k) //.
+      rewrite csubst_exchange //; [lia|].
+      replace (S (#|xs| + k)) with (#|xs| + S k) by lia.
+      apply R_head, Rh_let_fun; auto.
+    - (* case_fun *)
+      rewrite csubst_mk_lambdas. cbn.
+      rewrite (csubst_lift0 a' #|ys| k) //.
+      match goal with |- R _ (mk_lambdas ys (tCase ci _ ?B)) =>
+        replace B with
+          (map (fun br : list name × term => (br.1, exchange #|ys| #|br.1| 0 br.2))
+             (map (fun br : list name × term => (br.1, csubst a' (#|br.1| + (#|ys| + k)) br.2)) brs1))
+      end.
+      2:{ rewrite !map_map. apply map_ext. intros [n b0]. cbn. rewrite csubst_exchange //; lia. }
+      apply R_head, Rh_case_fun; auto.
+      + rewrite forallb_map. cbn. solve_all. now apply has_lambdas_csubst.
+      + specialize (H3 (#|ys| + k)).
+        match type of H3 with Rbrs ?X _ =>
+          match goal with |- Rbrs ?Y _ => replace Y with X end end; [exact H3|].
+        rewrite !map_map. apply map_ext_in. intros x Hin. cbn. f_equal.
+        rewrite strip_lambdas_csubst; [exact (proj1 (forallb_forall _ _) H1 x Hin)|].
+        f_equal. lia.
   Qed.
 
   Lemma R_csubst a a' t t' k :
