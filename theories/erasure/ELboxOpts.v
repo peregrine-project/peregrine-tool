@@ -395,9 +395,28 @@ Definition rewrite_node (o : lbox_opts) (t : term) : term :=
   | _ => t
   end.
 
+(** The body of a fixpoint keeps its leading lambda: below it the body is
+    optimized, but the lambda itself is not rewritten.  The only rewrite that
+    applies to a lambda is [fix_eta], which turns it into a fixpoint; at the
+    top of a fixpoint body that would break the [isLambda] condition of
+    [wellformed] (e.g. [fix G x := (fix F y := G y) x] would become
+    [fix G := fix F y := G y]). *)
+Definition optimize_fix_body (f : term -> term) (b : term) : term :=
+  match b with
+  | tLambda na b' => tLambda na (f b')
+  | _ => f b
+  end.
+
+(** [map_subterms], except for the bodies of fixpoints (see above). *)
+Definition map_subterms_fix (f : term -> term) (t : term) : term :=
+  match t with
+  | tFix mfix idx => tFix (map (map_def (optimize_fix_body f)) mfix) idx
+  | _ => map_subterms f t
+  end.
+
 (** Bottom-up: subterms first, then the node. *)
 Fixpoint optimize (o : lbox_opts) (t : term) : term :=
-  rewrite_node o (map_subterms (optimize o) t).
+  rewrite_node o (map_subterms_fix (optimize o) t).
 
 Definition optimize_decl (o : lbox_opts) (d : global_decl) : global_decl :=
   match d with
