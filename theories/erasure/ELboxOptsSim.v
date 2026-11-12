@@ -348,3 +348,144 @@ Section Rel.
   Qed.
 
 End Rel.
+
+(** ** Evaluation at the flags of the pipeline stage *)
+
+Lemma map_seq_nth {A} (g : nat -> A) l s :
+  (forall p a, nth_error l p = Some a -> g (s + p) = a) -> map g (seq s #|l|) = l.
+Proof.
+  induction l in s |- *; cbn; intros H; f_equal.
+  - rewrite -(H 0 a eq_refl). now rewrite Nat.add_0_r.
+  - apply IHl. intros p x Hp. rewrite Nat.add_succ_comm. now apply (H (S p)).
+Qed.
+
+Lemma rebuild_iota ind c br args :
+  rebuilds ind c br -> #|args| = #|br.1| -> forallb (closedn 0) args ->
+  exists args0 args1,
+    iota_red 0 args br = mkApps (tConstruct ind c args0) args1 /\ args0 ++ args1 = args.
+Proof.
+  intros (l0 & l1 & E & El)%rebuilds_spec Hn cl.
+  unfold iota_red. rewrite skipn_0 E substl_subst; [now rewrite forallb_rev|].
+  rewrite subst_mkApps. cbn.
+  eexists _, _. split; [reflexivity|].
+  rewrite -map_app El map_map -Hn. apply map_seq_nth.
+  intros p a Hp. cbn. rewrite Nat.sub_0_r.
+  replace (#|args| - 1 - p) with (#|args| - S p) by lia.
+  rewrite -nth_error_rev; [apply nth_error_Some_length in Hp; lia|].
+  rewrite Hp. apply lift0_id.
+Qed.
+
+Section Flags.
+  Context {wfl : WcbvFlags}.
+  Hypothesis Hblock : with_constructor_as_block = true.
+  Hypothesis Hguard : with_guarded_fix = false.
+  Hypothesis Hprop : with_prop_case = false.
+  Variable Σ : global_declarations.
+
+  Lemma value_cofix_app mfix idx args :
+    All (value Σ) args -> value Σ (mkApps (tCoFix mfix idx) args).
+  Proof.
+    intros H. destruct args.
+    - cbn. now do 2 constructor.
+    - eapply value_app_nonnil; auto; [constructor|discriminate].
+  Qed.
+
+  Lemma value_tApp_inv f a :
+    value Σ (tApp f a) ->
+    ∑ mfix idx args, f = mkApps (tCoFix mfix idx) args × All (value Σ) (args ++ [a]).
+  Proof.
+    intros H. remember (tApp f a) as t eqn:E.
+    destruct H as [? X|? ? ? ? ? ? ? ? ? ?|f0 args vh nn al].
+    - exfalso. destruct X as [? i|?]; subst; [cbn in i|]; discriminate.
+    - discriminate.
+    - destruct (exists_last nn) as (l & x & ->). rewrite mkApps_app in E. cbn in E.
+      injection E as <- <-.
+      destruct vh.
+      + congruence.
+      + eexists _, _, _. split; [reflexivity|auto].
+      + rewrite Hguard in y. destruct y.
+  Qed.
+
+  Lemma eval_case_scrut ip d v0 brs r :
+    eval Σ d v0 -> eval Σ (tCase ip v0 brs) r -> eval Σ (tCase ip d brs) r.
+  Proof.
+    intros ev H. depelim H.
+    all: try solve [econstructor; tea; eapply eval_trans; tea].
+    cbn in i. discriminate.
+  Qed.
+
+  Lemma eval_proj_scrut p d v0 r :
+    eval Σ d v0 -> eval Σ (tProj p v0) r -> eval Σ (tProj p d) r.
+  Proof.
+    intros ev H. depelim H.
+    all: try solve [econstructor; tea; eapply eval_trans; tea].
+    cbn in i. discriminate.
+  Qed.
+
+  (** [unfolds w v]: the value [w] becomes [v] by unfolding cofixpoints at
+      the head and evaluating. *)
+  Inductive unfolds : term -> term -> Prop :=
+  | unfolds_refl v : unfolds v v
+  | unfolds_step mfix idx args narg fn v0 v :
+      cunfold_cofix mfix idx = Some (narg, fn) ->
+      ∥ value Σ (mkApps (tCoFix mfix idx) args) ∥ ->
+      ∥ eval Σ (mkApps fn args) v0 ∥ -> unfolds v0 v ->
+      unfolds (mkApps (tCoFix mfix idx) args) v.
+
+  Lemma unfolds_case w v ip brs r :
+    unfolds w v -> eval Σ (tCase ip v brs) r -> ∥ eval Σ (tCase ip w brs) r ∥.
+  Proof.
+    induction 1; intros ev; [now sq|].
+    destruct (IHunfolds ev) as [ev']. destruct H0 as [vv], H1 as [e1]. sq.
+    eapply eval_cofix_case; tea; first [now apply value_final | eapply eval_case_scrut; tea].
+  Qed.
+
+  Lemma unfolds_proj w v p r :
+    unfolds w v -> eval Σ (tProj p v) r -> ∥ eval Σ (tProj p w) r ∥.
+  Proof.
+    induction 1; intros ev; [now sq|].
+    destruct (IHunfolds ev) as [ev']. destruct H0 as [vv], H1 as [e1]. sq.
+    eapply eval_cofix_proj; tea; first [now apply value_final | eapply eval_proj_scrut; tea].
+  Qed.
+
+  (** *** Identity cases evaluate to their scrutinee *)
+
+  Hypothesis HclΣ : closed_env Σ.
+  Hypothesis Hpars : forall ind c b pars cdecl,
+    constructor_isprop_pars_decl Σ ind c = Some (b, pars, cdecl) -> pars = 0.
+
+  Lemma case_id_iota ind c br args res :
+    rebuilds ind c br -> #|args| = #|br.1| -> forallb (closedn 0) args ->
+    value Σ (tConstruct ind c args) ->
+    eval Σ (iota_red 0 args br) res -> res = tConstruct ind c args.
+  Proof.
+    intros Hr Hn cl V.
+    destruct (rebuild_iota _ _ _ _ Hr Hn cl) as (args0 & args1 & -> & E). intros ev.
+    destruct (eval_mkApps_Construct_block_inv _ _ _ _ _ _ Hblock ev) as (args' & -> & _ & _).
+    cbn in ev. rewrite app_nil_r in E. subst. symmetry. eapply eval_value; tea.
+  Qed.
+
+  Lemma case_id_result t v :
+    eval Σ t v -> forall ind p d brs, t = tCase (ind, p) d brs -> closed d ->
+    all_rebuild ind brs -> exists c args, v = tConstruct ind c args.
+  Proof.
+    induction 1; intros ind0 p0 d0 brs0 E cl Hb; try discriminate.
+    all: try (exfalso; unfold is_true in *; congruence).
+    - injection E; intros; subst.
+      match goal with H : constructor_isprop_pars_decl _ _ _ = Some (_, ?q, _) |- _ =>
+        pose proof (Hpars _ _ _ _ _ H) as Hq; rewrite Hq in H; try subst q end.
+      match goal with H : eval Σ ?d (tConstruct _ _ _) |- _ =>
+        have clv := eval_closed Σ HclΣ _ _ cl H; have vv := eval_to_value _ _ H end.
+      cbn in clv.
+      match goal with H : #|skipn 0 _| = _ |- _ => rewrite skipn_0 in H end.
+      do 2 eexists. eapply case_id_iota; tea.
+      eapply all_rebuild_nth; tea.
+    - injection E; intros; subst.
+      eapply IHeval2; [reflexivity| |tea].
+      have clv := eval_closed Σ HclΣ _ _ cl H. rewrite closedn_mkApps in clv.
+      move/andP: clv => [clf cla]. rewrite closedn_mkApps. apply/andP; split; auto.
+      eapply closed_cunfold_cofix; tea.
+    - subst. cbn in i. discriminate.
+  Qed.
+
+End Flags.
