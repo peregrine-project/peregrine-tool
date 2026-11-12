@@ -11,7 +11,7 @@ From MetaRocq.Erasure Require EImplementBox.
 From MetaRocq.Erasure Require EImplementLazyForce.
 From Peregrine Require Import EInstanceSpecialize.
 From Peregrine Require Import ECommonSubexpr.
-From Peregrine Require Import ELboxOpts.
+From Peregrine Require Import ELboxOpts ELboxOptsWf.
 From Peregrine Require Import ELiftConstants.
 From Malfunction Require Pipeline.
 
@@ -195,22 +195,24 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
      elimination do not see their output, then the lifting of closed
      constructor values to shared constants.  All three are off by default.
      The semantic obligations of the first two rest on axioms
-     (EInstanceSpecialize.v, ECommonSubexpr.v); those of the lifting are
-     proved (ELiftConstants.v). *)
+     (EInstanceSpecialize.v: termination only, and a wellformedness axiom
+     that is false, see trust_specialize_instances_wf_FALSE;
+     ECommonSubexpr.v); those of the lifting are proved (ELiftConstants.v). *)
   ETransform.optional_self_transform spec_inst
-    (specialize_instances_transformation efl EImplementBox.block_wcbv_flags) ▷
+    specialize_instances_transformation ▷
   ETransform.optional_self_transform cse
     (cse_transformation efl EImplementBox.block_wcbv_flags) ▷
   (* Unverified lambda-box simplifications (fixpoint eta-hoisting, case/function
      permutation, identity cases, let/function permutation), after inlining and
-     beta reduction and before boxes are implemented (ELboxOpts.v).  The
-     identity-case pass runs first, as its own transformation (axioms
-     trust_case_id_wf / trust_case_id_pres); the other three follow (axioms
-     trust_lbox_opts_wf / trust_lbox_opts_pres).  Off by default. *)
+     beta reduction and before boxes are implemented (ELboxOpts.v,
+     ELboxOptsWf.v).  The identity-case pass runs first, as its own
+     transformation; the other three follow.  Wellformedness is proved; only
+     termination is assumed (axioms trust_case_id_terminates /
+     trust_lbox_opts_terminates).  Off by default. *)
   ETransform.optional_self_transform lbox.(lbox_case_id)
-    (case_id_transformation efl EImplementBox.block_wcbv_flags) ▷
+    case_id_transformation ▷
   ETransform.optional_self_transform (any_lbox_opts (without_case_id lbox))
-    (lbox_opts_transformation lbox efl EImplementBox.block_wcbv_flags) ▷
+    (lbox_opts_transformation lbox) ▷
   (* Lifting of closed constructor values (nat literals, ...) to shared global
      constants (ELiftConstants.v; proved, lift_program_wf /
      lift_program_pres).  Last of the simplifications, so that it sees

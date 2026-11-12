@@ -40,20 +40,17 @@
     constant body and to the main expression.  They are OFF by default and are
     enabled per pass ([--lbox-fix-eta] etc.) or all together ([--lbox-opts]).
 
-    ** Verification status.  None of these rewrites is proved.  Passes 1, 2
-    and 4 change the shape of the values a program evaluates to (a fixpoint
-    instead of a closure, a closure instead of a case), so relating source and
-    target would need a logical relation; for pass 3 see the note before the
-    axioms below.  Following the precedent of MetaRocq's [EBeta] (whose
-    [betared] pass, like [EInlining]'s inlining pass, is assumed correct by the
-    axioms [trust_betared_wf]/[trust_betared_pres]), the pipeline obligations
-    are discharged by four axioms below: [trust_case_id_wf] and
-    [trust_case_id_pres] for pass 3, and [trust_lbox_opts_wf] and
-    [trust_lbox_opts_pres] for passes 1, 2 and 4, quantified over the set of
-    enabled passes.  Enabling pass 3 adds the first two assumptions to the
-    trusted base of the pipeline, enabling any of the others the last two, in
-    addition to those of the passes they rely on (inlining and beta
-    reduction). *)
+    ** Verification status.  Well-formedness is proved in [ELboxOptsWf]
+    (from one lemma per rewrite).  Preservation of evaluation is not: passes
+    1, 2 and 4 change the shape of the values a program evaluates to (a
+    fixpoint instead of a closure, a closure instead of a case), and every
+    pass rewrites under binders, so even for pass 3 the value of the target is
+    not [optimize] of the value of the source once it is a closure.  The
+    pipeline transformations (in [ELboxOptsWf]) therefore relate values by
+    the trivial observational equivalence and assume only termination:
+    [trust_case_id_terminates] for pass 3 and [trust_lbox_opts_terminates] for
+    passes 1, 2 and 4, stated at the flags of the pipeline stage
+    ([EExtraFlags]). *)
 
 From Stdlib Require Import List Bool Arith.
 From MetaRocq.Utils Require Import utils.
@@ -444,25 +441,13 @@ Definition optimize_typed_decl (o : lbox_opts) (d : ExAst.global_decl) : ExAst.g
 Definition optimize_typed_env (o : lbox_opts) (Σ : ExAst.global_env) : ExAst.global_env :=
   map (fun '(kn, b, d) => (kn, b, optimize_typed_decl o d)) Σ.
 
-(** ** Pipeline transformations (assumed correct, see the header)
+(** ** Stages
 
     The identity-case pass and the other three passes are separate
-    transformations with separate axioms, so that the assumptions about
-    case/function permutation, let/function permutation and fixpoint
-    eta-hoisting do not bear on the identity-case pass.
-
-    Status of the identity-case pass: NOT proved, axiomatised like the others
-    ([trust_case_id_wf], [trust_case_id_pres]).  What a proof against
-    [EWcbvEval] would need, beyond the local iota computation
-    ([eval_iota_block] + [substl] of the field variables):
-    - the pass is applied under binders, so the statement is a simulation
-      [eval p v -> eval (case_id p) (optimize case_id_opts v)], which needs
-      commutation of [optimize] with [csubst], [mkApps] and fixpoint unfolding
-      (the same reason MetaRocq axiomatises EBeta);
-    - [eval_cofix_case]: a scrutinee evaluating to a cofixpoint application
-      is not a constructor value; the rule needs the absence of cofixpoints
-      (guaranteed in the pipeline by the earlier coinductive-to-inductive
-      transformation, not by the environment flags of this stage). *)
+    transformations (see [ELboxOptsWf]) with separate termination axioms, so
+    that the assumptions about case/function permutation, let/function
+    permutation and fixpoint eta-hoisting do not bear on the identity-case
+    pass. *)
 
 (** Only the identity-case pass. *)
 Definition case_id_opts : lbox_opts :=
@@ -478,68 +463,6 @@ Definition without_case_id (o : lbox_opts) : lbox_opts :=
 Definition staged {A} (o : lbox_opts) (f : lbox_opts -> A -> A) (x : A) : A :=
   let x := if o.(lbox_case_id) then f case_id_opts x else x in
   if any_lbox_opts (without_case_id o) then f (without_case_id o) x else x.
-
-Axiom trust_lbox_opts_wf :
-  forall (efl : EEnvFlags) (o : lbox_opts),
-  o.(lbox_case_id) = false ->
-  WcbvFlags ->
-  forall (input : Transform.program _ term),
-  wf_eprogram efl input -> wf_eprogram efl (lbox_opts_program o input).
-
-Axiom trust_lbox_opts_pres :
-  forall (efl : EEnvFlags) (wfl : WcbvFlags) (o : lbox_opts) (p : Transform.program _ term) (v : term),
-  o.(lbox_case_id) = false ->
-  wf_eprogram efl p ->
-  eval_eprogram wfl p v ->
-  exists v' : term,
-  eval_eprogram wfl (lbox_opts_program o p) v' /\ v' = optimize o v.
-
-Axiom trust_case_id_wf :
-  forall (efl : EEnvFlags),
-  WcbvFlags ->
-  forall (input : Transform.program _ term),
-  wf_eprogram efl input -> wf_eprogram efl (lbox_opts_program case_id_opts input).
-
-Axiom trust_case_id_pres :
-  forall (efl : EEnvFlags) (wfl : WcbvFlags) (p : Transform.program _ term) (v : term),
-  wf_eprogram efl p ->
-  eval_eprogram wfl p v ->
-  exists v' : term,
-  eval_eprogram wfl (lbox_opts_program case_id_opts p) v' /\ v' = optimize case_id_opts v.
-
-Import MetaRocq.Common.Transform.Transform.
-
-(** Fixpoint eta-hoisting, case/function and let/function permutation (the
-    identity-case component of [o] is ignored, see [case_id_transformation]). *)
-Program Definition lbox_opts_transformation (o : lbox_opts) (efl : EEnvFlags) (wfl : WcbvFlags) :
-  Transform.t _ _ EAst.term EAst.term _ _
-    (eval_eprogram wfl) (eval_eprogram wfl) :=
-  {| name := "lambda-box simplifications (fix eta, case/fun, let/fun; unverified)";
-     transform p _ := lbox_opts_program (without_case_id o) p;
-     pre p := wf_eprogram efl p;
-     post p := wf_eprogram efl p;
-     obseq p hp p' v v' := v' = optimize (without_case_id o) v |}.
-Next Obligation.
-  now apply trust_lbox_opts_wf.
-Qed.
-Next Obligation.
-  now eapply trust_lbox_opts_pres.
-Qed.
-
-Program Definition case_id_transformation (efl : EEnvFlags) (wfl : WcbvFlags) :
-  Transform.t _ _ EAst.term EAst.term _ _
-    (eval_eprogram wfl) (eval_eprogram wfl) :=
-  {| name := "lambda-box identity cases (unverified)";
-     transform p _ := lbox_opts_program case_id_opts p;
-     pre p := wf_eprogram efl p;
-     post p := wf_eprogram efl p;
-     obseq p hp p' v v' := v' = optimize case_id_opts v |}.
-Next Obligation.
-  now apply trust_case_id_wf.
-Qed.
-Next Obligation.
-  now eapply trust_case_id_pres.
-Qed.
 
 (** ** Checks *)
 

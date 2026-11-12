@@ -57,13 +57,15 @@
         iota-on-constructor, and [EInlining] inlines *named constants* uniformly
         rather than specializing a shared function per call site.
 
-    Verification status.  Nothing about the pass is proved: wellformedness
-    preservation and evaluation preservation are the axioms
-    [trust_specialize_instances_wf] and [trust_specialize_instances_pres], and
-    the two [TransformExt] instances are the axioms
-    [specialize_instances_transformation_ext] and
-    [specialize_instances_transformation_ext'] (cf. MetaRocq's
-    [EBeta.betared_transformation] and its [trust_betared_*] axioms). *)
+    Verification status.  Nothing about the pass is proved.  Evaluation
+    preservation is not even claimed: the transformation relates values by
+    the trivial observational equivalence and assumes only termination of the
+    target ([trust_specialize_instances_terminates], stated at the flags of
+    the pipeline stage, [EExtraFlags]); [v' = specialize_instances v] is false
+    once the value is a closure.  Wellformedness preservation is the axiom
+    [trust_specialize_instances_wf_FALSE], which is FALSE: the generated
+    names [fresh_name nm i] are not checked for freshness, so a program that
+    already defines [f$spec0] yields an environment with a duplicate name. *)
 
 From Stdlib Require Import List.
 From MetaRocq.Utils Require Import utils ReflectEq.
@@ -428,48 +430,38 @@ Definition specialize_instances_program (p : program) : program :=
 
 From MetaRocq.Erasure Require Import EWellformed EWcbvEval.
 From MetaRocq.Common Require Import Transform.
+From Peregrine Require Import EExtraFlags.
 
-Axiom trust_specialize_instances_wf :
+(** FALSE as stated (see the header): [fresh_name] does not check that
+    [f$specN] is fresh in the environment, so [fresh_global] in [wf_glob] can
+    fail on the output.  To be replaced by a proof once the pass generates
+    fresh names. *)
+Axiom trust_specialize_instances_wf_FALSE :
   forall efl : EEnvFlags,
   WcbvFlags ->
   forall (input : Transform.program _ term),
   wf_eprogram efl input -> wf_eprogram efl (specialize_instances_program input).
 
-Axiom trust_specialize_instances_pres :
-  forall (efl : EEnvFlags) (wfl : WcbvFlags) (p : Transform.program _ term)
-    (v : term),
-  wf_eprogram efl p ->
-  eval_eprogram wfl p v ->
-  exists v' : term,
-  eval_eprogram wfl (specialize_instances_program p) v' /\ v' = specialize_instances v.
+(** Termination only, at the flags of the pipeline. *)
+Axiom trust_specialize_instances_terminates :
+  forall (p : Transform.program _ term) (v : term),
+  wf_eprogram extra_env_flags p ->
+  eval_eprogram extra_wcbv_flags p v ->
+  exists v' : term, eval_eprogram extra_wcbv_flags (specialize_instances_program p) v'.
 
 Import Transform.
 
-Program Definition specialize_instances_transformation (efl : EEnvFlags) (wfl : WcbvFlags) :
+Program Definition specialize_instances_transformation :
   Transform.t _ _ EAst.term EAst.term _ _
-    (eval_eprogram wfl) (eval_eprogram wfl) :=
+    (eval_eprogram extra_wcbv_flags) (eval_eprogram extra_wcbv_flags) :=
   {| name := "instance specialization";
      transform p _ := specialize_instances_program p;
-     pre p := wf_eprogram efl p;
-     post p := wf_eprogram efl p;
-     obseq p hp p' v v' := v' = specialize_instances v |}.
+     pre p := wf_eprogram extra_env_flags p;
+     post p := wf_eprogram extra_env_flags p;
+     obseq _ _ _ _ _ := True |}.
 Next Obligation.
-  now apply trust_specialize_instances_wf.
+  intros. now apply (trust_specialize_instances_wf_FALSE _ extra_wcbv_flags).
 Qed.
 Next Obligation.
-  now eapply trust_specialize_instances_pres.
+  edestruct trust_specialize_instances_terminates as [v' ev]; eauto.
 Qed.
-
-Import EProgram EGlobalEnv.
-
-#[global]
-Axiom specialize_instances_transformation_ext :
-  forall (efl : EEnvFlags) (wfl : WcbvFlags),
-  TransformExt.t (specialize_instances_transformation efl wfl)
-    (fun p p' => extends p.1 p'.1) (fun p p' => extends p.1 p'.1).
-
-#[global]
-Axiom specialize_instances_transformation_ext' :
-  forall (efl : EEnvFlags) (wfl : WcbvFlags),
-  TransformExt.t (specialize_instances_transformation efl wfl)
-    extends_eprogram extends_eprogram.
