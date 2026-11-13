@@ -548,7 +548,13 @@ End WfCorrect.
   to be well formed, eta-expanded (in the sense of [EEtaExpandedFix], i.e. with
   fully applied constructors and fixpoints) and the constructor reordering
   mapping to be compatible with the environment.  [check_pipeline_pre] decides
-  all of this; [check_pipeline_pre_sound] shows that it is sound. *)
+  all of this; [check_pipeline_pre_sound] shows that it is sound.
+
+  [check_pipeline_pre] and [check_eta_env] are kept only as a diagnostic: the
+  pipeline no longer uses them.  Eta-expandedness is now established by the
+  verified eta-expansion pass in front of the pipelines (EEtaExpand.v,
+  [eta_expand_program_expanded]) instead of being checked, so the run
+  functions of Transforms.v check [check_pipeline_wf] instead. *)
 
 Section PipelinePre.
   Context {efl : EEnvFlags}.
