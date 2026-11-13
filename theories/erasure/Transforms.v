@@ -986,13 +986,71 @@ Definition run_untyped_transforms {guard : abstract_guard_impl} econf ind_reorde
     (untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p)
     (run (eta_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).
 
+(** ** Dearging masks of eta-expanded typed programs
+
+    Eta-expansion wraps a fixpoint that a constant's body leaves unapplied
+    in abstractions, so the constant's body gets more leading abstractions.
+    Its dearging mask, which has one entry per leading abstraction, gets
+    longer, and with untrimmed masks ([do_trim_const_masks = false]) a use
+    of the constant applied to fewer arguments than before fails the
+    dearging precondition ([Optimize.is_expanded]), so the program is not
+    dearged at all.  For such constants the dearging configuration
+    overrides the mask with the one computed on the program before
+    eta-expansion.  Overriding is sound for any mask: the dearging stage
+    checks the masks ([check_dearging_precond]) and is the identity when
+    they are not valid. *)
+
+Fixpoint count_lams (t : EAst.term) : nat :=
+  match t with
+  | EAst.tLambda _ b => S (count_lams b)
+  | _ => 0
+  end.
+
+(** The constants whose body gets more leading abstractions by eta-expansion *)
+Definition eta_grown_constants (Σ : ExAst.global_env) : list kername :=
+  let Σ0 := ExAst.trans_env Σ in
+  flat_map (fun '((kn, _), d) =>
+    match d with
+    | ExAst.ConstantDecl cb =>
+      match ExAst.cst_body cb with
+      | Some b => if count_lams b <? count_lams (EEtaExpand.eta Σ0 [] 0 b) then [kn] else []
+      | None => []
+      end
+    | _ => []
+    end) Σ.
+
+Definition eta_dearging_config (cf : ETransform.dearging_config) (Σ : ExAst.global_env) : ETransform.dearging_config :=
+  match eta_grown_constants Σ with
+  | [] => cf
+  | grown =>
+    let masks := Optimize.const_masks (Optimize.analyze_env cf.(overridden_masks) Σ) in
+    let lookup kn := option_map snd (find (fun '(kn', _) => eq_kername kn' kn) masks) in
+    {| overridden_masks kn :=
+         match cf.(overridden_masks) kn with
+         | Some m => Some m
+         | None => if existsb (eq_kername kn) grown then lookup kn else None
+         end;
+       do_trim_const_masks := cf.(do_trim_const_masks);
+       do_trim_ctor_masks := cf.(do_trim_ctor_masks) |}
+  end.
+
+Definition eta_econf (econf : erasure_configuration) (Σ : ExAst.global_env) : erasure_configuration :=
+  {| enable_unsafe := econf.(enable_unsafe);
+     enable_typed_erasure := econf.(enable_typed_erasure);
+     dearging_config := eta_dearging_config econf.(dearging_config) Σ;
+     inlining := econf.(inlining);
+     inlined_constants := econf.(inlined_constants);
+     extracted_inductives := econf.(extracted_inductives) |}.
+
 Definition run_typed_transforms {guard : abstract_guard_impl} econf ind_reorder lbox (p : ExAst.global_env * EAst.term) :=
+  let econf := eta_econf econf p.1 in
   with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
     (typed_lbox_transform_pipeline_pre econf lbox ind_reorder p)
     (run (eta_typed_lbox_transform_pipeline econf lbox) (ind_reorder, p)).
 
 Definition run_typed_to_untyped_transforms {guard : abstract_guard_impl} econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force
   (p : ExAst.global_env * EAst.term) :=
+  let econf := eta_econf econf p.1 in
   if remap_on econf then
     join_result
       (with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))

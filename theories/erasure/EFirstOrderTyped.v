@@ -415,17 +415,21 @@ End Typed.
     evaluates to a first-order value [v] whose constructors are saturated
     with respect to their declarations, then [p'] evaluates to [v] with the
     masked constructor arguments dropped.  (Saturation with respect to the
-    dearging masks follows, see [typed_dearg_masks_sat].) *)
+    dearging masks follows, see [typed_dearg_masks_sat].)  The dearging
+    configuration is the one [run_typed_transforms] adapts to the
+    eta-expanded program ([eta_econf]). *)
 Theorem run_typed_transforms_fo {guard : PCUICWfEnvImpl.abstract_guard_impl}
-  econf m lbox (p : ExAst.global_env * term) p' v :
-  run_typed_transforms econf m lbox p = ResultMonad.Ok p' ->
+  econf0 m lbox (p : ExAst.global_env * term) p' v :
+  let econf := eta_econf econf0 p.1 in
+  run_typed_transforms econf0 m lbox p = ResultMonad.Ok p' ->
   fo_sat (fo_arity (ExAst.trans_env p.1)) v ->
   eval_typed_eprogram default_wcbv_flags p v ->
   exists pf,
     eval_typed_eprogram_mapping target_wcbv_flags p'
       (fo_dearg (typed_dearg_masks econf m p pf) v).
 Proof.
-  intros Hrun H0 ev. unfold run_typed_transforms in Hrun.
+  intros econf Hrun H0 ev. unfold run_typed_transforms in Hrun.
+  cbv zeta in Hrun. change (eta_econf econf0 p.1) with econf in Hrun.
   apply with_check_ok in Hrun as [pr ->].
   pose proof (eval_typed_wellformed p v (proj2 pr) ev) as Hwf.
   destruct (fo_eta_typed_lbox_transform_pipeline econf m p v H0 Hwf lbox (m, p) pr v ev
@@ -438,12 +442,14 @@ Qed.
     The expected value is the untyped translation ([fo_value_compile], over
     the dearged environment) of the dearged value.  The correctness of the
     remapping of inductives on the value is assumed, only when a remapping is
-    configured. *)
+    configured.  As in [run_typed_transforms_fo], the dearging configuration
+    is the one adapted to the eta-expanded program ([eta_econf]). *)
 Theorem run_typed_to_untyped_transforms_fo {guard : PCUICWfEnvImpl.abstract_guard_impl}
-  econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  econf0 m spec_inst cse lbox lift_consts impl_box impl_lazy_force
   (p : ExAst.global_env * term) (p' : eprogram) v :
+  let econf := eta_econf econf0 p.1 in
   let unb := econf.(enable_unsafe).(unboxing) in
-  run_typed_to_untyped_transforms econf m spec_inst cse lbox lift_consts impl_box
+  run_typed_to_untyped_transforms econf0 m spec_inst cse lbox lift_consts impl_box
     impl_lazy_force p = ResultMonad.Ok p' ->
   fo_sat (fo_arity (ExAst.trans_env p.1)) v ->
   (remap_on econf = true ->
@@ -456,7 +462,8 @@ Theorem run_typed_to_untyped_transforms_fo {guard : PCUICWfEnvImpl.abstract_guar
       (fo_value_compile m (typed_dearged_env econf m p pf) unb impl_box
          (fo_dearg (typed_dearg_masks econf m p pf) v)).
 Proof.
-  intros unb Hrun H0 Hr ev. subst unb. unfold run_typed_to_untyped_transforms in Hrun.
+  intros econf unb Hrun H0 Hr ev. subst unb. unfold run_typed_to_untyped_transforms in Hrun.
+  cbv zeta in Hrun. change (eta_econf econf0 p.1) with econf in Hrun.
   destruct (remap_on econf).
   - apply join_with_check_ok in Hrun as [pr Hrun].
     pose proof (eval_typed_wellformed p v (proj2 pr) ev) as Hwf.

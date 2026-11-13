@@ -444,7 +444,8 @@ Theorem peregrine_typed_untyped_fo {guard : PCUICWfEnvImpl.abstract_guard_impl} 
   let f := NameSanitize.get_sanitizer c' in
   let sk := NameSanitize.sanitized_kername f in
   let v_s := rename sk (sanitized_name f) v in
-  let econf env_s := mk_opts c' false (remap_masks c' false env_s) in
+  let econf env_s :=
+    eta_econf (mk_opts c' false (remap_masks c' false env_s)) (drop_remapped_bodies c' env_s) in
   let m := mk_cstr_reorders c' in
   let unb := c'.(erasure_opts).(Config.unboxing) in
   let q env_s := (drop_remapped_bodies c' env_s, rename sk (sanitized_name f) t) in
@@ -483,7 +484,7 @@ Proof.
   destruct (pipeline_pre_error _) as [[env' t']|] eqn:hr; cbn; [|discriminate].
   intros [= <-]. exists env1, env', t'. split; [exact he|]. split; [reflexivity|].
   apply map_error_ok in hr.
-  exact (run_typed_to_untyped_transforms_fo (econf env1) m _ _ _ _ _ _ (q env1) _ v_s hr hsat1
+  exact (run_typed_to_untyped_transforms_fo (mk_opts c' false (remap_masks c' false env1)) m _ _ _ _ _ _ (q env1) _ v_s hr hsat1
            (hremap env1 he) ev1).
 Qed.
 
@@ -492,7 +493,8 @@ Theorem peregrine_typed_typed_fo {guard : PCUICWfEnvImpl.abstract_guard_impl} c 
   let f := NameSanitize.get_sanitizer c' in
   let sk := NameSanitize.sanitized_kername f in
   let v_s := rename sk (sanitized_name f) v in
-  let econf env_s := mk_opts c' true (remap_masks c' false env_s) in
+  let econf env_s :=
+    eta_econf (mk_opts c' true (remap_masks c' false env_s)) (drop_remapped_bodies c' env_s) in
   let m := mk_cstr_reorders c' in
   let q env_s := (drop_remapped_bodies c' env_s, rename sk (sanitized_name f) t) in
   p0 = Typed env (Some t) ->
@@ -523,5 +525,5 @@ Proof.
   destruct (pipeline_pre_error _) as [[mr [env' t']]|] eqn:hr; cbn; [|discriminate].
   intros [= <-]. exists env1, env', t'. split; [exact he|]. split; [reflexivity|].
   apply map_error_ok in hr.
-  exact (run_typed_transforms_fo (econf env1) m _ (q env1) _ v_s hr hsat1 ev1).
+  exact (run_typed_transforms_fo (mk_opts c' true (remap_masks c' false env1)) m _ (q env1) _ v_s hr hsat1 ev1).
 Qed.
