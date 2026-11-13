@@ -4,8 +4,11 @@
     rewriting some subterms of [t] with the local rewrites of [ELboxOpts]
     (one layer of rewrites: every rule looks at the shape of the *source*
     term).  [optimize] is a finite sequence of such steps, and each step is a
-    forward simulation for [EWcbvEval.eval] at the flags of the pipeline stage
-    (constructors as blocks, unguarded fixpoints, no propositional cases).
+    forward simulation for [EWcbvEval.eval] at any flags with unguarded
+    fixpoints and no propositional cases, for both representations of
+    constructor applications ([cval]: blocks, as in the untyped pipeline, or
+    applications, as in the typed one) and with or without constructor
+    parameters.
 
     Besides the congruence rules and the rewrite rules, [R] has rules that keep
     the source fixed and expand the target ([R_cofix], ...): they describe the

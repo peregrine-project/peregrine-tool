@@ -1,9 +1,10 @@
 (** * Forward simulation for the rewrite relation of [ELboxOptsSim]
 
     If [t] evaluates to [v] in [Σ] and [R Σ' t t'], then [t'] evaluates in
-    [Σ'] to some [v'] with [R Σ' v v'].  The flags are those of the pipeline
-    stage where the lambda-box passes run: constructors as blocks, unguarded
-    fixpoints, no propositional cases. *)
+    [Σ'] to some [v'] with [R Σ' v v'].  The flags are any with unguarded
+    fixpoints and no propositional cases; constructor applications are blocks
+    or applications ([cval]), and the cases of a match and of a projection are
+    proved once for both ([sim_iota], [sim_proj]). *)
 
 From Stdlib Require Import List Arith Lia ssreflect ssrbool.
 From MetaRocq.Utils Require Import utils.

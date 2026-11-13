@@ -241,6 +241,9 @@ Definition rebuilds (ind : inductive) (i : nat) (br : list name * term) : bool :
   | _ => false
   end.
 
+(** Only for matches on an inductive type without parameters: with
+    parameters, the scrutinee may carry them while the rebuilt constructor
+    does not. *)
 Definition case_id (t : term) : term :=
   match t with
   | tCase (ind, p) d brs =>
