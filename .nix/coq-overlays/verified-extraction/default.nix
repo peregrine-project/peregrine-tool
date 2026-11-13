@@ -40,9 +40,9 @@ mkCoqDerivation {
   release = {
     "1.0.0-9.1".hash = "sha256-0eKpchQtnPI12rcsb9+qN1pdNX9KY8VryZP0oqHuYeU=";
     # the peregrine branch, see rocq-peregrine.opam
-    "0ed8aa88560a518e0822b583f45e1ebb45b10f7f" = {
-      rev = "0ed8aa88560a518e0822b583f45e1ebb45b10f7f";
-      hash = "sha256-cjUNf3Zq6x/nA+WY+nqDwhulhuxOBg0o5wizS+L80ws=";
+    "eaf5375613cc5c34507ca2601c7761df2797a47d" = {
+      rev = "eaf5375613cc5c34507ca2601c7761df2797a47d";
+      hash = "sha256-MFo43e4k/hiod3L8nggUGsu9dqDblr9VIy4IN+TQ/3I=";
     };
   };
   releaseRev = v: "v${v}";

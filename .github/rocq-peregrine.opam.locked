@@ -37,11 +37,13 @@ pin-depends: [
   # and the fast Qed of LLVM_nonvacuity (peregrine-project/certirocq#7).
   ["rocq-certirocq.dev" "git+https://github.com/peregrine-project/certirocq.git#1396dbfa9738254c1837b61f8a0242277e2dd506"]
   ["rocq-vellvm.dev" "git+https://github.com/vellvm/vellvm.git#b63a28a0a36cbae73a454d99a97bb8171568343e"]
-  # The peregrine branch of peregrine-project/rocq-verified-extraction: a
-  # merge of its rocq-9.1 branch (64ced8c0, the same tree), which builds
-  # against MetaRocq 51b14e4b and has the rename of switch_no_params for
-  # MetaRocq#1286 (MetaRocq/rocq-verified-extraction#44).
-  ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/peregrine-project/rocq-verified-extraction.git#0ed8aa88560a518e0822b583f45e1ebb45b10f7f"]
+  # The peregrine branch of peregrine-project/rocq-verified-extraction:
+  # 0ed8aa88 (a merge of its rocq-9.1 branch at 64ced8c0, the same tree,
+  # which builds against MetaRocq 51b14e4b and has the rename of
+  # switch_no_params for MetaRocq#1286, MetaRocq/rocq-verified-extraction#44)
+  # plus 7 commits that remove the axiom trust_coq_kernel: the correctness
+  # theorems take the erasure precondition as a hypothesis.
+  ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/peregrine-project/rocq-verified-extraction.git#eaf5375613cc5c34507ca2601c7761df2797a47d"]
   # cakeml-backend ported to the MetaRocq 9.1 snapshot, with the datatype
   # declarations and qualified constructor names (cakeml-backend#16).
   ["rocq-cakeml-extraction.0.1.1+dev" "git+https://github.com/peregrine-project/cakeml-backend.git#8df83a16525ca08bb9b5b375b3331b3f480d346b"]
