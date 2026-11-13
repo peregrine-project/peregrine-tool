@@ -5,6 +5,13 @@
     program that [check_lowered] and [run_backend] get.  [peregrine_pipeline]
     factors through it ([peregrine_pipeline_middle_end]).
 
+    Everything here is generic in the implementation [guard] of the guard
+    condition that MetaRocq's pipelines take as a parameter: the results are
+    about [peregrine_pipeline_gen], and hold in particular for the executable
+    [peregrine_pipeline], its instance at MetaRocq's [fake_guard_impl]
+    ([peregrine_pipeline_instance]).  They do not depend on the axiom
+    [Erasure.fake_guard_impl_properties] about that instance.
+
     The corollaries at the end compose the parser ([PipelineParse]), the name
     sanitization ([NameSanitizeCorrect]) and the first-order results of the
     transformation pipelines ([EFirstOrderCorrect], [EFirstOrderTyped]): if the
@@ -17,6 +24,7 @@
 
 From Stdlib Require Import List ssreflect ssrbool.
 From MetaRocq.Utils Require Import utils ResultMonad bytestring.
+From MetaRocq.SafeChecker Require PCUICWfEnvImpl.
 From Peregrine Require Import PAst Config ConfigUtils ELboxOpts CheckWf RecursorInlining AutoInlining
   Pipeline PipelineParse.
 From Peregrine Require NameSanitize.
@@ -35,7 +43,8 @@ Set Default Goal Selector "!".
 
 (** ** The middle-end *)
 
-Definition peregrine_middle_end (c : string + config') (attrs : list string) (inline_recursors : bool)
+Definition peregrine_middle_end {guard : PCUICWfEnvImpl.abstract_guard_impl}
+  (c : string + config') (attrs : list string) (inline_recursors : bool)
   (inl : inline_opts) (lbox : lbox_opts) (p : PAst) : result' (config * PAst) :=
   c <- get_config c attrs;;
   let remapped kn := List.existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) in
@@ -55,12 +64,13 @@ Definition peregrine_backend (c : config) (p : PAst) (f : string) : extraction_r
   check_lowered c p;;
   run_backend c f p.
 
-Definition peregrine_middle_end_string (c : string + config') (attrs : list string) (inline_recursors : bool)
+Definition peregrine_middle_end_string {guard : PCUICWfEnvImpl.abstract_guard_impl}
+  (c : string + config') (attrs : list string) (inline_recursors : bool)
   (inl : inline_opts) (lbox : lbox_opts) (s : string) : result' (config * PAst) :=
   p <- parse_ast s;;
   peregrine_middle_end c attrs inline_recursors inl lbox p.
 
-Lemma peregrine_pipeline_ast_middle_end c attrs ir io lbox p f :
+Lemma peregrine_pipeline_ast_middle_end {guard : PCUICWfEnvImpl.abstract_guard_impl} c attrs ir io lbox p f :
   peregrine_pipeline_ast c attrs ir io lbox p f =
   (r <- peregrine_middle_end c attrs ir io lbox p;; peregrine_backend r.1 r.2 f).
 Proof.
@@ -75,8 +85,8 @@ Proof.
 Qed.
 
 (** [peregrine_pipeline] is the middle-end followed by the backend. *)
-Theorem peregrine_pipeline_middle_end c attrs ir io lbox s f :
-  peregrine_pipeline c attrs ir io lbox s f =
+Theorem peregrine_pipeline_middle_end {guard : PCUICWfEnvImpl.abstract_guard_impl} c attrs ir io lbox s f :
+  peregrine_pipeline_gen c attrs ir io lbox s f =
   (r <- peregrine_middle_end_string c attrs ir io lbox s;; peregrine_backend r.1 r.2 f).
 Proof.
   unfold peregrine_middle_end_string. destruct (parse_ast s) as [p|e] eqn:E; cbn.
@@ -84,7 +94,7 @@ Proof.
   now apply peregrine_pipeline_parse_error.
 Qed.
 
-Lemma peregrine_middle_end_string_of_PAst c attrs ir io lbox (p0 : PAst) :
+Lemma peregrine_middle_end_string_of_PAst {guard : PCUICWfEnvImpl.abstract_guard_impl} c attrs ir io lbox (p0 : PAst) :
   strings_ok p0 = true ->
   peregrine_middle_end_string c attrs ir io lbox (Serialize.string_of_PAst p0) =
   peregrine_middle_end c attrs ir io lbox p0.
@@ -100,7 +110,7 @@ Proof.
   now intros [= <-].
 Qed.
 
-Lemma peregrine_middle_end_inv c attrs ir io lbox p c' p' :
+Lemma peregrine_middle_end_inv {guard : PCUICWfEnvImpl.abstract_guard_impl} c attrs ir io lbox p c' p' :
   peregrine_middle_end c attrs ir io lbox p = Ok (c', p') ->
   exists c1 ps,
     NameSanitize.get_sanitizer c' = NameSanitize.get_sanitizer c1 /\
@@ -356,7 +366,7 @@ Qed.
 (** ** Corollaries: from the input file to the lambda-box program *)
 
 (** Untyped input, untyped backend. *)
-Theorem peregrine_untyped_fo c attrs ir io lbox p0 env t c' p' v :
+Theorem peregrine_untyped_fo {guard : PCUICWfEnvImpl.abstract_guard_impl} c attrs ir io lbox p0 env t c' p' v :
   let f := NameSanitize.get_sanitizer c' in
   let env_s := rename_env (NameSanitize.sanitized_kername f) (sanitized_name f) (sanitized_ident f) env in
   let v_s := rename (NameSanitize.sanitized_kername f) (sanitized_name f) v in
@@ -430,7 +440,7 @@ Qed.
     remapped constants dropped (the pipeline drops them: the backend provides
     them); the program handed to the backend evaluates to the value of
     [run_typed_to_untyped_transforms_fo] for the sanitized program. *)
-Theorem peregrine_typed_untyped_fo c attrs ir io lbox p0 env t c' p' v :
+Theorem peregrine_typed_untyped_fo {guard : PCUICWfEnvImpl.abstract_guard_impl} c attrs ir io lbox p0 env t c' p' v :
   let f := NameSanitize.get_sanitizer c' in
   let sk := NameSanitize.sanitized_kername f in
   let v_s := rename sk (sanitized_name f) v in
@@ -478,7 +488,7 @@ Proof.
 Qed.
 
 (** Typed input, typed backend. *)
-Theorem peregrine_typed_typed_fo c attrs ir io lbox p0 env t c' p' v :
+Theorem peregrine_typed_typed_fo {guard : PCUICWfEnvImpl.abstract_guard_impl} c attrs ir io lbox p0 env t c' p' v :
   let f := NameSanitize.get_sanitizer c' in
   let sk := NameSanitize.sanitized_kername f in
   let v_s := rename sk (sanitized_name f) v in

@@ -416,7 +416,7 @@ End Typed.
     with respect to their declarations, then [p'] evaluates to [v] with the
     masked constructor arguments dropped.  (Saturation with respect to the
     dearging masks follows, see [typed_dearg_masks_sat].) *)
-Theorem run_typed_transforms_fo
+Theorem run_typed_transforms_fo {guard : PCUICWfEnvImpl.abstract_guard_impl}
   econf m lbox (p : ExAst.global_env * term) p' v :
   run_typed_transforms econf m lbox p = ResultMonad.Ok p' ->
   fo_sat (fo_arity (ExAst.trans_env p.1)) v ->
@@ -439,7 +439,7 @@ Qed.
     the dearged environment) of the dearged value.  The correctness of the
     remapping of inductives on the value is assumed, only when a remapping is
     configured. *)
-Theorem run_typed_to_untyped_transforms_fo
+Theorem run_typed_to_untyped_transforms_fo {guard : PCUICWfEnvImpl.abstract_guard_impl}
   econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force
   (p : ExAst.global_env * term) (p' : eprogram) v :
   let unb := econf.(enable_unsafe).(unboxing) in

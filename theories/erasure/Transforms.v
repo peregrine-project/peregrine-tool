@@ -887,16 +887,20 @@ Qed.
     The remaining precondition (well-formedness of the program and of the
     constructor mapping) is decided by [CheckWf.check_pipeline_wf]; the run
     functions below report an error instead of running the pipeline when the
-    input does not satisfy it. *)
+    input does not satisfy it.
 
-Lemma untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m p :
+    Like MetaRocq's pipelines, they and their correctness results are generic
+    in the implementation [guard] of the guard condition; the executable
+    instantiates it in [Pipeline.peregrine_pipeline]. *)
+
+Lemma untyped_transform_pipeline_pre {guard : abstract_guard_impl} econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m p :
   bool_of_result (@check_pipeline_wf nocofix_env_flags m p) = true ->
   pre (eta_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (m, p).
 Proof.
   intros h. exact (check_pipeline_wf_sound m p h).
 Qed.
 
-Lemma typed_transform_pipeline_pre econf m (p : ExAst.global_env * EAst.term) :
+Lemma typed_transform_pipeline_pre {guard : abstract_guard_impl} econf m (p : ExAst.global_env * EAst.term) :
   bool_of_result (@check_pipeline_wf nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
   pre (eta_typed_transform_pipeline econf) (m, p).
 Proof.
@@ -906,14 +910,14 @@ Qed.
 (** The lambda-box stages of [typed_lbox_transform_pipeline] come after
     [typed_transform_pipeline], so after eta-expansion the two have the same
     precondition. *)
-Lemma typed_lbox_transform_pipeline_pre econf lbox m (p : ExAst.global_env * EAst.term) :
+Lemma typed_lbox_transform_pipeline_pre {guard : abstract_guard_impl} econf lbox m (p : ExAst.global_env * EAst.term) :
   bool_of_result (@check_pipeline_wf nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
   pre (eta_typed_lbox_transform_pipeline econf lbox) (m, p).
 Proof.
   intros h. exact (check_pipeline_wf_sound m _ h).
 Qed.
 
-Lemma typed_to_untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m
+Lemma typed_to_untyped_transform_pipeline_pre {guard : abstract_guard_impl} econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m
   (p : ExAst.global_env * EAst.term) :
   bool_of_result (@check_pipeline_wf nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
   pre (eta_typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (m, p).
@@ -921,14 +925,14 @@ Proof.
   intros h. exact (check_pipeline_wf_sound m _ h).
 Qed.
 
-Lemma untyped_prefix_pipeline_pre econf m p :
+Lemma untyped_prefix_pipeline_pre {guard : abstract_guard_impl} econf m p :
   bool_of_result (@check_pipeline_wf nocofix_env_flags m p) = true ->
   pre (eta_untyped_prefix_pipeline econf) (m, p).
 Proof.
   intros h. exact (check_pipeline_wf_sound m p h).
 Qed.
 
-Lemma typed_to_untyped_prefix_pipeline_pre econf m (p : ExAst.global_env * EAst.term) :
+Lemma typed_to_untyped_prefix_pipeline_pre {guard : abstract_guard_impl} econf m (p : ExAst.global_env * EAst.term) :
   bool_of_result (@check_pipeline_wf nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
   pre (eta_typed_to_untyped_prefix_pipeline econf) (m, p).
 Proof.
@@ -967,7 +971,7 @@ Definition join_result {A} (r : result' (result' A)) : result' A :=
   | ResultMonad.Err e => ResultMonad.Err e
   end.
 
-Definition run_untyped_transforms econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force p :=
+Definition run_untyped_transforms {guard : abstract_guard_impl} econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force p :=
   if remap_on econf then
     join_result
       (with_check (@check_pipeline_wf nocofix_env_flags ind_reorder p)
@@ -982,12 +986,12 @@ Definition run_untyped_transforms econf ind_reorder spec_inst cse lbox lift_cons
     (untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p)
     (run (eta_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).
 
-Definition run_typed_transforms econf ind_reorder lbox (p : ExAst.global_env * EAst.term) :=
+Definition run_typed_transforms {guard : abstract_guard_impl} econf ind_reorder lbox (p : ExAst.global_env * EAst.term) :=
   with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
     (typed_lbox_transform_pipeline_pre econf lbox ind_reorder p)
     (run (eta_typed_lbox_transform_pipeline econf lbox) (ind_reorder, p)).
 
-Definition run_typed_to_untyped_transforms econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force
+Definition run_typed_to_untyped_transforms {guard : abstract_guard_impl} econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force
   (p : ExAst.global_env * EAst.term) :=
   if remap_on econf then
     join_result

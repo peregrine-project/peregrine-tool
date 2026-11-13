@@ -528,7 +528,7 @@ Qed.
     [fo_value_compile m p.1 unb impl_box v].  The correctness of the
     remapping of inductives on that value is assumed, only when a remapping
     is configured. *)
-Theorem run_untyped_transforms_fo
+Theorem run_untyped_transforms_fo {guard : PCUICWfEnvImpl.abstract_guard_impl}
   econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force (p p' : eprogram) v :
   let unb := econf.(enable_unsafe).(unboxing) in
   run_untyped_transforms econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force p
@@ -552,7 +552,7 @@ Proof.
 Qed.
 
 (** Without a configured remapping there is no hypothesis left. *)
-Corollary run_untyped_transforms_fo_noremap
+Corollary run_untyped_transforms_fo_noremap {guard : PCUICWfEnvImpl.abstract_guard_impl}
   econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force (p p' : eprogram) v :
   let unb := econf.(enable_unsafe).(unboxing) in
   remap_on econf = false ->

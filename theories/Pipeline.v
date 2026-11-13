@@ -26,6 +26,8 @@ From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import ResultMonad.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Erasure Require EAst.
+From MetaRocq.SafeChecker Require PCUICWfEnvImpl.
+From MetaRocq.ErasurePlugin Require Erasure.
 From MetaRocq.Erasure.Typed Require Import ExAst.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import bytestring.
@@ -118,11 +120,17 @@ Definition drop_remapped_bodies (c : config) (env : ExAst.global_env) : ExAst.gl
     fail with an error if it does not hold. The precondition is
     well-formedness only: the pipelines start with the verified eta-expansion
     pass of [EEtaExpand], so input from frontends that do not eta-expand
-    fixpoints and constructors is accepted. *)
+    fixpoints and constructors is accepted.
+
+    [apply_transforms] and [peregrine_pipeline_gen] are generic in the
+    implementation [guard] of the guard condition, which MetaRocq's pipelines
+    take as a parameter, so that their correctness results hold for any such
+    implementation.  The executable [peregrine_pipeline] instantiates it with
+    MetaRocq's [fake_guard_impl]. *)
 Definition pipeline_pre_error {A} (r : result' A) : result' A :=
   map_error (fun e => "Program does not satisfy the precondition of the transformation pipeline: " ++ e) r.
 
-Definition apply_transforms (c : config) (lbox : lbox_opts) (p : PAst) (typed : bool) : result' PAst :=
+Definition apply_transforms {guard : PCUICWfEnvImpl.abstract_guard_impl} (c : config) (lbox : lbox_opts) (p : PAst) (typed : bool) : result' PAst :=
   let drop := drop_remapped_bodies c in
   (* Untyped input: MetaRocq's dearging analysis as is. A typed environment: the
      masks of remapped constants from their types ([remap_masks]), with every
@@ -400,7 +408,8 @@ Definition check_lowered (c : config) (p : PAst) : result' unit :=
     (see RecursorInlining.v); the remapped ones are left to the remapping.
     [inl]: likewise add the standard and/or the small constants
     (see AutoInlining.v). *)
-Definition peregrine_pipeline (c : string + config') (attrs : list string) (inline_recursors : bool)
+Definition peregrine_pipeline_gen {guard : PCUICWfEnvImpl.abstract_guard_impl}
+  (c : string + config') (attrs : list string) (inline_recursors : bool)
   (inl : inline_opts) (lbox : lbox_opts) (p : string) (f : string) : extraction_result :=
   p <- parse_ast p;; (* Parse input string into AST *)
   c <- get_config c attrs;; (* Parse or construct config *)
@@ -416,6 +425,17 @@ Definition peregrine_pipeline (c : string + config') (attrs : list string) (inli
   p <- apply_transforms c lbox p (needs_typed c);; (* Apply program transformation *)
   check_lowered c p;; (* Reject terms that the backend would miscompile *)
   run_backend c f p. (* Run extraction backend *)
+
+(** The executable pipeline (extracted in Extraction.v): [peregrine_pipeline_gen]
+    at MetaRocq's [fake_guard_impl], whose correctness is an axiom of MetaRocq
+    ([Erasure.fake_guard_impl_properties]). *)
+Definition peregrine_pipeline : forall (c : string + config') (attrs : list string) (inline_recursors : bool)
+  (inl : inline_opts) (lbox : lbox_opts) (p : string) (f : string), extraction_result :=
+  @peregrine_pipeline_gen MetaRocq.ErasurePlugin.Erasure.fake_guard_impl.
+
+Lemma peregrine_pipeline_instance :
+  peregrine_pipeline = @peregrine_pipeline_gen MetaRocq.ErasurePlugin.Erasure.fake_guard_impl.
+Proof. reflexivity. Qed.
 
 Definition peregrine_validate (c : string + config') (attrs : list string) (p : string) : result' unit :=
   p <- parse_ast p;; (* Parse input string into AST *)

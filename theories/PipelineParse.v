@@ -1,6 +1,8 @@
 (** * The input front end of the pipeline
 
-    [peregrine_pipeline] takes the input program as a string. This file shows that
+    [peregrine_pipeline] takes the input program as a string. This file shows, for
+    the pipeline [peregrine_pipeline_gen] at any implementation of the guard
+    condition ([peregrine_pipeline] is its instance, [peregrine_pipeline_instance]), that
     - the pipeline only depends on the parsed program ([peregrine_pipeline_parsed]),
     - on the serialization of a program [p0] (with escapable strings, see
       [SerializeRoundtrip.strings_ok]) it is the pipeline run on [p0]
@@ -12,6 +14,7 @@
 
 From Stdlib Require Import List.
 From MetaRocq.Utils Require Import utils ResultMonad bytestring.
+From MetaRocq.SafeChecker Require PCUICWfEnvImpl.
 From CeresBS Require Import Ceres CeresParser.
 From Peregrine Require Import PAst Config ConfigUtils ELboxOpts CheckWf RecursorInlining AutoInlining Pipeline.
 From Peregrine Require NameSanitize.
@@ -22,9 +25,10 @@ From Peregrine Require Import SerializeConfig SerializePAst.
 Import MonadNotation.
 Local Open Scope bs_scope.
 
-(** The pipeline after parsing the input program (same code as [peregrine_pipeline]
+(** The pipeline after parsing the input program (same code as [peregrine_pipeline_gen]
     minus its first line; [peregrine_pipeline_parsed] checks this by [reflexivity]). *)
-Definition peregrine_pipeline_ast (c : string + config') (attrs : list string) (inline_recursors : bool)
+Definition peregrine_pipeline_ast {guard : PCUICWfEnvImpl.abstract_guard_impl}
+  (c : string + config') (attrs : list string) (inline_recursors : bool)
   (inl : inline_opts) (lbox : lbox_opts) (p : PAst) (f : string) : extraction_result :=
   c <- get_config c attrs;;
   let remapped kn := List.existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) in
@@ -87,20 +91,20 @@ Proof. intros _. apply parse_ast_string_of_PAst. Qed.
 
 (** ** The pipeline only depends on the parsed program *)
 
-Lemma peregrine_pipeline_parsed c attrs ir io lbox s f p :
+Lemma peregrine_pipeline_parsed {guard : PCUICWfEnvImpl.abstract_guard_impl} c attrs ir io lbox s f p :
   parse_ast s = Ok p ->
-  peregrine_pipeline c attrs ir io lbox s f = peregrine_pipeline_ast c attrs ir io lbox p f.
-Proof. intros H. unfold peregrine_pipeline. rewrite H. reflexivity. Qed.
+  peregrine_pipeline_gen c attrs ir io lbox s f = peregrine_pipeline_ast c attrs ir io lbox p f.
+Proof. intros H. unfold peregrine_pipeline_gen. rewrite H. reflexivity. Qed.
 
-Lemma peregrine_pipeline_parse_error c attrs ir io lbox s f e :
-  parse_ast s = Err e -> peregrine_pipeline c attrs ir io lbox s f = Err e.
-Proof. intros H. unfold peregrine_pipeline. rewrite H. reflexivity. Qed.
+Lemma peregrine_pipeline_parse_error {guard : PCUICWfEnvImpl.abstract_guard_impl} c attrs ir io lbox s f e :
+  parse_ast s = Err e -> peregrine_pipeline_gen c attrs ir io lbox s f = Err e.
+Proof. intros H. unfold peregrine_pipeline_gen. rewrite H. reflexivity. Qed.
 
 (** Main statement: running the tool on the serialization of [p0] is running the
     pipeline on [p0]. *)
-Theorem peregrine_pipeline_string_of_PAst c attrs ir io lbox (p0 : PAst) f :
+Theorem peregrine_pipeline_string_of_PAst {guard : PCUICWfEnvImpl.abstract_guard_impl} c attrs ir io lbox (p0 : PAst) f :
   strings_ok p0 = true ->
-  peregrine_pipeline c attrs ir io lbox (Serialize.string_of_PAst p0) f = peregrine_pipeline_ast c attrs ir io lbox p0 f.
+  peregrine_pipeline_gen c attrs ir io lbox (Serialize.string_of_PAst p0) f = peregrine_pipeline_ast c attrs ir io lbox p0 f.
 Proof. intros H. apply peregrine_pipeline_parsed, parse_ast_string_of_PAst, H. Qed.
 
 Theorem peregrine_validate_string_of_PAst c attrs (p0 : PAst) :
@@ -155,9 +159,9 @@ Proof.
 Qed.
 
 (** All inputs printed. *)
-Theorem peregrine_pipeline_printed (c0 : config') (as0 : list attributes_config) ir io lbox (p0 : PAst) f :
+Theorem peregrine_pipeline_printed {guard : PCUICWfEnvImpl.abstract_guard_impl} (c0 : config') (as0 : list attributes_config) ir io lbox (p0 : PAst) f :
   strings_ok p0 = true -> strings_ok c0 = true -> forallb strings_ok as0 = true ->
-  peregrine_pipeline (inl (Serialize.string_of_config c0)) (map Serialize.string_of_attributes_config as0) ir io lbox
+  peregrine_pipeline_gen (inl (Serialize.string_of_config c0)) (map Serialize.string_of_attributes_config as0) ir io lbox
     (Serialize.string_of_PAst p0) f =
   peregrine_pipeline_ast (inr c0) (map Serialize.string_of_attributes_config as0) ir io lbox p0 f.
 Proof.
