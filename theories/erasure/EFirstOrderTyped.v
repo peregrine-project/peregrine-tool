@@ -141,12 +141,137 @@ Definition typed_dearged_env {guard : PCUICWfEnvImpl.abstract_guard_impl} econf 
   : global_declarations :=
   ExAst.trans_env (dearg (typed_analysed econf m p pf).2).1.
 
+(** ** Mask saturation from declaration saturation *)
+
+Lemma forallbi_nth_error {A} (f : nat -> A -> bool) n l i x :
+  Optimize.forallbi f n l = true -> nth_error l i = Some x -> f (n + i) x = true.
+Proof.
+  induction l as [|y l IH] in n, i |- *; cbn; [now destruct i|].
+  move/andP=> [Hy Hl]. destruct i as [|i]; cbn.
+  - intros [= <-]. now rewrite Nat.add_0_r.
+  - intros H. rewrite -Nat.add_succ_comm. now apply IH.
+Qed.
+
+Lemma ex_lookup_env_In (Σ : ExAst.global_env) kn d :
+  ExAst.lookup_env Σ kn = Some d -> exists b, In (kn, b, d) Σ.
+Proof.
+  unfold ExAst.lookup_env. induction Σ as [|[[kn' b] d'] Σ IH]; cbn; [discriminate|].
+  destruct (eq_kername kn kn') eqn:E.
+  - intros [= <-]. apply eqb_eq in E. subst. exists b. now left.
+  - intros H. destruct (IH H) as [b' Hin]. exists b'. now right.
+Qed.
+
+(** The mask of a declared constructor checked by [valid_masks_env] is as long as
+    the constructor's parameters and arguments. *)
+Lemma valid_masks_ctor_mask im cm (Σ : ExAst.global_env) ind c np na :
+  (forall kn b mib, In (kn, b, ExAst.InductiveDecl mib) Σ ->
+     Optimize.valid_masks_decl im cm (kn, b, ExAst.InductiveDecl mib) = true) ->
+  lookup_constructor_pars_args (ExAst.trans_env Σ) ind c = Some (np, na) ->
+  #|Optimize.get_ctor_mask im ind c| = np + na.
+Proof.
+  intros Hv. unfold lookup_constructor_pars_args, lookup_constructor, lookup_inductive,
+    lookup_minductive.
+  rewrite OptimizeCorrectness.lookup_env_trans_env.
+  destruct (ExAst.lookup_env Σ (inductive_mind ind)) as [[cst|mib|ta]|] eqn:E; cbn; try discriminate.
+  apply ex_lookup_env_In in E as [b Hin]. specialize (Hv _ _ _ Hin). cbn in Hv.
+  rewrite nth_error_map.
+  destruct (nth_error (ExAst.ind_bodies mib) (inductive_ind ind)) as [oib|] eqn:Eb; cbn; [|discriminate].
+  unfold ExAst.trans_ctors. rewrite nth_error_map.
+  destruct (nth_error (ExAst.ind_ctors oib) c) as [[[nm ts] nargs]|] eqn:Ec; cbn; [|discriminate].
+  intros [= <- <-].
+  unfold Optimize.get_ctor_mask.
+  destruct (Optimize.get_mib_masks im (inductive_mind ind)) as [mm|]; [|discriminate].
+  move/andP: Hv => [Hp Hb]. apply Nat.eqb_eq in Hp.
+  rewrite length_app Hp. f_equal.
+  pose proof (forallbi_nth_error _ _ _ _ _ Hb Eb) as Ho. cbn in Ho.
+  unfold Optimize.check_oib_masks in Ho. move/andP: Ho => [Ho _].
+  pose proof (forallbi_nth_error _ _ _ _ _ Ho Ec) as Hc. cbn in Hc.
+  now apply eqb_eq in Hc.
+Qed.
+
+Lemma valid_masks_env_map_on_snd im cm (g : ExAst.global_decl -> ExAst.global_decl) (Σ : ExAst.global_env) :
+  (forall mib, g (ExAst.InductiveDecl mib) = ExAst.InductiveDecl mib) ->
+  Optimize.valid_masks_env im cm (map (on_snd g) Σ) = true ->
+  forall kn b mib, In (kn, b, ExAst.InductiveDecl mib) Σ ->
+     Optimize.valid_masks_decl im cm (kn, b, ExAst.InductiveDecl mib) = true.
+Proof.
+  intros Hg Hv kn b mib Hin. unfold Optimize.valid_masks_env in Hv.
+  rewrite forallb_forall in Hv. rewrite -Hg.
+  exact (Hv _ (in_map (on_snd g) _ _ Hin)).
+Qed.
+
+(** Saturation with respect to the declarations gives saturation with respect to
+    any arity bounded by the declared one, on well-formed values. *)
+Lemma fo_sat_weaken {efl : EEnvFlags} {hast : has_tApp} Σ (ar : inductive -> nat -> nat) v :
+  (forall ind c np na, lookup_constructor_pars_args Σ ind c = Some (np, na) -> ar ind c <= np + na) ->
+  @EWellformed.wellformed efl Σ 0 v -> fo_sat (fo_arity Σ) v -> fo_sat ar v.
+Proof.
+  intros Har Hwf Hs. revert Hwf.
+  induction Hs using fo_sat_ind'; intros Hwf.
+  - constructor.
+  - now constructor.
+  - rewrite (@EWellformed.wellformed_mkApps efl Σ 0 _ args hast) in Hwf. move/andP: Hwf => [Hc Ha]. cbn in Hc.
+    move/andP: Hc => [/andP [_ Hl] _].
+    unfold fo_arity, lookup_constructor_pars_args in H.
+    destruct (lookup_constructor Σ ind c) as [[[mdecl idecl] cdecl]|] eqn:E; [|discriminate].
+    cbn in H. constructor.
+    + etransitivity; [|exact H]. apply Har. unfold lookup_constructor_pars_args. now rewrite E.
+    + clear -H1 Ha.
+      induction H1 as [|x l Hx Hl IH]; constructor; cbn in Ha; move/andP: Ha => [Hx' Hl'].
+      * now apply Hx.
+      * now apply IH.
+Qed.
+
+Lemma In_map_on_snd_ind (g : ExAst.global_decl -> ExAst.global_decl) (Σ : ExAst.global_env) kn b mib :
+  g (ExAst.InductiveDecl mib) = ExAst.InductiveDecl mib ->
+  In (kn, b, ExAst.InductiveDecl mib) Σ -> In (kn, b, ExAst.InductiveDecl mib) (map (on_snd g) Σ).
+Proof.
+  intros Hg Hin. rewrite -Hg. exact (in_map (on_snd g) _ _ Hin).
+Qed.
+
+(** The values of well-formed typed programs are well-formed. *)
+Lemma eval_typed_wellformed (p : ExAst.global_env * term) v :
+  wf_eprogram nocofix_env_flags (ExAst.trans_env p.1, p.2) ->
+  eval_typed_eprogram default_wcbv_flags p v ->
+  @wellformed nocofix_env_flags (ExAst.trans_env p.1) 0 v.
+Proof.
+  intros [Hg Ht] [ev]. exact (eval_wellformed (efl := nocofix_env_flags) _ eq_refl Hg _ _ Ht ev).
+Qed.
+
+(** The dearging masks of the analysis are bounded by the declared arities
+    ([valid_masks_env], checked by the analysis), so declaration saturation of
+    a well-formed value implies mask saturation. *)
+Lemma typed_dearg_masks_le {guard : PCUICWfEnvImpl.abstract_guard_impl} econf m p0 pf ind c np na :
+  lookup_constructor_pars_args (ExAst.trans_env p0.1) ind c = Some (np, na) ->
+  fo_mask_arity (typed_dearg_masks econf m p0 pf) ind c <= np + na.
+Proof.
+  intros Hl. unfold fo_mask_arity.
+  destruct (typed_dearg_masks econf m p0 pf) as [d|] eqn:Ed; [|lia].
+  unfold typed_dearg_masks, typed_analysed in Ed. cbn in Ed.
+  apply ETransform.check_dearging_precond_spec in Ed as (_ & Hv & _).
+  rewrite (valid_masks_ctor_mask (Optimize.ind_masks d) (Optimize.const_masks d) p0.1 ind c np na);
+    [|exact Hl|reflexivity].
+  intros kn b mib Hin.
+  unfold Optimize.valid_masks_env, remove_match_on_box_typed_env, EEtaExpand.eta_expand_ex_env in Hv.
+  refine (proj1 (List.forallb_forall _ _) Hv _ _).
+  apply In_map_on_snd_ind; [reflexivity|]. apply In_map_on_snd_ind; [reflexivity|]. exact Hin.
+Qed.
+
+Lemma typed_dearg_masks_sat {guard : PCUICWfEnvImpl.abstract_guard_impl} econf m p0 v0 pf :
+  fo_sat (fo_arity (ExAst.trans_env p0.1)) v0 ->
+  @wellformed nocofix_env_flags (ExAst.trans_env p0.1) 0 v0 ->
+  fo_sat (fo_mask_arity (typed_dearg_masks econf m p0 pf)) v0.
+Proof.
+  intros Hs Hwf. eapply (fo_sat_weaken (efl := nocofix_env_flags) (hast := eq_refl)); [|exact Hwf|exact Hs].
+  apply typed_dearg_masks_le.
+Qed.
+
 Section Typed.
   Context {guard : PCUICWfEnvImpl.abstract_guard_impl}.
   Variables (econf : erasure_configuration) (m : inductives_mapping)
     (p0 : ExAst.global_env * term) (v0 : term).
   Hypothesis Hsat0 : fo_sat (fo_arity (ExAst.trans_env p0.1)) v0.
-  Hypothesis Hsat : forall pf, fo_sat (fo_mask_arity (typed_dearg_masks econf m p0 pf)) v0.
+  Hypothesis Hwf0 : @wellformed nocofix_env_flags (ExAst.trans_env p0.1) 0 v0.
 
   Let q : inductives_mapping * (ExAst.global_env * term) := (m, eta_expand_typed_program p0).
   Let X := pre (typed_analysis_pipeline econf) q.
@@ -155,7 +280,7 @@ Section Typed.
   Let unb := econf.(enable_unsafe).(unboxing).
 
   Lemma fo_app_wv pf : fo_app (wv pf).
-  Proof. apply fo_dearg_app, Hsat. Qed.
+  Proof. apply fo_dearg_app, typed_dearg_masks_sat; [exact Hsat0|exact Hwf0]. Qed.
 
   Lemma fo_eta_expand_typed_transform_mapping :
     fo_triple eta_expand_typed_transform_mapping
@@ -288,22 +413,22 @@ End Typed.
 
     If [run_typed_transforms] succeeds with [p'] and the source program
     evaluates to a first-order value [v] whose constructors are saturated
-    with respect to their declarations (for eta-expansion) and to the
-    dearging masks, then [p'] evaluates to [v] with the masked constructor
-    arguments dropped. *)
+    with respect to their declarations, then [p'] evaluates to [v] with the
+    masked constructor arguments dropped.  (Saturation with respect to the
+    dearging masks follows, see [typed_dearg_masks_sat].) *)
 Theorem run_typed_transforms_fo
   econf m lbox (p : ExAst.global_env * term) p' v :
   run_typed_transforms econf m lbox p = ResultMonad.Ok p' ->
   fo_sat (fo_arity (ExAst.trans_env p.1)) v ->
-  (forall pf, fo_sat (fo_mask_arity (typed_dearg_masks econf m p pf)) v) ->
   eval_typed_eprogram default_wcbv_flags p v ->
   exists pf,
     eval_typed_eprogram_mapping target_wcbv_flags p'
       (fo_dearg (typed_dearg_masks econf m p pf) v).
 Proof.
-  intros Hrun H0 Hs ev. unfold run_typed_transforms in Hrun.
+  intros Hrun H0 ev. unfold run_typed_transforms in Hrun.
   apply with_check_ok in Hrun as [pr ->].
-  destruct (fo_eta_typed_lbox_transform_pipeline econf m p v H0 Hs lbox (m, p) pr v ev
+  pose proof (eval_typed_wellformed p v (proj2 pr) ev) as Hwf.
+  destruct (fo_eta_typed_lbox_transform_pipeline econf m p v H0 Hwf lbox (m, p) pr v ev
               (conj eq_refl eq_refl)) as (v' & ev' & pf & ->).
   exists pf. exact ev'.
 Qed.
@@ -321,7 +446,6 @@ Theorem run_typed_to_untyped_transforms_fo
   run_typed_to_untyped_transforms econf m spec_inst cse lbox lift_consts impl_box
     impl_lazy_force p = ResultMonad.Ok p' ->
   fo_sat (fo_arity (ExAst.trans_env p.1)) v ->
-  (forall pf, fo_sat (fo_mask_arity (typed_dearg_masks econf m p pf)) v) ->
   (remap_on econf = true ->
    forall pf, remap_fo econf
                 (fo_unboxed_value m (typed_dearged_env econf m p pf) unb
@@ -332,16 +456,18 @@ Theorem run_typed_to_untyped_transforms_fo
       (fo_value_compile m (typed_dearged_env econf m p pf) unb impl_box
          (fo_dearg (typed_dearg_masks econf m p pf) v)).
 Proof.
-  intros unb Hrun H0 Hs Hr ev. subst unb. unfold run_typed_to_untyped_transforms in Hrun.
+  intros unb Hrun H0 Hr ev. subst unb. unfold run_typed_to_untyped_transforms in Hrun.
   destruct (remap_on econf).
   - apply join_with_check_ok in Hrun as [pr Hrun].
-    destruct (fo_eta_typed_to_untyped_prefix_pipeline econf m p v H0 Hs (m, p) pr v ev
+    pose proof (eval_typed_wellformed p v (proj2 pr) ev) as Hwf.
+    destruct (fo_eta_typed_to_untyped_prefix_pipeline econf m p v H0 Hwf (m, p) pr v ev
                 (conj eq_refl eq_refl)) as (w & evw & pf & ->).
     exists pf.
     eapply remap_then_suffix_fo in Hrun; [exact Hrun| |exact (Hr eq_refl pf)|unfold run, time; exact evw].
-    apply fo_unboxed_value_blk, fo_dearg_app, Hs.
+    apply fo_unboxed_value_blk, fo_dearg_app, typed_dearg_masks_sat; [exact H0|exact Hwf].
   - apply with_check_ok in Hrun as [pr ->].
-    destruct (fo_eta_typed_to_untyped_transform_pipeline econf m p v H0 Hs
+    pose proof (eval_typed_wellformed p v (proj2 pr) ev) as Hwf.
+    destruct (fo_eta_typed_to_untyped_transform_pipeline econf m p v H0 Hwf
                 spec_inst cse lbox lift_consts impl_box impl_lazy_force (m, p) pr v ev
                 (conj eq_refl eq_refl)) as (w & evw & pf & ->).
     exists pf. exact evw.
