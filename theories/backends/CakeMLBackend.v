@@ -107,7 +107,11 @@ Definition extract_cakeml (remaps : constant_remappings)
                           (p : EAst.program)
                           : result' (list string * string) :=
   let nms := extract_names (snd p) in
-  p <- map_error (fun e => "CakeML backend: " ++ e)
-         (CheckWf.with_check (cakeml_check p) (cakeml_check_sound p)
-            (run cakeml_pipeline p)) ;;
-  Ok (print_program nms p).
+  (* Axioms get placeholder bodies for the verified passes, see
+     [ExtractionCheck.fill_axioms]. *)
+  let p0 := (ExtractionCheck.fill_axioms p.1, p.2) in
+  m <- map_error (fun e => "CakeML backend: " ++ e)
+         (CheckWf.with_check (cakeml_check p0) (cakeml_check_sound p0)
+            (run cakeml_pipeline p0)) ;;
+  let '(dtypes, env, main) := m in
+  Ok (print_program nms (dtypes, ExtractionCheck.restore_axioms (ExtractionCheck.axiom_names p.1) env, main)).

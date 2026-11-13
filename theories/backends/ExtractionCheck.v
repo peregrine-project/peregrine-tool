@@ -7,7 +7,8 @@
   inductive types have few enough constructors and constructor arguments
   ([good_for_extraction]).  This file gives a decision procedure for these
   conditions, generic in the bounds; the backends instantiate it and prove it
-  sound for their [good_for_extraction]. *)
+  sound for their [good_for_extraction].  Axioms are handled separately, see
+  [fill_axioms] below. *)
 
 From Stdlib Require Import ZArith List ssreflect ssrbool.
 From MetaRocq.Utils Require Import utils ResultMonad.
@@ -92,3 +93,38 @@ Section Check.
     now apply check_wf_program_sound.
   Qed.
 End Check.
+
+(** ** Axioms
+
+  Axioms, including remapped constants (whose bodies [drop_remapped_bodies]
+  removes), are realized outside the program: by the target definition they
+  are remapped to, or by an external module ([$Axioms] for Malfunction).  The
+  verified passes do not allow axioms, so the backends check and run them on
+  the program in which every axiom has the closed placeholder body
+  [fun x => x] ([fill_axioms]).  Afterwards, they drop the compiled
+  placeholders again ([restore_axioms]), so that the serializers emit the
+  external realization exactly as for an axiom.  The compilation of a term
+  does not depend on the bodies of constants (a constant compiles to a
+  reference to its global name), so all other definitions are compiled as in
+  the original program.  Like remapping, the external realization of axioms
+  is trusted. *)
+
+Definition axiom_placeholder : term := tLambda BasicAst.nAnon (tRel 0).
+
+Definition is_axiom (d : kername * global_decl) : bool :=
+  match d.2 with
+  | ConstantDecl {| cst_body := None |} => true
+  | _ => false
+  end.
+
+Definition fill_axioms (Σ : global_declarations) : global_declarations :=
+  map (fun d => if is_axiom d
+                then (d.1, ConstantDecl {| cst_body := Some axiom_placeholder |})
+                else d) Σ.
+
+Definition axiom_names (Σ : global_declarations) : list string :=
+  map (fun d => string_of_kername d.1) (filter is_axiom Σ).
+
+Definition restore_axioms {A} (names : list string) (env : list (string * option A)) :
+  list (string * option A) :=
+  map (fun '(n, b) => if existsb (eqb n) names then (n, None) else (n, b)) env.

@@ -112,7 +112,11 @@ Definition extract_ocaml (remaps : constant_remappings)
                          : result' (list string * string) :=
   let nms := extract_names (snd p) in
   let remaps := mk_remaps remaps in
-  p <- map_error (fun e => "OCaml backend: " ++ e)
-         (CheckWf.with_check (malfunction_check p) (malfunction_check_sound p)
-            (run malfunction_pipeline p)) ;;
-  Ok (print_program remaps opts.(Config.program_type) nms p).
+  (* Axioms get placeholder bodies for the verified passes, see
+     [ExtractionCheck.fill_axioms]. *)
+  let p0 := (ExtractionCheck.fill_axioms p.1, p.2) in
+  m <- map_error (fun e => "OCaml backend: " ++ e)
+         (CheckWf.with_check (malfunction_check p0) (malfunction_check_sound p0)
+            (run malfunction_pipeline p0)) ;;
+  let m := (ExtractionCheck.restore_axioms (ExtractionCheck.axiom_names p.1) m.1, m.2) in
+  Ok (print_program remaps opts.(Config.program_type) nms m).
