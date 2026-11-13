@@ -37,8 +37,9 @@ let copts_t =
   in
   let lbox_opts_arg =
     let doc = "Enable all lambda-box simplifications of ELboxOpts.v: fixpoint \
-               eta-hoisting, case/function permutation, identity cases and \
-               let/function permutation, i.e. what Rocq's extraction does in \
+               eta-hoisting, case/function permutation, identity cases, \
+               inlining of atomic lets and applied lets, i.e. what Rocq's \
+               extraction does in \
                Mlutil. They run after inlining and beta reduction, for every \
                backend. Well-formedness preservation is proved \
                (ELboxOptsWf.v), and so is evaluation preservation, for \
@@ -60,7 +61,7 @@ let copts_t =
   let lbox_case_id_arg = lbox_pass_arg "lbox-case-id"
       "Identity cases: match e with C xs => C xs becomes e" in
   let lbox_let_fun_arg = lbox_pass_arg "lbox-let-fun"
-      "Let/function permutation and applied lets: let z := a in fun y => e becomes fun y => let z := a in e, (let z := a in f) b becomes let z := a in f b" in
+      "Atomic lets and applied lets: let z := a in e becomes e[a/z] for a variable, box, constant or constant constructor a, (let z := v in f) b becomes let z := v in f b, (fun y => e) b becomes e[b/y] and arguments are pushed into the branches of an applied match, for such atomic arguments b" in
   Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg $ inline_recursors_arg
         $ lbox_opts_arg $ lbox_fix_eta_arg $ lbox_case_fun_arg $ lbox_case_id_arg $ lbox_let_fun_arg)
 

@@ -123,12 +123,9 @@ Section Sim.
     closed a -> tred Σ' t u -> tred Σ' (csubst a j t) (csubst a j u).
   Proof.
     intros ca H.
-    destruct H as [z v w b e cv cw
-                  |ind pars cdecl d c args brs br e cd cargs Hc Hn Hl1 Hl2
+    destruct H as [ind pars cdecl d c args brs br e cd cargs Hc Hn Hl1 Hl2
                   |ip d mfix idx args narg fn brs e cd Hcu cfn
                   |ip d v brs e cd cv]; cbn.
-    - rewrite (csubst_closed a j v); [eapply closed_upwards; tea; lia|].
-      rewrite csubst_csubst //. now constructor.
     - rewrite (csubst_closed a j d); [eapply closed_upwards; tea; lia|].
       rewrite /iota_red csubst_substl //. { rewrite forallb_rev forallb_skipn //. }
       rewrite List.length_rev Hl2.
@@ -146,11 +143,9 @@ Section Sim.
   Lemma tred_eval t u r : tred Σ' t u -> eval Σ' u r -> ∥ eval Σ' t r ∥.
   Proof.
     intros H ev.
-    destruct H as [z v w b [e] cv cw
-                  |ind pars cdecl d c args brs br [e] cd cargs Hc Hn Hl1 Hl2
+    destruct H as [ind pars cdecl d c args brs br [e] cd cargs Hc Hn Hl1 Hl2
                   |ip d mfix idx args narg fn brs [e] cd Hcu cfn
                   |ip d v brs [e] cd cv]; sq.
-    - eapply eval_zeta; tea.
     - eapply eval_iota_block;
         [exact Hblock|exact e|exact Hc|exact Hn|exact Hl1|exact Hl2|exact ev].
     - eapply eval_cofix_case; tea.
@@ -688,28 +683,22 @@ Section Sim.
           sim_ev_with ev2 (csubst w 0 b1') w3 ee3 Hw3;
           [apply closed_csubst; auto | apply R_csubst; auto | ] end end.
         exists w3. split; [sq; eapply eval_zeta; tea|auto].
-      + (* let_fun *)
+      + (* let_inline *)
         split_cl cl c1 c2.
-        match goal with |- goal (mk_lambdas ?a (tLetIn _ (lift0 _ ?b) (exchange _ 1 0 ?c))) _ =>
-          rename a into xs1; rename b into v1; rename c into e1 end.
-        match goal with HRv : R _ _ v1, HRe : R _ ?e e1 |- _ =>
-          rename HRv into Hv1; rename HRe into He1; rename e into e0 end.
+        match goal with |- goal (subst1 ?a 0 ?c) _ => rename a into v1; rename c into e1 end.
+        match goal with HRv : R _ _ v1 |- _ => rename HRv into Hv1 end.
         have cv' := R_closed _ _ _ 0 Hv1 c1.
-        destruct (sim_layer _ _ ev1 (IHev1 c1) _ Hv1) as (w & [ee0] & Hw).
+        sim_ev ev1 w ee0 Hw; [auto|].
         have cw := eval_closed Σ' HclΣ' _ _ cv' ee0.
         have cb0' := eval_closed Σ HclΣ _ _ c1 ev1.
-        have HRl : R Σ' (mk_lambdas xs1 e0) (mk_lambdas xs1 e1) by (apply R_mk_lambdas; auto).
-        have cle' := R_closed _ _ _ 1 HRl c2.
-        destruct (sim_layer _ _ ev2 (IHev2 ltac:(apply closed_csubst; auto))
-                    (csubst w 0 (mk_lambdas xs1 e1))) as (w3 & [ee3] & Hw3);
-          [apply R_csubst; auto|].
-        have E : csubst w 0 (exchange #|xs1| 1 0 e1) = csubst w (#|xs1| + 0) e1.
-        { rewrite (csubst_exchange_near _ _ _ _ (#|xs1| + 0)) // exchange_0 //. }
-        eapply (exp_goal xs1 (csubst w (#|xs1| + 0) e1)).
-        * rewrite (lift_closed _ _ _ cv') -E. apply tred_zeta; [now sq|auto|auto].
-        * rewrite -csubst_mk_lambdas. apply closed_csubst; auto.
-        * exact cl0.
-        * rewrite -csubst_mk_lambdas. exists w3; split; [now sq|auto].
+        match type of ev1 with eval _ _ ?x =>
+          have Hv2 : R Σ' x v1 by (eapply R_eval; [exact Hw|sq; exact ee0|auto|auto]) end.
+        match type of ev2 with eval _ (csubst _ 0 ?b1) _ =>
+          match goal with HR : R _ b1 e1 |- _ =>
+          have ce1 := R_closed _ _ _ 1 HR c2;
+          sim_ev_with ev2 (csubst v1 0 e1) w3 ee3 Hw3;
+          [apply closed_csubst; auto | apply R_csubst; auto | ] end end.
+        exists w3. split; [|auto]. unfold subst1. rewrite -closed_subst //; now sq.
     - (* iota block *)
       tgt_closed Ht cl cl0. inversion Ht; subst.
       + (* congruence *)
