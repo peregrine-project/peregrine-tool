@@ -14,6 +14,7 @@ From Peregrine Require Import EInstanceSpecialize.
 From Peregrine Require Import ECommonSubexpr.
 From Peregrine Require Import ELboxOpts ELboxOptsWf.
 From Peregrine Require Import ELiftConstants.
+From Peregrine Require EBetaCorrect.
 From Malfunction Require Pipeline.
 
 Import PCUICProgram.
@@ -269,7 +270,10 @@ Qed.
     false axiom [ECoInductiveToInductive.trust_cofix]).  Unboxing, which
     MetaRocq runs only after that translation because it needs the absence of
     cofixpoints, runs whenever it is enabled: the flags here exclude
-    cofixpoints.  The [cofix_to_lazy] field of the configuration is ignored. *)
+    cofixpoints.  The [cofix_to_lazy] field of the configuration is ignored.
+    Beta-reduction is [EBeta.betared_program] with the proved
+    [EBetaCorrect.betared_transformation] in place of MetaRocq's
+    [EBeta.betared_transformation], whose obligations are axioms. *)
 Program Definition nocofix_unsafe_transforms econf :=
   let passes := econf.(enable_unsafe) in
   let efl := extra_env_flags in
@@ -283,8 +287,8 @@ Program Definition nocofix_unsafe_transforms econf :=
        ERemapInductives.forget_inductive_extraction_info_transformation efl final_wcbv_flags) ▷
   (* Heuristically do it twice for more beta-normal terms *)
   ETransform.optional_self_transform passes.(betared)
-    (betared_transformation efl final_wcbv_flags ▷
-     betared_transformation efl final_wcbv_flags).
+    (EBetaCorrect.betared_transformation efl (hasapp := eq_refl) ▷
+     EBetaCorrect.betared_transformation efl (hasapp := eq_refl)).
 Next Obligation.
   destruct (enable_unsafe econf) as [? [] [] []]; cbn in * => //; intuition auto.
 Qed.
