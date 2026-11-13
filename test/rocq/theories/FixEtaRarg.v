@@ -1,5 +1,5 @@
 (* A fixpoint eta-applied to its first parameter and to a proof, with the
-   structural argument after the proof.  --lbox-opts hoists the fixpoint and
+   structural argument after the proof.  -O1 hoists the fixpoint and
    drops the dead proof parameter, so the index of the structural argument
    must move down by one. *)
 

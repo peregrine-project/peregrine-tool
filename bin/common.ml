@@ -1,31 +1,36 @@
 type verbose = Normal | Quiet | Verbose
 
+(* The optional passes of the pipeline, as resolved from the command line
+   (see [passes_t] in main.ml). [None] leaves the pass to the configuration
+   file of `compile`, or else to the backend's default. *)
+type passes = {
+  inline_recursors      : bool;
+  beta_reduce           : bool option;
+  unbox                 : bool option;
+  dearg_constants       : bool option;
+  specialize_instances  : bool option;
+  share_common_subterms : bool option;
+  lift_constants        : bool option;
+  (* Unverified lambda-box simplifications (ELboxOpts.v) *)
+  unwrap_fixpoints      : bool;
+  hoist_case_lambdas    : bool;
+  drop_identity_matches : bool;
+  inline_atomic_lets    : bool;
+}
+
 type copts = {
   verbose: verbose;
   debug: bool;
   output_file: string option;
   attrs: string list;
-  inline_recursors: bool;
-  (* Unverified lambda-box simplifications (ELboxOpts.v): umbrella flag and
-     per-pass overrides (None = follow the umbrella). *)
-  lbox_opts: bool;
-  lbox_fix_eta: bool option;
-  lbox_case_fun: bool option;
-  lbox_case_id: bool option;
-  lbox_let_fun: bool option;
+  passes: passes;
 }
-let mk_copts verbose debug output_file attrs inline_recursors
-    lbox_opts lbox_fix_eta lbox_case_fun lbox_case_id lbox_let_fun = {
+let mk_copts verbose debug output_file attrs passes = {
   verbose;
   debug;
   output_file;
   attrs;
-  inline_recursors;
-  lbox_opts;
-  lbox_fix_eta;
-  lbox_case_fun;
-  lbox_case_id;
-  lbox_let_fun;
+  passes;
 }
 
 (* The frontends, see frontend.ml *)
@@ -48,41 +53,17 @@ let mk_frontend_opts from entry frontend_args keep_ast typed lean_config = {
   lean_config;
 }
 
-type erasure_opts = {
-  betared             : bool option;
-  unboxing            : bool option;
-  dearg_ctors         : bool option;
-  dearg_consts        : bool option;
-  specialize_instances : bool option;
-  cse                 : bool option;
-  lift_constants      : bool option;
-}
-
-let mk_erasure_opts betared unboxing dearg_ctors dearg_consts specialize_instances cse lift_constants = {
-  betared;
-  unboxing;
-  dearg_ctors;
-  dearg_consts;
-  specialize_instances;
-  cse;
-  lift_constants;
-}
-
 type certirocq_opts = {
   cps: bool;
   c_args: int option;
   o_level: int option;
-  anf_conf: int option;
-  prefix: string option;
   body_name: string option;
 }
 
-let mk_certirocq_opts cps c_args o_level anf_conf prefix body_name = {
+let mk_certirocq_opts cps c_args o_level body_name = {
   cps;
   c_args;
   o_level;
-  anf_conf;
-  prefix;
   body_name;
 }
 

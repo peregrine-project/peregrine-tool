@@ -24,6 +24,13 @@ const cli_tests: [string[], number, string][] = [
     [["c", "--lbox-opts", "x.ast"], 1, "Failed parsing input program"],
     [["c", "--lbox-opts", "--lbox-case-id", "false", "x.ast"], 1, "Failed parsing input program"],
     [["c", "--lift-constants", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "-O2", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "-O1", "--no-drop-identity-matches", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "--specialize-instances", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "--cse", "true", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "--certirocq-cps", "x.ast"], 1, "Failed parsing input program"],
+    // removed options
+    [["c", "--dearg-ctors", "false", "x.ast"], 124, "unknown option"],
 ];
 
 // Run the checks with the peregrine binary `exec`, in `dir`, and return the

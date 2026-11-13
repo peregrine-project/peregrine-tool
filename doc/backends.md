@@ -74,9 +74,9 @@ Output
 * Is compiled with the [Rust compiler](https://rust-lang.org/tools/install/)
 
 ### Numeric representations
-`peregrine rust --numbers=NUMBERS` selects the representation of `nat`, `positive`, `N` and `Z`. Each value is a backend configuration together with constant and inductive remappings ([theories/backends/](/theories/backends/)). The verbs `rust-gmp`, `rust-i64`, `rust-mixed`, `rust-mixed-narrow` and `rust-hybrid` are deprecated aliases of `rust --numbers=gmp` and so on. `peregrine compile` with a configuration file uses no remapping unless the file gives one.
+`peregrine rust --rust-numbers=NUMBERS` selects the representation of `nat`, `positive`, `N` and `Z`. Each value is a backend configuration together with constant and inductive remappings ([theories/backends/](/theories/backends/)). The verbs `rust-gmp`, `rust-i64`, `rust-mixed`, `rust-mixed-narrow` and `rust-hybrid` are deprecated aliases of `rust --rust-numbers=gmp` and so on. `peregrine compile` with a configuration file uses no remapping unless the file gives one.
 
-| `--numbers` | `nat`/`positive`/`N`/`Z` | Operations | Remaps | Extra crate |
+| `--rust-numbers` | `nat`/`positive`/`N`/`Z` | Operations | Remaps | Extra crate |
 |----------|--------------------------|------------|--------|-------------|
 | `peano` (default) | the inductive types, as extracted | the extracted functions | none | - |
 | `gmp` | `&'a rug::Integer` (GMP) | GMP arithmetic | [RustGMPRemaps.v](/theories/backends/RustGMPRemaps.v) | [rug](https://docs.rs/rug/) 1 |
