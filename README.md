@@ -63,7 +63,7 @@ Any other file is read as a $\lambda_\square$ program ([format.md](doc/format.md
 | `llvm` (experimental) | `.ll` | untyped | clang 15 or later and the CertiRocq runtime | partial, see [backends.md](doc/backends.md#llvm) |
 | `ocaml` | `.mlf` (Malfunction) | untyped | `malfunction` and the OCaml compiler | verified compiler (verified extraction); the glue assumes the axiom `trust_coq_kernel` |
 | `cakeml` | `.cml` | untyped | the CakeML compiler | verified compiler; the glue assumes the axiom `trust_coq_kernel` |
-| `rust` | `.rs` | typed (types of untyped input are inferred) | `rustc` or `cargo` and the `bumpalo` crate (`rug` for some `--numbers`) | typed erasure verified; printer unverified |
+| `rust` | `.rs` | typed (types of untyped input are inferred) | `rustc` or `cargo` and the `bumpalo` crate (`rug` for some `--rust-numbers`) | typed erasure verified; printer unverified |
 | `elm` | `.elm` | typed (types of untyped input are inferred) | the Elm compiler | typed erasure verified; printer unverified |
 | `lean` | `.lean` | untyped | Lake and the runtime in [lean/](lean/) | unverified |
 | `fsharp` (experimental) | `.fs` | untyped | the .NET SDK | unverified |

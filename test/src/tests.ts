@@ -3,14 +3,15 @@ import { Lang, ProgramType, SimpleType, TestCase, TestConfiguration } from "./ty
 /* (backend, peregrine flags) pair configurations */
 export var test_configurations: TestConfiguration[] = [
     [Lang.OCaml, "", ""],
-    [Lang.C, "cps", "--cps"],
+    [Lang.C, "cps", "--certirocq-cps"],
     [Lang.C, "", ""],
+    // the deprecated alias of --certirocq-cps
     [Lang.Wasm, "cps", "--cps"],
     [Lang.Wasm, "", ""],
     [Lang.LLVM, "", ""],
-    // -O 0 turns off lambda lifting; the default is -O 1
-    [Lang.C, "O0", "-O 0"],
-    [Lang.LLVM, "O0", "-O 0"],
+    // --certirocq-O 0 turns off lambda lifting; the default is 1
+    [Lang.C, "O0", "--certirocq-O 0"],
+    [Lang.LLVM, "O0", "--certirocq-O=0"],
     [Lang.Rust, "", ""],
     [Lang.Elm, "", ""],
     // The typed backends on the untyped sources, whose types are inferred.
@@ -18,12 +19,13 @@ export var test_configurations: TestConfiguration[] = [
     // `rejected` must fail with "Could not infer types".
     [Lang.Rust, "untyped", "", true],
     [Lang.Elm, "untyped", "", true],
-    // The Rust verbs other than `peregrine compile`. The dearg flags match
-    // src/rust/config.sexp, so the rust verb expects the outputs of the Rust tests.
-    [Lang.Rust, "verb", "--dearg-ctors false --dearg-consts false", false, "rust"],
-    [Lang.Rust, "i64", "--dearg-ctors false --dearg-consts false", false, "rust-i64"],
+    // The Rust verbs other than `peregrine compile`. The dearg flag matches
+    // src/rust/config.sexp, so the rust verb expects the outputs of the Rust tests
+    // (rust-i64 uses the deprecated alias --dearg-consts BOOL).
+    [Lang.Rust, "verb", "--no-dearg-constants", false, "rust"],
+    [Lang.Rust, "i64", "--dearg-consts false", false, "rust-i64"],
     // i64 or GMP per value: prints as rust-i64 does
-    [Lang.Rust, "hybrid", "--dearg-ctors false --dearg-consts false", false, "rust-hybrid"],
+    [Lang.Rust, "hybrid", "--no-dearg-constants", false, "rust-hybrid"],
     [Lang.CakeML, "", ""],
     [Lang.Lean, "", ""],
     // The F# backend is experimental
@@ -34,13 +36,14 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Koka, "typed", "", false, "koka-typed"],
     [Lang.Koka, "typed-untyped", "", true, "koka-typed"],
     // The two optional middle-end passes, which only the untyped pipeline runs
-    [Lang.OCaml, "passes", "--specialize-instances true --cse true"],
+    [Lang.OCaml, "passes", "--specialize-instances --share-common-subterms"],
     // The unverified lambda-box simplifications, which the typed pipeline runs
     // too; Rust-lbox shares the expected failures of Rust
-    [Lang.Rust, "lbox", "--lbox-opts"],
+    [Lang.Rust, "lbox", "-O1"],
     // Everything the PR adds, as Rocq's extraction does: recursor inlining,
-    // beta reduction, the simplifications and constant lifting
-    [Lang.OCaml, "lbox", "--inline-recursors --betared true --lbox-opts --lift-constants"],
+    // beta reduction, the simplifications and constant lifting (-O2; C spells
+    // it out with the deprecated aliases)
+    [Lang.OCaml, "lbox", "-O2"],
     [Lang.C, "lbox", "--inline-recursors --betared true --lbox-opts --lift-constants"]
 ];
 
@@ -494,7 +497,7 @@ var rocq_tests: TestCase[] =
             parameters: []
         },
         {
-            // --lbox-case-id must not identify a box with a field
+            // --drop-identity-matches must not identify a box with a field
             src: "rocq/extraction/CaseId.ast",
             tsrc: "rocq/extraction/CaseId_typed.ast",
             rust_i64_output: "1",
@@ -507,7 +510,7 @@ var rocq_tests: TestCase[] =
             parameters: []
         },
         {
-            // --lbox-opts drops a dead parameter before the structural one
+            // -O1 drops a dead parameter before the structural one
             src: "rocq/extraction/FixEtaRarg.ast",
             tsrc: "rocq/extraction/FixEtaRarg_typed.ast",
             rust_i64_output: "7",

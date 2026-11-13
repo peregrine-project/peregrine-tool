@@ -35,13 +35,13 @@ peregrine help [TOPIC]
 | `llvm` (experimental) | `INPUT.ll` | untyped | [CertiRocq](#certirocq-options-c-wasm-llvm-eval-ast) |
 | `ocaml` | `INPUT.mlf` | untyped | |
 | `cakeml` | `INPUT.cml` | untyped | |
-| `rust` | `INPUT.rs` | typed | [`--numbers`](#rust) |
+| `rust` | `INPUT.rs` | typed | [`--rust-numbers`](#rust) |
 | `elm` | `INPUT.elm` | typed | |
 | `lean` | `INPUT.lean` | untyped | |
 | `fsharp` (experimental) | `INPUT.fs` | untyped | |
 | `koka` (experimental) | `INPUT.kk` | untyped | |
 | `koka-typed` (experimental) | `INPUT.kk` | typed | |
-| `eval` | the value, on standard output | untyped | [CertiRocq](#certirocq-options-c-wasm-llvm-eval-ast), [`--fuel`](#eval) |
+| `eval` | the value, on standard output | untyped | [CertiRocq](#certirocq-options-c-wasm-llvm-eval-ast), [`--eval-fuel`](#eval) |
 
 `INPUT.ext` stands for `INPUT` with its extension replaced (`Prog.v` gives `Prog.c`). `-o` sets the output file. For `c`, the header gets the name of the `-o` file with `.h` in place of its extension. The `.c` file includes the header by its base name, so keep the two in one directory.
 
@@ -61,7 +61,7 @@ Runs the frontend and writes the $\lambda_\square$ program to `OUTPUT` (default 
 ```
 peregrine compile INPUT CONFIG_FILE [-o OUTPUT] [--attributes FILES]
 ```
-Compiles with the pipeline configuration in `CONFIG_FILE`, which selects the backend and all its options ([format.md](format.md#configuration)). The middle-end pass flags do not apply: the configuration sets the passes. With a source `INPUT`, the frontend gives typed $\lambda_\square^T$ when the configuration selects Rust, Elm or `AST LambdaBoxTyped`.
+Compiles with the pipeline configuration in `CONFIG_FILE`, which selects the backend and all its options ([format.md](format.md#configuration)). The [pass options](#middle-end-passes) override the `erasure_phases` of the configuration. With a source `INPUT`, the frontend gives typed $\lambda_\square^T$ when the configuration selects Rust, Elm or `AST LambdaBoxTyped`.
 
 ### `ast`
 ```
@@ -177,23 +177,39 @@ These options apply to every command.
 
 ## Middle-end passes
 
-The backend commands (not `compile`, `validate` or `erase`) take these flags, which switch optional passes of the middle-end. Each takes `true` or `false` (`--cse true` or `--cse=true`), except `--lift-constants`, a plain switch that takes no value. Without the flag, the backend's default applies. The defaults are in the tables of [middleend.md](middleend.md#transformation-support-untyped-target-ast). A backend that requires a pass, or cannot run it, ignores the flag.
+These options switch the optional passes of the middle-end. Every command takes them; `erase` and `validate` ignore them. Each pass has a flag `--PASS` that enables it and `--no-PASS` that disables it.
 
-| Flag | Pass |
-|------|------|
-| `--betared` | beta reduction |
-| `--unboxing` | remove singleton types (inductives with one constructor of one argument) |
-| `--dearg-ctors` | no effect (see below) |
-| `--dearg-consts` | trim the masks of dead constant arguments |
-| `--specialize-instances` | specialize functions at the call sites that pass a statically known dictionary (record) value |
-| `--cse` | bind closed subterms that occur more than once with a `let` |
-| `--lift-constants` | lift closed constructor values (for example unary `nat` literals `S (S (… O))`) out of function bodies into shared global constants |
+| Flag | Pass | Preset |
+|------|------|--------|
+| `--inline-recursors` | inline the program's recursors (see below) | `-O2` |
+| `--beta-reduce` | beta reduction | `-O2` |
+| `--unbox` | remove singleton types (inductives with one constructor of one argument) | |
+| `--dearg-constants` | trim the masks of dead constant arguments | |
+| `--specialize-instances` | specialize functions at the call sites that pass a statically known dictionary (record) value | |
+| `--share-common-subterms`, `--cse` | bind closed subterms that occur more than once with a `let` | |
+| `--lift-constants` | lift closed constructor values (for example unary `nat` literals `S (S (… O))`) out of function bodies into shared global constants | `-O2` |
+| `--unwrap-fixpoints` | fixpoint eta-hoisting: `fun xs => (fix F ..) xs` becomes the fixpoint, where an argument may be $\square$ for a dead parameter | `-O1` |
+| `--hoist-case-lambdas` | case/function permutation: `match x with C => fun y => e` becomes `fun y => match x with C => e` for a variable `x` | `-O1` |
+| `--drop-identity-matches` | identity cases: `match e with C xs => C xs` becomes `e` | `-O1` |
+| `--inline-atomic-lets` | `let z := a in e` becomes `e[a/z]` when `a` is a variable, box, constant or constant constructor; `(let z := v in f) b` becomes `let z := v in f b`, `(fun y => e) b` becomes `e[b/y]` and arguments are pushed into the branches of an applied `match`, for such atomic `b` | `-O1` |
 
-* Dearging removes dead constructor and constant arguments whenever MetaRocq's precondition holds; the two flags do not switch it. `--dearg-consts` drops the kept arguments at the end of a constant's mask. `--dearg-ctors` used to do the same for constructors, but MetaRocq rejects a trimmed constructor mask, and dearging was then skipped for the whole program, so constructor masks are never trimmed.
-* `--specialize-instances`, `--cse` and `--lift-constants` are off by default and act only on the untyped targets. The typed pipeline of `rust` and `elm` does not run them. `--lift-constants` helps the backends that rebuild a constant value at every evaluation (C, Wasm, CakeML, Lean). Their correctness rests on axioms ([middleend.md](middleend.md#optional-passes)).
-* `--inline-recursors` (off by default; a plain switch, it takes no value) adds the program's recursors to the inlinings: every constant `I_rect` or `I_rec` whose inductive `I` is declared in the same module, exactly as if an attribute file listed it. Rocq's own extraction always does this; with `--betared=true` the inlined recursors become direct pattern matching and recursion ([RecursorInlining.v](/theories/RecursorInlining.v)). The inlining pass is MetaRocq's verified `EInlining`. The typed pipeline of `rust` and `elm` does not inline. Unlike the flags in the table, it is a common option: `compile` takes it too, `erase` and `validate` ignore it.
-* `--lbox-opts` (off by default) enables four $\lambda_\square$ simplifications that Rocq's extraction performs (`Mlutil`), for every backend: identity cases (`--lbox-case-id`: `match e with C xs => C xs` becomes `e`), fixpoint eta-hoisting (`--lbox-fix-eta`: `fun xs => (fix F ..) xs` becomes the fixpoint, where an argument may be $\square$ for a dead parameter), case/function permutation (`--lbox-case-fun`: `match x with C => fun y => e` becomes `fun y => match x with C => e` for a variable `x`) and inlining of atomic lets with applied lets (`--lbox-let-fun`: `let z := a in e` becomes `e[a/z]` when `a` is a variable, box, constant or constant constructor; `(let z := v in f) b` becomes `let z := v in f b`, `(fun y => e) b` becomes `e[b/y]` and arguments are pushed into the branches of an applied `match`, for such atomic `b`). Each per-pass flag takes a value (`--lbox-case-id false`, like `--cse true`) and overrides `--lbox-opts` for its pass. They run after inlining and beta reduction, so they are most useful with `--inline-recursors --betared=true`. Their correctness is proved, without axioms ([middleend.md](middleend.md#optional-passes)). Like `--inline-recursors`, they are common options taken by `compile` too.
-* Peregrine rejects programs with cofixpoints (coinductive types), whatever the backend. `c`, `wasm`, `llvm`, `ocaml`, `cakeml` and `eval` also reject a program that still has `lazy` or `force` after the middle-end, unless a configuration file enables `implement_lazy` ([format.md](format.md#general-configuration)); `lean`, `fsharp` and `koka` always run that pass.
+`-O LEVEL` (`-O0`, `-O1`, `-O2`) selects a preset: `-O0`, the default, enables no optional pass; `-O1` enables the four $\lambda_\square$ simplifications (the last four rows); `-O2` enables these and `--inline-recursors --beta-reduce --lift-constants`. The last `-O` wins. A preset only enables passes; `--no-PASS` disables a pass of the preset, e.g. `-O2 --no-unwrap-fixpoints`.
+
+A pass is set by, in this order of precedence:
+
+1. its last `--PASS` or `--no-PASS` flag;
+2. its last [deprecated](#deprecated-commands-and-options) `BOOL` option (e.g. `--betared=true`);
+3. the preset;
+4. for `compile`, the `erasure_phases` of the configuration file;
+5. the backend's default; the defaults are in the tables of [middleend.md](middleend.md#transformation-support-untyped-target-ast).
+
+A backend that requires a pass, or cannot run it, ignores the setting. Implement $\square$ and implement lazy are not options: each backend decides them ([middleend.md](middleend.md#optional-passes)).
+
+* Dearging removes dead constructor and constant arguments whenever MetaRocq's precondition holds; `--dearg-constants` does not switch it, it drops the kept arguments at the end of a constant's mask. Constructor masks are never trimmed: MetaRocq rejects a trimmed constructor mask, and dearging was then skipped for the whole program. The former `--dearg-ctors`, which had no effect, is removed.
+* `--specialize-instances`, `--share-common-subterms` and `--lift-constants` are off by default and act only on the untyped targets. The typed pipeline of `rust` and `elm` does not run them. `--lift-constants` helps the backends that rebuild a constant value at every evaluation (C, Wasm, CakeML, Lean). Their correctness rests on axioms ([middleend.md](middleend.md#optional-passes)).
+* `--inline-recursors` adds the program's recursors to the inlinings: every constant `I_rect` or `I_rec` whose inductive `I` is declared in the same module, exactly as if an attribute file listed it. Rocq's own extraction always does this; with `--beta-reduce` the inlined recursors become direct pattern matching and recursion ([RecursorInlining.v](/theories/RecursorInlining.v)). The inlining pass is MetaRocq's verified `EInlining`. The typed pipeline of `rust` and `elm` does not inline.
+* The four $\lambda_\square$ simplifications are those that Rocq's extraction performs (`Mlutil`), for every backend. They run after inlining and beta reduction, so they are most useful with `--inline-recursors --beta-reduce`, i.e. `-O2`. Their correctness is proved, without axioms ([middleend.md](middleend.md#optional-passes)).
+* Peregrine rejects programs with cofixpoints (coinductive types), whatever the backend. `c`, `wasm`, `llvm`, `ocaml`, `cakeml` and `eval` also reject a program that still has `lazy` or `force` after the middle-end; `lean`, `fsharp` and `koka` always run implement lazy, which removes them.
 
 
 ## Backend options
@@ -202,16 +218,14 @@ The backend commands (not `compile`, `validate` or `erase`) take these flags, wh
 
 These set the `certirocq_config` record ([format.md](format.md#c--wasm--llvm-certirocq_config)) that CertiRocq reads.
 
-* `--cps`: use CertiRocq's CPS pipeline instead of the direct one.
-* `--c-args=N`: the number of arguments that the generated functions take as C arguments; the rest are passed in an array (default 5).
-* `-O N`: CertiRocq's optimization level. 1, the default, enables lambda lifting; 0 disables it, so that every local function keeps a heap-allocated closure environment.
-* `--body-name=NAME`: the name of the top-level function (default `body`). The LLVM backend ignores it and always names its entry point `certirocq_main`.
-
-`--prefix` and `--anf-conf` are accepted but [deprecated](#deprecated-commands-and-options): nothing reads them.
+* `--certirocq-cps`: use CertiRocq's CPS pipeline instead of the direct one.
+* `--certirocq-c-args=N`: the number of arguments that the generated functions take as C arguments; the rest are passed in an array (default 5).
+* `--certirocq-O=N`: CertiRocq's optimization level. 1, the default, enables lambda lifting; 0 disables it, so that every local function keeps a heap-allocated closure environment. This was `-O N`, which now selects the [pass preset](#middle-end-passes).
+* `--certirocq-body-name=NAME`: the name of the top-level function (default `body`). The LLVM backend ignores it and always names its entry point `certirocq_main`.
 
 ### Rust
 
-`--numbers=NUMBERS` selects the representation of `nat`, `positive`, `N` and `Z`:
+`--rust-numbers=NUMBERS` selects the representation of `nat`, `positive`, `N` and `Z`:
 
 | `NUMBERS` | Representation | Extra crate |
 |-----------|----------------|-------------|
@@ -226,7 +240,7 @@ Every representation other than `peano` also maps `bool` to the Rust `bool` and 
 
 ### Eval
 
-`--fuel=N`: the fuel of the evaluator (default 10000). `eval` compiles the program to CertiRocq's $\lambda_{ANF}$ and runs it in the $\lambda_{ANF}$ interpreter, so it takes the CertiRocq options. It prints the value on standard output and needs no other toolchain. It is the cheapest way to check a program end to end.
+`--eval-fuel=N`: the fuel of the evaluator (default 10000). `eval` compiles the program to CertiRocq's $\lambda_{ANF}$ and runs it in the $\lambda_{ANF}$ interpreter, so it takes the CertiRocq options. It prints the value on standard output and needs no other toolchain. It is the cheapest way to check a program end to end.
 
 ### Other backends
 
@@ -259,17 +273,38 @@ Attribute files ([format.md](format.md#attribute-files)) add inlinings, constant
 
 ## Deprecated commands and options
 
-They keep working, print a warning on standard error, and are not listed by `--help`.
+They keep working and print a warning on standard error. The deprecated commands are not listed by `--help`; the deprecated options are, marked as deprecated.
 
 | Deprecated | Use instead |
 |------------|-------------|
-| `rust-gmp` | `rust --numbers=gmp` |
-| `rust-i64` | `rust --numbers=i64` |
-| `rust-mixed` | `rust --numbers=mixed` |
-| `rust-mixed-narrow` | `rust --numbers=mixed-narrow` |
-| `rust-hybrid` | `rust --numbers=hybrid` |
-| `--prefix` | nothing; ignored, CertiRocq no longer generates an FFI |
-| `--anf-conf` | nothing; ignored, the pipeline does not read it |
+| `rust-gmp` | `rust --rust-numbers=gmp` |
+| `rust-i64` | `rust --rust-numbers=i64` |
+| `rust-mixed` | `rust --rust-numbers=mixed` |
+| `rust-mixed-narrow` | `rust --rust-numbers=mixed-narrow` |
+| `rust-hybrid` | `rust --rust-numbers=hybrid` |
+| `--betared=BOOL` | `--beta-reduce`, `--no-beta-reduce` |
+| `--unboxing=BOOL` | `--unbox`, `--no-unbox` |
+| `--dearg-consts=BOOL` | `--dearg-constants`, `--no-dearg-constants` |
+| `--specialize-instances=BOOL` | `--specialize-instances`, `--no-specialize-instances` |
+| `--cse=BOOL` | `--share-common-subterms` (or `--cse`), `--no-share-common-subterms` |
+| `--lbox-opts` | `-O1` |
+| `--lbox-fix-eta=BOOL` | `--unwrap-fixpoints`, `--no-unwrap-fixpoints` |
+| `--lbox-case-fun=BOOL` | `--hoist-case-lambdas`, `--no-hoist-case-lambdas` |
+| `--lbox-case-id=BOOL` | `--drop-identity-matches`, `--no-drop-identity-matches` |
+| `--lbox-let-fun=BOOL` | `--inline-atomic-lets`, `--no-inline-atomic-lets` |
+| `--cps` | `--certirocq-cps` |
+| `--c-args=N` | `--certirocq-c-args=N` |
+| `--body-name=NAME` | `--certirocq-body-name=NAME` |
+| `--numbers=NUMBERS` | `--rust-numbers=NUMBERS` |
+| `--fuel=N` | `--eval-fuel=N` |
+
+The `BOOL` options also accept the value as the next argument (`--cse true`). `--specialize-instances BOOL` and `--cse BOOL` are rewritten to the flag before the command line is parsed, so among them and the flags the last one wins; for the others the flag wins over the deprecated option (see the [precedence](#middle-end-passes)).
+
+### Removed and changed options
+
+* `-O N` was CertiRocq's optimization level on `c`, `wasm`, `llvm`, `eval` and `ast`; it is now the [pass preset](#middle-end-passes) on every command. Write `--certirocq-O=N` instead: `-O 0` no longer disables lambda lifting, and `-O 1` (the default level before) now enables the $\lambda_\square$ simplifications.
+* `--prefix` and `--anf-conf` (deprecated before, nothing read them) and `--dearg-ctors` (it had no effect) are removed; the command line is rejected if it has them.
+* `implement_box` and `implement_lazy` are no longer user settings: the configuration file still has the fields but they are ignored ([format.md](format.md#general-configuration)).
 
 
 ## Examples
@@ -283,7 +318,7 @@ peregrine c src/Main.v --entry main \
   --frontend-arg=-Q --frontend-arg=theories --frontend-arg=MyLib -o build/main.c
 
 # The same program to Rust, with i64 numbers (typed lambda box from Rocq)
-peregrine rust src/Main.v --entry main --numbers=i64 -o main.rs
+peregrine rust src/Main.v --entry main --rust-numbers=i64 -o main.rs
 
 # Agda, literate, with an include path; keep the lambda box program
 peregrine ocaml Main.lagda.md --frontend-arg=-i --frontend-arg=lib --keep-ast main.ast
@@ -295,7 +330,10 @@ peregrine eval Main.lean --entry main --lean-config '{nat := .peano}'
 peregrine erase main.coq --from rocq --entry main -o main.ast
 
 # A lambda box program, with an attribute file and optional passes
-peregrine ocaml main.ast --attributes=bool_reorder.attr --cse true --specialize-instances true
+peregrine ocaml main.ast --attributes=bool_reorder.attr --share-common-subterms --specialize-instances
+
+# The benchmarks' full route: the -O2 preset, without fixpoint eta-hoisting
+peregrine c main.ast -O2 --no-unwrap-fixpoints -o main.c
 
 # A full pipeline configuration
 peregrine compile main.ast config.sexp -o main.c

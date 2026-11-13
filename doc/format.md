@@ -206,8 +206,9 @@ Field by field:
     <cse>
     <lift_constants>)
   ```
-  All booleans. `specialize_instances`, `cse` and `lift_constants` select the three optional passes described in [middleend.md](middleend.md); every backend leaves them off by default.
-  Only the nine-field form parses. To migrate a configuration written for the earlier ten-field form, delete its third field (`cofix_to_laxy`; peregrine no longer supports cofixpoints). From the seven-field form, delete the third field and append `None None None` (`false false false` where the fields are not optional); from the nine-field form that predates `lift_constants` (with `cofix_to_laxy`), delete the third field and append one `None` (or `false`). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
+  All booleans. The format is positional: the fields have no keys. Each field but the first two and `dearg_ctors` is the setting of a [pass option](usage.md#middle-end-passes), which overrides it on the command line of `compile`: `betared` is `--beta-reduce`, `unboxing` `--unbox`, `dearg_consts` `--dearg-constants`, `specialize_instances` `--specialize-instances`, `cse` `--share-common-subterms` and `lift_constants` `--lift-constants`. `specialize_instances`, `cse` and `lift_constants` select the three optional passes described in [middleend.md](middleend.md); every backend leaves them off by default.
+  `implement_box`, `implement_lazy` and `dearg_ctors` are ignored, and kept so that existing files parse: the backend decides implement $\square$ and implement lazy (its `Required` or `Compatible` default, see below), and constructor masks are never trimmed. The $\lambda_\square$ simplifications (`-O1`) and `--inline-recursors` have no field: only the command line sets them.
+  Only the nine-field form parses. To migrate a configuration written for the earlier ten-field form, delete its third field (`cofix_to_laxy`; peregrine no longer supports cofixpoints). From the seven-field form, delete the third field and append `None None None` (`false false false` where the fields are not optional); from the nine-field form that predates `lift_constants` (with `cofix_to_laxy`), delete the third field and append one `None` (or `false`). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default; for `implement_box` and `implement_lazy` the declared default is used whatever the file says. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
 
 * `inlinings_opts` (`inlinings`) — a list of `kername`s; constants in this list are inlined by MetaRocq's inlining pass (`EInlining`; untyped pipeline only). The CLI flag `--inline-recursors` extends this list automatically with the program's recursors `I_rect`/`I_rec` (see [usage.md](usage.md#middle-end-passes) and [RecursorInlining.v](/theories/RecursorInlining.v)); the result is identical to listing them in an attribute file.
 
@@ -319,11 +320,12 @@ The generated module starts with `module <elm_module_name> exposing (..)` follow
 (certirocq_config
   <direct>     ; true   — use the direct (ANF) pipeline
   <c_args>     ; 5      — number of C arguments (for CertiRocq)
-  <o_level>    ; 1      — optimisation level (1: lambda lifting)
+  <o_level>    ; 1      — optimisation level (1: lambda lifting; --certirocq-O)
   <anf_conf>   ; 0      — not read by the pipeline
   <prefix>     ; ""     — not read (CertiRocq no longer generates an FFI)
   <body_name>) ; "body" — name of the top-level function
 ```
+On the command line, `--certirocq-cps` sets `direct` to false, and `--certirocq-c-args`, `--certirocq-O` and `--certirocq-body-name` set `c_args`, `o_level` and `body_name` ([usage.md](usage.md#certirocq-options-c-wasm-llvm-eval-ast)); `anf_conf` and `prefix` have no option.
 The C, Wasm and LLVM backends use this record verbatim; the LLVM backend ignores `body_name` and always names its entry point `certirocq_main`. The C backend additionally prepends the GC header `gc_stack.h` to the list of `#include`s, for both values of `direct`.
 
 #### OCaml (`ocaml_config`)
@@ -370,7 +372,7 @@ and is forwarded to the Malfunction printer. Default: `Standalone`.
 #### Eval (`eval_config`)
 ```
 (eval_config
-  <copts>     ; certirocq_config, defaulting to the C/Wasm defaults (-O 1)
+  <copts>     ; certirocq_config, defaulting to the C/Wasm defaults (--certirocq-O=1)
   <fuel>)     ; 2^14
 ```
 The `eval` command runs the program in-process using CertiRocq's evaluator (after the relevant prefix of the C pipeline) and prints its result to stdout. `fuel` bounds the number of reduction steps before giving up.
