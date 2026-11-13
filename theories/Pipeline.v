@@ -107,14 +107,10 @@ Definition drop_remapped_bodies (c : config) (env : ExAst.global_env) : ExAst.gl
     | _ => (kn, deps, d)
     end) env.
 
-(** The typed pipeline has no room for the (unverified) lambda-box
-    simplifications of ELboxOpts.v in its transformation chain; they are applied
-    to its output here, on the typed environment, when enabled. *)
-Definition lbox_typed (lbox : lbox_opts) (env : typed_env) (t : option EAst.term) : PAst :=
-  if any_lbox_opts lbox
-  then Typed (staged lbox optimize_typed_env env) (option_map (staged lbox optimize) t)
-  else Typed env t.
-
+(** The lambda-box simplifications of ELboxOpts.v selected by [lbox] are part
+    of the transformation chain of the typed pipeline
+    ([Transforms.typed_lbox_transform_pipeline]), as they are for the untyped
+    one. *)
 Definition apply_transforms (c : config) (lbox : lbox_opts) (p : PAst) (typed : bool) : result' PAst :=
   let drop := drop_remapped_bodies c in
   (* Untyped input: MetaRocq's dearging analysis as is. A typed environment: the
@@ -139,12 +135,12 @@ Definition apply_transforms (c : config) (lbox : lbox_opts) (p : PAst) (typed : 
          error.  [EHindleyMilner.infer_section] gives [trans_env env0 = env];
          nothing is proved about the inferred types. *)
       env0 <- infer_for_backend env;;
-      let '(_, (env', t')) := run_typed_transforms (iconf env0) cstr_reorder (drop env0, t) in
-      Ok (lbox_typed lbox env' (Some t'))
+      let '(_, (env', t')) := run_typed_transforms (iconf env0) cstr_reorder lbox (drop env0, t) in
+      Ok (Typed env' (Some t'))
   | Untyped env None, true =>
       env0 <- infer_for_backend env;;
-      let '(_, (env', _)) := run_typed_transforms (iconf env0) cstr_reorder (drop env0, EAst.tBox) in
-      Ok (lbox_typed lbox env' None)
+      let '(_, (env', _)) := run_typed_transforms (iconf env0) cstr_reorder lbox (drop env0, EAst.tBox) in
+      Ok (Typed env' None)
   | Untyped env (Some t), false =>
       let (env', t') := run_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, t) in
       Ok (Untyped env' (Some t'))
@@ -152,14 +148,14 @@ Definition apply_transforms (c : config) (lbox : lbox_opts) (p : PAst) (typed : 
       let (env', _) := run_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, EAst.tBox) in
       Ok (Untyped env' None)
   | Typed env (Some t), true =>
-      let '(_, (env', t')) := run_typed_transforms (tconf env) cstr_reorder (drop env, t) in
-      Ok (lbox_typed lbox env' (Some t'))
+      let '(_, (env', t')) := run_typed_transforms (tconf env) cstr_reorder lbox (drop env, t) in
+      Ok (Typed env' (Some t'))
   | Typed env (Some t), false =>
       let (env', t') := run_typed_to_untyped_transforms (tconf env) cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env, t) in
       (Ok (Untyped env' (Some t')))
   | Typed env None, true =>
-      let '(_, (env', _)) := run_typed_transforms (tconf env) cstr_reorder (drop env, EAst.tBox) in
-      Ok (lbox_typed lbox env' None)
+      let '(_, (env', _)) := run_typed_transforms (tconf env) cstr_reorder lbox (drop env, EAst.tBox) in
+      Ok (Typed env' None)
   | Typed env None, false =>
       let (env', _) := run_typed_to_untyped_transforms (tconf env) cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env, EAst.tBox) in
       (Ok (Untyped env' None))
