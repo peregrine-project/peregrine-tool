@@ -1,0 +1,517 @@
+(** * First-order results from the input file to the lambda-box program
+
+    [peregrine_middle_end] is the part of [peregrine_pipeline_ast] up to the hand-off
+    to the backend: it returns the (sanitized) configuration and the lambda-box
+    program that [check_lowered] and [run_backend] get.  [peregrine_pipeline]
+    factors through it ([peregrine_pipeline_middle_end]).
+
+    The corollaries at the end compose the parser ([PipelineParse]), the name
+    sanitization ([NameSanitizeCorrect]) and the first-order results of the
+    transformation pipelines ([EFirstOrderCorrect], [EFirstOrderTyped]): if the
+    input file is the serialization of a program that evaluates to a saturated
+    first-order value, the lambda-box program handed to the backend evaluates to
+    the translated value.  Covered: untyped input with an untyped backend, typed
+    input with an untyped or a typed backend.  Not covered: untyped input with a
+    typed backend (the type inference [infer_for_backend] has no correctness
+    result). *)
+
+From Stdlib Require Import List ssreflect ssrbool.
+From MetaRocq.Utils Require Import utils ResultMonad bytestring.
+From Peregrine Require Import PAst Config ConfigUtils ELboxOpts CheckWf RecursorInlining AutoInlining
+  Pipeline PipelineParse.
+From Peregrine Require NameSanitize.
+From Peregrine Require Import Utils.
+From Peregrine Require Import Serialize SerializeRoundtrip SerializeConfig SerializePAst.
+From MetaRocq.Common Require Import Kernames BasicAst.
+From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils EInduction ELiftSubst EGlobalEnv EWellformed EProgram EWcbvEval.
+From MetaRocq.Erasure.Typed Require ExAst.
+From MetaRocq.ErasurePlugin Require Import ETransform Erasure.
+From Peregrine Require Import EExtraFlags ERenameGlobals Transforms EFirstOrder EFirstOrderEta
+  EFirstOrderCorrect EFirstOrderTyped NameSanitizeCorrect.
+
+Import MonadNotation.
+Local Open Scope bs_scope.
+Set Default Goal Selector "!".
+
+(** ** The middle-end *)
+
+Definition peregrine_middle_end (c : string + config') (attrs : list string) (inline_recursors : bool)
+  (inl : inline_opts) (lbox : lbox_opts) (p : PAst) : result' (config * PAst) :=
+  c <- get_config c attrs;;
+  let remapped kn := List.existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) in
+  let c := if inline_recursors then merge_attributes_config c [recursor_attributes remapped p] else c in
+  let c := if inl.(inline_standard) || inl.(inline_small)
+           then merge_attributes_config c [auto_inline_attributes inl remapped p] else c in
+  check_wf p;;
+  NameSanitize.check_sanitized_injective (NameSanitize.get_sanitizer c)
+    (List.app (NameSanitize.PAst_names p) (NameSanitize.config_names c));;
+  p <- NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c) p;;
+  c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;;
+  p <- apply_transforms c lbox p (needs_typed c);;
+  Ok (c, p).
+
+(** The backend part of the pipeline. *)
+Definition peregrine_backend (c : config) (p : PAst) (f : string) : extraction_result :=
+  check_lowered c p;;
+  run_backend c f p.
+
+Definition peregrine_middle_end_string (c : string + config') (attrs : list string) (inline_recursors : bool)
+  (inl : inline_opts) (lbox : lbox_opts) (s : string) : result' (config * PAst) :=
+  p <- parse_ast s;;
+  peregrine_middle_end c attrs inline_recursors inl lbox p.
+
+Lemma peregrine_pipeline_ast_middle_end c attrs ir io lbox p f :
+  peregrine_pipeline_ast c attrs ir io lbox p f =
+  (r <- peregrine_middle_end c attrs ir io lbox p;; peregrine_backend r.1 r.2 f).
+Proof.
+  unfold peregrine_pipeline_ast, peregrine_middle_end, peregrine_backend.
+  destruct (get_config c attrs) as [c1|e]; cbn; [|reflexivity].
+  set (c2 := if io.(inline_standard) || io.(inline_small) then _ else _).
+  destruct (check_wf p); cbn; [|reflexivity].
+  destruct NameSanitize.check_sanitized_injective; cbn; [|reflexivity].
+  destruct NameSanitize.sanitize_PAst; cbn; [|reflexivity].
+  destruct NameSanitize.sanitize_config; cbn; [|reflexivity].
+  destruct apply_transforms; cbn; reflexivity.
+Qed.
+
+(** [peregrine_pipeline] is the middle-end followed by the backend. *)
+Theorem peregrine_pipeline_middle_end c attrs ir io lbox s f :
+  peregrine_pipeline c attrs ir io lbox s f =
+  (r <- peregrine_middle_end_string c attrs ir io lbox s;; peregrine_backend r.1 r.2 f).
+Proof.
+  unfold peregrine_middle_end_string. destruct (parse_ast s) as [p|e] eqn:E; cbn.
+  { rewrite (peregrine_pipeline_parsed c attrs ir io lbox s f p E). apply peregrine_pipeline_ast_middle_end. }
+  now apply peregrine_pipeline_parse_error.
+Qed.
+
+Lemma peregrine_middle_end_string_of_PAst c attrs ir io lbox (p0 : PAst) :
+  strings_ok p0 = true ->
+  peregrine_middle_end_string c attrs ir io lbox (Serialize.string_of_PAst p0) =
+  peregrine_middle_end c attrs ir io lbox p0.
+Proof.
+  intros H. unfold peregrine_middle_end_string. now rewrite parse_ast_string_of_PAst.
+Qed.
+
+Lemma sanitize_config_backend f c c' :
+  NameSanitize.sanitize_config f c = Ok c' -> c'.(backend_opts) = c.(backend_opts).
+Proof.
+  unfold NameSanitize.sanitize_config. cbn.
+  do 5 (destruct monad_map; cbn; [|discriminate]).
+  now intros [= <-].
+Qed.
+
+Lemma peregrine_middle_end_inv c attrs ir io lbox p c' p' :
+  peregrine_middle_end c attrs ir io lbox p = Ok (c', p') ->
+  exists c1 ps,
+    NameSanitize.get_sanitizer c' = NameSanitize.get_sanitizer c1 /\
+    check_wf p = Ok tt /\
+    NameSanitize.check_sanitized_injective (NameSanitize.get_sanitizer c1)
+      (NameSanitize.PAst_names p ++ NameSanitize.config_names c1) = Ok tt /\
+    NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c1) p = Ok ps /\
+    NameSanitize.sanitize_config (NameSanitize.get_sanitizer c1) c1 = Ok c' /\
+    apply_transforms c' lbox ps (needs_typed c') = Ok p'.
+Proof.
+  unfold peregrine_middle_end.
+  destruct (get_config c attrs) as [c0|e]; cbn; [|discriminate].
+  set (c1 := if io.(inline_standard) || io.(inline_small) then _ else _).
+  destruct (check_wf p) as [[]|]; cbn; [|discriminate].
+  destruct NameSanitize.check_sanitized_injective as [[]|] eqn:Hi; cbn; [|discriminate].
+  destruct NameSanitize.sanitize_PAst as [ps|] eqn:Hs; cbn; [|discriminate].
+  destruct NameSanitize.sanitize_config as [c2|] eqn:Hc; cbn; [|discriminate].
+  destruct apply_transforms as [p2|] eqn:Ha; cbn; [|discriminate].
+  intros [= <- <-]. exists c1, ps. repeat split; try assumption.
+  unfold NameSanitize.get_sanitizer. now rewrite (sanitize_config_backend _ _ _ Hc).
+Qed.
+
+(** ** Generic lemmas *)
+
+Lemma fo_sat_le (ar ar' : inductive -> nat -> nat) v :
+  (forall ind c, ar' ind c <= ar ind c) -> fo_sat ar v -> fo_sat ar' v.
+Proof.
+  intros Har Hs. induction Hs using fo_sat_ind'.
+  { constructor. } { now constructor. }
+  constructor. { etransitivity; [apply Har|exact H]. } exact H1.
+Qed.
+
+(** Saturation is preserved by an injective renaming, on well-formed values. *)
+Lemma fo_sat_rename {efl : EEnvFlags} (hast : has_tApp) rk rn rs Σ v :
+  injective_on rk (map fst Σ) ->
+  @EWellformed.wellformed efl Σ 0 v -> fo_sat (fo_arity Σ) v ->
+  fo_sat (fo_arity (rename_env rk rn rs Σ)) (rename rk rn v).
+Proof.
+  intros hinj Hwf Hs. revert Hwf.
+  induction Hs using fo_sat_ind'; intros Hwf.
+  { constructor. } { cbn. rewrite fo_prim_map //. now constructor. }
+  rewrite rename_mkApps. cbn.
+  rewrite (@EWellformed.wellformed_mkApps efl Σ 0 _ args hast) in Hwf. move/andP: Hwf => [Hc Ha]. cbn in Hc.
+  move/andP: Hc => [/andP [_ Hl] _].
+  constructor.
+  { rewrite length_map. etransitivity; [|exact H].
+    unfold fo_arity at 2. unfold fo_arity.
+    destruct (lookup_constructor_pars_args Σ ind c) as [[np na]|] eqn:E.
+    { rewrite (lookup_constructor_pars_args_rename _ _ _ _ hinj _ _ _ _ E). reflexivity. }
+    exfalso. move: E Hl. rewrite /lookup_constructor_pars_args. destruct lookup_constructor as [[[]]|] => //. }
+  clear -H1 Ha. induction H1 as [|x l Hx Hl IH]; cbn; constructor; cbn in Ha; move/andP: Ha => [Hx' Hl'].
+  { now apply Hx. } now apply IH.
+Qed.
+
+(** *** Dropping constant bodies *)
+
+Definition drop_rel (d' d : global_decl) : Prop :=
+  d' = d \/ exists cb, d = ConstantDecl cb /\ d' = ConstantDecl {| cst_body := None |}.
+
+Definition drop_env_rel : global_declarations -> global_declarations -> Prop :=
+  Forall2 (fun x y => x.1 = y.1 /\ drop_rel x.2 y.2).
+
+Section DropEnv.
+  Context (Σ' Σ : global_declarations) (hrel : drop_env_rel Σ' Σ).
+
+  Lemma lookup_env_drop kn :
+    match lookup_env Σ' kn, lookup_env Σ kn with
+    | Some d', Some d => drop_rel d' d
+    | None, None => True
+    | _, _ => False
+    end.
+  Proof.
+    induction hrel as [|[kn1 d1] [kn2 d2] Σ1 Σ2 [e hd] hr IH]; cbn; [exact I|].
+    cbn in e, hd. subst kn1. destruct (eqb kn kn2); [exact hd|exact (IH hr)].
+  Qed.
+
+  Lemma lookup_minductive_drop kn : lookup_minductive Σ' kn = lookup_minductive Σ kn.
+  Proof.
+    rewrite /lookup_minductive. pose proof (lookup_env_drop kn) as h.
+    destruct (lookup_env Σ' kn), (lookup_env Σ kn) => //.
+    destruct h as [->|[cb [-> ->]]]; reflexivity.
+  Qed.
+
+  Lemma lookup_inductive_drop ind : lookup_inductive Σ' ind = lookup_inductive Σ ind.
+  Proof. now rewrite /lookup_inductive lookup_minductive_drop. Qed.
+
+  Lemma lookup_constructor_drop ind c : lookup_constructor Σ' ind c = lookup_constructor Σ ind c.
+  Proof. now rewrite /lookup_constructor lookup_inductive_drop. Qed.
+
+  Lemma lookup_projection_drop p : lookup_projection Σ' p = lookup_projection Σ p.
+  Proof. now rewrite /lookup_projection lookup_constructor_drop. Qed.
+
+  Lemma lookup_constructor_pars_args_drop ind c :
+    lookup_constructor_pars_args Σ' ind c = lookup_constructor_pars_args Σ ind c.
+  Proof. now rewrite /lookup_constructor_pars_args lookup_constructor_drop. Qed.
+
+  Lemma fo_arity_drop ind c : fo_arity Σ' ind c = fo_arity Σ ind c.
+  Proof. now rewrite /fo_arity lookup_constructor_pars_args_drop. Qed.
+
+  Lemma lookup_constant_drop kn :
+    isSome (lookup_constant Σ kn) -> isSome (lookup_constant Σ' kn).
+  Proof.
+    rewrite /lookup_constant. pose proof (lookup_env_drop kn) as h.
+    destruct (lookup_env Σ' kn), (lookup_env Σ kn) => //=.
+    destruct h as [->|[cb [-> ->]]] => //.
+  Qed.
+
+  Lemma map_fst_drop : map fst Σ' = map fst Σ.
+  Proof.
+    induction hrel as [|x y Σ1 Σ2 [e _] hr IH]; cbn; [reflexivity|]. now rewrite e (IH hr).
+  Qed.
+
+  Context {efl : EEnvFlags} (hax : has_axioms = true).
+
+  Lemma wellformed_drop k t :
+    @EWellformed.wellformed efl Σ k t -> @EWellformed.wellformed efl Σ' k t.
+  Proof.
+    revert k. induction t using term_forall_list_ind; intros k;
+      cbn -[lookup_constant lookup_constructor lookup_inductive lookup_projection
+            lookup_constructor_pars_args wf_brs] => //;
+      rewrite ?lookup_constructor_drop ?lookup_projection_drop ?lookup_constructor_pars_args_drop;
+      rtoProp; intuition auto.
+    all: try solve [solve_all].
+    { move: H1. pose proof (lookup_constant_drop s) as h.
+      destruct (lookup_constant Σ s), (lookup_constant Σ' s); cbn in h |- *.
+      all: intros H; rewrite ?hax //; try discriminate; now specialize (h eq_refl). }
+    { destruct cstr_as_blocks => //. rtoProp; intuition auto. solve_all. }
+    { move: H1. now rewrite /wf_brs lookup_inductive_drop. }
+    { move: H1. rewrite /wf_fix_gen. move/andP => [-> h] /=. solve_all. }
+    move: H1. rewrite /wf_fix_gen. move/andP => [-> h] /=. solve_all.
+  Qed.
+
+End DropEnv.
+
+Lemma wf_glob_drop {efl : EEnvFlags} (hax : has_axioms = true) Σ' Σ :
+  drop_env_rel Σ' Σ -> @wf_glob efl Σ -> @wf_glob efl Σ'.
+Proof.
+  intros hrel. induction hrel as [|[kn1 d1] [kn2 d2] Σ1 Σ2 [e hd] hrel IH]; intros hwf.
+  { constructor. }
+  cbn in e, hd. subst kn1. inversion hwf as [|? ? ? hw hdw hf]; subst. constructor.
+  { now apply IH. }
+  { destruct hd as [->|[cb [-> ->]]].
+    { destruct d2 as [[[b|]]|m]; cbn in *; try assumption.
+      now apply (wellformed_drop Σ1 Σ2 hrel hax). }
+    cbn. now rewrite hax. }
+  rewrite /fresh_global in hf *. clear -hf hrel.
+  induction hrel as [|x y Σ1 Σ2 [e _] hrel IH]; constructor; inversion hf; subst.
+  { now rewrite e. } now apply IH.
+Qed.
+
+(** ** The steps of the middle-end *)
+
+(** The remapped constants of a configuration, as in [drop_remapped_bodies]. *)
+Definition remapped (c : config) (kn : kername) : bool :=
+  List.existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts).
+
+(** [drop_remapped_bodies] for an arbitrary set of constants. *)
+Definition drop_bodies (rem : kername -> bool) (env : ExAst.global_env) : ExAst.global_env :=
+  map (fun '(kn, deps, d) =>
+    match d with
+    | ExAst.ConstantDecl cst =>
+      if rem kn
+      then (kn, deps, ExAst.ConstantDecl {| ExAst.cst_type := cst.(ExAst.cst_type); ExAst.cst_body := None |})
+      else (kn, deps, d)
+    | _ => (kn, deps, d)
+    end) env.
+
+Lemma drop_remapped_bodies_drop_bodies c env :
+  drop_remapped_bodies c env = drop_bodies (remapped c) env.
+Proof. reflexivity. Qed.
+
+(** Without remapped constants nothing is dropped. *)
+Lemma drop_bodies_none env : drop_bodies (fun _ => false) env = env.
+Proof.
+  rewrite /drop_bodies. induction env as [|[[kn b] d] env IH]; cbn [map]; [reflexivity|].
+  rewrite IH. now destruct d.
+Qed.
+
+Lemma drop_env_rel_drop_bodies rem env :
+  drop_env_rel (ExAst.trans_env (drop_bodies rem env)) (ExAst.trans_env env).
+Proof.
+  induction env as [|[[kn b] d] env IH]; cbn; constructor; [|exact IH].
+  split; [now destruct d as [cst| |]; [destruct (rem kn)| |]|].
+  destruct d as [cst| |]; cbn; [destruct (rem kn); cbn| |]; try (left; reflexivity).
+  right. eexists. split; reflexivity.
+Qed.
+
+Lemma map_fst_trans_env env : map fst (ExAst.trans_env env) = NameSanitize.typed_env_names env.
+Proof. rewrite /ExAst.trans_env /NameSanitize.typed_env_names map_map. reflexivity. Qed.
+
+(** Sanitizing and dropping bodies commute (on the untyped view). *)
+Lemma trans_env_drop_sanitize f rem env env_s :
+  NameSanitize.sanitize_typed_env f env = Ok env_s ->
+  ExAst.trans_env (drop_bodies rem env_s) =
+  rename_env (NameSanitize.sanitized_kername f) (sanitized_name f) (sanitized_ident f)
+    (ExAst.trans_env (drop_bodies (fun kn => rem (NameSanitize.sanitized_kername f kn)) env)).
+Proof.
+  intros H. apply sanitize_typed_env_spec in H.
+  induction H as [|[[kn b] d] [[kn' b'] d'] env env_s [e1 [e2 hd]] _ IH]; [reflexivity|].
+  cbn in e1, e2. subst kn' b'.
+  apply sanitize_global_decl_t_spec in hd as [ht hc].
+  cbn -[ExAst.trans_global_decl rename_decl]. f_equal; [|exact IH].
+  destruct d, d'; cbn in hc; try discriminate.
+  all: try (f_equal; exact ht).
+  destruct (rem (NameSanitize.sanitized_kername f kn)); [reflexivity|].
+  f_equal. exact ht.
+Qed.
+
+Lemma map_error_ok {A E E'} (g : E -> E') (r : result A E) a :
+  map_error g r = Ok a -> r = Ok a.
+Proof. destruct r; cbn; congruence. Qed.
+
+Lemma check_wf_untyped_sound env t :
+  check_wf (Untyped env (Some t)) = Ok tt -> wf_eprogram nocofix_env_flags (env, t).
+Proof.
+  intros H. apply map_error_ok in H. apply check_wf_program_sound. now rewrite H.
+Qed.
+
+Lemma check_wf_typed_sound env t :
+  check_wf (Typed env (Some t)) = Ok tt ->
+  @wf_glob nocofix_env_flags (ExAst.trans_env env) /\
+  @EWellformed.wellformed nocofix_env_flags (ExAst.trans_env env) 0 t.
+Proof.
+  intros H. apply map_error_ok in H. cbn in H.
+  destruct (@CheckWfExAst.check_wf_typed_program nocofix_env_flags env) as [[]|] eqn:E1; cbn in H; [|discriminate].
+  split.
+  { unfold CheckWfExAst.check_wf_typed_program in E1.
+    pose proof (check_wf_globP (efl := nocofix_env_flags) (ExAst.trans_env env)) as R.
+    rewrite E1 in R. cbn in R. now inversion R. }
+  rewrite -wellformed_equiv H. reflexivity.
+Qed.
+
+Lemma sanitize_PAst_untyped f env t ps :
+  NameSanitize.sanitize_PAst f (Untyped env (Some t)) = Ok ps ->
+  exists env1 t1, NameSanitize.sanitize_untyped_env f env = Ok env1 /\
+    NameSanitize.sanitize_term f t = Ok t1 /\ ps = Untyped env1 (Some t1).
+Proof.
+  cbn. destruct NameSanitize.sanitize_untyped_env as [env1|]; cbn; [|discriminate].
+  destruct NameSanitize.sanitize_term as [t1|]; cbn; [|discriminate].
+  intros [= <-]. now exists env1, t1.
+Qed.
+
+Lemma sanitize_PAst_typed f env t ps :
+  NameSanitize.sanitize_PAst f (Typed env (Some t)) = Ok ps ->
+  exists env1 t1, NameSanitize.sanitize_typed_env f env = Ok env1 /\
+    NameSanitize.sanitize_term f t = Ok t1 /\ ps = Typed env1 (Some t1).
+Proof.
+  cbn. destruct NameSanitize.sanitize_typed_env as [env1|]; cbn; [|discriminate].
+  destruct NameSanitize.sanitize_term as [t1|]; cbn; [|discriminate].
+  intros [= <-]. now exists env1, t1.
+Qed.
+
+(** ** Corollaries: from the input file to the lambda-box program *)
+
+(** Untyped input, untyped backend. *)
+Theorem peregrine_untyped_fo c attrs ir io lbox p0 env t c' p' v :
+  let f := NameSanitize.get_sanitizer c' in
+  let env_s := rename_env (NameSanitize.sanitized_kername f) (sanitized_name f) (sanitized_ident f) env in
+  let v_s := rename (NameSanitize.sanitized_kername f) (sanitized_name f) v in
+  let econf := mk_opts c' false (fun _ => None) in
+  let m := mk_cstr_reorders c' in
+  let unb := econf.(enable_unsafe).(unboxing) in
+  p0 = Untyped env (Some t) ->
+  strings_ok p0 = true ->
+  peregrine_middle_end_string c attrs ir io lbox (Serialize.string_of_PAst p0) = Ok (c', p') ->
+  needs_typed c' = false ->
+  fo_sat (fo_arity env) v ->
+  (remap_on econf = true -> remap_fo econf (fo_unboxed_value m env_s unb v_s)) ->
+  eval_eprogram default_wcbv_flags (env, t) v ->
+  exists env' t', p' = Untyped env' (Some t') /\
+    eval_eprogram final_wcbv_flags (env', t')
+      (fo_value_compile m env_s unb c'.(erasure_opts).(implement_box) v_s).
+Proof.
+  intros f env_s v_s econf m unb -> hs hme hnt hsat hremap [ev].
+  rewrite peregrine_middle_end_string_of_PAst // in hme.
+  apply peregrine_middle_end_inv in hme as (c1 & ps & hf & hwf & hinj & hsan & hcfg & hat).
+  apply check_wf_untyped_sound in hwf.
+  apply sanitize_PAst_untyped in hsan as (env1 & t1 & he & ht & ->).
+  rewrite -hf -/f in hinj he ht.
+  pose proof (sanitize_correct f env t env1 t1 v _ hinj he ht hwf ev) as [_ ev1].
+  apply sanitize_untyped_env_spec in he. apply sanitize_term_spec in ht. subst env1 t1.
+  move: hat. rewrite hnt. unfold apply_transforms. cbv zeta.
+  destruct (pipeline_pre_error _) as [[env' t']|] eqn:hr; cbn; [|discriminate].
+  intros [= <-]. exists env', t'. split; [reflexivity|].
+  apply map_error_ok in hr.
+  eapply (run_untyped_transforms_fo econf m _ _ _ _ _ _ (env_s, _)); [exact hr| | exact hremap | now constructor].
+  cbn. apply (fo_sat_rename (efl := nocofix_env_flags) eq_refl); [| |exact hsat].
+  { eapply injective_on_incl; [eapply check_sanitized_injective_spec, hinj|].
+    intros x hx. apply in_or_app. now left. }
+  destruct hwf as [hwg hwt].
+  exact (eval_wellformed (efl := nocofix_env_flags) env eq_refl hwg t v hwt ev).
+Qed.
+
+(** The common part of the two typed corollaries: the sanitized program with the
+    bodies of remapped constants dropped is saturated and evaluates to the renamed
+    value. *)
+Lemma typed_sanitized_fo f rem env env_s t v :
+  let sk := NameSanitize.sanitized_kername f in
+  NameSanitize.sanitize_typed_env f env = Ok env_s ->
+  injective_on sk (NameSanitize.typed_env_names env) ->
+  @wf_glob nocofix_env_flags (ExAst.trans_env env) ->
+  @EWellformed.wellformed nocofix_env_flags (ExAst.trans_env env) 0 t ->
+  fo_sat (fo_arity (ExAst.trans_env env)) v ->
+  eval_typed_eprogram default_wcbv_flags (drop_bodies (fun kn => rem (sk kn)) env, t) v ->
+  fo_sat (fo_arity (ExAst.trans_env (drop_bodies rem env_s))) (rename sk (sanitized_name f) v) /\
+  eval_typed_eprogram default_wcbv_flags (drop_bodies rem env_s, rename sk (sanitized_name f) t)
+    (rename sk (sanitized_name f) v).
+Proof.
+  intros sk he hinj hwg hwt hsat [ev].
+  set (Σd := ExAst.trans_env (drop_bodies (fun kn => rem (sk kn)) env)).
+  have hrel : drop_env_rel Σd (ExAst.trans_env env) by apply drop_env_rel_drop_bodies.
+  have hinj' : injective_on sk (map fst Σd).
+  { rewrite (map_fst_drop _ _ hrel) map_fst_trans_env. exact hinj. }
+  rewrite /= (trans_env_drop_sanitize f rem env env_s he). fold sk. fold Σd.
+  split.
+  { apply (fo_sat_rename (efl := nocofix_env_flags) eq_refl); [exact hinj'| |].
+    { have hwg' : @wf_glob nocofix_env_flags Σd by exact (wf_glob_drop (efl := nocofix_env_flags) eq_refl _ _ hrel hwg).
+      have hwt' : @EWellformed.wellformed nocofix_env_flags Σd 0 t
+        by exact (wellformed_drop _ _ hrel (efl := nocofix_env_flags) eq_refl 0 t hwt).
+      exact (eval_wellformed (efl := nocofix_env_flags) Σd eq_refl hwg' t v hwt' ev). }
+    eapply fo_sat_le; [|exact hsat]. intros ind c. now rewrite (fo_arity_drop _ _ hrel). }
+  constructor. cbn [fst snd]. rewrite (trans_env_drop_sanitize f rem env env_s he) -/sk -/Σd.
+  now apply eval_rename.
+Qed.
+
+(** Typed input, untyped backend.  The input is evaluated with the bodies of the
+    remapped constants dropped (the pipeline drops them: the backend provides
+    them); the program handed to the backend evaluates to the value of
+    [run_typed_to_untyped_transforms_fo] for the sanitized program. *)
+Theorem peregrine_typed_untyped_fo c attrs ir io lbox p0 env t c' p' v :
+  let f := NameSanitize.get_sanitizer c' in
+  let sk := NameSanitize.sanitized_kername f in
+  let v_s := rename sk (sanitized_name f) v in
+  let econf env_s := mk_opts c' false (remap_masks c' false env_s) in
+  let m := mk_cstr_reorders c' in
+  let unb := c'.(erasure_opts).(Config.unboxing) in
+  let q env_s := (drop_remapped_bodies c' env_s, rename sk (sanitized_name f) t) in
+  p0 = Typed env (Some t) ->
+  strings_ok p0 = true ->
+  peregrine_middle_end_string c attrs ir io lbox (Serialize.string_of_PAst p0) = Ok (c', p') ->
+  needs_typed c' = false ->
+  fo_sat (fo_arity (ExAst.trans_env env)) v ->
+  (forall env_s, NameSanitize.sanitize_typed_env f env = Ok env_s ->
+   remap_on (econf env_s) = true -> forall pf,
+   remap_fo (econf env_s)
+     (fo_unboxed_value m (typed_dearged_env (econf env_s) m (q env_s) pf) unb
+        (fo_dearg (typed_dearg_masks (econf env_s) m (q env_s) pf) v_s))) ->
+  eval_typed_eprogram default_wcbv_flags (drop_bodies (fun kn => remapped c' (sk kn)) env, t) v ->
+  exists env_s env' t',
+    NameSanitize.sanitize_typed_env f env = Ok env_s /\
+    p' = Untyped env' (Some t') /\
+    exists pf,
+      eval_eprogram final_wcbv_flags (env', t')
+        (fo_value_compile m (typed_dearged_env (econf env_s) m (q env_s) pf) unb
+           c'.(erasure_opts).(implement_box)
+           (fo_dearg (typed_dearg_masks (econf env_s) m (q env_s) pf) v_s)).
+Proof.
+  intros f sk v_s econf m unb q -> hs hme hnt hsat hremap ev.
+  rewrite peregrine_middle_end_string_of_PAst // in hme.
+  apply peregrine_middle_end_inv in hme as (c1 & ps & hf & hwf & hinj & hsan & hcfg & hat).
+  apply check_wf_typed_sound in hwf as [hwg hwt].
+  apply sanitize_PAst_typed in hsan as (env1 & t1 & he & ht & ->).
+  rewrite -hf -/f in hinj he ht.
+  apply sanitize_term_spec in ht. subst t1.
+  have hinj' : injective_on sk (NameSanitize.typed_env_names env).
+  { eapply injective_on_incl; [eapply check_sanitized_injective_spec, hinj|].
+    intros x hx. apply in_or_app. now left. }
+  destruct (typed_sanitized_fo f (remapped c') env env1 t v he hinj' hwg hwt hsat ev) as [hsat1 ev1].
+  move: hat. rewrite hnt. unfold apply_transforms. cbv zeta.
+  destruct (pipeline_pre_error _) as [[env' t']|] eqn:hr; cbn; [|discriminate].
+  intros [= <-]. exists env1, env', t'. split; [exact he|]. split; [reflexivity|].
+  apply map_error_ok in hr.
+  exact (run_typed_to_untyped_transforms_fo (econf env1) m _ _ _ _ _ _ (q env1) _ v_s hr hsat1
+           (hremap env1 he) ev1).
+Qed.
+
+(** Typed input, typed backend. *)
+Theorem peregrine_typed_typed_fo c attrs ir io lbox p0 env t c' p' v :
+  let f := NameSanitize.get_sanitizer c' in
+  let sk := NameSanitize.sanitized_kername f in
+  let v_s := rename sk (sanitized_name f) v in
+  let econf env_s := mk_opts c' true (remap_masks c' false env_s) in
+  let m := mk_cstr_reorders c' in
+  let q env_s := (drop_remapped_bodies c' env_s, rename sk (sanitized_name f) t) in
+  p0 = Typed env (Some t) ->
+  strings_ok p0 = true ->
+  peregrine_middle_end_string c attrs ir io lbox (Serialize.string_of_PAst p0) = Ok (c', p') ->
+  needs_typed c' = true ->
+  fo_sat (fo_arity (ExAst.trans_env env)) v ->
+  eval_typed_eprogram default_wcbv_flags (drop_bodies (fun kn => remapped c' (sk kn)) env, t) v ->
+  exists env_s env' t',
+    NameSanitize.sanitize_typed_env f env = Ok env_s /\
+    p' = Typed env' (Some t') /\
+    exists pf,
+      eval_typed_eprogram target_wcbv_flags (env', t')
+        (fo_dearg (typed_dearg_masks (econf env_s) m (q env_s) pf) v_s).
+Proof.
+  intros f sk v_s econf m q -> hs hme hnt hsat ev.
+  rewrite peregrine_middle_end_string_of_PAst // in hme.
+  apply peregrine_middle_end_inv in hme as (c1 & ps & hf & hwf & hinj & hsan & hcfg & hat).
+  apply check_wf_typed_sound in hwf as [hwg hwt].
+  apply sanitize_PAst_typed in hsan as (env1 & t1 & he & ht & ->).
+  rewrite -hf -/f in hinj he ht.
+  apply sanitize_term_spec in ht. subst t1.
+  have hinj' : injective_on sk (NameSanitize.typed_env_names env).
+  { eapply injective_on_incl; [eapply check_sanitized_injective_spec, hinj|].
+    intros x hx. apply in_or_app. now left. }
+  destruct (typed_sanitized_fo f (remapped c') env env1 t v he hinj' hwg hwt hsat ev) as [hsat1 ev1].
+  move: hat. rewrite hnt. unfold apply_transforms. cbv zeta.
+  destruct (pipeline_pre_error _) as [[mr [env' t']]|] eqn:hr; cbn; [|discriminate].
+  intros [= <-]. exists env1, env', t'. split; [exact he|]. split; [reflexivity|].
+  apply map_error_ok in hr.
+  exact (run_typed_transforms_fo (econf env1) m _ (q env1) _ v_s hr hsat1 ev1).
+Qed.

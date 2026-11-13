@@ -47,6 +47,7 @@ theories/erasure/EFirstOrderEta.v
 theories/erasure/ELboxOptsFO.v
 theories/erasure/EFirstOrderCorrect.v
 theories/erasure/EFirstOrderTyped.v
+theories/PipelineFirstOrder.v
 
 theories/lean/LeanIR.v
 theories/lean/LeanCompile.v
