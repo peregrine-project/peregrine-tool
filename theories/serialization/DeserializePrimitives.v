@@ -38,11 +38,36 @@ Instance Deserialize_prim_string : Deserialize PrimString.string :=
     | _ => inl (DeserError l "error")
     end.
 
-Instance Deserialize_array_model {T : Set} `{Deserialize T} : Deserialize (array_model T) :=
+(* The generic, combinator-based deserializer for [array_model]. *)
+Definition Deserialize_array_model_gen {T : Set} `{Deserialize T} : Deserialize (array_model T) :=
   fun l e =>
     Deser.match_con "array_model" []
       [ ("array_model", Deser.con2_ Build_array_model) ]
       l e.
+
+(* The instance is the combinator-based deserializer with the Ceres
+   combinators unfolded at definition time.
+   [Deserialize_array_model] is used nested inside the fixpoint
+   [deserialize_term] (through [Deserialize_prim_val]) with the recursive
+   function as instance for [T]. Rocq's guard checker re-checks an argument
+   containing an unapplied recursive call once per combinator it is passed
+   through, so nesting a second [Deser.match_con] inside the one of
+   [deserialize_term] multiplies the checking time by a large factor (~75s
+   instead of ~1s). With the combinators already unfolded there is nothing
+   left to expand. *)
+Instance Deserialize_array_model {T : Set} `{Deserialize T} : Deserialize (array_model T) :=
+  ltac:(let t := eval cbv [Deserialize_array_model_gen Deser.match_con Deser._con
+                           Deser.con2_ Deser.con2 Deser.fields Deser.bind_field Deser.ret
+                           _fields List.map fst CeresUtils._find_or CeresUtils._bind_sum]
+                 in (@Deserialize_array_model_gen T _) in
+        exact t).
+
+Lemma Deserialize_array_model_eq {T : Set} `{Deserialize T} l e :
+  @_from_sexp (array_model T) Deserialize_array_model l e =
+  Deser.match_con "array_model" []
+    [ ("array_model", Deser.con2_ Build_array_model) ]
+    l e.
+Proof. reflexivity. Qed.
 
 Instance Deserialize_prim_val {T : Set} `{Deserialize T} : Deserialize (prim_val T) :=
   fun l e =>

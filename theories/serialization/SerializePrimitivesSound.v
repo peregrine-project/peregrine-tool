@@ -49,6 +49,7 @@ Instance Sound_array_model {T : Set} `{SoundClass T} : SoundClass (array_model T
 Proof.
   unfold SoundClass, Sound.
   intros l e a He.
+  rewrite Deserialize_array_model_eq in He.
   apply sound_match_con in He.
   destruct He as [He | He]; elim_Exists He.
   destruct He as [es [<- He]].
