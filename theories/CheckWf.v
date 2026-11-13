@@ -553,12 +553,29 @@ End WfCorrect.
 Section PipelinePre.
   Context {efl : EEnvFlags}.
 
+  Fixpoint check_eta_env (Σ : global_declarations) : result' unit :=
+    match Σ with
+    | [] => Ok tt
+    | (kn, d) :: Σ' =>
+      assert' (EEtaExpandedFix.isEtaExp_decl Σ' d)
+        (fun _ => ("Declaration " ++ string_of_kername kn ++
+                  " is not eta-expanded (constructor or fixpoint not fully applied)")%bs) ;;
+      check_eta_env Σ'
+    end.
+
+  Lemma check_eta_env_sound Σ :
+    bool_of_result (check_eta_env Σ) = true -> EEtaExpandedFix.isEtaExp_env Σ.
+  Proof.
+    induction Σ as [|[kn d] Σ IH]; cbn => // h.
+    rewrite result_bindb result_assertb' in h.
+    apply andb_prop in h as [hd hΣ]. now rewrite hd (IH hΣ).
+  Qed.
+
   Definition check_pipeline_pre (m : EProgram.inductives_mapping) (p : program) : result' unit :=
     assert' (EReorderCstrs.wf_inductives_mapping (fst p) m)
       (fun _ => "Constructor reordering mapping does not match the inductive declarations"%bs) ;;
     check_wf_program p ;;
-    assert' (EEtaExpandedFix.isEtaExp_env (fst p))
-      (fun _ => "Global environment is not eta-expanded (constructor or fixpoint not fully applied)"%bs) ;;
+    check_eta_env (fst p) ;;
     assert' (EEtaExpandedFix.isEtaExp (fst p) [] (snd p))
       (fun _ => "Program term is not eta-expanded (constructor or fixpoint not fully applied)").
 
@@ -586,7 +603,7 @@ Section PipelinePre.
     apply andb_prop in h as [he ht].
     split; [exact hm|]. split.
     { apply check_wf_program_sound. unfold check_wf_program. now rewrite result_bindb. }
-    split; [now apply isEtaExp_env_expanded_global_env|].
+    split; [now apply isEtaExp_env_expanded_global_env, check_eta_env_sound|].
     now apply EEtaExpandedFix.isEtaExp_expanded.
   Qed.
 End PipelinePre.
