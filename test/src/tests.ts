@@ -306,7 +306,13 @@ var agda_tests: TestCase[] =
         },
         // Untyped
         agda_nat_test("ErasedRecursion", 2, false),
-        { ...agda_nat_test("Fannkuch", 7, false), xfail: elm_operator },
+        {
+            ...agda_nat_test("Fannkuch", 7, false),
+            xfail: {
+                ...elm_operator,
+                "Rust-untyped": "#127: after eta-expansion, Prelude.splitAt takes its argument x : a as a function parameter and returns a closure capturing it, and the Rust printer does not bound a by the lifetime of the closure (E0309)"
+            }
+        },
         {
             ...agda_nat_test("InductionRecursion", 3, false),
             // An ML type exists, but inference gives the first argument of the
