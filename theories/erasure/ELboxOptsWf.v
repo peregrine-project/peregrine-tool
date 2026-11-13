@@ -213,20 +213,32 @@ End env.
     the values are related by [lbox_obs], a chain of such steps. *)
 Definition lbox_obs : term -> term -> Prop := obs (wfl := extra_wcbv_flags).
 
+(** Generic in the flags: any evaluation flags with unguarded fixpoints and
+    no matches on propositions, with either representation of constructor
+    applications, and any environment flags (in particular with or without
+    constructor parameters). *)
+Lemma lbox_opts_program_eval_gen {wfl : WcbvFlags} {efl : EEnvFlags} (o : lbox_opts) :
+  with_guarded_fix = false -> with_prop_case = false ->
+  (forall t, chain t (rewrite_node o t)) ->
+  forall (p : program) (v : term),
+  wf_eprogram efl p ->
+  eval_eprogram wfl p v ->
+  exists v', eval_eprogram wfl (lbox_opts_program o p) v' /\ obs v v'.
+Proof.
+  intros Hguard Hprop Hnode p v [wfΣ wft] [ev].
+  unfold eval_eprogram.
+  refine (lbox_opts_program_pres Hguard Hprop o Hnode p v _ _ ev).
+  - now eapply wellformed_closed_env.
+  - now eapply wellformed_closed.
+Qed.
+
 Lemma lbox_opts_program_eval (o : lbox_opts) :
   (forall t, chain (wfl := extra_wcbv_flags) t (rewrite_node o t)) ->
   forall (p : program) (v : term),
   wf_eprogram extra_env_flags p ->
   eval_eprogram extra_wcbv_flags p v ->
   exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program o p) v' /\ lbox_obs v v'.
-Proof.
-  intros Hnode p v [wfΣ wft] [ev].
-  unfold eval_eprogram, lbox_obs.
-  refine (lbox_opts_program_pres (wfl := extra_wcbv_flags) eq_refl eq_refl eq_refl o Hnode p v _ _ _ ev).
-  - now eapply wellformed_closed_env.
-  - intros kn mdecl. now eapply (EImplementBox.wellformed_lookup_inductive_pars (efl := extra_env_flags)).
-  - now eapply wellformed_closed.
-Qed.
+Proof. intros Hnode. now apply (lbox_opts_program_eval_gen (efl := extra_env_flags) o). Qed.
 
 Lemma case_id_terminates :
   forall (p : program) (v : term),

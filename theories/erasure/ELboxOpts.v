@@ -243,10 +243,11 @@ Definition rebuilds (ind : inductive) (i : nat) (br : list name * term) : bool :
 
 Definition case_id (t : term) : term :=
   match t with
-  | tCase (ind, _) d brs =>
+  | tCase (ind, p) d brs =>
       match brs with
       | [] => t
-      | _ => if forallb (fun '(i, br) => rebuilds ind i br) (combine (seq 0 #|brs|) brs) then d else t
+      | _ => if Nat.eqb p 0 &&
+                forallb (fun '(i, br) => rebuilds ind i br) (combine (seq 0 #|brs|) brs) then d else t
       end
   | _ => t
   end.

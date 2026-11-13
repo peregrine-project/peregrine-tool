@@ -84,7 +84,8 @@ Qed.
 Lemma wellformed_case_id {efl : EEnvFlags} Σ k t : wellformed Σ k t -> wellformed Σ k (case_id t).
 Proof.
   destruct t as [| | | | | | | | | [ind np] d brs | | | | | |]; try easy. cbn [case_id].
-  destruct brs; [easy|]. destruct forallb; [|easy].
+  destruct brs; [easy|].
+  match goal with |- context [if ?c then _ else _] => destruct c end; [|easy].
   cbn -[EGlobalEnv.lookup_inductive]. now rtoProp.
 Qed.
 
