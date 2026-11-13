@@ -11,7 +11,8 @@ From MetaRocq.Erasure Require EReorderCstrs ERemoveParams EOptimizePropDiscr
 From MetaRocq.ErasurePlugin Require Import ETransform Erasure.
 From Peregrine Require Import EExtraFlags ENoCofix ESpecRel EInstanceSpecialize
   ECommonSubexpr ELboxOpts ELboxOptsWf ELiftConstants EBetaCorrect Transforms
-  EFirstOrder EFirstOrderStages EFirstOrderPasses ELboxOptsFO.
+  EFirstOrder EFirstOrderStages EFirstOrderPasses EFirstOrderEta ELboxOptsFO
+  EEtaExpand EEtaExpandSim.
 
 Import Common.Transform.Transform.
 
@@ -151,44 +152,111 @@ Section Prefix.
     - apply fo_nocofix_lambdabox_pipeline.
   Qed.
 
+
+  (** The MetaRocq pipeline on programs coming from the typed pipeline:
+      as above, without the removal of matches on boxes. *)
+  Lemma fo_nocofix_lambdabox_typed_pipeline econf :
+    fo_triple (nocofix_lambdabox_typed_pipeline econf)
+      (fun (p : inductives_mapping * eprogram_env) v =>
+         p.1 = m /\ (p.2.1 : global_declarations) = Σ0 /\ v = v0)
+      (fun (p : eprogram) v => shape p.1 /\ v = w2).
+  Proof.
+    unfold nocofix_lambdabox_typed_pipeline. cbv zeta.
+    eapply fo_triple_compose with
+      (Q := fun (p : eprogram) v => shape p.1 /\ v = w2).
+    1: eapply fo_triple_compose with
+      (Q := fun (p : eprogram_env) v => shape p.1 /\ v = w1).
+    1: eapply fo_triple_compose with
+      (Q := fun (p : eprogram) v => shape p.1 /\ v = w1).
+    1: eapply fo_triple_compose with
+      (Q := fun (p : eprogram_env) v => shape p.1 /\ v = w1).
+    1: eapply fo_triple_compose with
+      (Q := fun (p : eprogram) v => shape p.1 /\ v = w1).
+    1: eapply fo_triple_compose with
+      (Q := fun (p : eprogram_env) v => (p.1 : global_declarations) = Σr /\ v = EReorderCstrs.reorder m v0).
+    1: eapply fo_triple_compose with
+      (Q := fun (p : eprogram_env) v => (p.1 : global_declarations) = Σr /\ v = EReorderCstrs.reorder m v0).
+    1: eapply fo_triple_compose with
+      (Q := fun (p : eprogram) v => p.1 = Σr /\ v = EReorderCstrs.reorder m v0).
+    - (* constructor reordering *)
+      stage. destruct HP as (Hm & HΣ & ->). subst v'. rewrite Hm. split; [|reflexivity].
+      unfold Σr. now rewrite -HΣ.
+    - stage. subst. exact HP.
+    - (* guarded to unguarded fixpoints *)
+      stage. subst v'. exact HP.
+    - (* parameter stripping *)
+      stage. destruct HP as [HΣ ->]. subst v'. destruct p as [Σ t]; cbn in *. split.
+      + intros ind c. unfold fo_unboxable. destruct c; auto.
+        rewrite ERemoveParams.lookup_constructor_strip HΣ.
+        destruct lookup_constructor as [[[? ?] ?]|]; reflexivity.
+      + apply fo_strip_reorder; auto. intros ind. unfold npars. now rewrite HΣ.
+    - stage. subst. exact HP.
+    - (* projection inlining *)
+      stage. destruct HP as [Hs ->]. subst v'. split.
+      + intros ind c. rewrite -Hs. unfold fo_unboxable. destruct c; auto.
+        rewrite -(EInlineProjections.lookup_constructor_optimize
+                   (efl := ERemoveParams.switch_no_params nocofix_env_flags)) //.
+        apply pr.
+      + apply fo_inline_projections. apply fo_pre_app, Hv0.
+    - stage. subst. exact HP.
+    - (* constructors as blocks *)
+      stage. destruct HP as [Hs ->]. subst v'. split.
+      + intros ind c. rewrite -Hs. unfold fo_unboxable. destruct c; auto.
+        rewrite EConstructorsAsBlocks.lookup_constructor_transform_blocks //.
+      + unfold w2. rewrite -fo_blocks_pre //. destruct ev as [ev].
+        apply eval_to_value in ev.
+        refine (fo_transform_blocks
+                  (efl := EInlineProjections.disable_projections_env_flag
+                            (ERemoveParams.switch_no_params nocofix_env_flags))
+                  _ _ _ _ _ ev);
+          [reflexivity|apply pr|apply fo_pre_app, Hv0].
+    - (* inlining *)
+      apply fo_triple_optional; [auto|].
+      unfold inlining_transformation.
+      eapply fo_triple_compose with
+        (Q := fun (p : inlined_program) v => shape p.1.1 /\ v = w2).
+      + stage. destruct HP as [Hs ->]. subst v'. split.
+        * intros ind c. rewrite -Hs. unfold fo_unboxable. destruct c; auto.
+          destruct p as [Σ t]. unfold inline_program; cbn [fst snd].
+          rewrite -(lookup_constr_inlining nocofix_env_flags (inlined_constants econf) Σ ind 0).
+          cbn. now destruct inline_env.
+        * apply fo_inline. apply fo_compile_blk, Hv0.
+      + stage. subst. exact HP.
+  Qed.
+
   Variable econf : erasure_configuration.
 
   Let w3 := if econf.(enable_unsafe).(unboxing)
             then fo_unbox (fo_unboxable Σr) w2 else w2.
 
-  Lemma fo_blk_w3 : fo_blk w3.
-  Proof.
-    unfold w3. destruct unboxing; [apply fo_unbox_blk|]; apply fo_compile_blk, Hv0.
-  Qed.
-
-  Lemma fo_nocofix_unsafe_transforms_gen remap Hremap :
-    (econf.(enable_unsafe).(inductives_extraction) = true ->
-     fo_triple remap (fun _ v => v = w3) (fun _ v => v = w3)) ->
-    fo_triple (nocofix_unsafe_transforms_gen econf remap Hremap)
+  Lemma fo_nocofix_unboxing_transforms :
+    fo_triple (nocofix_unboxing_transforms econf)
       (fun (p : eprogram) v => shape p.1 /\ v = w2)
       (fun _ v => v = w3).
   Proof.
-    intros Hr. unfold nocofix_unsafe_transforms_gen. cbv zeta.
-    eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w3).
-    1: eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w3).
-    - (* unboxing *)
-      apply fo_triple_optional'.
-      + intros Hub.
-        eapply fo_triple_compose with
-          (Q := fun (p : eprogram_env) v => shape p.1 /\ v = w2).
-        * stage. subst. exact HP.
-        * stage. destruct HP as [Hs ->]. subst v'. unfold w3. rewrite Hub.
-          rewrite fo_unbox_correct; [apply fo_compile_blk, Hv0|].
-          apply fo_unbox_ext; [exact Hs|apply fo_compile_blk, Hv0].
-      + intros Hub p v [_ ->]. unfold w3. now rewrite Hub.
-    - (* inductive remapping: trusted, by hypothesis *)
-      apply fo_triple_optional'; [exact Hr|auto].
-    - (* beta reduction, twice *)
-      apply fo_triple_optional; [auto|].
-      eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w3);
-        stage; subst v; (eapply fo_Gv; [apply fo_blk_w3|exact Hobs]).
+    unfold nocofix_unboxing_transforms. cbv zeta.
+    apply fo_triple_optional'.
+    + intros Hub.
+      eapply fo_triple_compose with
+        (Q := fun (p : eprogram_env) v => shape p.1 /\ v = w2).
+      * stage. subst. exact HP.
+      * stage. destruct HP as [Hs ->]. subst v'. unfold w3. rewrite Hub.
+        rewrite fo_unbox_correct; [apply fo_compile_blk, Hv0|].
+        apply fo_unbox_ext; [exact Hs|apply fo_compile_blk, Hv0].
+    + intros Hub p v [_ ->]. unfold w3. now rewrite Hub.
   Qed.
 End Prefix.
+
+(** Beta reduction, twice *)
+Lemma fo_nocofix_betared_transforms econf w :
+  fo_blk w ->
+  fo_triple (nocofix_betared_transforms econf) (fun _ v => v = w) (fun _ v => v = w).
+Proof.
+  intros Hw. unfold nocofix_betared_transforms. cbv zeta.
+  apply fo_triple_optional; [auto|].
+  eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w);
+    stage; subst v; (eapply fo_Gv; [exact Hw|exact Hobs]).
+Qed.
 
 (** The simplification passes after the MetaRocq pipeline *)
 Lemma fo_extra_unsafe_transforms spec_inst cse lbox lift_consts impl_box impl_lazy_force w :
@@ -205,11 +273,16 @@ Proof.
   1: eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w).
   1: eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w).
   1: eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w).
+  1: eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w).
   - (* instance specialization *)
     apply fo_triple_optional; [auto|]. stage. subst v.
     eapply fo_gchain; [exact Hw|exact Hobs].
   - (* common subexpressions *)
     apply fo_triple_optional; [auto|]. stage. now subst.
+  - (* iota reduction *)
+    apply fo_triple_optional; [auto|]. stage. subst v.
+    eapply iota_fo; [exact pr|apply (correctness iota_transformation p pr)|
+                     exact Hw|exact ev|exact ev'].
   - (* identity cases *)
     apply fo_triple_optional; [auto|]. stage. subst v.
     eapply case_id_fo; [exact pr|apply (correctness case_id_transformation p pr)|
@@ -265,35 +338,48 @@ Proof.
   destruct unb; [apply fo_unbox_blk|]; now apply fo_compile_blk.
 Qed.
 
+(** The translation only reads the inductives of the environment, which
+    eta-expansion leaves alone. *)
+Lemma fo_unboxed_value_eta m Σ unb v :
+  fo_app v ->
+  fo_unboxed_value m (eta_expand_env Σ) unb v = fo_unboxed_value m Σ unb v.
+Proof.
+  intros Hv. unfold fo_unboxed_value, fo_blocks_value.
+  rewrite (fo_compile_ext m _ _ (fo_npars_reorder_eta m Σ)).
+  destruct unb; [|reflexivity].
+  apply fo_unbox_ext; [apply fo_unboxable_reorder_eta|now apply fo_compile_blk].
+Qed.
+
+Lemma fo_value_compile_eta m Σ unb impl_box v :
+  fo_app v ->
+  fo_value_compile m (eta_expand_env Σ) unb impl_box v = fo_value_compile m Σ unb impl_box v.
+Proof. intros Hv. unfold fo_value_compile. now rewrite fo_unboxed_value_eta. Qed.
+
 (** The remapping of inductives is trusted: its correctness on the value at
-    hand is a hypothesis.  [remap_fo remap w]: on every program accepted by
-    the stage that evaluates to [w], the remapped program evaluates to [w]. *)
-Definition remap_fo (remap : remap_stage) (w : term) : Prop :=
-  fo_triple remap (fun _ v => v = w) (fun _ v => v = w).
+    hand is a hypothesis.  [remap_fo econf w]: on every well-formed program
+    that evaluates to [w], the remapped program evaluates to [w]. *)
+Definition remap_fo (econf : erasure_configuration) (w : term) : Prop :=
+  forall (p : eprogram) (wf : wf_eprogram extra_env_flags p),
+    eval_eprogram final_wcbv_flags p w ->
+    eval_eprogram final_wcbv_flags (remap_program econf p wf) w.
 
 Section Main.
   Context {guard : PCUICWfEnvImpl.abstract_guard_impl}.
-  Variables (econf : erasure_configuration) (remap : remap_stage)
-    (Hremap : remap_stage_ok remap).
+  Variables (econf : erasure_configuration).
   Variables (spec_inst cse : bool) (lbox : lbox_opts)
     (lift_consts impl_box impl_lazy_force : bool).
 
   Let unb := econf.(enable_unsafe).(unboxing).
-  Let pipeline := untyped_transform_pipeline_gen econf remap Hremap
-    spec_inst cse lbox lift_consts impl_box impl_lazy_force.
 
-  Lemma fo_untyped_transform_pipeline_gen m Σ0 v0 :
+  (** The verified prefix: up to and including unboxing *)
+  Lemma fo_untyped_prefix_pipeline m Σ0 v0 :
     fo_app v0 ->
-    (econf.(enable_unsafe).(inductives_extraction) = true ->
-     remap_fo remap (fo_unboxed_value m Σ0 unb v0)) ->
-    fo_triple pipeline
+    fo_triple (untyped_prefix_pipeline econf)
       (fun (p : inductives_mapping * eprogram) v => p.1 = m /\ p.2.1 = Σ0 /\ v = v0)
-      (fun _ v => v = fo_value_compile m Σ0 unb impl_box v0).
+      (fun _ v => v = fo_unboxed_value m Σ0 unb v0).
   Proof.
-    intros Hv0 Hr. unfold pipeline, untyped_transform_pipeline_gen.
+    intros Hv0. unfold untyped_prefix_pipeline.
     eapply fo_triple_compose with
-      (Q := fun (_ : eprogram) v => v = fo_unboxed_value m Σ0 unb v0).
-    1: eapply fo_triple_compose with
       (Q := fun (p : eprogram) v =>
               (forall ind c, fo_unboxable p.1 ind c =
                              fo_unboxable (EReorderCstrs.reorder_env m Σ0) ind c) /\
@@ -303,23 +389,95 @@ Section Main.
               p.1 = m /\ (p.2.1 : global_declarations) = Σ0 /\ v = v0).
     - stage. subst. exact HP.
     - now apply fo_nocofix_lambdabox_pipeline_mapping.
-    - now apply fo_nocofix_unsafe_transforms_gen.
-    - apply fo_extra_unsafe_transforms. now apply fo_unboxed_value_blk.
+    - now apply fo_nocofix_unboxing_transforms.
   Qed.
 
-  (** *** Main theorem: first-order correctness of the untyped middle end,
-      for an arbitrary remapping stage *)
-  Theorem untyped_transform_pipeline_gen_fo m (p : eprogram) (pr : pre pipeline (m, p)) v :
+  (** The verified suffix: from beta reduction on *)
+  Lemma fo_untyped_suffix_pipeline w :
+    fo_blk w ->
+    fo_triple (untyped_suffix_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force)
+      (fun _ v => v = w)
+      (fun _ v => v = if impl_box then EImplementBox.implement_box w else w).
+  Proof.
+    intros Hw. unfold untyped_suffix_pipeline.
+    eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w).
+    - now apply fo_nocofix_betared_transforms.
+    - now apply fo_extra_unsafe_transforms.
+  Qed.
+
+  Let pipeline := untyped_transform_pipeline econf
+    spec_inst cse lbox lift_consts impl_box impl_lazy_force.
+
+  Lemma fo_untyped_transform_pipeline m Σ0 v0 :
+    fo_app v0 ->
+    fo_triple pipeline
+      (fun (p : inductives_mapping * eprogram) v => p.1 = m /\ p.2.1 = Σ0 /\ v = v0)
+      (fun _ v => v = fo_value_compile m Σ0 unb impl_box v0).
+  Proof.
+    intros Hv0. unfold pipeline, untyped_transform_pipeline.
+    eapply fo_triple_compose with
+      (Q := fun (_ : eprogram) v => v = fo_unboxed_value m Σ0 unb v0).
+    - now apply fo_untyped_prefix_pipeline.
+    - apply fo_untyped_suffix_pipeline. now apply fo_unboxed_value_blk.
+  Qed.
+
+  (** *** First-order correctness of the untyped middle end (no remapping,
+      no eta-expansion) *)
+  Theorem untyped_transform_pipeline_fo m (p : eprogram) (pr : pre pipeline (m, p)) v :
     fo_app v ->
-    (econf.(enable_unsafe).(inductives_extraction) = true ->
-     remap_fo remap (fo_unboxed_value m p.1 unb v)) ->
     eval_eprogram default_wcbv_flags p v ->
     eval_eprogram final_wcbv_flags (transform pipeline (m, p) pr)
       (fo_value_compile m p.1 unb impl_box v).
   Proof.
-    intros Hv Hr ev.
-    destruct (fo_untyped_transform_pipeline_gen m p.1 v Hv Hr (m, p) pr v ev)
+    intros Hv ev.
+    destruct (fo_untyped_transform_pipeline m p.1 v Hv (m, p) pr v ev)
       as (v' & ev' & ->); auto.
+  Qed.
+
+  (** Eta-expansion is the identity on saturated first-order values *)
+  Lemma fo_eta_expand_transform_mapping m Σ0 v0 :
+    fo_sat (fo_arity Σ0) v0 ->
+    fo_triple eta_expand_transform_mapping
+      (fun (p : inductives_mapping * eprogram) v => p.1 = m /\ p.2.1 = Σ0 /\ v = v0)
+      (fun (p : inductives_mapping * eprogram) v =>
+         p.1 = m /\ p.2.1 = eta_expand_env Σ0 /\ v = v0).
+  Proof.
+    intros Hv0. stage. destruct HP as (Hm & HΣ & ->).
+    split; [exact Hm|]. split; [now rewrite -HΣ|].
+    destruct ev' as [ev'].
+    eapply fo_eta_value_rel; [|exact Hobs|eapply eval_to_value; exact ev'].
+    now rewrite HΣ.
+  Qed.
+
+  Lemma fo_eta_untyped_prefix_pipeline m Σ0 v0 :
+    fo_sat (fo_arity Σ0) v0 ->
+    fo_triple (eta_untyped_prefix_pipeline econf)
+      (fun (p : inductives_mapping * eprogram) v => p.1 = m /\ p.2.1 = Σ0 /\ v = v0)
+      (fun _ v => v = fo_unboxed_value m Σ0 unb v0).
+  Proof.
+    intros Hv0. unfold eta_untyped_prefix_pipeline.
+    eapply fo_triple_compose.
+    - now apply fo_eta_expand_transform_mapping.
+    - pose proof (fo_untyped_prefix_pipeline m (eta_expand_env Σ0) v0 (fo_sat_app _ _ Hv0)) as H.
+      eapply fo_triple_conseq; [| |exact H].
+      + intros ? ? HP; exact HP.
+      + cbn. intros ? ? ->. apply fo_unboxed_value_eta. exact (fo_sat_app _ _ Hv0).
+  Qed.
+
+  Lemma fo_eta_untyped_transform_pipeline m Σ0 v0 :
+    fo_sat (fo_arity Σ0) v0 ->
+    fo_triple (eta_untyped_transform_pipeline econf
+                 spec_inst cse lbox lift_consts impl_box impl_lazy_force)
+      (fun (p : inductives_mapping * eprogram) v => p.1 = m /\ p.2.1 = Σ0 /\ v = v0)
+      (fun _ v => v = fo_value_compile m Σ0 unb impl_box v0).
+  Proof.
+    intros Hv0. unfold eta_untyped_transform_pipeline.
+    eapply fo_triple_compose.
+    - now apply fo_eta_expand_transform_mapping.
+    - pose proof (fo_untyped_transform_pipeline m (eta_expand_env Σ0) v0 (fo_sat_app _ _ Hv0)) as H.
+      eapply fo_triple_conseq; [| |exact H].
+      + intros ? ? HP; exact HP.
+      + cbn. intros ? ? ->. apply fo_value_compile_eta. exact (fo_sat_app _ _ Hv0).
   Qed.
 End Main.
 
@@ -334,70 +492,76 @@ Proof.
   - discriminate.
 Qed.
 
-Theorem run_untyped_transforms_fo {guard : PCUICWfEnvImpl.abstract_guard_impl}
+Lemma join_with_check_ok {A P : Type} r (sound : Peregrine.Utils.bool_of_result r = true -> P)
+  (k : P -> Peregrine.Utils.result' A) a :
+  join_result (Peregrine.CheckWf.with_check r sound k) = ResultMonad.Ok a ->
+  exists pf : P, k pf = ResultMonad.Ok a.
+Proof.
+  unfold Peregrine.CheckWf.with_check, join_result. destruct r; intros H.
+  - eexists; exact H.
+  - discriminate.
+Qed.
+
+(** After a prefix that produced [q] evaluating to the block value [w]: the
+    trusted remapping (hypothesis [remap_fo]), the well-formedness check and
+    the verified suffix. *)
+Lemma remap_then_suffix_fo econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  (q : eprogram) wf p' w :
+  remap_then_suffix econf spec_inst cse lbox lift_consts impl_box impl_lazy_force q wf
+    = ResultMonad.Ok p' ->
+  fo_blk w -> remap_fo econf w ->
+  eval_eprogram final_wcbv_flags q w ->
+  eval_eprogram final_wcbv_flags p'
+    (if impl_box then EImplementBox.implement_box w else w).
+Proof.
+  unfold remap_then_suffix. cbv zeta. intros Hrun Hw Hr ev.
+  apply with_check_ok in Hrun as [pf ->].
+  destruct (fo_untyped_suffix_pipeline econf spec_inst cse lbox lift_consts impl_box
+              impl_lazy_force w Hw _ pf w (Hr q wf ev) eq_refl) as (v' & ev' & ->).
+  exact ev'.
+Qed.
+
+(** *** Main theorem (untyped pipeline, as run)
+
+    If [run_untyped_transforms] succeeds with [p'] and the source program
+    evaluates to a saturated first-order value [v], then [p'] evaluates to
+    [fo_value_compile m p.1 unb impl_box v].  The correctness of the
+    remapping of inductives on that value is assumed, only when a remapping
+    is configured. *)
+Theorem run_untyped_transforms_fo
   econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force (p p' : eprogram) v :
   let unb := econf.(enable_unsafe).(unboxing) in
   run_untyped_transforms econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force p
     = ResultMonad.Ok p' ->
-  fo_app v ->
-  (econf.(enable_unsafe).(inductives_extraction) = true ->
-   remap_fo (metarocq_remap econf) (fo_unboxed_value m p.1 unb v)) ->
+  fo_sat (fo_arity p.1) v ->
+  (remap_on econf = true -> remap_fo econf (fo_unboxed_value m p.1 unb v)) ->
   eval_eprogram default_wcbv_flags p v ->
   eval_eprogram final_wcbv_flags p' (fo_value_compile m p.1 unb impl_box v).
 Proof.
-  intros unb Hrun Hv Hr ev.
-  apply with_check_ok in Hrun as [pf ->].
-  now apply (untyped_transform_pipeline_gen_fo econf (metarocq_remap econf)
-               (metarocq_remap_ok econf)).
+  intros unb Hrun Hv Hr ev. unfold run_untyped_transforms in Hrun.
+  destruct (remap_on econf).
+  - apply join_with_check_ok in Hrun as [pf Hrun].
+    destruct (fo_eta_untyped_prefix_pipeline econf m p.1 v Hv (m, p) pf v ev)
+      as (w & evw & ->); [auto|].
+    eapply remap_then_suffix_fo in Hrun; [exact Hrun| |now apply Hr|exact evw].
+    apply fo_unboxed_value_blk. exact (fo_sat_app _ _ Hv).
+  - apply with_check_ok in Hrun as [pf ->].
+    destruct (fo_eta_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box
+                impl_lazy_force m p.1 v Hv (m, p) pf v ev) as (w & evw & ->); [auto|].
+    exact evw.
 Qed.
 
-(** Without remapping of inductives the hypothesis on the remapping stage is
-    vacuous. *)
-Corollary run_untyped_transforms_fo_noremap {guard : PCUICWfEnvImpl.abstract_guard_impl}
+(** Without a configured remapping there is no hypothesis left. *)
+Corollary run_untyped_transforms_fo_noremap
   econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force (p p' : eprogram) v :
   let unb := econf.(enable_unsafe).(unboxing) in
-  econf.(enable_unsafe).(inductives_extraction) = false ->
+  remap_on econf = false ->
   run_untyped_transforms econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force p
     = ResultMonad.Ok p' ->
-  fo_app v ->
+  fo_sat (fo_arity p.1) v ->
   eval_eprogram default_wcbv_flags p v ->
   eval_eprogram final_wcbv_flags p' (fo_value_compile m p.1 unb impl_box v).
 Proof.
   intros unb Hoff Hrun Hv ev.
-  eapply run_untyped_transforms_fo; eauto. congruence.
-Qed.
-
-(** ** A pipeline without the trusted remapping stage
-
-    The identity is a remapping stage satisfying [remap_fo]; the pipeline
-    instantiated with it is correct on first-order values without any
-    hypothesis, and does not mention MetaRocq's remapping stage at all. *)
-Program Definition id_remap : remap_stage :=
-  {| name := "no inductive remapping";
-     pre p := wf_eprogram extra_env_flags p;
-     transform p _ := p;
-     post p := wf_eprogram extra_env_flags p;
-     obseq _ _ _ v v' := v' = v |}.
-Next Obligation. eexists; split; [eassumption|reflexivity]. Qed.
-
-Lemma id_remap_ok : remap_stage_ok id_remap.
-Proof. split; cbn; intuition auto. Qed.
-
-Lemma id_remap_fo w : remap_fo id_remap w.
-Proof. intros p pr v ev Hv. exists v. split; auto. Qed.
-
-Corollary untyped_transform_pipeline_id_fo {guard : PCUICWfEnvImpl.abstract_guard_impl}
-  econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m (p : eprogram)
-  (pr : pre (untyped_transform_pipeline_gen econf id_remap id_remap_ok
-               spec_inst cse lbox lift_consts impl_box impl_lazy_force) (m, p)) v :
-  let unb := econf.(enable_unsafe).(unboxing) in
-  fo_app v ->
-  eval_eprogram default_wcbv_flags p v ->
-  eval_eprogram final_wcbv_flags
-    (transform (untyped_transform_pipeline_gen econf id_remap id_remap_ok
-                  spec_inst cse lbox lift_consts impl_box impl_lazy_force) (m, p) pr)
-    (fo_value_compile m p.1 unb impl_box v).
-Proof.
-  intros unb Hv ev.
-  apply untyped_transform_pipeline_gen_fo; auto. intros _. apply id_remap_fo.
+  eapply run_untyped_transforms_fo; eauto. rewrite Hoff. discriminate.
 Qed.

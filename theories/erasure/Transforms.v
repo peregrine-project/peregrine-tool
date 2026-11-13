@@ -288,61 +288,74 @@ Qed.
     Beta-reduction is [EBeta.betared_program] with the proved
     [EBetaCorrect.betared_transformation] in place of MetaRocq's
     [EBeta.betared_transformation], whose obligations are axioms. *)
-(** The inductive-remapping stage is trusted (its MetaRocq correctness
-    statements are axioms), so the pipelines are first defined for an arbitrary
-    stage [remap] in its place, [nocofix_unsafe_transforms_gen] and
-    [untyped_transform_pipeline_gen], which lets [EFirstOrderCorrect] state its
-    theorem without those axioms.  [remap_stage_ok] is what the composition
-    needs of the stage. *)
-Definition remap_stage :=
-  Transform.t _ _ EAst.term EAst.term _ _
-    (EProgram.eval_eprogram final_wcbv_flags) (EProgram.eval_eprogram final_wcbv_flags).
-
-Definition remap_stage_ok (remap : remap_stage) : Prop :=
-  and (forall p, wf_eprogram extra_env_flags p <-> pre remap p)
-      (forall p, post remap p -> wf_eprogram extra_env_flags p).
-Program Definition nocofix_unsafe_transforms_gen econf (remap : remap_stage)
-  (Hremap : remap_stage_ok remap) :=
+(** The remapping of inductives ([ERemapInductives]) is trusted: MetaRocq's
+    correctness statements for it are axioms.  It is therefore not a stage of
+    the verified pipelines.  The pipelines are split around it into a verified
+    prefix (up to unboxing) and a verified suffix (from beta-reduction on);
+    when a remapping is configured, the run functions at the end of this file
+    apply [remap_program] as a plain function between the two and check the
+    well-formedness of its result, which is all the suffix requires. *)
+Program Definition nocofix_unboxing_transforms econf :=
   let passes := econf.(enable_unsafe) in
   let efl := extra_env_flags in
   ETransform.optional_self_transform passes.(unboxing)
     (rebuild_wf_env_transform (efl := efl) false false ▷
      unbox_transformation efl final_wcbv_flags (has_app := eq_refl) (has_cofix := eq_refl)
-       (has_prop_case := eq_refl) (has_letin := eq_refl) (has_cstrparams := eq_refl) (has_cstr_block := eq_refl)) ▷
-  ETransform.optional_self_transform passes.(inductives_extraction) remap ▷
+       (has_prop_case := eq_refl) (has_letin := eq_refl) (has_cstrparams := eq_refl) (has_cstr_block := eq_refl)).
+
+Program Definition nocofix_betared_transforms econf :=
+  let passes := econf.(enable_unsafe) in
+  let efl := extra_env_flags in
   (* Heuristically do it twice for more beta-normal terms *)
   ETransform.optional_self_transform passes.(betared)
     (EBetaCorrect.betared_transformation efl (hasapp := eq_refl) ▷
      EBetaCorrect.betared_transformation efl (hasapp := eq_refl)).
-Next Obligation.
-  destruct Hremap as [Hpre Hpost].
-  destruct (enable_unsafe econf) as [? [] [] []]; cbn in * => //; intuition auto;
-    try (now apply Hpre); try (now apply Hpost); try (now apply Hpost, Hpre).
-Qed.
-Next Obligation.
-  destruct Hremap as [Hpre Hpost].
-  destruct (enable_unsafe econf) as [? [] [] []]; cbn in * => //; intuition auto;
-    try (now apply Hpre); try (now apply Hpost); try (now apply Hpost, Hpre).
+
+Lemma nocofix_unboxing_transforms_pre econf p :
+  wf_eprogram extra_env_flags p <-> pre (nocofix_unboxing_transforms econf) p.
+Proof.
+  unfold nocofix_unboxing_transforms; cbn.
+  destruct (unboxing _); cbn; intuition auto.
 Qed.
 
-(** MetaRocq's remapping stage. *)
-Program Definition metarocq_remap econf : remap_stage :=
-  let efl := extra_env_flags in
-  rebuild_wf_env_transform (efl := efl) false false ▷
-  ERemapInductives.extract_inductive_transformation efl final_wcbv_flags econf.(extracted_inductives) ▷
-  ERemapInductives.forget_inductive_extraction_info_transformation efl final_wcbv_flags.
+Lemma nocofix_unboxing_transforms_post econf p :
+  post (nocofix_unboxing_transforms econf) p -> wf_eprogram extra_env_flags p.
+Proof.
+  unfold nocofix_unboxing_transforms; cbn.
+  destruct (unboxing _); cbn; intuition auto.
+Qed.
 
-Lemma metarocq_remap_ok econf : remap_stage_ok (metarocq_remap econf).
-Proof. split; cbn; intuition auto. Qed.
+Lemma nocofix_betared_transforms_pre econf p :
+  wf_eprogram extra_env_flags p <-> pre (nocofix_betared_transforms econf) p.
+Proof.
+  unfold nocofix_betared_transforms; cbn.
+  destruct (betared _); cbn; intuition auto.
+Qed.
 
-Definition nocofix_unsafe_transforms econf :=
-  nocofix_unsafe_transforms_gen econf (metarocq_remap econf) (metarocq_remap_ok econf).
+Lemma nocofix_betared_transforms_post econf p :
+  post (nocofix_betared_transforms econf) p -> wf_eprogram extra_env_flags p.
+Proof.
+  unfold nocofix_betared_transforms; cbn.
+  destruct (betared _); cbn; intuition auto.
+Qed.
+
+(** Is a remapping of inductives configured? *)
+Definition remap_on econf : bool :=
+  econf.(enable_unsafe).(inductives_extraction) &&
+  match econf.(extracted_inductives) with [] => false | _ :: _ => true end.
+
+(** MetaRocq's remapping of inductives, as a function on well-formed
+    programs.  Nothing is proved about its result. *)
+Definition remap_program econf (p : eprogram) (wf : wf_eprogram extra_env_flags p) : eprogram :=
+  ERemapInductives.forget_inductive_extraction_info
+    (ERemapInductives.extract_inductive_program econf.(extracted_inductives)
+       (rebuild_wf_env (efl := extra_env_flags) p wf)).
 
 #[local] Obligation Tactic := idtac.
 
-
-Program Definition untyped_transform_pipeline_gen {guard : abstract_guard_impl}
-  (efl := nocofix_env_flags) econf (remap : remap_stage) (Hremap : remap_stage_ok remap) spec_inst cse lbox lift_consts impl_box impl_lazy_force
+(** The verified pipeline up to the remapping of inductives *)
+Program Definition untyped_prefix_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf
   : Transform.t _ _ _ EAst.term _ _
    (* Standard evaluation, with cases on prop, guarded fixpoints, applied constructors *)
    (eval_eprogram_mapping EWcbvEval.default_wcbv_flags)
@@ -350,30 +363,52 @@ Program Definition untyped_transform_pipeline_gen {guard : abstract_guard_impl}
    (EProgram.eval_eprogram final_wcbv_flags) :=
   rebuild_wf_env_transform_mapping true true ▷
   nocofix_lambdabox_pipeline_mapping econf ▷
-  nocofix_unsafe_transforms_gen econf remap Hremap ▷
-  extra_unsafe_transforms spec_inst cse lbox lift_consts impl_box impl_lazy_force.
+  nocofix_unboxing_transforms econf.
 Next Obligation.
   cbn. intros.
   destruct H as [? [? ?]].
   split; auto.
 Qed.
 Next Obligation.
-  cbn. intros.
-  destruct Hremap as [Hpre Hpost].
-  destruct econf as [[? [] ? ?] ? ? [] ? ?]; cbn in *; intuition auto;
-    try (now apply Hpre); try (now apply Hpost).
-Qed.
-Final Obligation.
-  cbn. intros.
-  destruct Hremap as [Hpre Hpost].
-  destruct econf as [[? [] [] []] ? ? ? ? ?], spec_inst; cbn in *; intuition auto;
-    try (now apply Hpre); try (now apply Hpost); try (now apply Hpost, Hpre).
+  intros guard efl econf p H. apply nocofix_unboxing_transforms_pre. revert H.
+  destruct econf as [[? ? ? ?] ? ? [] ? ?]; cbn in *; intuition auto.
 Qed.
 
-Definition untyped_transform_pipeline {guard : abstract_guard_impl}
-  econf spec_inst cse lbox lift_consts impl_box impl_lazy_force :=
-  untyped_transform_pipeline_gen econf (metarocq_remap econf) (metarocq_remap_ok econf)
-    spec_inst cse lbox lift_consts impl_box impl_lazy_force.
+Lemma untyped_prefix_pipeline_post {guard : abstract_guard_impl} econf p :
+  post (untyped_prefix_pipeline econf) p -> wf_eprogram extra_env_flags p.
+Proof. apply nocofix_unboxing_transforms_post. Qed.
+
+(** The verified pipeline after the remapping of inductives *)
+Program Definition untyped_suffix_pipeline
+  econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  : Transform.t _ _ _ EAst.term _ _
+   (EProgram.eval_eprogram final_wcbv_flags)
+   (EProgram.eval_eprogram final_wcbv_flags) :=
+  nocofix_betared_transforms econf ▷
+  extra_unsafe_transforms spec_inst cse lbox lift_consts impl_box impl_lazy_force.
+Next Obligation.
+  intros econf spec_inst cse lbox lift_consts impl_box impl_lazy_force p H.
+  apply nocofix_betared_transforms_post in H. revert H.
+  destruct spec_inst; cbn in *; intuition auto.
+Qed.
+
+Lemma untyped_suffix_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force p :
+  wf_eprogram extra_env_flags p ->
+  pre (untyped_suffix_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) p.
+Proof. apply nocofix_betared_transforms_pre. Qed.
+
+(** The verified pipeline without remapping of inductives *)
+Program Definition untyped_transform_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  : Transform.t _ _ _ EAst.term _ _
+   (eval_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (EProgram.eval_eprogram final_wcbv_flags) :=
+  untyped_prefix_pipeline econf ▷
+  untyped_suffix_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force.
+Next Obligation.
+  intros guard efl econf spec_inst cse lbox lift_consts impl_box impl_lazy_force p H.
+  apply untyped_suffix_pipeline_pre. exact (untyped_prefix_pipeline_post econf p H).
+Qed.
 
 
 Section Dearging.
@@ -484,37 +519,29 @@ Proof.
   now unshelve eapply (preservation (dearging_transform cf)).
 Qed.
 
+(** The analysis part of the typed pipeline: matches on boxes are removed
+    and the dearging masks are computed and checked.  The masks ([p.2.1.1] of
+    the result) are what the dearging stage below removes. *)
+Program Definition typed_analysis_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) (econf : erasure_configuration)
+  : Transform.t _ _ _ _ _ _
+   (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (eval_typed_eprogram_masks_mapping EWcbvEval.opt_wcbv_flags) :=
+
+   remove_match_on_box_typed_transform_mapping (wcon := eq_refl) (hastrel := eq_refl) (hastbox := eq_refl)
+    (fl := EWcbvEval.default_wcbv_flags) ▷
+   (* Check if the preconditions for dearging are valid, otherwise dearging will be the identity *)
+   dearging_checks_transform_mapping econf.(dearging_config) (hastrel := eq_refl) (hastbox := eq_refl).
+Solve All Obligations with (first [solve [program_simpl] | cbn; intros; apply H]).
+
 Program Definition typed_transform_pipeline {guard : abstract_guard_impl}
   (efl := nocofix_env_flags) econf
   : Transform.t _ _ _ _ _ _
    (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
    (eval_typed_eprogram_mapping EWcbvEval.opt_wcbv_flags) :=
-
-   remove_match_on_box_typed_transform_mapping (wcon := eq_refl) (hastrel := eq_refl) (hastbox := eq_refl)
-    (fl := EWcbvEval.default_wcbv_flags) ▷
-   (* Check if the preconditions for dearging are valid, otherwise dearging will be the identity *)
-   dearging_checks_transform_mapping econf.(dearging_config) (hastrel := eq_refl) (hastbox := eq_refl) ▷
+   typed_analysis_pipeline econf ▷
    dearging_transform_mapping econf.(dearging_config).
-Next Obligation.
-  program_simpl.
-Qed.
-Next Obligation.
-  program_simpl.
-Qed.
-Next Obligation.
-  program_simpl.
-Qed.
-Next Obligation.
-  program_simpl.
-Qed.
-Next Obligation.
-  intros. cbn.
-  apply H.
-Qed.
-Final Obligation.
-  cbn. intros.
-  apply H.
-Qed.
+Solve All Obligations with (first [solve [program_simpl] | cbn; intros; apply H]).
 
 
 (** ** The lambda-box simplifications on typed programs
@@ -671,8 +698,8 @@ Final Obligation.
 Qed.
 
 
-Program Definition typed_to_untyped_transform_pipeline {guard : abstract_guard_impl}
-  (efl := nocofix_env_flags) econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
+Program Definition typed_to_untyped_prefix_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf
   : Transform.t _ _ _ _ _ _
    (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
    (EProgram.eval_eprogram final_wcbv_flags) :=
@@ -681,8 +708,7 @@ Program Definition typed_to_untyped_transform_pipeline {guard : abstract_guard_i
    trans_env_transform ▷
    rebuild_wf_env_transform_mapping true true ▷
    nocofix_lambdabox_typed_pipeline econf ▷
-   nocofix_unsafe_transforms econf ▷
-   extra_unsafe_transforms spec_inst cse lbox lift_consts impl_box impl_lazy_force.
+   nocofix_unboxing_transforms econf.
 Next Obligation.
   intros.
   cbn in *.
@@ -702,17 +728,30 @@ Next Obligation.
   split; auto.
 Qed.
 Next Obligation.
-  cbn. intros.
-  destruct econf as [[? [] ? ?] ? ? [] ? ?]; cbn in *; intuition auto.
+  intros guard efl econf p H. apply nocofix_unboxing_transforms_pre. revert H.
+  destruct econf as [[? ? ? ?] ? ? [] ? ?]; cbn in *; intuition auto.
 Qed.
-Final Obligation.
-  cbn. intros.
-  destruct econf as [[? ? ? []] ? ? ? ? ?], spec_inst; cbn in *; auto.
+
+Lemma typed_to_untyped_prefix_pipeline_post {guard : abstract_guard_impl} econf p :
+  post (typed_to_untyped_prefix_pipeline econf) p -> wf_eprogram extra_env_flags p.
+Proof. apply nocofix_unboxing_transforms_post. Qed.
+
+Program Definition typed_to_untyped_transform_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  : Transform.t _ _ _ _ _ _
+   (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (EProgram.eval_eprogram final_wcbv_flags) :=
+  typed_to_untyped_prefix_pipeline econf ▷
+  untyped_suffix_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force.
+Next Obligation.
+  intros guard efl econf spec_inst cse lbox lift_consts impl_box impl_lazy_force p H.
+  apply untyped_suffix_pipeline_pre. exact (typed_to_untyped_prefix_pipeline_post econf p H).
 Qed.
 
 
-Import Peregrine.Utils (bool_of_result).
-Import Peregrine.CheckWf (check_pipeline_wf, check_pipeline_wf_sound, with_check).
+Import Peregrine.Utils (bool_of_result, result', result_mapb).
+Import Peregrine.CheckWf (check_pipeline_wf, check_pipeline_wf_sound, with_check,
+  check_wf_program, check_wf_program_sound).
 
 (** * Eta-expansion of the pipeline input
 
@@ -789,6 +828,28 @@ Next Obligation.
   exact (conj hm (conj hwf (fun _ => hexp))).
 Qed.
 
+Program Definition eta_untyped_prefix_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf
+  : Transform.t _ _ _ EAst.term _ _
+   (eval_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (EProgram.eval_eprogram final_wcbv_flags) :=
+  eta_expand_transform_mapping ▷ untyped_prefix_pipeline econf.
+Next Obligation.
+  intros guard efl econf p (hm & hwf & hexp).
+  exact (conj hm (conj hwf (fun _ => hexp))).
+Qed.
+
+Program Definition eta_typed_to_untyped_prefix_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf
+  : Transform.t _ _ _ _ _ _
+   (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (EProgram.eval_eprogram final_wcbv_flags) :=
+  eta_expand_typed_transform_mapping ▷ typed_to_untyped_prefix_pipeline econf.
+Next Obligation.
+  intros guard efl econf p (hm & hwf & hexp).
+  exact (conj hm (conj hwf hexp)).
+Qed.
+
 Program Definition eta_typed_transform_pipeline {guard : abstract_guard_impl}
   (efl := nocofix_env_flags) econf
   : Transform.t _ _ _ _ _ _
@@ -860,7 +921,63 @@ Proof.
   intros h. exact (check_pipeline_wf_sound m _ h).
 Qed.
 
+Lemma untyped_prefix_pipeline_pre econf m p :
+  bool_of_result (@check_pipeline_wf nocofix_env_flags m p) = true ->
+  pre (eta_untyped_prefix_pipeline econf) (m, p).
+Proof.
+  intros h. exact (check_pipeline_wf_sound m p h).
+Qed.
+
+Lemma typed_to_untyped_prefix_pipeline_pre econf m (p : ExAst.global_env * EAst.term) :
+  bool_of_result (@check_pipeline_wf nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
+  pre (eta_typed_to_untyped_prefix_pipeline econf) (m, p).
+Proof.
+  intros h. exact (check_pipeline_wf_sound m _ h).
+Qed.
+
+(** ** The trusted remapping of inductives
+
+    [remap_then_suffix] continues after a verified prefix that produced the
+    well-formed program [q]: it remaps the inductives of [q], checks that the
+    result is well formed (an error otherwise) and runs the verified suffix on
+    it.  The remapping itself is a plain function: no property of it is used
+    beyond the outcome of this check. *)
+Definition check_remapped (q : eprogram) : result' unit :=
+  ResultMonad.map_error (fun e => "The result of the remapping of inductives is ill-formed: " ++ e)%bs
+    (@check_wf_program extra_env_flags q).
+
+Lemma check_remapped_sound q :
+  bool_of_result (check_remapped q) = true -> wf_eprogram extra_env_flags q.
+Proof.
+  intros h. apply check_wf_program_sound.
+  unfold check_remapped in h. now rewrite result_mapb in h.
+Qed.
+
+Definition remap_then_suffix econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  (q : eprogram) (wf : wf_eprogram extra_env_flags q) : result' eprogram :=
+  let q' := remap_program econf q wf in
+  with_check (check_remapped q')
+    (fun h => untyped_suffix_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force q'
+                (check_remapped_sound q' h))
+    (run (untyped_suffix_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) q').
+
+Definition join_result {A} (r : result' (result' A)) : result' A :=
+  match r with
+  | ResultMonad.Ok x => x
+  | ResultMonad.Err e => ResultMonad.Err e
+  end.
+
 Definition run_untyped_transforms econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force p :=
+  if remap_on econf then
+    join_result
+      (with_check (@check_pipeline_wf nocofix_env_flags ind_reorder p)
+         (untyped_prefix_pipeline_pre econf ind_reorder p)
+         (fun pf =>
+            remap_then_suffix econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
+              (run (eta_untyped_prefix_pipeline econf) (ind_reorder, p) pf)
+              (untyped_prefix_pipeline_post econf _
+                 (correctness (eta_untyped_prefix_pipeline econf) (ind_reorder, p) pf))))
+  else
   with_check (@check_pipeline_wf nocofix_env_flags ind_reorder p)
     (untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p)
     (run (eta_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).
@@ -872,6 +989,16 @@ Definition run_typed_transforms econf ind_reorder lbox (p : ExAst.global_env * E
 
 Definition run_typed_to_untyped_transforms econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force
   (p : ExAst.global_env * EAst.term) :=
+  if remap_on econf then
+    join_result
+      (with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
+         (typed_to_untyped_prefix_pipeline_pre econf ind_reorder p)
+         (fun pf =>
+            remap_then_suffix econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
+              (run (eta_typed_to_untyped_prefix_pipeline econf) (ind_reorder, p) pf)
+              (typed_to_untyped_prefix_pipeline_post econf _
+                 (correctness (eta_typed_to_untyped_prefix_pipeline econf) (ind_reorder, p) pf))))
+  else
   with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
     (typed_to_untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p)
     (run (eta_typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).

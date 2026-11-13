@@ -155,6 +155,35 @@ Proof.
     induction Hargs as [|x l Hx Hl IH]; constructor; auto.
 Qed.
 
+(** Saturated first-order values: every constructor is applied to at least
+    [ar ind c] arguments. *)
+Inductive fo_sat (ar : inductive -> nat -> nat) : term -> Prop :=
+| fo_sat_box : fo_sat ar tBox
+| fo_sat_prim p : fo_prim p -> fo_sat ar (tPrim p)
+| fo_sat_construct ind c args :
+    ar ind c <= #|args| -> Forall (fo_sat ar) args ->
+    fo_sat ar (mkApps (tConstruct ind c []) args).
+
+Lemma fo_sat_ind' ar (P : term -> Prop) :
+  P tBox ->
+  (forall p, fo_prim p -> P (tPrim p)) ->
+  (forall ind c args, ar ind c <= #|args| -> Forall (fo_sat ar) args -> Forall P args ->
+     P (mkApps (tConstruct ind c []) args)) ->
+  forall t, fo_sat ar t -> P t.
+Proof.
+  intros Hb Hp Hc.
+  fix F 2. intros t [| p Hprim | ind c args Hle Hargs].
+  - exact Hb.
+  - exact (Hp p Hprim).
+  - apply Hc; [exact Hle|exact Hargs|].
+    clear Hle. induction Hargs as [|x l Hx Hl IH]; constructor; auto.
+Qed.
+
+Lemma fo_sat_app ar t : fo_sat ar t -> fo_app t.
+Proof.
+  induction 1 using fo_sat_ind'; constructor; auto.
+Qed.
+
 Lemma Forall_map_id {A} (f : A -> A) l :
   Forall (fun x => f x = x) l -> map f l = l.
 Proof. induction 1; cbn; congruence. Qed.
@@ -182,6 +211,15 @@ Fixpoint fo_compile (m : EProgram.inductives_mapping) (npars : inductive -> nat)
       tConstruct ind (EReorderCstrs.lookup_constructor_ordinal m ind c) (skipn (npars ind) acc)
   | _ => t
   end.
+
+Lemma fo_compile_ext m npars npars' :
+  (forall ind, npars ind = npars' ind) ->
+  forall t acc, fo_compile m npars t acc = fo_compile m npars' t acc.
+Proof.
+  intros H t. induction t; intros acc; cbn; auto.
+  - now rewrite IHt2 IHt1.
+  - now rewrite H.
+Qed.
 
 Lemma fo_compile_mkApps m npars f l acc :
   fo_compile m npars (mkApps f l) acc =
