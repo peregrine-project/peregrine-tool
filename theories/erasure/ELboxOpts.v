@@ -153,14 +153,6 @@ Definition atomic (t : term) : bool :=
 
 (** ** Pass 1: fixpoint eta-hoisting *)
 
-(** Strip [let _ := tBox in] prefixes (accessibility proofs of well-founded
-    definitions); returns how many were stripped. *)
-Fixpoint strip_box_lets (t : term) : nat * term :=
-  match t with
-  | tLetIn _ tBox b => let '(j, b') := strip_box_lets b in (S j, b')
-  | _ => (0, t)
-  end.
-
 (** Parameter [i] (0-based) of the [idx]-th function of [mfix], which must have
     at least [n] leading lambdas, is never used. *)
 Definition fix_param_dead (mfix : mfixpoint term) (idx n i : nat) : bool :=
@@ -169,100 +161,19 @@ Definition fix_param_dead (mfix : mfixpoint term) (idx n i : nat) : bool :=
   | None => false
   end.
 
-(** Under [k] lambdas and [j] box-lets, the fixpoint is applied to [n >= k]
-    arguments: argument [i < k] must be lambda parameter [i], i.e.
-    [tRel (k + j - 1 - i)], or a box when parameter [i] of the fixpoint is
-    dead; arguments [i >= k] must be boxes with dead parameters (they are
-    removed from the fixpoint, see [drop_fix_params]). *)
-Definition fix_eta_args_ok (mfix : mfixpoint term) (idx k j : nat) (args : list term) : bool :=
-  let n := #|args| in
-  Nat.leb k n &&
-  forallb (fun '(i, a) =>
-    match a with
-    | tRel r => (Nat.ltb i k && Nat.eqb r (k + j - 1 - i)) || (Nat.ltb r j && fix_param_dead mfix idx n i)
-    | tBox => fix_param_dead mfix idx n i
-    | _ => false
-    end) (combine (seq 0 n) args).
-
-(** Drop argument positions [k .. n-1] of every application of [tRel f] (the
-    fixpoint function, [f] is adjusted under binders); [None] if it occurs
-    unapplied or applied to fewer than [n] arguments.  [args] accumulates the
-    already processed arguments of the application being traversed. *)
-Fixpoint drop_aux (f k n : nat) (args : list term) (t : term) : option term :=
-  match t with
-  | tApp hd a =>
-      match drop_aux f k n [] a with
-      | Some a' => drop_aux f k n (a' :: args) hd
-      | None => None
-      end
-  | tRel r =>
-      if Nat.eqb r f
-      then (if Nat.leb n #|args| then Some (mkApps (tRel r) (firstn k args ++ skipn n args)) else None)
-      else Some (mkApps (tRel r) args)
-  | tLambda na b =>
-      match drop_aux (S f) k n [] b with
-      | Some b' => Some (mkApps (tLambda na b') args) | None => None end
-  | tLetIn na v b =>
-      match drop_aux f k n [] v, drop_aux (S f) k n [] b with
-      | Some v', Some b' => Some (mkApps (tLetIn na v' b') args) | _, _ => None end
-  | tCase ci d brs =>
-      match drop_aux f k n [] d,
-            map_option_out (map (fun br => match drop_aux (#|br.1| + f) k n [] br.2 with
-                                       | Some b' => Some (br.1, b') | None => None end) brs) with
-      | Some d', Some brs' => Some (mkApps (tCase ci d' brs') args) | _, _ => None end
-  | tFix mfix idx =>
-      match map_option_out (map (fun d => match drop_aux (#|mfix| + f) k n [] d.(dbody) with
-                                      | Some b' => Some {| dname := d.(dname); dbody := b'; rarg := d.(rarg) |}
-                                      | None => None end) mfix) with
-      | Some mfix' => Some (mkApps (tFix mfix' idx) args) | None => None end
-  | tCoFix mfix idx =>
-      match map_option_out (map (fun d => match drop_aux (#|mfix| + f) k n [] d.(dbody) with
-                                      | Some b' => Some {| dname := d.(dname); dbody := b'; rarg := d.(rarg) |}
-                                      | None => None end) mfix) with
-      | Some mfix' => Some (mkApps (tCoFix mfix' idx) args) | None => None end
-  | tConstruct ind i cargs =>
-      match map_option_out (map (drop_aux f k n []) cargs) with
-      | Some cargs' => Some (mkApps (tConstruct ind i cargs') args) | None => None end
-  | tEvar e ts =>
-      match map_option_out (map (drop_aux f k n []) ts) with
-      | Some ts' => Some (mkApps (tEvar e ts') args) | None => None end
-  | tProj p c =>
-      match drop_aux f k n [] c with Some c' => Some (mkApps (tProj p c') args) | None => None end
-  | tLazy c =>
-      match drop_aux f k n [] c with Some c' => Some (mkApps (tLazy c') args) | None => None end
-  | tForce c =>
-      match drop_aux f k n [] c with Some c' => Some (mkApps (tForce c') args) | None => None end
-  | tPrim _ => if occurs_rel f t then None else Some (mkApps t args)
-  | _ => Some (mkApps t args)
-  end.
-
-(** Remove the (dead) parameters [k .. n-1] of function [idx] of a fixpoint,
-    and the corresponding arguments of all its calls in the block. *)
-Definition drop_fix_params (k n : nat) (t : term) : option term :=
-  match t with
-  | tFix mfix idx =>
-      let f := #|mfix| - 1 - idx in
-      match map_option_out (map (fun '(i, d) =>
-        match drop_aux f k n [] d.(dbody) with
-        | Some b =>
-            if Nat.eqb i idx then
-              let b' := mk_lambdas (lambda_names k b) (subst (repeat tBox (n - k)) 0 (strip_lambdas n b)) in
-              (* The recursive argument keeps its index if it comes before the
-                 dropped parameters and moves down by [n - k] if it comes
-                 after them.  If it is itself dropped (a dead structural
-                 argument, such as the erased [Acc] proof of a well-founded
-                 fixpoint), there is no structural parameter left; we point
-                 at the last kept one ([k >= 1] here). *)
-              let r := d.(rarg) in
-              let r' := if Nat.ltb r k then r else if Nat.ltb r n then k - 1 else r - (n - k) in
-              Some {| dname := d.(dname); dbody := b'; rarg := r' |}
-            else Some {| dname := d.(dname); dbody := b; rarg := d.(rarg) |}
-        | None => None
-        end) (combine (seq 0 #|mfix|) mfix)) with
-      | Some mfix' => Some (tFix mfix' idx)
-      | None => None
-      end
-  | _ => None
+(** Under [n] lambdas the fixpoint is applied to exactly [n] arguments
+    ([args] are the arguments from position [i] on): argument [i] must be
+    lambda parameter [i], i.e. [tRel (n - 1 - i)], or a box when parameter [i]
+    of the fixpoint is dead. *)
+Fixpoint fix_eta_args_ok (mfix : mfixpoint term) (idx n i : nat) (args : list term) : bool :=
+  match args with
+  | [] => Nat.eqb i n
+  | a :: args =>
+      match a with
+      | tRel r => Nat.eqb r (n - 1 - i)
+      | tBox => fix_param_dead mfix idx n i
+      | _ => false
+      end && fix_eta_args_ok mfix idx n (S i) args
   end.
 
 (** The [idx]-th function of [mfix] has at least [n] leading lambdas, so
@@ -279,18 +190,11 @@ Definition fix_arity_ok (mfix : mfixpoint term) (idx n : nat) : bool :=
 Definition fix_eta (t : term) : term :=
   let k := count_lambdas t in
   if Nat.eqb k 0 then t else
-  let '(j, body) := strip_box_lets (strip_lambdas k t) in
-  let '(hd, args) := decompose_app body in
+  let '(hd, args) := decompose_app (strip_lambdas k t) in
   match hd with
   | tFix mfix idx =>
-      let n := #|args| in
-      if nofree_range 0 (k + j) hd && fix_eta_args_ok mfix idx k j args
-      then
-        if fix_arity_ok mfix idx n then
-          let hd := subst (repeat tBox (k + j)) 0 hd in  (* lowers the free variables by k + j *)
-          if Nat.eqb n k then hd
-          else match drop_fix_params k n hd with Some hd' => hd' | None => t end
-        else t
+      if nofree_range 0 k hd && fix_eta_args_ok mfix idx k 0 args && fix_arity_ok mfix idx k
+      then subst (repeat tBox k) 0 hd  (* lowers the free variables by k *)
       else t
   | _ => t
   end.
@@ -511,34 +415,29 @@ Module LboxOptsChecks.
     = tLambda (nm "A") (tLambda (nm "x") (tApp (tApp fixAy tBox) (tRel 0))).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 1'''. let-bound box (Acc-style): fun n => let H := □ in (fix F n0 H0 := F n0 □) n H
-          ==>  fix F n0 := F n0  (the dead accessibility parameter is dropped) *)
+  (* 1'''. a let-bound box is not an argument of the eta-expansion: unchanged *)
   Definition fixAcc := fix1 (tLambda (nm "n0") (tLambda (nm "H0") (tApp (tApp (tRel 2) (tRel 1)) tBox))).
   Example fix_eta_acc :
     optimize O (tLambda (nm "n") (tLetIn (nm "H") tBox (tApp (tApp fixAcc (tRel 1)) (tRel 0))))
-    = fix1 (tLambda (nm "n0") (tApp (tRel 1) (tRel 0))).
+    = tLambda (nm "n") (tLetIn (nm "H") tBox (tApp (tApp fixAcc (tRel 1)) (tRel 0))).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 1''''''. a dead parameter before the structural one is dropped, and the
-     recursive-argument index moves with the structural parameter:
-     fun x => (fix F x0 H m {struct m} := F x0 □ m) x □
-       ==>  fix F x0 m {struct m} := F x0 m *)
+  (* 1'''''. more arguments than lambdas: unchanged (dead parameters are not
+     dropped) *)
   Definition fixM := tFix [{| dname := nm "F";
     dbody := tLambda (nm "x0") (tLambda (nm "H") (tLambda (nm "m")
                (tApp (tApp (tApp (tRel 3) (tRel 2)) tBox) (tRel 0))));
     rarg := 2 |}] 0.
   Example fix_eta_rarg :
     optimize O (tLambda (nm "x") (tApp (tApp fixM (tRel 0)) tBox))
-    = tFix [{| dname := nm "F";
-               dbody := tLambda (nm "x0") (tLambda (nm "m") (tApp (tApp (tRel 2) (tRel 1)) (tRel 0)));
-               rarg := 1 |}] 0.
+    = tLambda (nm "x") (tApp (tApp fixM (tRel 0)) tBox).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 1'''''. the function escapes unapplied: not hoisted *)
-  Definition fixEsc := fix1 (tLambda (nm "n0") (tLambda (nm "H0") (tApp (tRel 3) (tRel 2)))).
-  Example fix_eta_escape :
-    optimize O (tLambda (nm "g") (tLambda (nm "n") (tLetIn (nm "H") tBox (tApp (tApp fixEsc (tRel 1)) (tRel 0)))))
-    = tLambda (nm "g") (tLambda (nm "n") (tLetIn (nm "H") tBox (tApp (tApp fixEsc (tRel 1)) (tRel 0)))).
+  (* 1''''''. a box for a dead parameter between two variables: hoisted *)
+  Example fix_eta_box_mid :
+    optimize O (tLambda (nm "x") (tLambda (nm "h") (tLambda (nm "m")
+                  (tApp (tApp (tApp fixM (tRel 2)) tBox) (tRel 0)))))
+    = fixM.
   Proof. vm_compute. reflexivity. Qed.
 
   (* 1''''. the fixpoint mentions the lambda-bound variable: unchanged *)
