@@ -17,6 +17,7 @@ From Peregrine Require Import ELboxOpts ELboxOptsWf.
 From Peregrine Require ELboxOptsSimStatic.
 From Peregrine Require Import ELiftConstants.
 From Peregrine Require EBetaCorrect.
+From Peregrine Require EEtaExpand EEtaExpandSim.
 From Malfunction Require Pipeline.
 
 Import PCUICProgram.
@@ -657,61 +658,166 @@ Qed.
 
 
 Import Peregrine.Utils (bool_of_result).
-Import Peregrine.CheckWf (check_pipeline_pre, check_pipeline_pre_sound, with_check).
+Import Peregrine.CheckWf (check_pipeline_wf, check_pipeline_wf_sound, with_check).
 
-(** * Running the pipelines on checked input
+(** * Eta-expansion of the pipeline input
 
-  The pipelines above are only correct on inputs satisfying their
-  precondition.  The run functions below decide it with
-  [CheckWf.check_pipeline_pre] and report an error instead of running the
-  pipeline when the input does not satisfy it. *)
+    The pipelines require their input to be eta-expanded
+    ([EEtaExpandedFix.expanded_eprogram]). Rocq's erasure produces such
+    programs, other frontends in general do not. [EEtaExpand.eta_expand_program]
+    establishes the invariant: it is the identity on expanded programs,
+    preserves well-formedness and evaluation (up to [EEtaExpandSim.eta_value_rel])
+    and always produces an expanded program. *)
 
-Lemma untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m p :
-  bool_of_result (@check_pipeline_pre nocofix_env_flags m p) = true ->
-  pre (untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (m, p).
-Proof.
-  intros h. destruct (check_pipeline_pre_sound m p h) as (hm & hwf & hexp).
+Program Definition eta_expand_transform_mapping (efl := nocofix_env_flags) :
+  Transform.t _ _ _ _ _ _
+    (eval_eprogram_mapping EWcbvEval.default_wcbv_flags)
+    (eval_eprogram_mapping EWcbvEval.default_wcbv_flags) :=
+  {| name := "eta-expansion of fixpoints and constructors";
+     pre p := EReorderCstrs.wf_inductives_mapping p.2.1 p.1 /\ wf_eprogram efl p.2;
+     transform p hp := (p.1, EEtaExpand.eta_expand_program p.2);
+     post p := EReorderCstrs.wf_inductives_mapping p.2.1 p.1 /\ wf_eprogram efl p.2 /\
+               EEtaExpandedFix.expanded_eprogram p.2;
+     obseq p hp p' v v' := EEtaExpandSim.eta_value_rel p.2.1 v v' |}.
+Next Obligation.
+  intros efl [m p] [hm hwf]. cbn in *. split; [|split].
+  - now apply EEtaExpand.wf_inductives_mapping_eta_expand_env.
+  - now apply (EEtaExpand.eta_expand_program_wf (efl := efl) eq_refl eq_refl eq_refl eq_refl).
+  - now apply (EEtaExpand.eta_expand_program_expanded (efl := efl)).
+Qed.
+Next Obligation.
+  intros efl [m p] v [hm [hwfe hwft]] [ev]. cbn in *.
+  destruct (EEtaExpandSim.eta_expand_eval (efl := efl) p.1 p.2 v hwfe
+              (EWellformed.wellformed_closed hwft) ev) as (v' & ev' & hv).
+  exists v'. split; [exact ev'|exact hv].
+Qed.
+
+Program Definition eta_expand_typed_transform_mapping (efl := nocofix_env_flags) :
+  Transform.t _ _ _ _ _ _
+    (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
+    (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags) :=
+  {| name := "eta-expansion of fixpoints and constructors (typed)";
+     pre p := EReorderCstrs.wf_inductives_mapping (ExAst.trans_env p.2.1) p.1 /\
+              wf_eprogram efl (ExAst.trans_env p.2.1, p.2.2);
+     transform p hp := (p.1, EEtaExpand.eta_expand_typed_program p.2);
+     post p := EReorderCstrs.wf_inductives_mapping (ExAst.trans_env p.2.1) p.1 /\
+               wf_eprogram efl (ExAst.trans_env p.2.1, p.2.2) /\
+               EEtaExpandedFix.expanded_eprogram (ExAst.trans_env p.2.1, p.2.2);
+     obseq p hp p' v v' := EEtaExpandSim.eta_value_rel (ExAst.trans_env p.2.1) v v' |}.
+Next Obligation.
+  intros efl [m p] [hm hwf]. cbn -[ExAst.trans_env] in *.
+  rewrite EEtaExpand.trans_env_eta_expand_ex_env. split; [|split].
+  - now apply EEtaExpand.wf_inductives_mapping_eta_expand_env.
+  - exact (EEtaExpand.eta_expand_program_wf (efl := efl) eq_refl eq_refl eq_refl eq_refl
+             (ExAst.trans_env p.1, p.2) hwf).
+  - exact (EEtaExpand.eta_expand_program_expanded (efl := efl) (ExAst.trans_env p.1, p.2) eq_refl hwf).
+Qed.
+Next Obligation.
+  intros efl [m p] v [hm [hwfe hwft]] [ev]. cbn -[ExAst.trans_env] in *.
+  destruct (EEtaExpandSim.eta_expand_eval (efl := efl) (ExAst.trans_env p.1) p.2 v hwfe
+              (EWellformed.wellformed_closed hwft) ev) as (v' & ev' & hv).
+  exists v'. split; [|exact hv].
+  unfold eval_typed_eprogram_mapping, eval_typed_eprogram. cbn -[ExAst.trans_env].
+  rewrite EEtaExpand.trans_env_eta_expand_ex_env. exact ev'.
+Qed.
+
+(** The pipelines on arbitrary well-formed input: eta-expand first. *)
+
+Program Definition eta_untyped_transform_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  : Transform.t _ _ _ EAst.term _ _
+   (eval_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (EProgram.eval_eprogram final_wcbv_flags) :=
+  eta_expand_transform_mapping ▷
+  untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force.
+Next Obligation.
+  intros guard efl econf spec_inst cse lbox lift_consts impl_box impl_lazy_force p (hm & hwf & hexp).
   exact (conj hm (conj hwf (fun _ => hexp))).
 Qed.
 
-Lemma typed_transform_pipeline_pre econf m (p : ExAst.global_env * EAst.term) :
-  bool_of_result (@check_pipeline_pre nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
-  pre (typed_transform_pipeline econf) (m, p).
-Proof.
-  intros h. destruct (check_pipeline_pre_sound m _ h) as (hm & hwf & hexp).
+Program Definition eta_typed_transform_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf
+  : Transform.t _ _ _ _ _ _
+   (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (eval_typed_eprogram_mapping EWcbvEval.opt_wcbv_flags) :=
+  eta_expand_typed_transform_mapping ▷ typed_transform_pipeline econf.
+Next Obligation.
+  intros guard efl econf p (hm & hwf & hexp). exact (conj hm (conj hwf hexp)).
+Qed.
+
+Program Definition eta_typed_lbox_transform_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf (lbox : lbox_opts)
+  : Transform.t _ _ _ _ _ _
+   (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (eval_typed_eprogram_mapping EWcbvEval.target_wcbv_flags) :=
+  eta_expand_typed_transform_mapping ▷ typed_lbox_transform_pipeline econf lbox.
+Next Obligation.
+  intros guard efl econf lbox p (hm & hwf & hexp). exact (conj hm (conj hwf hexp)).
+Qed.
+
+Program Definition eta_typed_to_untyped_transform_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  : Transform.t _ _ _ _ _ _
+   (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (EProgram.eval_eprogram final_wcbv_flags) :=
+  eta_expand_typed_transform_mapping ▷
+  typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force.
+Next Obligation.
+  intros guard efl econf spec_inst cse lbox lift_consts impl_box impl_lazy_force p (hm & hwf & hexp).
   exact (conj hm (conj hwf hexp)).
 Qed.
 
-(** The lambda-box stages of [typed_lbox_transform_pipeline] come after
-    [typed_transform_pipeline], so the two have the same precondition. *)
-Lemma typed_lbox_transform_pipeline_pre econf lbox m (p : ExAst.global_env * EAst.term) :
-  bool_of_result (@check_pipeline_pre nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
-  pre (typed_lbox_transform_pipeline econf lbox) (m, p).
+(** * Running the pipelines on checked input
+
+    The remaining precondition (well-formedness of the program and of the
+    constructor mapping) is decided by [CheckWf.check_pipeline_wf]; the run
+    functions below report an error instead of running the pipeline when the
+    input does not satisfy it. *)
+
+Lemma untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m p :
+  bool_of_result (@check_pipeline_wf nocofix_env_flags m p) = true ->
+  pre (eta_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (m, p).
 Proof.
-  exact (typed_transform_pipeline_pre econf m p).
+  intros h. exact (check_pipeline_wf_sound m p h).
+Qed.
+
+Lemma typed_transform_pipeline_pre econf m (p : ExAst.global_env * EAst.term) :
+  bool_of_result (@check_pipeline_wf nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
+  pre (eta_typed_transform_pipeline econf) (m, p).
+Proof.
+  intros h. exact (check_pipeline_wf_sound m _ h).
+Qed.
+
+(** The lambda-box stages of [typed_lbox_transform_pipeline] come after
+    [typed_transform_pipeline], so after eta-expansion the two have the same
+    precondition. *)
+Lemma typed_lbox_transform_pipeline_pre econf lbox m (p : ExAst.global_env * EAst.term) :
+  bool_of_result (@check_pipeline_wf nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
+  pre (eta_typed_lbox_transform_pipeline econf lbox) (m, p).
+Proof.
+  intros h. exact (check_pipeline_wf_sound m _ h).
 Qed.
 
 Lemma typed_to_untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m
   (p : ExAst.global_env * EAst.term) :
-  bool_of_result (@check_pipeline_pre nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
-  pre (typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (m, p).
+  bool_of_result (@check_pipeline_wf nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
+  pre (eta_typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (m, p).
 Proof.
-  intros h. destruct (check_pipeline_pre_sound m _ h) as (hm & hwf & hexp).
-  exact (conj hm (conj hwf hexp)).
+  intros h. exact (check_pipeline_wf_sound m _ h).
 Qed.
 
 Definition run_untyped_transforms econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force p :=
-  with_check (@check_pipeline_pre nocofix_env_flags ind_reorder p)
+  with_check (@check_pipeline_wf nocofix_env_flags ind_reorder p)
     (untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p)
-    (run (untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).
+    (run (eta_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).
 
 Definition run_typed_transforms econf ind_reorder lbox (p : ExAst.global_env * EAst.term) :=
-  with_check (@check_pipeline_pre nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
+  with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
     (typed_lbox_transform_pipeline_pre econf lbox ind_reorder p)
-    (run (typed_lbox_transform_pipeline econf lbox) (ind_reorder, p)).
+    (run (eta_typed_lbox_transform_pipeline econf lbox) (ind_reorder, p)).
 
 Definition run_typed_to_untyped_transforms econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force
   (p : ExAst.global_env * EAst.term) :=
-  with_check (@check_pipeline_pre nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
+  with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
     (typed_to_untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p)
-    (run (typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).
+    (run (eta_typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).

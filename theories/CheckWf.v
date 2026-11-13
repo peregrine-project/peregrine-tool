@@ -606,6 +606,24 @@ Section PipelinePre.
     split; [now apply isEtaExp_env_expanded_global_env, check_eta_env_sound|].
     now apply EEtaExpandedFix.isEtaExp_expanded.
   Qed.
+
+  (** The well-formedness part of the precondition alone: eta-expandedness
+      is established by the verified eta-expansion pass that runs first
+      ([EEtaExpand]), so it needs no check. *)
+  Definition check_pipeline_wf (m : EProgram.inductives_mapping) (p : program) : result' unit :=
+    assert' (EReorderCstrs.wf_inductives_mapping (fst p) m)
+      (fun _ => "Constructor reordering mapping does not match the inductive declarations"%bs) ;;
+    check_wf_program p.
+
+  Lemma check_pipeline_wf_sound m p :
+    bool_of_result (check_pipeline_wf m p) = true ->
+    EReorderCstrs.wf_inductives_mapping (fst p) m /\ EProgram.wf_eprogram efl p.
+  Proof.
+    unfold check_pipeline_wf.
+    rewrite result_bindb. rewrite (result_assertb' (E := string)).
+    intros h. apply andb_prop in h as [hm hwf].
+    split; [exact hm|]. now apply check_wf_program_sound.
+  Qed.
 End PipelinePre.
 
 (** Run [k] on a proof of [P] if the check [r] succeeds, and propagate its

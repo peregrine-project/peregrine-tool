@@ -114,7 +114,10 @@ Definition drop_remapped_bodies (c : config) (env : ExAst.global_env) : ExAst.gl
 
 (** The transformation pipelines check their precondition on their actual
     input (after sanitization, inference and dropping remapped bodies) and
-    fail with an error if it does not hold. *)
+    fail with an error if it does not hold. The precondition is
+    well-formedness only: the pipelines start with the verified eta-expansion
+    pass of [EEtaExpand], so input from frontends that do not eta-expand
+    fixpoints and constructors is accepted. *)
 Definition pipeline_pre_error {A} (r : result' A) : result' A :=
   map_error (fun e => "Program does not satisfy the precondition of the transformation pipeline: " ++ e) r.
 
