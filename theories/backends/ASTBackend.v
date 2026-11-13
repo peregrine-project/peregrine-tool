@@ -99,12 +99,12 @@ Definition extract_ast (remaps : constant_remappings)
     | Err e => Err e
     end
   | LambdaANF c =>
-    match PAst_to_EAst p with
+    match PAst_to_EAst_box p with
     | Ok p => extract_anf_ast remaps c p
     | Err e => Err e
     end
   | LambdaANFC c =>
-    match PAst_to_EAst p with
+    match PAst_to_EAst_box p with
     | Ok p => extract_anfc_ast remaps c p
     | Err e => Err e
     end

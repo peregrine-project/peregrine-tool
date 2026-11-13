@@ -151,7 +151,7 @@ Definition apply_transforms (c : config) (lbox : lbox_opts) (p : PAst) (typed : 
       Ok (Typed env' (Some t'))
   | Untyped env None, true =>
       env0 <- infer_for_backend env;;
-      r <- pipeline_pre_error (run_typed_transforms (iconf env0) cstr_reorder lbox (drop env0, EAst.tBox));;
+      r <- pipeline_pre_error (run_typed_transforms (iconf env0) cstr_reorder lbox (drop env0, no_main_term));;
       let '(_, (env', _)) := r in
       Ok (Typed env' None)
   | Untyped env (Some t), false =>
@@ -159,7 +159,7 @@ Definition apply_transforms (c : config) (lbox : lbox_opts) (p : PAst) (typed : 
       let (env', t') := r in
       Ok (Untyped env' (Some t'))
   | Untyped env None, false =>
-      r <- pipeline_pre_error (run_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, EAst.tBox));;
+      r <- pipeline_pre_error (run_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, no_main_term));;
       let (env', _) := r in
       Ok (Untyped env' None)
   | Typed env (Some t), true =>
@@ -171,11 +171,11 @@ Definition apply_transforms (c : config) (lbox : lbox_opts) (p : PAst) (typed : 
       let (env', t') := r in
       (Ok (Untyped env' (Some t')))
   | Typed env None, true =>
-      r <- pipeline_pre_error (run_typed_transforms (tconf env) cstr_reorder lbox (drop env, EAst.tBox));;
+      r <- pipeline_pre_error (run_typed_transforms (tconf env) cstr_reorder lbox (drop env, no_main_term));;
       let '(_, (env', _)) := r in
       Ok (Typed env' None)
   | Typed env None, false =>
-      r <- pipeline_pre_error (run_typed_to_untyped_transforms (tconf env) cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env, EAst.tBox));;
+      r <- pipeline_pre_error (run_typed_to_untyped_transforms (tconf env) cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env, no_main_term));;
       let (env', _) := r in
       (Ok (Untyped env' None))
   end.
@@ -275,7 +275,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
     Ok (KokaProgram res)
 
   | C opts =>
-    p' <- PAst_to_EAst p;;
+    p' <- PAst_to_EAst_box p;;
     res <- CBackend.extract_c
       const_remaps
       custom_attr
@@ -285,7 +285,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
     Ok (CProgram res)
 
   | Wasm opts =>
-    p' <- PAst_to_EAst p;;
+    p' <- PAst_to_EAst_box p;;
     res <- WasmBackend.extract_wasm
       const_remaps
       custom_attr
@@ -295,7 +295,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
     Ok (WasmProgram res)
 
   | LLVM opts =>
-    p' <- PAst_to_EAst p;;
+    p' <- PAst_to_EAst_box p;;
     res <- LLVMBackend.extract_llvm
       const_remaps
       custom_attr
@@ -391,7 +391,7 @@ Definition check_lowered (c : config) (p : PAst) : result' unit :=
     end in
   match backend, p with
   | Some b, Untyped env (Some t) => check_lowered_program b (env, t)
-  | Some b, Untyped env None => check_lowered_program b (env, EAst.tBox)
+  | Some b, Untyped env None => check_lowered_program b (env, no_main_term)
   | _, _ => Ok tt
   end.
 
