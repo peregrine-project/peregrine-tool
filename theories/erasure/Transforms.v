@@ -10,6 +10,7 @@ From MetaRocq.ErasurePlugin Require Import ETransform Erasure.
 From MetaRocq.Erasure Require EImplementBox.
 From MetaRocq.Erasure Require EImplementLazyForce ERemapInductives.
 From Peregrine Require Import EExtraFlags ENoCofix.
+From Peregrine Require Utils CheckWf.
 From Peregrine Require Import EInstanceSpecialize.
 From Peregrine Require Import ECommonSubexpr.
 From Peregrine Require Import ELboxOpts ELboxOptsWf.
@@ -529,17 +530,53 @@ Final Obligation.
 Qed.
 
 
-Program Definition run_untyped_transforms econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force p :=
-  run (untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p) _.
-Final Obligation.
-Admitted. (* assumed for now, check_wf should ensure this *)
+Import Peregrine.Utils (bool_of_result).
+Import Peregrine.CheckWf (check_pipeline_pre, check_pipeline_pre_sound, with_check).
 
-Program Definition run_typed_transforms econf ind_reorder p :=
-  run (typed_transform_pipeline econf) (ind_reorder, p) _.
-Final Obligation.
-Admitted. (* assumed for now, check_wf should ensure this *)
+(** * Running the pipelines on checked input
 
-Program Definition run_typed_to_untyped_transforms econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force p :=
-  run (typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p) _.
-Final Obligation.
-Admitted. (* assumed for now, check_wf should ensure this *)
+  The pipelines above are only correct on inputs satisfying their
+  precondition.  The run functions below decide it with
+  [CheckWf.check_pipeline_pre] and report an error instead of running the
+  pipeline when the input does not satisfy it. *)
+
+Lemma untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m p :
+  bool_of_result (@check_pipeline_pre nocofix_env_flags m p) = true ->
+  pre (untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (m, p).
+Proof.
+  intros h. destruct (check_pipeline_pre_sound m p h) as (hm & hwf & hexp).
+  exact (conj hm (conj hwf (fun _ => hexp))).
+Qed.
+
+Lemma typed_transform_pipeline_pre econf m (p : ExAst.global_env * EAst.term) :
+  bool_of_result (@check_pipeline_pre nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
+  pre (typed_transform_pipeline econf) (m, p).
+Proof.
+  intros h. destruct (check_pipeline_pre_sound m _ h) as (hm & hwf & hexp).
+  exact (conj hm (conj hwf hexp)).
+Qed.
+
+Lemma typed_to_untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m
+  (p : ExAst.global_env * EAst.term) :
+  bool_of_result (@check_pipeline_pre nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
+  pre (typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (m, p).
+Proof.
+  intros h. destruct (check_pipeline_pre_sound m _ h) as (hm & hwf & hexp).
+  exact (conj hm (conj hwf hexp)).
+Qed.
+
+Definition run_untyped_transforms econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force p :=
+  with_check (@check_pipeline_pre nocofix_env_flags ind_reorder p)
+    (untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p)
+    (run (untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).
+
+Definition run_typed_transforms econf ind_reorder (p : ExAst.global_env * EAst.term) :=
+  with_check (@check_pipeline_pre nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
+    (typed_transform_pipeline_pre econf ind_reorder p)
+    (run (typed_transform_pipeline econf) (ind_reorder, p)).
+
+Definition run_typed_to_untyped_transforms econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  (p : ExAst.global_env * EAst.term) :=
+  with_check (@check_pipeline_pre nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
+    (typed_to_untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p)
+    (run (typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).

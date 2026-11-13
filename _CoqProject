@@ -58,6 +58,7 @@ theories/backends/HybridPrims.v
 theories/backends/HybridRuntime.v
 theories/backends/HybridRuntimeGen.v
 theories/backends/ElmBackend.v
+theories/backends/ExtractionCheck.v
 theories/backends/OCamlBackend.v
 theories/backends/CakeMLBackend.v
 theories/backends/CBackend.v

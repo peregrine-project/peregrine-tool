@@ -1,6 +1,6 @@
 From Stdlib Require Import List.
 From Stdlib Require Import Logic.Decidable.
-From Stdlib Require Import ssreflect.
+From Stdlib Require Import ssreflect ssrbool.
 From MetaRocq.Utils Require Import ReflectEq.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import EnvMap.
@@ -9,6 +9,7 @@ From MetaRocq.Erasure Require Import EWellformed.
 From MetaRocq.Erasure.Typed Require ExAst.
 From MetaRocq.Erasure Require Import EGlobalEnv.
 From MetaRocq.Erasure Require Import EPrimitive.
+From MetaRocq.Erasure Require EProgram EEtaExpandedFix EReorderCstrs.
 From MetaRocq.Common Require Import Primitive.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import ResultMonad.
@@ -531,7 +532,90 @@ Section WfCorrect.
     apply check_wf_globbP.
   Qed.
 
+  Lemma check_wf_program_sound {efl : EEnvFlags} (p : program) :
+    bool_of_result (check_wf_program p) = true -> EProgram.wf_eprogram efl p.
+  Proof.
+    rewrite check_wf_program_equiv. unfold check_wf_program_b, EProgram.wf_eprogram.
+    intros h. apply andb_prop in h as [hg ht]. split; [|exact ht].
+    now destruct (check_wf_globbP (fst p)).
+  Qed.
+
 End WfCorrect.
+
+(** * Checking the precondition of the transformation pipelines
+
+  The verified middle-end pipelines (see [Transforms.v]) require their input
+  to be well formed, eta-expanded (in the sense of [EEtaExpandedFix], i.e. with
+  fully applied constructors and fixpoints) and the constructor reordering
+  mapping to be compatible with the environment.  [check_pipeline_pre] decides
+  all of this; [check_pipeline_pre_sound] shows that it is sound. *)
+
+Section PipelinePre.
+  Context {efl : EEnvFlags}.
+
+  Fixpoint check_eta_env (Σ : global_declarations) : result' unit :=
+    match Σ with
+    | [] => Ok tt
+    | (kn, d) :: Σ' =>
+      assert' (EEtaExpandedFix.isEtaExp_decl Σ' d)
+        (fun _ => ("Declaration " ++ string_of_kername kn ++
+                  " is not eta-expanded (constructor or fixpoint not fully applied)")%bs) ;;
+      check_eta_env Σ'
+    end.
+
+  Lemma check_eta_env_sound Σ :
+    bool_of_result (check_eta_env Σ) = true -> EEtaExpandedFix.isEtaExp_env Σ.
+  Proof.
+    induction Σ as [|[kn d] Σ IH]; cbn => // h.
+    rewrite result_bindb result_assertb' in h.
+    apply andb_prop in h as [hd hΣ]. now rewrite hd (IH hΣ).
+  Qed.
+
+  Definition check_pipeline_pre (m : EProgram.inductives_mapping) (p : program) : result' unit :=
+    assert' (EReorderCstrs.wf_inductives_mapping (fst p) m)
+      (fun _ => "Constructor reordering mapping does not match the inductive declarations"%bs) ;;
+    check_wf_program p ;;
+    check_eta_env (fst p) ;;
+    assert' (EEtaExpandedFix.isEtaExp (fst p) [] (snd p))
+      (fun _ => "Program term is not eta-expanded (constructor or fixpoint not fully applied)").
+
+  Lemma isEtaExp_env_expanded_global_env (Σ : global_declarations) :
+    EEtaExpandedFix.isEtaExp_env Σ -> EEtaExpandedFix.expanded_global_env Σ.
+  Proof.
+    induction Σ as [|[kn d] Σ IH]; cbn.
+    - intros _. constructor.
+    - intros h. apply andb_prop in h as [hd hΣ]. constructor; [now apply IH|].
+      destruct d as [cb|]; cbn in * => //.
+      unfold EEtaExpandedFix.isEtaExp_constant_decl, EEtaExpandedFix.expanded_constant_decl in *.
+      destruct (cst_body cb); cbn in * => //.
+      now apply EEtaExpandedFix.isEtaExp_expanded.
+  Qed.
+
+  Lemma check_pipeline_pre_sound m p :
+    bool_of_result (check_pipeline_pre m p) = true ->
+    EReorderCstrs.wf_inductives_mapping (fst p) m /\
+    EProgram.wf_eprogram efl p /\
+    EEtaExpandedFix.expanded_eprogram p.
+  Proof.
+    unfold check_pipeline_pre.
+    rewrite !result_bindb !result_assertb'.
+    intros h. apply andb_prop in h as [hm h]. apply andb_prop in h as [hwf h].
+    apply andb_prop in h as [he ht].
+    split; [exact hm|]. split.
+    { apply check_wf_program_sound. unfold check_wf_program. now rewrite result_bindb. }
+    split; [now apply isEtaExp_env_expanded_global_env, check_eta_env_sound|].
+    now apply EEtaExpandedFix.isEtaExp_expanded.
+  Qed.
+End PipelinePre.
+
+(** Run [k] on a proof of [P] if the check [r] succeeds, and propagate its
+    error otherwise. *)
+Definition with_check {A P : Type} (r : result' unit)
+  (sound : bool_of_result r = true -> P) (k : P -> A) : result' A :=
+  match r as r' return r = r' -> result' A with
+  | Ok _ => fun e => Ok (k (sound (f_equal bool_of_result e)))
+  | Err msg => fun _ => Err msg
+  end eq_refl.
 
 
 
