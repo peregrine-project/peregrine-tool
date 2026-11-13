@@ -2,6 +2,7 @@ From Stdlib Require Import List.
 From Stdlib Require Import ZArith.
 From Stdlib Require PrimInt63.
 From Stdlib Require PrimFloat.
+From Corelib Require Uint63Axioms PrimStringAxioms.
 From CeresBS Require Import Ceres.
 
 From MetaRocq.Utils Require Import bytestring.
@@ -13,9 +14,19 @@ Local Open Scope bs_scope.
 
 
 
-(** * Axioms *)
-(* Realized in extraction *)
-Axiom string_of_prim_string : PrimString.string -> string.
+(** * Primitive strings *)
+
+(** Bytes of a primitive string; its characters are always below 256
+    ([PrimStringAxioms.to_list_char63_valid]), so the default case is unreachable. *)
+Definition byte_of_char63 (c : PrimInt63.int) : Byte.byte :=
+  match Byte.of_N (Z.to_N (Uint63Axioms.to_Z c)) with
+  | Some b => b
+  | None => Byte.x00
+  end.
+
+(* Realized in extraction by [Pstring.to_string]. *)
+Definition string_of_prim_string (s : PrimString.string) : string :=
+  String.parse (List.map byte_of_char63 (PrimStringAxioms.to_list s)).
 
 
 (** * Serializers *)

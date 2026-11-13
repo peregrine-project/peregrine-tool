@@ -13,6 +13,7 @@ theories/CoqToLambdaBox.v
 theories/Extraction.v
 theories/RecursorInlining.v
 theories/Pipeline.v
+theories/PipelineParse.v
 
 theories/erasure/ERenameGlobals.v
 theories/erasure/Erasure.v
@@ -104,4 +105,9 @@ theories/serialization/DeserializeConfig.v
 theories/serialization/SerializeConfig.v
 theories/serialization/SerializeConfigComplete.v
 theories/serialization/SerializeConfigSound.v
+theories/serialization/CeresParserComplete.v
+theories/serialization/PrimStringRoundtrip.v
+theories/serialization/SerializeRawOk.v
+theories/serialization/SerializeConfigRawOk.v
+theories/serialization/SerializeRoundtrip.v
 theories/serialization/SerializeLambdaANF.v

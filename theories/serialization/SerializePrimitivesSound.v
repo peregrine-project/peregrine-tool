@@ -9,11 +9,7 @@ From Stdlib Require Import List.
 From Stdlib Require Import ZArith.
 From Stdlib Require PrimInt63.
 From Stdlib Require PrimFloat.
-
-
-
-(* TODO: validate axioms *)
-Axiom prim_string_ser_sound : forall x, (string_of_prim_string (prim_string_of_string x)) = x.
+From Peregrine Require Import PrimStringRoundtrip.
 
 
 
@@ -39,9 +35,10 @@ Proof.
   intros l e f He.
   destruct e; cbn in *; try discriminate.
   destruct a; cbn in *; try discriminate.
+  destruct (prim_string_of_string s) eqn:Hs; try discriminate.
   injection He as <-.
   unfold to_sexp, Serialize_prim_string.
-  rewrite prim_string_ser_sound.
+  rewrite (string_of_prim_string_of_string _ _ Hs).
   reflexivity.
 Qed.
 
