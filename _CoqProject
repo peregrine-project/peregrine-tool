@@ -39,6 +39,11 @@ theories/erasure/EEtaExpand.v
 theories/erasure/EEtaExpandSim.v
 theories/erasure/EHindleyMilner.v
 theories/erasure/EHindleyMilnerSound.v
+theories/erasure/EFirstOrder.v
+theories/erasure/EFirstOrderStages.v
+theories/erasure/EFirstOrderPasses.v
+theories/erasure/ELboxOptsFO.v
+theories/erasure/EFirstOrderCorrect.v
 
 theories/lean/LeanIR.v
 theories/lean/LeanCompile.v
