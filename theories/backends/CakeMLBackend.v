@@ -7,6 +7,7 @@ From MetaRocq.ErasurePlugin Require Import Erasure.
 From MetaRocq.ErasurePlugin Require Import ETransform.
 From Peregrine Require Import Config.
 From Peregrine Require Import Utils.
+From Peregrine Require CheckWf ExtractionCheck.
 From Stdlib Require Import List.
 From CeresBS Require Import CeresSerialize.
 From CakeML.Backend Require Import Pipeline.
@@ -43,20 +44,61 @@ Fixpoint extract_names (t : EAst.term) : list ident :=
   | _ => []
   end.
 
+(** The (partly verified) part of the backend: name annotation and
+    compilation to CakeML.  As in [OCamlBackend], we do not use
+    [enforce_extraction_conditions] (whose postcondition rests on the false
+    [assume_can_be_extracted] and, allowing boxes, does not imply the
+    precondition of [name_annotation]) but check the precondition of
+    [name_annotation] directly ([cakeml_check]). *)
+(** CakeML's own [compile_to_malfunction] transform has an [Admitted]
+    obligation.  It only claims [True] about the result, so this copy with the
+    same compilation function proves it. *)
+Program Definition compile_to_cakeml :
+  Transform.t (list (Kernames.kername × EAst.global_decl)) _ _ _
+    EWcbvEvalNamed.value CakeML.CakeML.namespace.val
+    (fun p v => ∥EWcbvEvalNamed.eval p.1 [] p.2 v∥) (fun _ _ => True) :=
+  {| name := "compile to CakeML";
+     pre := fun _ => True;
+     transform p _ := CakeML.Backend.Compile.compile_program p;
+     post := fun _ => True;
+     obseq _ _ _ _ _ := True |}.
+Next Obligation.
+  intros. now exists (CakeML.CakeML.namespace.Conv None []).
+Qed.
+
 Program Definition cakeml_pipeline :
   Transform.t _ _ _ _ _ _ (EProgram.eval_eprogram final_wcbv_flags) (fun _ _ => True) :=
-  enforce_extraction_conditions ▷
   name_annotation ▷
-  compile_to_malfunction.
-Final Obligation.
-Admitted.
+  compile_to_cakeml.
 
 Definition print_program nms p :=
   let serialize p_c := @to_string _ (Serialize_module (rev nms)) p_c in
   let code := serialize p in
   (nms, code).
 
-Axiom trust_coq_kernel : forall p, pre cakeml_pipeline p.
+Definition cakeml_check (p : EAst.program) : result' unit :=
+  @ExtractionCheck.check_extractable CakeML.Backend.Compile.blocks_until 200
+    Uint63.wB (Uint63.to_Z array_length)
+    (EImplementBox.switch_off_box extraction_env_flags_mlf) p.
+
+Lemma cakeml_check_sound p :
+  bool_of_result (cakeml_check p) = true -> pre cakeml_pipeline p.
+Proof.
+  intros h. apply ExtractionCheck.check_extractable_sound in h as [hwf hi].
+  split; [|exact hwf]. destruct hwf as [hg ht].
+  constructor; [| | |exact hg|exact ht].
+  - intros i args. unfold CakeML.Backend.Compile.lookup_constructor_args.
+    destruct EGlobalEnv.lookup_inductive as [[mb ob]|] eqn:hl; [|discriminate].
+    intros [= <-].
+    exact (proj1 (ExtractionCheck.check_inductive_body_spec _ _ _ _ _
+      (ExtractionCheck.check_inductives_lookup _ _ _ _ _ _ _ _ hi hl))).
+  - intros i mb ob hl.
+    exact (proj1 (proj2 (ExtractionCheck.check_inductive_body_spec _ _ _ _ _
+      (ExtractionCheck.check_inductives_lookup _ _ _ _ _ _ _ _ hi hl)))).
+  - intros i mb ob hl.
+    exact (proj2 (proj2 (ExtractionCheck.check_inductive_body_spec _ _ _ _ _
+      (ExtractionCheck.check_inductives_lookup _ _ _ _ _ _ _ _ hi hl)))).
+Qed.
 
 Definition extract_cakeml (remaps : constant_remappings)
                           (custom_attr : custom_attributes)
@@ -65,5 +107,7 @@ Definition extract_cakeml (remaps : constant_remappings)
                           (p : EAst.program)
                           : result' (list string * string) :=
   let nms := extract_names (snd p) in
-  let p := run cakeml_pipeline p (trust_coq_kernel p) in
+  p <- map_error (fun e => "CakeML backend: " ++ e)
+         (CheckWf.with_check (cakeml_check p) (cakeml_check_sound p)
+            (run cakeml_pipeline p)) ;;
   Ok (print_program nms p).
