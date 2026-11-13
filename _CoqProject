@@ -12,6 +12,7 @@ theories/EvalBox.v
 theories/CoqToLambdaBox.v
 theories/Extraction.v
 theories/RecursorInlining.v
+theories/AutoInlining.v
 theories/Pipeline.v
 
 theories/erasure/ERenameGlobals.v

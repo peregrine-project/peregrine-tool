@@ -62,8 +62,57 @@ let copts_t =
       "Identity cases: match e with C xs => C xs becomes e" in
   let lbox_let_fun_arg = lbox_pass_arg "lbox-let-fun"
       "Atomic lets and applied lets: let z := a in e becomes e[a/z] for a variable, box, constant or constant constructor a, (let z := v in f) b becomes let z := v in f b, (fun y => e) b becomes e[b/y] and arguments are pushed into the branches of an applied match, for such atomic arguments b" in
+  (* Passes in the uniform --X / --no-X style, off by default. *)
+  let onoff_arg name doc =
+    Arg.(value & vflag false
+           [ true, info [name] ~docs ~doc;
+             false, info ["no-" ^ name] ~docs ~doc:(Printf.sprintf "Disable --%s (the default)." name) ])
+  in
+  let inline_standard_arg = onoff_arg "inline-standard-constants"
+      "Inline the constants that Rocq's extraction always inlines (its \
+       manual inline set): andb, orb, proj1_sig, eq_rect_r, eq_rec_r, \
+       well_founded_induction, well_founded_induction_type, Fix, Fix_F \
+       and Acc_iter of Corelib.Init, as far as the program uses them and \
+       they are not remapped. They are added to the inlinings exactly as \
+       if an attribute file listed them, so this uses the verified \
+       inlining pass. Ignored by $(b,erase) and $(b,validate)." in
+  let inline_small_arg = onoff_arg "inline-small-constants"
+      "Inline every small constant: one whose body contains no fixpoint, \
+       is a function or a constructor value (so that no computation is \
+       duplicated or moved), and has size below --inline-size-limit, \
+       measured after inlining the constants already selected (see \
+       theories/AutoInlining.v for the measure, which follows ml_size of \
+       Rocq's extraction). Remapped constants, the main constant and \
+       those given by --no-inline are never selected. Uses the verified \
+       inlining pass; combine with --betared=true and --iota-reduce. \
+       Ignored by $(b,erase) and $(b,validate)." in
+  let inline_size_limit_arg =
+    let doc = "Size limit of --inline-small-constants: constants of size \
+               strictly below $(docv) are inlined." in
+    Arg.(value & opt int 12 & info ["inline-size-limit"] ~docs ~docv:"N" ~doc)
+  in
+  let no_inline_arg =
+    let doc = "Never select the constant $(docv) (a full kernel name such \
+               as Corelib.Init.Datatypes.andb) for \
+               --inline-standard-constants or --inline-small-constants. \
+               Repeatable. Inlinings requested by attribute files or \
+               --inline-recursors are not affected." in
+    Arg.(value & opt_all string [] & info ["no-inline"] ~docs ~docv:"NAME" ~doc)
+  in
+  let iota_reduce_arg = onoff_arg "iota-reduce"
+      "Generalised iota reduction (ELboxOpts.v, as in Mlutil of Rocq's \
+       extraction): a match on a constructor application becomes its \
+       branch, with the arguments bound by lets (atomic arguments are \
+       substituted); a match on a let is pushed under the let; a match on \
+       a match all of whose branches end in constructors is pushed into \
+       these branches, unless that would duplicate a large branch. Runs \
+       after inlining and beta reduction and before --lbox-opts and \
+       --lift-constants, for the untyped pipeline. Well-formedness and \
+       evaluation preservation are proved without axioms." in
   Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg $ inline_recursors_arg
-        $ lbox_opts_arg $ lbox_fix_eta_arg $ lbox_case_fun_arg $ lbox_case_id_arg $ lbox_let_fun_arg)
+        $ lbox_opts_arg $ lbox_fix_eta_arg $ lbox_case_fun_arg $ lbox_case_id_arg $ lbox_let_fun_arg
+        $ inline_standard_arg $ inline_small_arg $ inline_size_limit_arg $ no_inline_arg
+        $ iota_reduce_arg)
 
 let certirocq_opts_t =
   let cps_arg =

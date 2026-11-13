@@ -149,7 +149,14 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
      ELboxOptsWf.v).  The identity-case pass runs first, as its own
      transformation; the other three follow.  Wellformedness and evaluation
      preservation are proved, without axioms (ELboxOptsSim*.v).  Off by
-     default. *)
+     default.
+     Generalised iota (cases of constructors, of lets and of cases ending in
+     constructors; [iota_case] in ELboxOpts.v) runs before them: it needs the
+     constructors that inlining and beta reduction expose and that constant
+     lifting would hide, and the applied lets it leaves are simplified by the
+     let/function pass.  Proved in the same way.  Off by default. *)
+  ETransform.optional_self_transform lbox.(lbox_iota)
+    iota_transformation ▷
   ETransform.optional_self_transform lbox.(lbox_case_id)
     case_id_transformation ▷
   ETransform.optional_self_transform (any_lbox_opts (without_case_id lbox))
@@ -164,32 +171,37 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
   ETransform.optional_self_transform impl_lazy_force implement_lazy_force_transformation.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+    try assumption; try (apply switch_off_box_wf_eprogram; assumption).
+Qed.
+Next Obligation.
+  cbn. intros.
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 

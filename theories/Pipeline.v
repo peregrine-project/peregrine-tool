@@ -7,6 +7,7 @@ From Peregrine Require Import EExtraFlags.
 From Peregrine Require Import Erasure.
 From Peregrine Require Import CheckWf.
 From Peregrine Require Import RecursorInlining.
+From Peregrine Require Import AutoInlining.
 From Peregrine Require Import ELboxOpts.
 From Peregrine Require RustBackend.
 From Peregrine Require ElmBackend.
@@ -396,13 +397,17 @@ Definition check_lowered (c : config) (p : PAst) : result' unit :=
 
 (** [inline_recursors]: add the program's recursors ([I_rect]/[I_rec]) to the
     inlinings, as if an attribute file listing them had been passed
-    (see RecursorInlining.v); the remapped ones are left to the remapping. *)
+    (see RecursorInlining.v); the remapped ones are left to the remapping.
+    [inl]: likewise add the standard and/or the small constants
+    (see AutoInlining.v). *)
 Definition peregrine_pipeline (c : string + config') (attrs : list string) (inline_recursors : bool)
-  (lbox : lbox_opts) (p : string) (f : string) : extraction_result :=
+  (inl : inline_opts) (lbox : lbox_opts) (p : string) (f : string) : extraction_result :=
   p <- parse_ast p;; (* Parse input string into AST *)
   c <- get_config c attrs;; (* Parse or construct config *)
   let remapped kn := List.existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) in
   let c := if inline_recursors then merge_attributes_config c [recursor_attributes remapped p] else c in
+  let c := if inl.(inline_standard) || inl.(inline_small)
+           then merge_attributes_config c [auto_inline_attributes inl remapped p] else c in
   check_wf p;; (* Check that AST is wellformed *)
   NameSanitize.check_sanitized_injective (NameSanitize.get_sanitizer c)
     (List.app (NameSanitize.PAst_names p) (NameSanitize.config_names c));; (* Reject name collisions *)

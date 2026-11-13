@@ -13,9 +13,15 @@ type copts = {
   lbox_case_fun: bool option;
   lbox_case_id: bool option;
   lbox_let_fun: bool option;
+  inline_standard: bool;
+  inline_small: bool;
+  inline_size_limit: int;
+  no_inline: string list;
+  iota_reduce: bool;
 }
 let mk_copts verbose debug output_file attrs inline_recursors
-    lbox_opts lbox_fix_eta lbox_case_fun lbox_case_id lbox_let_fun = {
+    lbox_opts lbox_fix_eta lbox_case_fun lbox_case_id lbox_let_fun
+    inline_standard inline_small inline_size_limit no_inline iota_reduce = {
   verbose;
   debug;
   output_file;
@@ -26,6 +32,11 @@ let mk_copts verbose debug output_file attrs inline_recursors
   lbox_case_fun;
   lbox_case_id;
   lbox_let_fun;
+  inline_standard;
+  inline_small;
+  inline_size_limit;
+  no_inline;
+  iota_reduce;
 }
 
 (* The frontends, see frontend.ml *)

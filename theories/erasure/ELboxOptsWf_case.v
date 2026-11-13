@@ -123,3 +123,72 @@ Proof.
     rewrite forallb_map /=. apply/andP; split; [apply hall; now left|].
     apply forallb_forall. intros br hin. apply hall. now right.
 Qed.
+
+(** ** Generalised iota *)
+Section IotaWf.
+  Context {efl : EEnvFlags} (Σ : global_declarations).
+  Hypothesis hlet : has_tLetIn.
+
+  Lemma wellformed_let_inline' k t : wellformed Σ k t -> wellformed Σ k (let_inline t).
+  Proof using Type.
+    destruct t; cbn [let_inline]; try easy.
+    destruct atomic; [|easy].
+    cbn [wellformed]. move/andP => [/andP [_ Hv] Hb].
+    unfold subst1. apply wellformed_subst; cbn; [now rewrite Hv|exact Hb].
+  Qed.
+
+  Lemma wellformed_iota_lets k args : forall n nas b,
+    forallb (wellformed Σ k) args ->
+    wellformed Σ (#|args| + (n + k)) b ->
+    wellformed Σ (n + k) (iota_lets n nas args b).
+  Proof using hlet.
+    induction args as [|a args IH]; intros n nas b; cbn [iota_lets length forallb]; [easy|].
+    move/andP => [ha hargs] hb.
+    apply wellformed_let_inline'. cbn [wellformed]. rewrite hlet /=. apply/andP; split.
+    - rewrite Nat.add_comm. now apply wellformed_lift.
+    - apply (IH (S n)); [assumption|].
+      replace (#|args| + (S n + k)) with (S #|args| + (n + k)) by lia. exact hb.
+  Qed.
+
+  Lemma wellformed_lift_brs n k brs :
+    forallb (fun br => wellformed Σ (#|br.1| + k) br.2) brs ->
+    forallb (fun br => wellformed Σ (#|br.1| + (n + k)) br.2) (lift_brs n brs).
+  Proof using Type.
+    unfold lift_brs. rewrite forallb_map. apply forallb_impl. intros br _ h. cbn.
+    replace (#|br.1| + (n + k)) with (#|br.1| + k + n) by lia. now apply wellformed_lift.
+  Qed.
+
+  Lemma wellformed_iota_case ci d : forall k brs,
+    wellformed Σ k (tCase ci d brs) -> wellformed Σ k (iota_case ci d brs).
+  Proof using hlet.
+    induction d using EInduction.term_forall_list_ind; intros k brs wf; try exact wf;
+      cbn [iota_case].
+    - (* let *)
+      move: wf. cbn [wellformed].
+      move/andP => [hcase /andP [/andP [hbrs /andP [/andP [_ hv] hb]] hall]].
+      rewrite hlet hv /=. apply IHd2. cbn [wellformed].
+      rewrite hcase /lift_brs length_map hbrs hb /=.
+      apply (wellformed_lift_brs 1 k brs hall).
+    - (* constructor *)
+      destruct (nth_error brs n) as [br|] eqn:E; [|exact wf].
+      destruct (Nat.eqb_spec #|args| #|br.1|) as [L|]; [|exact wf].
+      move: wf. cbn [wellformed].
+      move/andP => [hcase /andP [/andP [hbrs hc] hall]].
+      have hbr : wellformed Σ (#|br.1| + k) br.2.
+      { apply nth_error_In in E. exact (proj1 (forallb_forall _ _) hall _ E). }
+      apply (wellformed_iota_lets k args 0); [|rewrite L; exact hbr].
+      move: hc. move/andP => [_]. destruct cstr_as_blocks.
+      + now move/andP => [_ ?].
+      + destruct args; [reflexivity|discriminate].
+    - (* case of case *)
+      destruct (_ && _); [|exact wf].
+      move: wf. cbn [wellformed].
+      move/andP => [hcase /andP [/andP [hbrs /andP [_ /andP [/andP [hbrs1 hd1] hall1]]] hall]].
+      rewrite hcase length_map hbrs1 hd1 /=. rewrite forallb_map.
+      apply forallb_forall. intros br hin. cbn.
+      eapply All_In in X as [X]; [|exact hin]. apply X. cbn [wellformed].
+      rewrite hcase /lift_brs length_map hbrs /=.
+      rewrite (proj1 (forallb_forall _ _) hall1 _ hin) /=.
+      apply (wellformed_lift_brs #|br.1| k brs hall).
+  Qed.
+End IotaWf.
