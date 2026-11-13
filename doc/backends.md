@@ -147,7 +147,7 @@ This is the Koka backend to use; the untyped `koka` verb is the fallback for the
 
 * Functions take as many arguments as their body has leading lambdas; a saturated call is a direct call, and any other use builds curried closures, which the arrow types denote. Every function returns `pure`.
 * A monomorphic nullary constant is a `delayed` value; a polymorphic one is a nullary function.
-* The backend rejects a program with a type it cannot express (`TAny`, a type variable applied to arguments), primitive values, projections, cofixpoints and `lazy`; the untyped `koka` verb compiles those.
+* The backend rejects a program with a type it cannot express (`TAny`, a type variable applied to arguments), primitive values, projections and `lazy`; the untyped `koka` verb compiles those. Peregrine rejects cofixpoints for every backend.
 * It also rejects nested groups of mutual fixpoints, and two names that differ only in case (`pg_x_fooBar` and `pg_x_foobar`), which Koka identifies.
 * A remapped constant is called with its `re_const_arity` arguments, and its `re_const_ext`, if any, is imported.
 

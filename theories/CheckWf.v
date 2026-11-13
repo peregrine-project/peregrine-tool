@@ -36,7 +36,7 @@ Definition agda_eflags : EEnvFlags :=
         ; has_tCase       := true
         ; has_tProj       := false (* Our backends shouldn't produce projections *)
         ; has_tFix        := true
-        ; has_tCoFix      := true
+        ; has_tCoFix      := false
         ; has_tPrim       := all_primitive_flags
         ; has_tLazy_Force := true
         |};
@@ -59,7 +59,7 @@ Definition agda_typed_eflags : EEnvFlags :=
         ; has_tCase       := true
         ; has_tProj       := false (* Our backends shouldn't produce projections *)
         ; has_tFix        := true
-        ; has_tCoFix      := true
+        ; has_tCoFix      := false
         ; has_tPrim       := all_primitive_flags
         ; has_tLazy_Force := true
         |};
@@ -111,7 +111,7 @@ Section Wf.
       result_forall (fun t => assert' ((isLambda ∘ dbody) t) (fun _ => "Fixpoint body is not a lambda")) mfix ;;
       wf_fix_gen_ (wellformed Σ) k mfix idx
     | tCoFix mfix idx =>
-      assert' has_tCoFix (fun _ => "Program contains tCoFix") ;;
+      assert' has_tCoFix (fun _ => "Program contains tCoFix (peregrine does not support cofixpoints)") ;;
       wf_fix_gen_ (wellformed Σ) k mfix idx
     | tBox => assert' has_tBox (fun _ => "Program contains tBox")
     | tConst kn =>

@@ -35,10 +35,6 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Koka, "typed-untyped", "", true, "koka-typed"],
     // The two optional middle-end passes, which only the untyped pipeline runs
     [Lang.OCaml, "passes", "--specialize-instances true --cse true"],
-    // The lowering of cofixpoints, a no-op on the programs without them
-    [Lang.OCaml, "cofix", "--lower-cofix true"],
-    [Lang.C, "cofix", "--lower-cofix true"],
-    [Lang.Wasm, "cofix", "--lower-cofix true"],
     // The unverified lambda-box simplifications, which the typed pipeline runs
     // too; Rust-lbox shares the expected failures of Rust
     [Lang.Rust, "lbox", "--lbox-opts"],
@@ -357,7 +353,7 @@ var agda_tests: TestCase[] =
             ...agda_nat_test("Postulates", 84, true),
             attributes: remap_attributes,
             xfail: {
-                ...on(["WebAssembly", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
+                "WebAssembly": "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)",
                 "CakeML": "#126: the CakeML backend takes no constant remappings, so the postulate TODO is printed as a raise, which cake does not parse"
             }
         },
@@ -420,11 +416,6 @@ var rocq_tests: TestCase[] =
             cofix: true,
             tsrc: "rocq/extraction/CoStream_typed.ast",
             rust_i64_output: "(cons () 0 (cons () 1 (cons () 0 (cons () 1 (nil)))))",
-            rejected: "#125: the Rust and Elm printers do not support cofixpoints, so neither does type inference",
-            xfail: {
-                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)"),
-                "Koka-typed": "#125: the typed Koka printer does not support cofixpoints"
-            }
         },
         {
             src: "rocq/extraction/Prims.ast",
@@ -444,7 +435,6 @@ var rocq_tests: TestCase[] =
                 "Koka-typed": "#125: the typed Koka printer does not support primitive values",
                 "WebAssembly": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cps": "#125: the Wasm backend does not support primitive strings",
-                "WebAssembly-cofix": "#125: the Wasm backend does not support primitive strings",
                 "CakeML": "#125: the CakeML backend prints every primitive literal as a raise"
             }
         },
@@ -481,7 +471,7 @@ var rocq_tests: TestCase[] =
             rust_i64_output: "3",
             attributes: remap_attributes,
             xfail: {
-                ...on(["WebAssembly", "WebAssembly-cps", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
+                ...on(["WebAssembly", "WebAssembly-cps"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
                 "CakeML": "#126: the CakeML backend takes no constant remappings, so the axiom ext_id is printed as a raise, which cake does not parse",
                 "Rust-untyped": "#79: inference prints no method for the axiom ext_id, and gives the unused parameter of shadowed the type ()"
             },

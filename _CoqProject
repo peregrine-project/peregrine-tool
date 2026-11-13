@@ -31,6 +31,7 @@ theories/erasure/ELboxOptsSimEval.v
 theories/erasure/ELboxOptsSimStatic.v
 theories/erasure/ELboxOptsWf.v
 theories/erasure/EExtraFlags.v
+theories/erasure/ENoCofix.v
 theories/erasure/ELiftConstants.v
 theories/erasure/EHindleyMilner.v
 theories/erasure/EHindleyMilnerSound.v

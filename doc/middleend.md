@@ -73,8 +73,6 @@ The transformations that will be applied will depend on both the AST type, backe
   a pass replacing primitive projections by case analysis
 * **fully applied constructors**:
   a pass inlining constructor arguments via application into the arguments carried by the constructors, i.e. constructors cannot be partially applied anymore
-* **cofix to fix**:
-  a pass which implements cofix with fix and lazy
 * **remove singleton types**:
   Unboxes singleton types by, i.e. inductive types with 1 constructor with 1 argument 
 * **inlining**:
@@ -112,7 +110,6 @@ The transformations that will be applied will depend on both the AST type, backe
 | dearging                   | optional, default on (requires typed) | optional, default on (requires typed) | optional, default on (requires typed) | optional, default on (requires typed) | optional, default on (requires typed) | optional, default on (requires typed) |
 | inline projections         | required | required | required | required | required | required |
 | fully applied constructors | required | required | required | required | required | required |
-| cofix to fix               | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
 | remove singleton types     | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
 | inlining                   | optional, default on | optional, default on | optional, default on | optional, default on | optional, default on | optional, default on |
 | beta reduction             | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
@@ -126,7 +123,7 @@ The transformations that will be applied will depend on both the AST type, backe
 | lambda-box simplifications | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
 | lift constants             | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off | optional, default off |
 
-CertiRocq and the verified Malfunction and CakeML compilers have no translation for `tCoFix`, `tLazy` and `tForce`, and turn them into placeholders. The C, Wasm, LLVM, OCaml, CakeML and eval backends therefore reject a program that still contains one of these terms after the passes above. The option `--lower-cofix true` runs `cofix to fix` and `implement lazy` and removes these terms, at the cost of two passes whose preservation obligations are `Admitted` in [Transforms.v](/theories/erasure/Transforms.v). The Lean and F# backends require both passes.
+Peregrine does not support cofixpoints: the input check rejects every program that contains `tCoFix` ("Program contains tCoFix"), for every backend, and the middle-end is proved correct for programs without cofixpoints. MetaRocq's `cofix to fix` pass, whose correctness rests on the false axiom `ECoInductiveToInductive.trust_cofix`, is not part of the pipeline. CertiRocq and the verified Malfunction and CakeML compilers have no translation for `tLazy` and `tForce` either, and turn them into placeholders. The C, Wasm, LLVM, OCaml, CakeML and eval backends therefore reject a program that still contains one of these terms after the passes above; setting `implement_lazy` in the `erasure_phases` of a configuration file removes them. The Lean, F# and Koka backends require `implement lazy`. The `implement` $\square$ and `implement lazy` passes are MetaRocq's, proved correct for programs without cofixpoints.
 
 ### Transformation support (Typed target AST)
 

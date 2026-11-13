@@ -3,6 +3,7 @@ From Peregrine Require Import PAst.
 From Peregrine Require Import Config.
 From Peregrine Require Import ConfigUtils.
 From Peregrine Require Import Transforms.
+From Peregrine Require Import EExtraFlags.
 From Peregrine Require Import Erasure.
 From Peregrine Require Import CheckWf.
 From Peregrine Require Import RecursorInlining.
@@ -64,18 +65,20 @@ Definition get_config (c : string + config') (attrs : list string) : result' con
   attrs <- parse_attributes attrs;;
   if 0 <? length attrs then Ok (merge_attributes_config c attrs) else Ok c.
 
+(* Peregrine does not support cofixpoints: [nocofix_env_flags] rejects them, and
+   the middle-end passes are proved correct at these flags. *)
 Definition check_wf (p : PAst) : result' unit :=
   map_error (fun e => "Program not wellformed\n" ++ e)
   match p with
   | Untyped env (Some t) =>
-      @check_wf_program EWellformed.all_env_flags (env, t)
+      @check_wf_program nocofix_env_flags (env, t)
   | Untyped env None =>
-      @check_wf_glob EWellformed.all_env_flags env
+      @check_wf_glob nocofix_env_flags env
   | Typed env (Some t) =>
-      _ <- @CheckWfExAst.check_wf_typed_program EWellformed.all_env_flags env;;
-      @wellformed EWellformed.all_env_flags (ExAst.trans_env env) 0 t
+      _ <- @CheckWfExAst.check_wf_typed_program nocofix_env_flags env;;
+      @wellformed nocofix_env_flags (ExAst.trans_env env) 0 t
   | Typed env None =>
-      @CheckWfExAst.check_wf_typed_program EWellformed.all_env_flags env
+      @CheckWfExAst.check_wf_typed_program nocofix_env_flags env
   end.
 
 Definition needs_typed (c : config) : bool :=
@@ -323,7 +326,8 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
 (* The first term that CertiRocq and the verified Malfunction and CakeML
    compilers have no translation for.  They turn such a term into a placeholder,
    so the program would compile and then crash or compute a wrong result.
-   [cofix_to_lazy] followed by [implement_lazy] removes all of them. *)
+   [check_wf] already rejects cofixpoints; [implement_lazy] removes lazy and
+   force. *)
 Fixpoint unlowered_term (t : EAst.term) : option string :=
   let first := fix first (l : list (option string)) :=
     match l with
@@ -332,7 +336,6 @@ Fixpoint unlowered_term (t : EAst.term) : option string :=
     | None :: l => first l
     end in
   match t with
-  | EAst.tCoFix _ _ => Some "cofixpoints"
   | EAst.tLazy _ | EAst.tForce _ => Some "lazy and force"
   | EAst.tLambda _ b | EAst.tProj _ b => unlowered_term b
   | EAst.tLetIn _ b u | EAst.tApp b u =>
@@ -349,7 +352,7 @@ Definition check_lowered_program (backend : string) (p : EAst.program) : result'
     match unlowered_term t with
     | Some s =>
       Err ("The " ++ backend ++ " backend does not support " ++ s ++ ", used in " ++ where_ ++
-           ". The option --lower-cofix true translates them, using passes whose correctness proofs are incomplete.")
+           ". Enabling the implement_lazy phase in the configuration's erasure_phases translates them.")
     | None => Ok tt
     end in
   let check_decl (d : kername * EAst.global_decl) : result' unit :=

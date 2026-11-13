@@ -126,6 +126,8 @@ tBox
 
 `tEvar`, `tConstruct`, `tFix`/`tCoFix` carry plain lists in their argument positions (the `(...)` may itself be empty for nullary cases).
 
+The AST format can express `tCoFix`, but peregrine rejects every program that contains a cofixpoint.
+
 ### Typed $\lambda_\square^T$ AST
 
 A typed environment is a list of `(<kername> <has_deps> <global_decl>)` triples where `<has_deps>` is a boolean (the extra field added by `ExAst.global_env`).
@@ -191,12 +193,11 @@ Field by field:
 
 * `backend_opts` (`backend_config`) — selects the backend and its options; see below.
 
-* `erasure_opts` (`erasure_phases`) — toggles the optional erasure passes. The ten fields are
+* `erasure_opts` (`erasure_phases`) — toggles the optional erasure passes. The nine fields are
   ```
   (erasure_phases
     <implement_box>
     <implement_lazy>
-    <cofix_to_laxy>
     <betared>
     <unboxing>
     <dearg_ctors>
@@ -206,7 +207,7 @@ Field by field:
     <lift_constants>)
   ```
   All booleans. `specialize_instances`, `cse` and `lift_constants` select the three optional passes described in [middleend.md](middleend.md); every backend leaves them off by default.
-  Only the ten-field form parses. To migrate a configuration written for the earlier seven-field form, append `None None None` to its `erasure_phases` entry (`false false false` where the fields are not optional); for the nine-field form, append one `None` (or `false`). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
+  Only the nine-field form parses. To migrate a configuration written for the earlier ten-field form, delete its third field (`cofix_to_laxy`; peregrine no longer supports cofixpoints). From the seven-field form, delete the third field and append `None None None` (`false false false` where the fields are not optional); from the nine-field form that predates `lift_constants` (with `cofix_to_laxy`), delete the third field and append one `None` (or `false`). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
 
 * `inlinings_opts` (`inlinings`) — a list of `kername`s; constants in this list are inlined by MetaRocq's inlining pass (`EInlining`; untyped pipeline only). The CLI flag `--inline-recursors` extends this list automatically with the program's recursors `I_rect`/`I_rec` (see [usage.md](usage.md#middle-end-passes) and [RecursorInlining.v](/theories/RecursorInlining.v)); the result is identical to listing them in an attribute file.
 

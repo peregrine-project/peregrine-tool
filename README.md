@@ -72,7 +72,7 @@ Any other file is read as a $\lambda_\square$ program ([format.md](doc/format.md
 | `eval` | the value, printed | untyped | nothing | debugging tool |
 | `ast` | `.ast` | either | nothing | debugging tool |
 
-The middle-end is only partly verified. Evaluation preservation for the passes that implement $\square$ and `lazy`/`force` is admitted (the first of them runs for every untyped backend except `ast`), and so are some pipeline preconditions ([Transforms.v](theories/erasure/Transforms.v)). The optional passes rest on axioms ([middleend.md](doc/middleend.md#optional-passes)). For each backend's output and runtime requirements, see [backends.md](doc/backends.md).
+The middle-end is only partly verified. Some pipeline preconditions are admitted ([Transforms.v](theories/erasure/Transforms.v)). Peregrine does not support cofixpoints (coinductive types): it rejects programs that contain them. The optional passes rest on axioms ([middleend.md](doc/middleend.md#optional-passes)). For each backend's output and runtime requirements, see [backends.md](doc/backends.md).
 
 
 ## Documentation

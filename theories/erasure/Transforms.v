@@ -8,7 +8,8 @@ From MetaRocq.Erasure Require EAstUtils ErasureFunction ErasureCorrectness EPret
 From MetaRocq.Erasure Require Import EProgram EInlining EBeta EWellformed.
 From MetaRocq.ErasurePlugin Require Import ETransform Erasure.
 From MetaRocq.Erasure Require EImplementBox.
-From MetaRocq.Erasure Require EImplementLazyForce.
+From MetaRocq.Erasure Require EImplementLazyForce ERemapInductives.
+From Peregrine Require Import EExtraFlags ENoCofix.
 From Peregrine Require Import EInstanceSpecialize.
 From Peregrine Require Import ECommonSubexpr.
 From Peregrine Require Import ELboxOpts ELboxOptsWf.
@@ -32,8 +33,7 @@ Local Obligation Tactic := idtac.
 
 
 Program Definition implement_box_transformation
-  (efl := EConstructorsAsBlocks.switch_cstr_as_blocks
-  (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params all_env_flags))) :
+  (efl := extra_env_flags) :
   Transform.t _ _ EAst.term EAst.term _ _ (eval_eprogram EImplementBox.block_wcbv_flags) (eval_eprogram EImplementBox.block_wcbv_flags) :=
   {| name := "implementing box";
     transform p _ := EImplementBox.implement_box_program p ;
@@ -52,11 +52,10 @@ Final Obligation.
   econstructor.
   eapply EImplementBox.implement_box_eval; cbn; eauto.
   all: try reflexivity.
-Admitted.
+Qed.
 
 Program Definition implement_lazy_force_transformation
-  (efl := EConstructorsAsBlocks.switch_cstr_as_blocks
-  (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params all_env_flags))) :
+  (efl := extra_env_flags) :
   Transform.t _ _ EAst.term EAst.term _ _ (eval_eprogram final_wcbv_flags) (eval_eprogram final_wcbv_flags) :=
   {| name := "implementing lazy/force";
     transform p _ := EImplementLazyForce.implement_lazy_force_program p ;
@@ -75,20 +74,16 @@ Final Obligation.
   econstructor.
   eapply EImplementLazyForce.implement_lazy_force_eval; cbn; eauto.
   all: try reflexivity.
-Admitted.
+Qed.
 
 Definition switch_off_box_wf env t l :
-  let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
-    (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params all_env_flags)) in
+  let efl := extra_env_flags in
   wellformed (EImplementBox.switch_off_box efl) env l t ->
   wellformed efl env l t.
 Proof.
   cbn.
   generalize dependent l.
   induction t using EInduction.term_forall_list_ind; auto; try discriminate; intro l'; try (simpl; rtoProp; solve_all).
-  - unfold wf_fix in *.
-    rtoProp.
-    solve_all.
   - unfold wf_fix in *.
     rtoProp.
     solve_all.
@@ -99,8 +94,7 @@ Proof.
 Qed.
 
 Definition switch_off_box_wf_glob env :
-  let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
-    (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params all_env_flags)) in
+  let efl := extra_env_flags in
   wf_glob (EImplementBox.switch_off_box efl) env ->
   wf_glob efl env.
 Proof.
@@ -119,8 +113,7 @@ Proof.
 Qed.
 
 Definition switch_off_box_wf_eprogram p :
-  let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
-    (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params all_env_flags)) in
+  let efl := extra_env_flags in
   wf_eprogram (EImplementBox.switch_off_box efl) p ->
   wf_eprogram efl p.
 Proof.
@@ -134,61 +127,8 @@ Proof.
 Qed.
 
 
-(* [efl_coind_to_ind] only drops [tCoFix], so its well-formedness implies
-   the one of [efl]. *)
-Definition coind_to_ind_wf env t l :
-  let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
-    (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params all_env_flags)) in
-  wellformed (efl_coind_to_ind efl) env l t ->
-  wellformed efl env l t.
-Proof.
-  cbn.
-  generalize dependent l.
-  induction t using EInduction.term_forall_list_ind; auto; try discriminate; intro l'; try (simpl; rtoProp; solve_all).
-  all: try (unfold wf_fix in *; rtoProp; solve_all).
-  all: inversion X; auto; subst; destruct X0;
-    cbn in *; unfold EPrimitive.test_array_model in *; rtoProp; solve_all.
-Qed.
-
-Definition coind_to_ind_wf_glob env :
-  let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
-    (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params all_env_flags)) in
-  wf_glob (efl_coind_to_ind efl) env ->
-  wf_glob efl env.
-Proof.
-  cbn.
-  induction env.
-  - constructor.
-  - destruct a. cbn.
-    intros.
-    inversion H; subst.
-    constructor; auto.
-    destruct g.
-    + destruct c, cst_body0; auto.
-      apply coind_to_ind_wf. assumption.
-    + cbn.
-      assumption.
-Qed.
-
-Definition coind_to_ind_wf_eprogram p :
-  let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
-    (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params all_env_flags)) in
-  wf_eprogram (efl_coind_to_ind efl) p ->
-  wf_eprogram efl p.
-Proof.
-  intros.
-  destruct H.
-  split.
-  - apply coind_to_ind_wf_glob.
-    assumption.
-  - apply coind_to_ind_wf.
-    assumption.
-Qed.
-
-
 Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_opts) (lift_consts impl_box impl_lazy_force : bool) :=
-  let efl := EConstructorsAsBlocks.switch_cstr_as_blocks
-  (EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params EWellformed.all_env_flags)) in
+  let efl := extra_env_flags in
   (* Instance/dictionary specialization, then common-subexpression
      elimination, both in the constructors-as-blocks regime of [implement_box].
      They run after [optional_unsafe_transforms], so betared and dead-argument
@@ -253,34 +193,131 @@ Next Obligation.
 Qed.
 
 
+(** * The verified λ□ pipelines and MetaRocq's optional passes, without cofixpoints
+
+    Copies of MetaRocq's [verified_lambdabox_pipeline],
+    [verified_lambdabox_pipeline_mapping] and [verified_lambdabox_typed_pipeline]
+    (ErasurePlugin/Erasure.v), instantiated at [nocofix_env_flags] instead of
+    [all_env_flags]: [check_wf] (Pipeline.v) rejects cofixpoints, and the
+    absence of cofixpoints is carried to [extra_unsafe_transforms], where the
+    implementation of boxes and of lazy/force needs it.  The passes are
+    MetaRocq's and generic in the flags; only the flags differ. *)
+
+#[local] Obligation Tactic := program_simpl.
+
+Program Definition nocofix_lambdabox_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf
+  : Transform.t _ _ _ EAst.term _ _
+   (eval_eprogram_env EWcbvEval.default_wcbv_flags)
+   (EProgram.eval_eprogram final_wcbv_flags) :=
+  guarded_to_unguarded_fix (fl := EWcbvEval.default_wcbv_flags) (wcon := eq_refl) eq_refl ▷
+  remove_params_optimization (wcon := eq_refl) efl eq_refl eq_refl ▷
+  rebuild_wf_env_transform (efl := ERemoveParams.switch_no_params efl) true false ▷
+  remove_match_on_box_trans (efl := ERemoveParams.switch_no_params efl) (wcon := eq_refl) (hastrel := eq_refl) (hastbox := eq_refl) ▷
+  rebuild_wf_env_transform (efl := ERemoveParams.switch_no_params efl) true false ▷
+  inline_projections_optimization (fl := EWcbvEval.target_wcbv_flags) (efl := ERemoveParams.switch_no_params efl)
+    (wcon := eq_refl) eq_refl eq_refl (has_app := eq_refl) (hastrel := eq_refl) (hastbox := eq_refl) ▷
+  rebuild_wf_env_transform (efl := EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params efl)) true false ▷
+  constructors_as_blocks_transformation
+    (efl := EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params efl))
+    (has_app := eq_refl) (has_pars := eq_refl) (has_rel := eq_refl) (has_box := eq_refl) (has_cstrblocks := eq_refl) ▷
+  ETransform.optional_self_transform econf.(inlining) (inlining_transformation (efl := efl) eq_refl econf).
+Next Obligation.
+  destruct H. split => //. sq.
+  now eapply ETransform.expanded_eprogram_env_expanded_eprogram_cstrs.
+Qed.
+Next Obligation.
+  now destruct econf as [? ? ? [] ?].
+Qed.
+
+Program Definition nocofix_lambdabox_pipeline_mapping {guard : abstract_guard_impl} econf
+  (efl := nocofix_env_flags)
+  : Transform.t _ _ _ EAst.term _ _
+   (eval_eprogram_env_mapping EWcbvEval.default_wcbv_flags)
+   (EProgram.eval_eprogram final_wcbv_flags) :=
+  reorder_cstrs_transformation (wca := eq_refl) (has_app := eq_refl) EWcbvEval.default_wcbv_flags (wcon := eq_refl) ▷
+  rebuild_wf_env_transform (efl := efl) true true ▷
+  nocofix_lambdabox_pipeline econf.
+
+Program Definition nocofix_lambdabox_typed_pipeline (efl := nocofix_env_flags)
+  (wfl := {| EWcbvEval.with_prop_case := false; EWcbvEval.with_guarded_fix := true; EWcbvEval.with_constructor_as_block := false |}) econf :
+  Transform.t _ _ _ EAst.term _ _
+    (eval_eprogram_env_mapping wfl)
+    (EProgram.eval_eprogram final_wcbv_flags) :=
+  reorder_cstrs_transformation (wca := eq_refl) (has_app := eq_refl) wfl (wcon := eq_refl) ▷
+  rebuild_wf_env_transform (efl := efl) true true ▷
+  guarded_to_unguarded_fix (fl := {| EWcbvEval.with_prop_case := false; EWcbvEval.with_guarded_fix := true; EWcbvEval.with_constructor_as_block := false |}) (wcon := eq_refl) eq_refl ▷
+  remove_params_optimization (wcon := eq_refl) efl eq_refl eq_refl ▷
+  rebuild_wf_env_transform (efl := ERemoveParams.switch_no_params efl) true false ▷
+  inline_projections_optimization (fl := EWcbvEval.target_wcbv_flags) (efl := ERemoveParams.switch_no_params efl)
+    (wcon := eq_refl) eq_refl eq_refl (has_app := eq_refl) (hastrel := eq_refl) (hastbox := eq_refl) ▷
+  rebuild_wf_env_transform (efl := EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params efl)) true false ▷
+  constructors_as_blocks_transformation
+    (efl := EInlineProjections.disable_projections_env_flag (ERemoveParams.switch_no_params efl))
+    (has_app := eq_refl) (has_pars := eq_refl) (has_rel := eq_refl) (has_box := eq_refl) (has_cstrblocks := eq_refl) ▷
+  ETransform.optional_self_transform econf.(inlining) (inlining_transformation (efl := efl) eq_refl econf).
+Next Obligation.
+  destruct H. split => //. sq.
+  now eapply ETransform.expanded_eprogram_env_expanded_eprogram_cstrs.
+Qed.
+Next Obligation.
+  destruct econf as [? ? ? []]=> //.
+Qed.
+
+(** MetaRocq's [optional_unsafe_transforms] without the translation of
+    cofixpoints to lazy fixpoints ([cofix_to_lazy], whose correctness is the
+    false axiom [ECoInductiveToInductive.trust_cofix]).  Unboxing, which
+    MetaRocq runs only after that translation because it needs the absence of
+    cofixpoints, runs whenever it is enabled: the flags here exclude
+    cofixpoints.  The [cofix_to_lazy] field of the configuration is ignored. *)
+Program Definition nocofix_unsafe_transforms econf :=
+  let passes := econf.(enable_unsafe) in
+  let efl := extra_env_flags in
+  ETransform.optional_self_transform passes.(unboxing)
+    (rebuild_wf_env_transform (efl := efl) false false ▷
+     unbox_transformation efl final_wcbv_flags (has_app := eq_refl) (has_cofix := eq_refl)
+       (has_prop_case := eq_refl) (has_letin := eq_refl) (has_cstrparams := eq_refl) (has_cstr_block := eq_refl)) ▷
+  ETransform.optional_self_transform passes.(inductives_extraction)
+    (rebuild_wf_env_transform (efl := efl) false false ▷
+       ERemapInductives.extract_inductive_transformation efl final_wcbv_flags econf.(extracted_inductives) ▷
+       ERemapInductives.forget_inductive_extraction_info_transformation efl final_wcbv_flags) ▷
+  (* Heuristically do it twice for more beta-normal terms *)
+  ETransform.optional_self_transform passes.(betared)
+    (betared_transformation efl final_wcbv_flags ▷
+     betared_transformation efl final_wcbv_flags).
+Next Obligation.
+  destruct (enable_unsafe econf) as [? [] [] []]; cbn in * => //; intuition auto.
+Qed.
+Next Obligation.
+  destruct (enable_unsafe econf) as [? [] [] []]; cbn in * => //; intuition auto.
+Qed.
+
+#[local] Obligation Tactic := idtac.
+
 
 Program Definition untyped_transform_pipeline {guard : abstract_guard_impl}
-  (efl := all_env_flags) econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  (efl := nocofix_env_flags) econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
   : Transform.t _ _ _ EAst.term _ _
    (* Standard evaluation, with cases on prop, guarded fixpoints, applied constructors *)
    (eval_eprogram_mapping EWcbvEval.default_wcbv_flags)
    (* Target evaluation, with no more cases on prop, unguarded fixpoints, constructors as block *)
    (EProgram.eval_eprogram final_wcbv_flags) :=
   rebuild_wf_env_transform_mapping true true ▷
-  verified_lambdabox_pipeline_mapping econf ▷
-  optional_unsafe_transforms econf ▷
+  nocofix_lambdabox_pipeline_mapping econf ▷
+  nocofix_unsafe_transforms econf ▷
   extra_unsafe_transforms spec_inst cse lbox lift_consts impl_box impl_lazy_force.
 Next Obligation.
   cbn. intros.
   destruct H as [? [? ?]].
-  destruct econf as [[[] ? ? ?] ? ? [] ?]=> //; cbn.
-  all: split; auto.
-  all: split; auto.
+  split; auto.
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct econf as [[[] ? ? ?] ? ? [] ?]=> //.
+  destruct econf as [[? [] ? ?] ? ? [] ? ?]; cbn in *; intuition auto.
 Qed.
 Final Obligation.
   cbn. intros.
-  destruct econf as [[[] ? ? []] ? ? [] ?]; cbn in *;
-    try apply coind_to_ind_wf_eprogram in H;
-    destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; auto.
+  destruct econf as [[? ? ? []] ? ? ? ? ?], spec_inst; cbn in *; auto.
 Qed.
 
 
@@ -293,7 +330,7 @@ Section Dearging.
     | None => (p.1.2, p.2)
     end.
 
-  Program Definition dearging_transform (efl := EWellformed.all_env_flags) cf :
+  Program Definition dearging_transform (efl := nocofix_env_flags) cf :
     Transform.t _ _  EAst.term EAst.term _ _ (eval_typed_eprogram_masks EWcbvEval.opt_wcbv_flags) (eval_typed_eprogram EWcbvEval.opt_wcbv_flags) :=
     {| name := "dearging";
       transform p _ := dearg p ;
@@ -308,15 +345,22 @@ Section Dearging.
     destruct check_dearging_precond eqn:eqp; cbn -[ExAst.trans_env] => //.
     destruct input as [[masks env] t]. cbn -[ExAst.trans_env Optimize.dearg_env] in *.
     subst masks. destruct H0 as [wf exp].
+    (* Wellformedness at [nocofix_env_flags] is wellformedness at
+       [all_env_flags], where MetaRocq proves dearging correct, and the
+       absence of cofixpoints, which dearging preserves (ENoCofix.v). *)
+    apply wf_eprogram_nocofix in wf as [wf [gnc tnc]].
     eapply check_dearging_precond_spec in eqp. intuition.
-    - split; cbn.
-      unfold dearg_env.
-      eapply wf_glob_debox.
-      eapply wf_glob_dearg; eauto.
-      eapply wf.
-      rewrite /dearg_env. rewrite -trans_env_debox.
-      eapply wellformed_dearg; eauto.
-      eapply wf.
+    - apply wf_eprogram_nocofix; cbn -[ExAst.trans_env]. split; [|split].
+      + split; cbn.
+        unfold dearg_env.
+        eapply wf_glob_debox.
+        eapply wf_glob_dearg; eauto.
+        eapply wf.
+        rewrite /dearg_env. rewrite -trans_env_debox.
+        eapply wellformed_dearg; eauto.
+        eapply wf.
+      + now apply glob_no_cofix_dearg_env'.
+      + now apply no_cofix_dearg.
     - rewrite /dearg_env -trans_env_debox. split; cbn.
       eapply expanded_dearg_env; tea. apply exp.
       eapply EEtaExpandedFix.isEtaExp_expanded, expanded_dearg; eauto.
@@ -386,7 +430,7 @@ Proof.
 Qed.
 
 Program Definition typed_transform_pipeline {guard : abstract_guard_impl}
-  (efl := EWellformed.all_env_flags) econf
+  (efl := nocofix_env_flags) econf
   : Transform.t _ _ _ _ _ _
    (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
    (eval_typed_eprogram_mapping EWcbvEval.opt_wcbv_flags) :=
@@ -443,7 +487,7 @@ Qed.
 
 
 Program Definition typed_to_untyped_transform_pipeline {guard : abstract_guard_impl}
-  (efl := EWellformed.all_env_flags) econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  (efl := nocofix_env_flags) econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
   : Transform.t _ _ _ _ _ _
    (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
    (EProgram.eval_eprogram final_wcbv_flags) :=
@@ -451,8 +495,8 @@ Program Definition typed_to_untyped_transform_pipeline {guard : abstract_guard_i
    typed_transform_pipeline econf ▷
    trans_env_transform ▷
    rebuild_wf_env_transform_mapping true true ▷
-   verified_lambdabox_typed_pipeline econf ▷
-   optional_unsafe_transforms econf ▷
+   nocofix_lambdabox_typed_pipeline econf ▷
+   nocofix_unsafe_transforms econf ▷
    extra_unsafe_transforms spec_inst cse lbox lift_consts impl_box impl_lazy_force.
 Next Obligation.
   intros.
@@ -474,13 +518,11 @@ Next Obligation.
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct econf as [[[] ? ? ?] ? ? [] ?]=> //.
+  destruct econf as [[? [] ? ?] ? ? [] ? ?]; cbn in *; intuition auto.
 Qed.
 Final Obligation.
   cbn. intros.
-  destruct econf as [[[] ? ? []] ? ? [] ?]; cbn in *;
-    try apply coind_to_ind_wf_eprogram in H;
-    destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; auto.
+  destruct econf as [[? ? ? []] ? ? ? ? ?], spec_inst; cbn in *; auto.
 Qed.
 
 

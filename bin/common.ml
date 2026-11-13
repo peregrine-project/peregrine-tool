@@ -55,18 +55,16 @@ type erasure_opts = {
   dearg_consts        : bool option;
   specialize_instances : bool option;
   cse                 : bool option;
-  lower_cofix         : bool option;
   lift_constants      : bool option;
 }
 
-let mk_erasure_opts betared unboxing dearg_ctors dearg_consts specialize_instances cse lower_cofix lift_constants = {
+let mk_erasure_opts betared unboxing dearg_ctors dearg_consts specialize_instances cse lift_constants = {
   betared;
   unboxing;
   dearg_ctors;
   dearg_consts;
   specialize_instances;
   cse;
-  lower_cofix;
   lift_constants;
 }
 
