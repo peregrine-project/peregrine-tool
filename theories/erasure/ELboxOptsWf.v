@@ -196,20 +196,17 @@ End env.
 
     Stated at the flags of the pipeline stage ([EExtraFlags]).
 
-    Evaluation is preserved by the identity-case, case/function,
-    let/function and beta/let rewrites: if the source program evaluates to
-    [v], the target program evaluates to some [v'] with [lbox_obs v v'],
-    where [lbox_obs] is a chain of steps of the rewrite relation [R] of
-    [ELboxOptsSim] ("[v'] is [v] with some subterms rewritten").  A stronger
-    relation such as [v' = optimize o v] is false once the value is a
-    closure, since substitution creates and destroys redexes of the pass.
+    Evaluation is preserved by all four rewrites (fixpoint eta-hoisting,
+    identity-case, case/function, let/function with beta/let): if the source
+    program evaluates to [v], the target program evaluates to some [v'] with
+    [lbox_obs v v'], where [lbox_obs] is a chain of steps of the rewrite
+    relation [R] of [ELboxOptsSim] ("[v'] is [v] with some subterms
+    rewritten").  A stronger relation such as [v' = optimize o v] is false
+    once the value is a closure, since substitution creates and destroys
+    redexes of the pass.
 
     This is proved in [ELboxOptsSim] (the relation), [ELboxOptsSimEval] (the
-    simulation) and [ELboxOptsSimStatic] (the passes are chains of steps).
-
-    The fixpoint eta-hoisting rewrite [fix_eta] is not covered by [R]: for
-    option sets that enable it, termination of the target is assumed
-    ([trust_fix_eta_terminates]) and nothing is stated about the values. *)
+    simulation) and [ELboxOptsSimStatic] (the passes are chains of steps). *)
 
 (** Evaluation preservation at the pipeline flags, for any set of rewrites
     whose node rewrite is a step of the rewrite relation [R] of [ELboxOptsSim]:
@@ -238,30 +235,13 @@ Lemma case_id_terminates :
   exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program case_id_opts p) v' /\ lbox_obs v v'.
 Proof. apply lbox_opts_program_eval, case_id_node. Qed.
 
-(** The only assumption: programs optimized with [fix_eta] enabled still
-    terminate.  (With [fix_eta] disabled this is [lbox_opts_eval] below,
-    which is proved.) *)
-Axiom trust_fix_eta_terminates :
-  forall (o : lbox_opts) (p : program) (v : term),
-  lbox_fix_eta o = true ->
-  wf_eprogram extra_env_flags p ->
-  eval_eprogram extra_wcbv_flags p v ->
-  exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program (without_case_id o) p) v'.
-
 Lemma lbox_opts_eval (o : lbox_opts) :
   forall (p : program) (v : term),
   wf_eprogram extra_env_flags p ->
   eval_eprogram extra_wcbv_flags p v ->
   exists v', eval_eprogram extra_wcbv_flags (lbox_opts_program (without_case_id o) p) v' /\
-    (lbox_fix_eta o = false -> lbox_obs v v').
-Proof.
-  intros p v wfp ev. destruct (lbox_fix_eta o) eqn:E.
-  - destruct (trust_fix_eta_terminates o p v E wfp ev) as [v' ev'].
-    exists v'. split; [exact ev'|discriminate].
-  - destruct (lbox_opts_program_eval (without_case_id o)
-      (fun t => lbox_node (without_case_id o) t E) p v wfp ev) as (v' & ev' & Hv).
-    exists v'. split; auto.
-Qed.
+    lbox_obs v v'.
+Proof. apply lbox_opts_program_eval, lbox_node. Qed.
 
 Import MetaRocq.Common.Transform.Transform.
 
@@ -274,7 +254,7 @@ Program Definition lbox_opts_transformation (o : lbox_opts) :
      transform p _ := lbox_opts_program (without_case_id o) p;
      pre p := wf_eprogram extra_env_flags p;
      post p := wf_eprogram extra_env_flags p;
-     obseq _ _ _ v v' := lbox_fix_eta o = false -> lbox_obs v v' |}.
+     obseq _ _ _ v v' := lbox_obs v v' |}.
 Next Obligation.
   intros. apply wf_eprogram_lbox_opts_program => //. apply rewrite_node_wf_extra.
 Qed.

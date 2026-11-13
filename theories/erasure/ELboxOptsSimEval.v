@@ -35,11 +35,72 @@ Section Sim.
   Qed.
 
   Lemma R_substl_at k s s' t t' :
-    Rs Σ' s s' -> forallb (closedn 0) s' -> R Σ' t t' ->
+    Rs Σ' s s' -> forallb (closedn 0) s -> forallb (closedn 0) s' -> R Σ' t t' ->
     R Σ' (substl_at k s t) (substl_at k s' t').
   Proof.
-    intros H; revert t t'; induction H; cbn; intros t0 t0' cl Ht; auto.
-    move/andP: cl => [c1 c2]. apply IHRs; auto. apply R_csubst; auto.
+    intros H; revert t t'; induction H; cbn; intros t0 t0' cl0 cl Ht; auto.
+    move/andP: cl0 => [d1 d2]. move/andP: cl => [c1 c2]. apply IHRs; auto. apply R_csubst; auto.
+  Qed.
+
+  (** *** Arity of the target of [fix_eta] *)
+
+  Lemma has_lambdas_S_inv m w :
+    has_lambdas (S m) w -> exists na b, w = tLambda na b /\ has_lambdas m b.
+  Proof. destruct w; cbn; try discriminate; eauto. Qed.
+
+  Lemma has_lambdas_substl s m t : has_lambdas m t -> has_lambdas m (substl s t).
+  Proof.
+    unfold substl. induction s in t |- *; cbn; auto.
+    intros H. now apply IHs, has_lambdas_csubst.
+  Qed.
+
+  Lemma tarity_lam m : forall w, has_lambdas (S m) w -> tarity Σ' m w.
+  Proof.
+    induction m; intros w H; cbn [tarity]; auto. intros a' ca' [va'].
+    destruct (has_lambdas_S_inv _ _ H) as (na & b & -> & Hb).
+    have Hb' := has_lambdas_csubst a' 0 _ _ Hb.
+    destruct (has_lambdas_S_inv _ _ Hb') as (na' & b' & E & _).
+    exists (csubst a' 0 b). split; [|now apply IHm].
+    sq. eapply eval_beta; [apply eval_atom; reflexivity|now apply value_final|].
+    rewrite E. apply eval_atom. reflexivity.
+  Qed.
+
+  Lemma tarity_fix m mf idx : fix_arity_ok mf idx (S m) -> tarity Σ' m (tFix mf idx).
+  Proof.
+    unfold fix_arity_ok. destruct (nth_error mf idx) as [d|] eqn:E; [|discriminate]. intros H.
+    destruct m; cbn [tarity]; auto. intros a' ca' [va'].
+    have Hs := has_lambdas_substl (fix_subst mf) _ _ H.
+    destruct (has_lambdas_S_inv _ _ Hs) as (na & b & Eb & Hb).
+    have Hb' := has_lambdas_csubst a' 0 _ _ Hb.
+    destruct (has_lambdas_S_inv _ _ Hb') as (na' & b' & E' & _).
+    exists (csubst a' 0 b). split; [|now apply tarity_lam].
+    sq. eapply eval_fix' with (fn := substl (fix_subst mf) (dbody d)) (av := a');
+      [exact Hguard|apply eval_atom; reflexivity|unfold cunfold_fix; rewrite E; reflexivity
+      |now apply value_final|].
+    rewrite Eb. eapply eval_beta; [apply eval_atom; reflexivity|now apply value_final|].
+    rewrite E'. apply eval_atom. reflexivity.
+  Qed.
+
+  Lemma csubst_lift1 x d : closed x -> csubst x 0 (lift0 1 d) = d.
+  Proof. intros cx. rewrite closed_subst //. now apply simpl_subst_k. Qed.
+
+  Lemma eta_csubst dead j na xs F cs args av :
+    eta_args dead j (na :: xs) args -> closed (mkApps F cs) -> closed av ->
+    exists c args1,
+      csubst av 0 (mk_lambdas xs (mkApps F (cs ++ args))) =
+        mk_lambdas xs (mkApps F ((cs ++ [c]) ++ args1)) /\
+      eta_args dead (S j) xs args1 /\ closed c /\ (c = av \/ (c = tBox /\ dead j)).
+  Proof.
+    intros H cl cav.
+    rewrite csubst_mk_lambdas mkApps_app csubst_mkApps (csubst_closed _ _ (mkApps F cs)).
+    { eapply closed_upwards; tea; lia. }
+    inversion H; subst; cbn [map].
+    - exists av, args0. erewrite eta_args_csubst; [|eassumption].
+      cbn [csubst]. rewrite Nat.add_0_r Nat.compare_refl -app_assoc (mkApps_app F cs).
+      repeat split; auto.
+    - exists tBox, args0. erewrite eta_args_csubst; [|eassumption].
+      cbn [csubst]. rewrite -app_assoc (mkApps_app F cs).
+      repeat split; auto.
   Qed.
 
   (** *** Target head reductions *)
@@ -108,52 +169,99 @@ Section Sim.
        P s (tLambda y (mk_lambdas ys u)) -> tred Σ' t' u ->
        closed (tLambda y (mk_lambdas ys u)) -> closed (tLambda y (mk_lambdas ys t')) ->
        P s (tLambda y (mk_lambdas ys t'))) ->
+    (forall x xs mf idx cs args t0 w,
+       R Σ' (mkApps (tFix mf idx) cs) t0 -> ∥ eval Σ' t0 w ∥ -> tarity Σ' #|xs| w ->
+       eta_args (param_dead mf idx) #|cs| (x :: xs) args ->
+       closed (mkApps (tFix mf idx) cs) -> closed t0 -> closed w ->
+       P (tLambda x (mk_lambdas xs (mkApps (tFix mf idx) (cs ++ args)))) w) ->
     forall t w, R Σ' t w -> ∥ value Σ' w ∥ -> P t w.
   Proof.
-    intros Hh Hc He.
+    intros Hh Hc He Hf.
     induction 1 as [t w H
                    |ind c args v0 mfix idx args' narg fn H IH e Hcu vv cl cl0
                    |t v0 t' H IH e cl cl0
-                   |ys s u t' H IH Ht cu ct]; intros [vw].
+                   |ys s u t' H IH Ht cu ct
+                   |x xs mf idx cs args t0 w H IH e Ha He' cl cl0 clw]; intros [vw].
     - apply Hh; auto. now sq.
     - apply Hc. eapply R_cofix; tea.
     - destruct e as [e]. have E := eval_value _ _ vw e. subst. apply IH. now sq.
     - destruct ys as [|y ys]; cbn in *.
       + destruct (value_tred _ _ Ht vw).
       + eapply He; tea. apply IH. sq. apply value_lambda.
+    - eapply Hf; tea.
   Qed.
 
   Lemma R_box_inv w : R Σ' tBox w -> ∥ value Σ' w ∥ -> w = tBox.
   Proof.
     intros H v.
-    refine (R_value_elim (fun t w => t = tBox -> w = tBox) _ _ _ _ _ H v eq_refl).
+    refine (R_value_elim (fun t w => t = tBox -> w = tBox) _ _ _ _ _ _ H v eq_refl).
     - intros t0 w0 H' _ ->. now inversion H'.
     - intros; discriminate.
     - intros y ys u t' s _ IH _ _ _ E. specialize (IH E). discriminate.
+    - intros; discriminate.
   Qed.
 
+  (** [expands w w0]: the target lambda [w] is [w0] with some head redexes
+      under its lambdas not yet contracted (see [R_exp]). *)
+  Inductive expands : term -> term -> Prop :=
+  | expands_refl w : expands w w
+  | expands_step y ys u t' w0 :
+      expands (tLambda y (mk_lambdas ys u)) w0 -> tred Σ' t' u ->
+      closed (tLambda y (mk_lambdas ys u)) -> closed (tLambda y (mk_lambdas ys t')) ->
+      expands (tLambda y (mk_lambdas ys t')) w0.
+
+  (** The source [fun na => b] is the eta-expansion of a fixpoint applied to
+      [cs], and the target [w] is (an expansion of) the value [w0] of the
+      corresponding partial application [t0]. *)
+  Definition eta_state (na : name) (b w : term) : Prop :=
+    exists xs mf idx cs args t0 w0,
+      b = mk_lambdas xs (mkApps (tFix mf idx) (cs ++ args)) /\
+      R Σ' (mkApps (tFix mf idx) cs) t0 /\ ∥ eval Σ' t0 w0 ∥ /\ tarity Σ' #|xs| w0 /\
+      eta_args (param_dead mf idx) #|cs| (na :: xs) args /\
+      closed (mkApps (tFix mf idx) cs) /\ closed t0 /\ closed w0 /\ expands w w0.
+
   Lemma R_lambda_inv na b w :
-    R Σ' (tLambda na b) w -> ∥ value Σ' w ∥ ->
-    exists na' b', w = tLambda na' b' /\
-      forall a a', R Σ' a a' -> closed a' -> R Σ' (csubst a 0 b) (csubst a' 0 b').
+    R Σ' (tLambda na b) w -> ∥ value Σ' w ∥ -> closed (tLambda na b) ->
+    (exists na' b', w = tLambda na' b' /\
+      forall a a', R Σ' a a' -> closed a -> closed a' -> R Σ' (csubst a 0 b) (csubst a' 0 b')) \/
+    eta_state na b w.
   Proof.
     intros H v.
-    refine (R_value_elim (fun t w => forall na b, t = tLambda na b ->
-      exists na' b', w = tLambda na' b' /\
-        forall a a', R Σ' a a' -> closed a' -> R Σ' (csubst a 0 b) (csubst a' 0 b'))
-      _ _ _ _ _ H v _ _ eq_refl).
-    - intros t0 w0 H' _ na0 b0 ->. inversion H'; subst.
-      eexists _, _; split; [reflexivity|]. intros. apply R_csubst; auto.
+    refine (R_value_elim (fun t w => forall na b, t = tLambda na b -> closed t ->
+      (exists na' b', w = tLambda na' b' /\
+        forall a a', R Σ' a a' -> closed a -> closed a' -> R Σ' (csubst a 0 b) (csubst a' 0 b')) \/
+      eta_state na b w)
+      _ _ _ _ _ _ H v _ _ eq_refl).
+    - intros t0 w0 H' _ na0 b0 -> cl. inversion H'; subst.
+      + left. eexists _, _; split; [reflexivity|]. intros. apply R_csubst; auto.
+      + right.
+        have cl' := R_closed _ _ _ 0 (R_head _ _ _ H') cl.
+        cbn [closedn] in cl. rewrite closedn_mk_lambdas closedn_mkApps in cl.
+        move/andP: cl => [cF _].
+        replace (#|xs| + 1) with (0 + S #|xs|) in cF by lia.
+        apply closedn_lift0_inv in cF. rewrite (lift_closed _ 0 _ cF).
+        exists xs, mf, idx, [], args, (tFix mf' idx), (tFix mf' idx). cbn [app mkApps length].
+        split; [reflexivity|]. split; [apply R_head; now constructor|].
+        split; [sq; apply eval_atom; reflexivity|]. split; [now apply tarity_fix|].
+        do 4 (split; [assumption|]). constructor.
     - intros; discriminate.
-    - intros y ys u t' s _ IH Ht cu ct na0 b0 E.
-      destruct (IH _ _ E) as (na' & b' & E' & Hb). injection E' as <- <-.
-      eexists _, _; split; [reflexivity|]. intros a a' Ha ca'.
-      cbn in cu, ct.
-      rewrite csubst_mk_lambdas. eapply (R_exp _ ys _ (csubst a' (#|ys| + 0) u)).
-      + rewrite -csubst_mk_lambdas. apply Hb; auto.
-      + apply tred_csubst; tea.
-      + rewrite -csubst_mk_lambdas. apply closed_csubst; auto.
-      + rewrite -csubst_mk_lambdas. apply closed_csubst; auto.
+    - intros y ys u t' s _ IH Ht cu ct na0 b0 E cl.
+      destruct (IH _ _ E cl) as [(na' & b' & E' & Hb)|St].
+      + left. injection E' as <- <-.
+        eexists _, _; split; [reflexivity|]. intros a a' Ha ca ca'.
+        cbn in cu, ct.
+        rewrite csubst_mk_lambdas. eapply (R_exp _ ys _ (csubst a' (#|ys| + 0) u)).
+        * rewrite -csubst_mk_lambdas. apply Hb; auto.
+        * apply tred_csubst; tea.
+        * rewrite -csubst_mk_lambdas. apply closed_csubst; auto.
+        * rewrite -csubst_mk_lambdas. apply closed_csubst; auto.
+      + right. destruct St as (xs & mf & idx & cs & args & t0 & w0 & ? & ? & ? & ? & ? & ? & ? & ? & Hx).
+        exists xs, mf, idx, cs, args, t0, w0.
+        do 8 (split; [assumption|]). eapply expands_step; tea.
+    - intros x xs mf idx cs args t0 w0 HR e Ha He cl cl0 clw na0 b0 E _.
+      injection E as <- <-. right.
+      exists xs, mf, idx, cs, args, t0, w0.
+      split; [reflexivity|]. do 7 (split; [assumption|]). constructor.
   Qed.
 
   Lemma R_fix_inv mf idx w :
@@ -161,10 +269,11 @@ Section Sim.
   Proof.
     intros H v.
     refine (R_value_elim (fun t w => forall mf idx, t = tFix mf idx ->
-      exists mf', w = tFix mf' idx /\ Rdefs Σ' mf mf') _ _ _ _ _ H v _ _ eq_refl).
+      exists mf', w = tFix mf' idx /\ Rdefs Σ' mf mf') _ _ _ _ _ _ H v _ _ eq_refl).
     - intros t0 w0 H' _ mf0 idx0 ->. inversion H'; subst; eauto.
     - intros; discriminate.
     - intros y ys u t' s _ IH _ _ _ mf0 idx0 E. destruct (IH _ _ E) as (? & ? & ?). discriminate.
+    - intros; discriminate.
   Qed.
 
   Lemma R_lazy_inv b w :
@@ -172,10 +281,19 @@ Section Sim.
   Proof.
     intros H v.
     refine (R_value_elim (fun t w => forall b, t = tLazy b ->
-      exists b', w = tLazy b' /\ R Σ' b b') _ _ _ _ _ H v _ eq_refl).
+      exists b', w = tLazy b' /\ R Σ' b b') _ _ _ _ _ _ H v _ eq_refl).
     - intros t0 w0 H' _ b0 ->. inversion H'; subst; eauto.
     - intros; discriminate.
     - intros y ys u t' s _ IH _ _ _ b0 E. destruct (IH _ E) as (? & ? & ?). discriminate.
+    - intros; discriminate.
+  Qed.
+
+  Lemma dead_head_cofix mf idx args : dead_head (mkApps (tCoFix mf idx) args) -> False.
+  Proof.
+    have Hhd := mkApps_cofix_head mf idx args.
+    intros [(na & d & E)|(mf0 & idx0 & cs & E & _)].
+    - now rewrite E in Hhd.
+    - apply (f_equal decompose_app) in E. rewrite !decompose_app_mkApps // in E.
   Qed.
 
   Lemma R_mkApps_cofix_inv mf idx args w :
@@ -191,12 +309,16 @@ Section Sim.
     { intros args0 y ys u t' s _ IH _ _ _ E.
       destruct (IH E) as (mf' & args' & E' & _).
       have Hhd := mkApps_cofix_head mf' idx args'. rewrite -E' in Hhd. destruct Hhd. }
+    assert (Hfp : forall args x b w, Q args (tLambda x b) w).
+    { intros args0 x b w0 E.
+      have Hhd := mkApps_cofix_head mf idx args0. rewrite -E in Hhd. destruct Hhd. }
     revert w. induction args using rev_ind; intros w H v.
-    - refine (R_value_elim (Q []) _ _ (Hexp []) _ _ H v eq_refl).
+    - refine (R_value_elim (Q []) _ _ (Hexp []) _ _ _ H v eq_refl).
       + intros t0 w0 H' _ E. cbn in E. subst t0. inversion H'; subst.
         eexists _, []. cbn. repeat split; eauto. constructor.
       + intros ? ? ? ? ? E. discriminate.
-    - refine (R_value_elim (Q (args ++ [x])) _ _ (Hexp _) _ _ H v eq_refl).
+      + intros. apply Hfp.
+    - refine (R_value_elim (Q (args ++ [x])) _ _ (Hexp _) _ _ _ H v eq_refl).
       + intros t0 w0 H' v0 E. subst t0. rewrite mkApps_app in H'. cbn in H'.
         have Hhd := mkApps_cofix_head mf idx args.
         inversion H'; subst.
@@ -209,7 +331,9 @@ Section Sim.
         * match goal with E : _ = mkApps _ args |- _ => rewrite -E in Hhd end. destruct Hhd.
         * match goal with E : _ = mkApps _ args |- _ => rewrite -E in Hhd end. destruct Hhd.
         * match goal with E : _ = mkApps _ args |- _ => rewrite -E in Hhd end. destruct Hhd.
+        * match goal with D : dead_head _ |- _ => destruct (dead_head_cofix _ _ _ D) end.
       + intros ? ? ? ? ? E. rewrite mkApps_app in E. discriminate.
+      + intros. apply Hfp.
   Qed.
 
   Lemma R_construct_unfolds t w :
@@ -236,6 +360,7 @@ Section Sim.
         inversion U; subst.
         match goal with E : mkApps (tCoFix ?m ?i) ?a = tLambda _ _ |- _ =>
           have Hhd := mkApps_cofix_head m i a; rewrite E in Hhd; destruct Hhd end.
+    - discriminate.
   Qed.
 
   Hypothesis Hind : forall kn, lookup_minductive Σ kn = lookup_minductive Σ' kn.
@@ -292,6 +417,10 @@ Section Sim.
         eexists; split; [sq; apply eval_atom; reflexivity|].
         match goal with Ht : tred _ ?t' ?u |- _ =>
           exact (R_exp _ (y :: ys) _ u t' Hv Ht ltac:(assumption) ltac:(assumption)) end.
+    - apply eval_lambda_inv in ev. subst v.
+      match goal with H : ∥ eval _ t0 w ∥ |- _ => destruct H as [e1] end.
+      exists w. split; [sq; apply value_final; eapply eval_to_value; exact e1|].
+      eapply R_fix_part; tea. now sq.
   Qed.
 
   Lemma exp_goal ys u t' v :
@@ -303,6 +432,77 @@ Section Sim.
     - apply eval_lambda_inv in e. subst v0.
       eexists; split; [sq; apply eval_atom; reflexivity|].
       exact (R_exp _ (y :: ys) _ u t' Hv Ht cu ct).
+  Qed.
+
+  Lemma expands_app w w0 a' s :
+    expands w w0 -> closed a' -> ∥ value Σ' a' ∥ -> goal (tApp w0 a') s -> goal (tApp w a') s.
+  Proof.
+    intros H ca' [va']. induction H as [w|y ys u t' w0 H IH Ht cu ct]; auto.
+    intros G. destruct (IH G) as (r1 & [e1] & HR1).
+    destruct (eval_app_lambda_inv Hblock Hguard Hprop Σ' HclΣ' _ _ _ _ _ e1
+                (eval_atom Σ' (tLambda y (mk_lambdas ys u)) eq_refl)) as (av & ea & eb).
+    have E := eval_value _ _ va' ea. subst av.
+    cbn in cu, ct.
+    rewrite csubst_mk_lambdas in eb.
+    destruct (exp_goal ys (csubst a' (#|ys| + 0) u) (csubst a' (#|ys| + 0) t') s)
+      as (r & [e2] & HR2).
+    - apply tred_csubst; tea.
+    - rewrite -csubst_mk_lambdas. apply closed_csubst; auto.
+    - rewrite -csubst_mk_lambdas. apply closed_csubst; auto.
+    - exists r1. split; [now sq|exact HR1].
+    - exists r. split; [|exact HR2]. sq.
+      eapply eval_beta; [apply eval_atom; reflexivity|now apply value_final|].
+      rewrite csubst_mk_lambdas. exact e2.
+  Qed.
+
+  (** Application of related functions: either the target is a lambda with a
+      related body, or the source is the eta-expansion of a fixpoint whose
+      partial application the target has already evaluated. *)
+  Lemma beta_sim na b w av a' res :
+    R Σ' (tLambda na b) w -> ∥ value Σ' w ∥ -> closed (tLambda na b) ->
+    R Σ' av a' -> closed av -> closed a' -> ∥ value Σ' a' ∥ ->
+    eval Σ (csubst av 0 b) res ->
+    (forall t', R Σ' (csubst av 0 b) t' -> goal t' res) ->
+    goal (tApp w a') res.
+  Proof.
+    intros Hw vw cl Ha cav ca' [va'] ev K.
+    destruct (R_lambda_inv _ _ _ Hw vw cl) as [(na' & b' & -> & Hb)|St].
+    - destruct (K _ (Hb _ _ Ha cav ca')) as (w3 & [e3] & H3).
+      exists w3. split; [|exact H3]. sq.
+      eapply eval_beta; [apply eval_atom; reflexivity|now apply value_final|exact e3].
+    - destruct St as (xs & mf & idx & cs & args & t0 & w0 & -> & HR & [e0] & Har & Hargs
+                      & clF & cl0 & clw0 & Hx).
+      eapply expands_app; [exact Hx|exact ca'|now sq|].
+      destruct (eta_csubst _ _ _ _ _ _ _ av Hargs clF cav) as (c & args1 & E & Hargs1 & cc & Hc).
+      rewrite E in ev, K.
+      have HRc : R Σ' (tApp (mkApps (tFix mf idx) cs) c) (tApp t0 a').
+      { destruct Hc as [->|[-> D]]; apply R_head.
+        - apply Rh_app; auto.
+        - apply Rh_app_dead; [exact HR| |exact clF|exact cl0|exact ca'|now sq].
+          right. exists mf, idx, cs. split; [reflexivity|exact D]. }
+      have ccl : closed (tApp (mkApps (tFix mf idx) cs) c) by (cbn; rewrite clF cc //).
+      have ctl : closed (tApp t0 a') by (cbn; rewrite cl0 ca' //).
+      destruct xs as [|y ys].
+      + inversion Hargs1; subst. cbn [mk_lambdas] in K.
+        rewrite app_nil_r mkApps_app in K. cbn [mkApps] in K.
+        destruct (K _ HRc) as (w3 & [e3] & H3).
+        destruct (eval_app_inv Hblock Hguard Hprop Σ' HclΣ' _ _ _ e3) as (fv & ef & e3').
+        have E0 := eval_deterministic ef e0. subst fv.
+        exists w3. split; [now sq|exact H3].
+      + cbn [mk_lambdas] in ev. apply eval_lambda_inv in ev. subst res.
+        cbn [length tarity] in Har.
+        destruct (Har a' ca' ltac:(now sq)) as (w3 & [e3] & Har3).
+        exists w3. split; [now sq|].
+        have e3' : eval Σ' (tApp t0 a') w3
+          by exact (eval_app_value Hblock Hguard Hprop Σ' HclΣ' _ _ _ _ e0 e3).
+        eapply (R_fix_part _ y ys mf idx (cs ++ [c]) args1 (tApp t0 a') w3).
+        * rewrite mkApps_app. exact HRc.
+        * now sq.
+        * exact Har3.
+        * rewrite length_app /= Nat.add_1_r. exact Hargs1.
+        * rewrite mkApps_app. exact ccl.
+        * exact ctl.
+        * eapply eval_closed; [exact HclΣ'|exact ctl|exact e3'].
   Qed.
 
   Lemma closed_case_scrut ys ip X Y B :
@@ -387,9 +587,11 @@ Section Sim.
       goal (tApp f' a') res) ->
     (forall na b b' a', f = tLambda na b -> R Σ' b b' -> R Σ' a a' ->
       closedn 1 b' -> closed a' -> goal (csubst a' 0 b') res) ->
+    (forall f' a', a = tBox -> R Σ' f f' -> dead_head f -> closed f' -> closed a' ->
+      ∥ value Σ' a' ∥ -> goal (tApp f' a') res) ->
     Rh Σ' (tApp f a) t0 -> goal t0 res.
   Proof.
-    intros cl Hc Hb Ht. split_cl cl c1 c2. inversion Ht; subst.
+    intros cl Hc Hb Hd Ht. split_cl cl c1 c2. inversion Ht; subst.
     - apply Hc; auto; eapply R_closed; tea.
     - have ca' := R_closed _ _ _ 0 ltac:(eassumption) c2.
       cbn in c1.
@@ -410,7 +612,16 @@ Section Sim.
       + eapply R_closed; [|exact c1]. apply R_head; constructor; eassumption.
       + exact ca'.
       + exists w. split; [|exact Hw]. sq. eapply eval_app_case; tea.
+    - apply Hd; auto.
   Qed.
+
+  Ltac dead_contra D c1 ev1 :=
+    let i := fresh "i" in
+    destruct (dead_head_eval Hblock Hguard Hprop Σ HclΣ _ _ c1 D ev1)
+      as [(? & ? & E)|(? & ? & _ & E & _)];
+    try discriminate E;
+    match goal with i : is_true (negb _) |- _ =>
+      rewrite E Hguard in i; cbn in i; discriminate i end.
 
   Ltac vof e := sq; eapply eval_to_value; exact e.
 
@@ -420,14 +631,31 @@ Section Sim.
     induction ev using eval_rect; intros cl t0 Ht.
     all: try (exfalso; unfold is_true in *; congruence).
     - (* box *)
-      eapply app_head; [exact cl| | |exact Ht].
+      eapply app_head; [exact cl| | | |exact Ht].
       2:{ intros; subst. apply eval_lambda_inv in ev1. discriminate. }
+      2:{ intros f' a' -> Hf D c1' c2' va'. split_cl cl c1 c2. dead_contra D c1 ev1. }
       intros f' a' Hf Ha c1' c2'. split_cl cl c1 c2.
       sim_ev ev1 w ee0 Hw; [auto|]. sim_ev ev2 w2 ee2 Hw2; [auto|].
       apply R_box_inv in Hw; [subst|vof ee0].
       exists tBox. split; [sq; eapply eval_box; tea|apply R_refl].
     - (* beta *)
-      eapply app_head; [exact cl| | |exact Ht].
+      eapply app_head; [exact cl| | | |exact Ht].
+      3:{ intros f' a0' -> Hf D c1' c2' va0'. split_cl cl c1 c2.
+          have E := eval_deterministic ev2 (eval_atom Σ tBox eq_refl). subst a'.
+          destruct (dead_head_eval Hblock Hguard Hprop Σ HclΣ _ _ c1 D ev1)
+            as [(na0 & d0 & E)|(? & ? & _ & E & _)]; [|discriminate E].
+          injection E as -> ->.
+          rewrite (csubst_lift1 tBox) // in ev3, IHev3.
+          sim_ev ev1 w ee0 Hw; [auto|].
+          have clam := eval_closed Σ HclΣ _ _ c1 ev1.
+          destruct (beta_sim _ _ w a0' a0' res Hw ltac:(vof ee0) clam (R_refl _ _) c2' c2' va0')
+            as (w3 & [e3] & H3).
+          { rewrite csubst_lift1 //. }
+          { rewrite csubst_lift1 //. intros t' Ht'. apply (sim_layer _ _ ev3); auto.
+            apply IHev3. move: clam. cbn. intros clam.
+            rewrite -(csubst_lift1 tBox d0) //. apply closed_csubst; auto. }
+          exists w3. split; [|exact H3]. sq.
+          exact (eval_app_value Hblock Hguard Hprop Σ' HclΣ' _ _ _ _ ee0 e3). }
       2:{ intros na0 b0 b0' a0' -> Hb0 Ha0 cb0' ca0'. split_cl cl c1 c2.
           apply eval_lambda_inv in ev1. injection ev1 as <- <-.
           sim_ev ev2 w2 ee2 Hw2; [auto|].
@@ -439,13 +667,16 @@ Section Sim.
           exists w3. split; [now sq|auto]. }
       intros f' a0' Hf Ha c1' c2'. split_cl cl c1 c2.
       sim_ev ev1 w ee0 Hw; [auto|]. sim_ev ev2 w2 ee2 Hw2; [auto|].
-      apply R_lambda_inv in Hw as (na' & b' & -> & Hb); [|vof ee0].
       have cw2 := eval_closed Σ' HclΣ' _ _ c2' ee2.
       have ca' := eval_closed Σ HclΣ _ _ c2 ev2.
-      have clam := eval_closed Σ HclΣ _ _ c1 ev1. cbn in clam.
-      sim_ev_with ev3 (csubst w2 0 b') w3 ee3 Hw3;
-        [apply closed_csubst; auto | apply Hb; auto | ].
-      exists w3. split; [sq; eapply eval_beta; tea|auto].
+      have clam := eval_closed Σ HclΣ _ _ c1 ev1.
+      destruct (beta_sim _ _ w a' w2 res Hw ltac:(vof ee0) clam Hw2 ca' cw2 ltac:(vof ee2) ev3)
+        as (w3 & [e3] & H3).
+      { intros t' Ht'. apply (sim_layer _ _ ev3); auto. apply IHev3.
+        cbn in clam. apply closed_csubst; auto. }
+      exists w3. split; [|exact H3]. sq.
+      eapply eval_app_value; [exact Hblock|exact Hguard|exact Hprop|exact HclΣ'|exact ee0|].
+      eapply eval_app_arg; [exact Hblock|exact Hguard|exact Hprop|exact HclΣ'|exact ee2|exact e3].
     - (* zeta *)
       tgt_closed Ht cl cl0. inversion Ht; subst.
       + split_cl cl c1 c2. split_cl cl0 c1' c2'.
@@ -551,7 +782,8 @@ Section Sim.
         have HR2 : R Σ' (iota_red pars args br)
           (mk_lambdas ys1 (substl_at #|ys1| (List.rev (skipn pars args')) br1.2)).
         { rewrite Esrc. apply R_mk_lambdas; [apply length_lambda_names_has; auto|].
-          apply R_substl_at; auto. apply Rs_rev, Rs_skipn; auto. }
+          apply R_substl_at; auto; [apply Rs_rev, Rs_skipn; auto|].
+          rewrite forallb_rev forallb_skipn //. }
         destruct (sim_layer _ _ ev2 (IHev2 clsrc) _ HR2) as (w3 & [ee6] & Hw3).
         have cT2 := R_closed _ _ _ 0 HR2 clsrc.
         rewrite (lift_closed _ _ _ cd') in cl0 |- *.
@@ -578,14 +810,36 @@ Section Sim.
         * rewrite -(Rs_length _ _ _ Hargs); eassumption.
         * cbn. rewrite -Hb1 -(Rs_length _ _ _ (Rs_skipn _ _ _ _ Hargs)). exact e4.
     - (* fix' *)
-      eapply app_head; [exact cl| | |exact Ht].
+      eapply app_head; [exact cl| | | |exact Ht].
       2:{ intros; subst. apply eval_lambda_inv in ev1. discriminate. }
+      2:{ intros f' a0' -> Hf D c1' c2' va0'. split_cl cl c1 c2.
+          have E := eval_deterministic ev2 (eval_atom Σ tBox eq_refl). subst av.
+          destruct (dead_head_eval Hblock Hguard Hprop Σ HclΣ _ _ c1 D ev1)
+            as [(? & ? & E)|(mf0 & idx0 & _ & E & P)]; [discriminate E|].
+          injection E as <- <-.
+          sim_ev ev1 w ee0 Hw; [auto|].
+          apply R_fix_inv in Hw as (mf' & -> & Hmf); [|vof ee0].
+          have cfx := eval_closed Σ' HclΣ' _ _ c1' ee0.
+          have cfs := eval_closed Σ HclΣ _ _ c1 ev1.
+          edestruct R_cunfold_fix as (fn' & Hfn' & HRfn); [exact Hmf|exact cfs|exact cfx|eassumption|].
+          match goal with Hcu : cunfold_fix _ _ = Some (_, fn) |- _ => rename Hcu into ecu end.
+          have cfn := closed_cunfold_fix _ _ _ _ cfs ecu.
+          have cfn' := closed_cunfold_fix _ _ _ _ cfx Hfn'.
+          have Dfn : dead_head fn.
+          { left. destruct P as (d & Hd & Dd). unfold cunfold_fix in ecu. rewrite Hd in ecu.
+            injection ecu as _ <-. apply deadlam_substl; [|exact Dd].
+            now apply (closed_fix_subst' _ idx). }
+          destruct (IHev3 ltac:(cbn; rewrite cfn //) (tApp fn' a0')) as (w3 & [e3] & H3).
+          { apply Rh_app_dead; auto. }
+          destruct va0' as [va0'].
+          exists w3. split; [|exact H3]. sq.
+          eapply eval_fix'; [exact Hguard|exact ee0|exact Hfn'|now apply value_final|exact e3]. }
       intros f' a0' Hf Ha c1' c2'. split_cl cl c1 c2.
       sim_ev ev1 w ee0 Hw; [auto|]. sim_ev ev2 w2 ee2 Hw2; [auto|].
       apply R_fix_inv in Hw as (mf' & -> & Hmf); [|vof ee0].
       have cfx := eval_closed Σ' HclΣ' _ _ c1' ee0.
       have cfs := eval_closed Σ HclΣ _ _ c1 ev1.
-      edestruct R_cunfold_fix as (fn' & Hfn' & HRfn); [exact Hmf|exact cfx|eassumption|].
+      edestruct R_cunfold_fix as (fn' & Hfn' & HRfn); [exact Hmf|exact cfs|exact cfx|eassumption|].
       sim_ev_with ev3 (tApp fn' w2) w3 ee3 Hw3.
       { cbn. apply/andP; split; [eapply closed_cunfold_fix; [exact cfs|eassumption]|exact (eval_closed Σ HclΣ _ _ c2 ev2)]. }
       { apply R_head; constructor; auto. }
@@ -597,7 +851,12 @@ Section Sim.
         apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
         have cw := eval_closed Σ' HclΣ' _ _ c1' ee0.
         rewrite closedn_mkApps in cw. move/andP: cw => [cw1 cw2].
-        edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact cw1|eassumption|].
+        match type of ev1 with eval _ ?s0 (mkApps ?h _) =>
+          assert (csf : closed h) by
+            (assert (X : closed s0) by assumption; have := eval_closed Σ HclΣ _ _ X ev1;
+             rewrite closedn_mkApps; move/andP => [x1 _]; exact x1) end.
+        edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact csf|exact cw1|eassumption|].
+        clear csf.
         match type of ev2 with eval _ (tCase _ ?d _) _ => assert (csrc : closed d) end.
         { have := eval_closed Σ HclΣ _ _ c1 ev1. rewrite !closedn_mkApps.
           move/andP => [x1 x2]. apply/andP; split; auto. eapply closed_cunfold_cofix; tea. }
@@ -613,7 +872,12 @@ Section Sim.
         have cw := eval_closed Σ' HclΣ' _ _ cl0 ee0.
         have cw' := cw.
         rewrite closedn_mkApps in cw. move/andP: cw => [cw1 cw2].
-        edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact cw1|eassumption|].
+        match type of ev1 with eval _ ?s0 (mkApps ?h _) =>
+          assert (csf : closed h) by
+            (assert (X : closed s0) by assumption; have := eval_closed Σ HclΣ _ _ X ev1;
+             rewrite closedn_mkApps; move/andP => [x1 _]; exact x1) end.
+        edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact csf|exact cw1|eassumption|].
+        clear csf.
         match type of ev2 with eval _ (tCase _ ?d _) _ => assert (csrc : closed d) end.
         { have := eval_closed Σ HclΣ _ _ c1 ev1. rewrite !closedn_mkApps.
           move/andP => [x1 x2]. apply/andP; split; auto. eapply closed_cunfold_cofix; tea. }
@@ -638,7 +902,12 @@ Section Sim.
         apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
         have cw := eval_closed Σ' HclΣ' _ _ cd' ee0.
         rewrite closedn_mkApps in cw. move/andP: cw => [cw1 cw2].
-        edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact cw1|eassumption|].
+        match type of ev1 with eval _ ?s0 (mkApps ?h _) =>
+          assert (csf : closed h) by
+            (assert (X : closed s0) by assumption; have := eval_closed Σ HclΣ _ _ X ev1;
+             rewrite closedn_mkApps; move/andP => [x1 _]; exact x1) end.
+        edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact csf|exact cw1|eassumption|].
+        clear csf.
         assert (csrc : closed (mkApps fn args)).
         { have := eval_closed Σ HclΣ _ _ c1 ev1. rewrite !closedn_mkApps.
           move/andP => [x1 x2]. apply/andP; split; auto. eapply closed_cunfold_cofix; tea. }
@@ -661,7 +930,12 @@ Section Sim.
       apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
       have cw := eval_closed Σ' HclΣ' _ _ cl0 ee0.
       rewrite closedn_mkApps in cw. move/andP: cw => [cw1 cw2].
-      edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact cw1|eassumption|].
+      match type of ev1 with eval _ ?s0 (mkApps ?h _) =>
+          assert (csf : closed h) by
+            (assert (X : closed s0) by assumption; have := eval_closed Σ HclΣ _ _ X ev1;
+             rewrite closedn_mkApps; move/andP => [x1 _]; exact x1) end.
+        edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact csf|exact cw1|eassumption|].
+        clear csf.
       match type of ev2 with eval _ (tProj ?p ?d) _ =>
         assert (csrc : closed d);
         [|sim_ev_with ev2 (tProj p (mkApps fn' args')) w3 ee3 Hw3] end.
@@ -712,8 +986,9 @@ Section Sim.
         | rewrite -(ELiftConstants.same_lookup_constructor _ _ Hind); eassumption
         | rewrite -Hlen; eassumption | exact evs].
     - (* app cong *)
-      eapply app_head; [exact cl| | |exact Ht].
+      eapply app_head; [exact cl| | | |exact Ht].
       2:{ intros; subst. apply eval_lambda_inv in ev1. subst. discriminate. }
+      2:{ intros f0' a0' -> Hf D c1' c2' va0'. split_cl cl c1 c2. dead_contra D c1 ev1. }
       intros f0' a0' Hf Ha c1' c2'. split_cl cl c1 c2.
       sim_ev ev1 w ee0 Hw; [auto|]. sim_ev ev2 w2 ee2 Hw2; [auto|].
       destruct (value_cofix_shape _ (eval_to_value _ _ ev1) i) as (mfix & idx & args & E).

@@ -41,10 +41,8 @@ let copts_t =
                let/function permutation, i.e. what Rocq's extraction does in \
                Mlutil. They run after inlining and beta reduction, for every \
                backend. Well-formedness preservation is proved \
-               (ELboxOptsWf.v), and so is evaluation preservation, except \
-               for fixpoint eta-hoisting: when it is enabled, termination \
-               of the optimized program is assumed, by the axiom \
-               trust_fix_eta_terminates. \
+               (ELboxOptsWf.v), and so is evaluation preservation, for \
+               all four, without axioms. \
                Off by default; each \
                pass can be overridden individually with the --lbox-* options." in
     Arg.(value & flag & info ["lbox-opts"] ~docs ~doc)
@@ -55,7 +53,8 @@ let copts_t =
     Arg.(value & opt (some bool) None & info [name] ~docs ~docv:"BOOL" ~doc)
   in
   let lbox_fix_eta_arg = lbox_pass_arg "lbox-fix-eta"
-      "Fixpoint eta-hoisting: (fun xs => (fix F ..) xs) becomes the fixpoint" in
+      "Fixpoint eta-hoisting: (fun xs => (fix F ..) xs) becomes the fixpoint, where an \
+       argument may also be a box passed for a dead parameter" in
   let lbox_case_fun_arg = lbox_pass_arg "lbox-case-fun"
       "Case/function permutation: match x with C => fun y => e becomes fun y => match x with C => e" in
   let lbox_case_id_arg = lbox_pass_arg "lbox-case-id"

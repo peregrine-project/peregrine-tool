@@ -12,7 +12,14 @@
     terms that appear at run time once the rewritten program has taken steps
     the source program has not (for instance, an identity case on a cofixpoint
     is removed, so the target holds an unfolded-later cofixpoint where the
-    source holds a constructor). *)
+    source holds a constructor).
+
+    For fixpoint eta-hoisting ([Rh_fix_eta]) the source value is a closure
+    [fun xj .. xk => (fix F ..) cs xj .. xk] where the target value is what
+    the partial application [(fix F ..) cs] evaluates to.  [R_fix_part]
+    relates the two, provided the target value can take the remaining
+    arguments one at a time ([tarity]); [Rh_app_dead] relates a box passed
+    for a dead parameter to any closed value. *)
 
 From Stdlib Require Import List Arith Lia ssreflect ssrbool Relations.
 From MetaRocq.Utils Require Import utils.
@@ -88,10 +95,49 @@ Proof.
   eapply closed_upwards; tea. lia.
 Qed.
 
+(** ** Dead parameters and eta-expanded fixpoints ([fix_eta]) *)
+
+(** [deadlam n t]: [t] is [fun z1 .. zn x => b] where [b] does not mention
+    [x]. *)
+Fixpoint deadlam (n : nat) (t : term) : Prop :=
+  match n with
+  | 0 => exists na d, t = tLambda na (lift0 1 d)
+  | S n => exists na b, t = tLambda na b /\ deadlam n b
+  end.
+
+(** Parameter [i] of function [idx] of the fixpoint block [mf] is dead. *)
+Definition param_dead (mf : mfixpoint term) (idx i : nat) : Prop :=
+  exists d, nth_error mf idx = Some d /\ deadlam i (dbody d).
+
+(** [eta_args dead j xs args]: under the binders [xs], the arguments [args]
+    are the variables bound by [xs], in order, except that the argument at
+    position [j + i] may also be a box when [dead (j + i)]. *)
+Inductive eta_args (dead : nat -> Prop) : nat -> list name -> list term -> Prop :=
+| eta_nil j : eta_args dead j [] []
+| eta_var j x xs args :
+    eta_args dead (S j) xs args -> eta_args dead j (x :: xs) (tRel #|xs| :: args)
+| eta_box j x xs args :
+    dead j -> eta_args dead (S j) xs args -> eta_args dead j (x :: xs) (tBox :: args).
+
+(** A function that ignores its next argument: a lambda whose body does not
+    mention its variable, or a fixpoint applied up to a dead parameter. *)
+Definition dead_head (f : term) : Prop :=
+  deadlam 0 f \/
+  exists mf idx cs, f = mkApps (tFix mf idx) cs /\ param_dead mf idx #|cs|.
+
 (** ** The relation *)
 
 Section Rel.
   Context {wfl : WcbvFlags} (Σ' : global_declarations).
+
+  (** [tarity m w]: [w] can be applied to [m] closed values, one after the
+      other, and each of these applications evaluates. *)
+  Fixpoint tarity (m : nat) (w : term) : Prop :=
+    match m with
+    | 0 => True
+    | S m => forall a', closed a' -> ∥ value Σ' a' ∥ ->
+        exists w3, ∥ eval Σ' (tApp w a') w3 ∥ /\ tarity m w3
+    end.
 
   (** Head reduction steps of the target whose principal part is closed
       and evaluates. *)
@@ -130,6 +176,14 @@ Section Rel.
       R s (mk_lambdas ys u) -> tred t' u ->
       closed (mk_lambdas ys u) -> closed (mk_lambdas ys t') ->
       R s (mk_lambdas ys t')
+  (** [fix_eta] at run time: the source is the eta-expansion of a fixpoint
+      already applied to [cs]; the target is the value of that partial
+      application, which can still take the remaining arguments *)
+  | R_fix_part x xs mf idx cs args t0 w :
+      R (mkApps (tFix mf idx) cs) t0 -> ∥ eval Σ' t0 w ∥ -> tarity #|xs| w ->
+      eta_args (param_dead mf idx) #|cs| (x :: xs) args ->
+      closed (mkApps (tFix mf idx) cs) -> closed t0 -> closed w ->
+      R (tLambda x (mk_lambdas xs (mkApps (tFix mf idx) (cs ++ args)))) w
   with Rh : term -> term -> Prop :=
   | Rh_box : Rh tBox tBox
   | Rh_rel n : Rh (tRel n) (tRel n)
@@ -179,6 +233,16 @@ Section Rel.
       Rh (tCase ci d brs)
          (mk_lambdas ys (tCase ci (lift0 #|ys| d')
             (map (fun br => (br.1, exchange #|ys| #|br.1| 0 br.2)) brs1)))
+  (** [fix_eta]: [F] is a fixpoint with at least as many leading lambdas as
+      the eta-expansion has *)
+  | Rh_fix_eta x xs F mf mf' idx args :
+      F = tFix mf idx -> Rdefs mf mf' -> fix_arity_ok mf' idx (S #|xs|) ->
+      eta_args (param_dead mf idx) 0 (x :: xs) args ->
+      Rh (tLambda x (mk_lambdas xs (mkApps (lift0 (S #|xs|) F) args))) (tFix mf' idx)
+  (** a box passed for a dead parameter is related to any closed value *)
+  | Rh_app_dead f t0 a' :
+      R f t0 -> dead_head f -> closed f -> closed t0 -> closed a' -> ∥ value Σ' a' ∥ ->
+      Rh (tApp f tBox) (tApp t0 a')
   with Rs : list term -> list term -> Prop :=
   | Rs_nil : Rs [] []
   | Rs_cons t t' l l' : R t t' -> Rs l l' -> Rs (t :: l) (t' :: l')
@@ -263,6 +327,92 @@ Section Rel.
     rewrite (commut_lift_subst_rec x [a] n k 0); [lia|]. now rewrite Nat.add_comm.
   Qed.
 
+  Lemma closedn_lift0_inv n k t : closedn (k + n) (lift0 n t) -> closedn k t.
+  Proof.
+    intros H. rewrite -(simpl_subst_k (repeat tBox n) t 0 n); [now rewrite repeat_length|].
+    apply closedn_subst; rewrite ?repeat_length; [|now rewrite Nat.add_comm].
+    clear. induction n; cbn; auto.
+
+  Qed.
+
+  Lemma deadlam_csubst a k n t : closed a -> deadlam n t -> deadlam n (csubst a k t).
+  Proof.
+    intros cl. induction n in k, t |- *; cbn.
+    - intros (na & d & ->). cbn. exists na, (csubst a k d). f_equal.
+      exact (csubst_lift0 a 1 k d cl).
+    - intros (na & b & -> & H). cbn. eexists _, _; split; [reflexivity|]. now apply IHn.
+  Qed.
+
+  Lemma deadlam_substl s n t : forallb (closedn 0) s -> deadlam n t -> deadlam n (substl s t).
+  Proof.
+    unfold substl. induction s in t |- *; cbn; auto.
+    move/andP => [cl cls] H. apply IHs; auto. now apply deadlam_csubst.
+  Qed.
+
+  Lemma param_dead_csubst a k mf idx i :
+    closed a -> param_dead mf idx i -> param_dead (map (map_def (csubst a k)) mf) idx i.
+  Proof.
+    intros cl (d & E & H). exists (map_def (csubst a k) d). split.
+    - now rewrite nth_error_map E.
+    - cbn. now apply deadlam_csubst.
+  Qed.
+
+  Lemma eta_args_impl (dead dead' : nat -> Prop) j xs args :
+    (forall i, dead i -> dead' i) -> eta_args dead j xs args -> eta_args dead' j xs args.
+  Proof. intros Hd. induction 1; constructor; auto. Qed.
+
+  Lemma eta_args_length dead j xs args : eta_args dead j xs args -> #|args| = #|xs|.
+  Proof. induction 1; cbn; congruence. Qed.
+
+  Lemma eta_args_closed
+ dead j xs args :
+    eta_args dead j xs args -> forallb (closedn #|xs|) args.
+  Proof.
+    induction 1; cbn; auto.
+    - apply/andP; split; [apply Nat.ltb_lt; lia|].
+      solve_all. eapply closed_upwards; tea. lia.
+    - solve_all. eapply closed_upwards; tea. lia.
+  Qed.
+
+  Lemma eta_args_csubst dead j xs args a k :
+    eta_args dead j xs args -> map (csubst a (#|xs| + k)) args = args.
+  Proof.
+    intros H%eta_args_closed. rewrite -{2}(map_id args). apply map_ext_in.
+    intros x Hx. apply csubst_closed.
+    eapply closed_upwards; [exact (proj1 (forallb_forall _ _) H x Hx)|lia].
+  Qed.
+
+  Lemma closedn_eta dead j x xs F cs args k :
+    eta_args dead j (x :: xs) args -> closedn k (mkApps F cs) ->
+    closedn k (tLambda x (mk_lambdas xs (mkApps F (cs ++ args)))).
+  Proof.
+    intros H%eta_args_closed. rewrite closedn_mkApps. move/andP => [cF ccs].
+    cbn. rewrite closedn_mk_lambdas closedn_mkApps forallb_app. cbn in H.
+    apply/andP; split; [eapply closed_upwards; tea; lia|].
+    apply/andP; split; solve_all; eapply closed_upwards; tea; lia.
+  Qed.
+
+  Lemma csubst_eta_closed dead j x xs F cs args a k :
+    eta_args dead j (x :: xs) args -> closed (mkApps F cs) ->
+    csubst a k (tLambda x (mk_lambdas xs (mkApps F (cs ++ args)))) =
+    tLambda x (mk_lambdas xs (mkApps F (cs ++ args))).
+  Proof.
+    intros H cl. apply csubst_closed. eapply closedn_eta; tea.
+    eapply closed_upwards; tea. lia.
+  Qed.
+
+  Lemma csubst_fix_eta dead x xs mf idx args a k :
+    closed a -> eta_args dead 0 (x :: xs) args ->
+    csubst a k (tLambda x (mk_lambdas xs (mkApps (lift0 (S #|xs|) (tFix mf idx)) args))) =
+    tLambda x (mk_lambdas xs
+      (mkApps (lift0 (S #|xs|) (tFix (map (map_def (csubst a (#|mf| + k))) mf) idx)) args)).
+  Proof.
+    intros cl H. cbn [csubst]. rewrite csubst_mk_lambdas csubst_mkApps.
+    have E := eta_args_csubst _ _ _ _ a k H. cbn [length] in E.
+    replace (#|xs| + S k) with (S #|xs| + k) by lia.
+    rewrite E csubst_lift0 //.
+  Qed.
+
   Lemma R_closed_mut :
     (forall t t', R t t' -> forall k, closedn k t -> closedn k t') /\
     (forall t t', Rh t t' -> forall k, closedn k t -> closedn k t') /\
@@ -275,6 +425,7 @@ Section Rel.
   Proof.
     apply R_mutind; intros; cbn in *; auto.
     all: try (rtoProp; intuition eauto; fail).
+    - eapply closed_upwards; tea. lia.
     - eapply closed_upwards; tea. lia.
     - eapply closed_upwards; tea. lia.
     - eapply closed_upwards; tea. lia.
@@ -304,6 +455,14 @@ Section Rel.
         { solve_all. replace (#|x.1| + (#|ys| + k)) with (#|ys| + (#|x.1| + k)) by lia.
           now apply closedn_strip_lambdas. }
         solve_all. apply closedn_exchange; [lia|auto].
+    - (* fix_eta *)
+      rewrite closedn_mk_lambdas closedn_mkApps in H4. move/andP: H4 => [cF _].
+      replace (#|xs| + S k) with (k + S #|xs|) in cF by lia.
+      apply closedn_lift0_inv in cF. subst F. cbn in cF.
+
+      rewrite -(Rdefs_length _ _ H0). auto.
+    - (* dead argument *)
+      apply/andP; split; eapply closed_upwards; tea; lia.
   Qed.
 
   Lemma R_closed t t' k : R t t' -> closedn k t -> closedn k t'.
@@ -314,7 +473,7 @@ Section Rel.
 
   (** *** Substitution *)
 
-  Lemma R_csubst_mut a a' : R a a' -> closed a' ->
+  Lemma R_csubst_mut a a' : R a a' -> closed a -> closed a' ->
     (forall t t', R t t' -> forall k, R (csubst a k t) (csubst a' k t')) /\
     (forall t t', Rh t t' -> forall k, R (csubst a k t) (csubst a' k t')) /\
     (forall l l', Rs l l' -> forall k, Rs (map (csubst a k) l) (map (csubst a' k) l')) /\
@@ -324,7 +483,7 @@ Section Rel.
     (forall l l', Rdefs l l' -> forall k,
       Rdefs (map (map_def (csubst a k)) l) (map (map_def (csubst a' k)) l')).
   Proof.
-    intros Ha cla. apply R_mutind; intros; cbn; auto.
+    intros Ha cl cla. apply R_mutind; intros; cbn; auto.
     all: try (constructor; eauto; fail).
     all: try (apply R_head; constructor; eauto; fail).
     - (* cofix expansion *)
@@ -340,6 +499,11 @@ Section Rel.
       specialize (H0 k).
       rewrite (csubst_closed a' k (mk_lambdas ys u)) in H0; [eapply closed_upwards; tea; lia|].
       eapply R_exp; eauto.
+    - (* partially applied fixpoint *)
+      change (R (csubst a k (tLambda x (mk_lambdas xs (mkApps (tFix mf idx) (cs ++ args)))))
+                (csubst a' k w)).
+      rewrite (csubst_closed a' k w); [eapply closed_upwards; tea; lia|].
+      erewrite csubst_eta_closed; tea. eapply R_fix_part; tea.
     - destruct (Nat.compare k n); auto; apply R_head; constructor.
     - apply R_head. rewrite -(Rdefs_length _ _ H). constructor. auto.
     - apply R_head. rewrite -(Rdefs_length _ _ H). constructor. auto.
@@ -377,17 +541,32 @@ Section Rel.
         rewrite !map_map. apply map_ext_in. intros x Hin. cbn. f_equal.
         rewrite strip_lambdas_csubst; [exact (proj1 (forallb_forall _ _) H1 x Hin)|].
         f_equal. lia.
+    - (* fix_eta *)
+      subst F.
+      change (R (csubst a k (tLambda x (mk_lambdas xs (mkApps (lift0 (S #|xs|) (tFix mf idx)) args))))
+                (tFix (map (map_def (csubst a' (#|mf'| + k))) mf') idx)).
+      erewrite csubst_fix_eta; tea. apply R_head. eapply Rh_fix_eta; [reflexivity| | |].
+      + rewrite -(Rdefs_length _ _ H0). apply H1.
+      + unfold fix_arity_ok in *. rewrite nth_error_map.
+        destruct nth_error; cbn [option_map]; auto.
+        exact (has_lambdas_csubst _ _ (S #|xs|) _ H2).
+
+      + eapply eta_args_impl; [|tea]. intros i. now apply param_dead_csubst.
+    - (* dead argument *)
+      rewrite !csubst_closed; try (eapply closed_upwards; tea; lia).
+      apply R_head, Rh_app_dead; auto.
   Qed.
 
   Lemma R_csubst a a' t t' k :
-    R a a' -> closed a' -> R t t' -> R (csubst a k t) (csubst a' k t').
-  Proof. intros Ha cla H. exact (proj1 (R_csubst_mut a a' Ha cla) _ _ H k). Qed.
+    R a a' -> closed a -> closed a' -> R t t' -> R (csubst a k t) (csubst a' k t').
+  Proof. intros Ha cl cla H. exact (proj1 (R_csubst_mut a a' Ha cl cla) _ _ H k). Qed.
 
   Lemma R_substl s s' t t' :
-    Rs s s' -> forallb (closedn 0) s' -> R t t' -> R (substl s t) (substl s' t').
+    Rs s s' -> forallb (closedn 0) s -> forallb (closedn 0) s' -> R t t' ->
+    R (substl s t) (substl s' t').
   Proof.
     unfold substl. intros H. induction H in t, t' |- *; cbn; auto.
-    move/andP => [cl cls] Ht. apply IHRs; auto. now apply R_csubst.
+    move/andP => [cl0 cls0] /andP [cl cls] Ht. apply IHRs; auto. now apply R_csubst.
   Qed.
 
   Lemma Rs_rev l l' : Rs l l' -> Rs (List.rev l) (List.rev l').
@@ -444,37 +623,43 @@ Section Rel.
   Qed.
 
   Lemma R_cunfold_fix mf mf' idx narg fn :
-    Rdefs mf mf' -> closed (tFix mf' idx) -> cunfold_fix mf idx = Some (narg, fn) ->
+    Rdefs mf mf' -> closed (tFix mf idx) -> closed (tFix mf' idx) ->
+    cunfold_fix mf idx = Some (narg, fn) ->
     exists fn', cunfold_fix mf' idx = Some (narg, fn') /\ R fn fn'.
   Proof.
-    intros H cl. unfold cunfold_fix. destruct nth_error eqn:E; [|discriminate].
+    intros H cl0 cl. unfold cunfold_fix. destruct nth_error eqn:E; [|discriminate].
     intros [= <- <-].
     destruct (Rdefs_nth_error _ _ _ _ H E) as (d' & -> & Hr & Hb).
     eexists; split; [now rewrite Hr|]. apply R_substl; auto.
     - now apply R_fix_subst.
     - eapply closed_fix_subst'; tea.
+    - eapply closed_fix_subst'; tea.
   Qed.
 
   Lemma R_cunfold_cofix mf mf' idx narg fn :
-    Rdefs mf mf' -> closed (tCoFix mf' idx) -> cunfold_cofix mf idx = Some (narg, fn) ->
+    Rdefs mf mf' -> closed (tCoFix mf idx) -> closed (tCoFix mf' idx) ->
+    cunfold_cofix mf idx = Some (narg, fn) ->
     exists fn', cunfold_cofix mf' idx = Some (narg, fn') /\ R fn fn'.
   Proof.
-    intros H cl. unfold cunfold_cofix. destruct nth_error eqn:E; [|discriminate].
+    intros H cl0 cl. unfold cunfold_cofix. destruct nth_error eqn:E; [|discriminate].
     intros [= <- <-].
     destruct (Rdefs_nth_error _ _ _ _ H E) as (d' & -> & Hr & Hb).
     eexists; split; [now rewrite Hr|]. apply R_substl; auto.
     - now apply R_cofix_subst.
     - eapply closed_cofix_subst'; tea.
+    - eapply closed_cofix_subst'; tea.
   Qed.
 
   Lemma R_iota_red pars args args' br br' :
-    Rs args args' -> forallb (closedn 0) args' -> R br.2 br'.2 ->
+    Rs args args' -> forallb (closedn 0) args -> forallb (closedn 0) args' -> R br.2 br'.2 ->
     R (iota_red pars args br) (iota_red pars args' br').
   Proof.
-    intros Ha cl Hb. unfold iota_red. apply R_substl; auto.
+    intros Ha cl0 cl Hb. unfold iota_red. apply R_substl; auto.
     - now apply Rs_rev, Rs_skipn.
     - rewrite forallb_rev. now apply forallb_skipn.
+    - rewrite forallb_rev. now apply forallb_skipn.
   Qed.
+
 
 End Rel.
 
@@ -704,6 +889,98 @@ Section Flags.
   Proof.
     intros cl ev. apply eval_app_inv in ev as (fv & ef & ev).
     exact (eval_case_app a r _ fv cl ef ci d brs eq_refl ev).
+  Qed.
+
+  (** *** Applications of lambdas and fixpoints; functions ignoring an argument *)
+
+  Lemma eval_app_lambda_inv f a r na b :
+    eval Σ (tApp f a) r -> eval Σ f (tLambda na b) ->
+    ∑ av, eval Σ a av × eval Σ (csubst av 0 b) r.
+  Proof.
+    intros ev ef. depelim ev; try flag_contra.
+    all: match goal with H : eval Σ _ _ |- _ =>
+           tryif constr_eq H ef then fail else have E := eval_deterministic H ef end.
+    all: try discriminate E.
+    - injection E as -> ->. eexists; split; eassumption.
+    - subst. cbn in *. discriminate.
+  Qed.
+
+  Lemma eval_app_fix_inv f a r mf idx :
+    eval Σ (tApp f a) r -> eval Σ f (tFix mf idx) ->
+    ∑ av narg fn, eval Σ a av × (cunfold_fix mf idx = Some (narg, fn)) × eval Σ (tApp fn av) r.
+  Proof.
+    intros ev ef. depelim ev; try flag_contra.
+    all: match goal with H : eval Σ _ _ |- _ =>
+           tryif constr_eq H ef then fail else have E := eval_deterministic H ef end.
+    all: try discriminate E.
+    - injection E as -> ->. eexists _, _, _; repeat split; eassumption.
+    - subst. rewrite Hguard in i. cbn in i. discriminate.
+  Qed.
+
+  Lemma eval_app_arg f a av r :
+    eval Σ a av -> eval Σ (tApp f av) r -> eval Σ (tApp f a) r.
+  Proof.
+    intros ea ev. have vav := eval_to_value _ _ ea.
+    depelim ev; try flag_contra.
+    all: try match type of vav with value _ ?v0 =>
+           match goal with H : eval Σ v0 ?x |- _ =>
+             have E := eval_value _ _ vav H; subst x end end.
+    - eapply eval_box; tea.
+    - eapply eval_beta; tea.
+    - eapply eval_fix'; tea.
+    - eapply eval_app_cong; tea.
+  Qed.
+
+  Lemma deadlam_lambda n t : deadlam n t -> exists na b, t = tLambda na b.
+  Proof. destruct n; cbn; [intros (na & d & ->)|intros (na & b & -> & _)]; eauto. Qed.
+
+  Lemma eval_dead_spine cs : forall h fv,
+    closed (mkApps h cs) -> eval Σ (mkApps h cs) fv ->
+    (forall hv, eval Σ h hv -> deadlam #|cs| hv) -> deadlam 0 fv.
+  Proof.
+    induction cs as [|c cs IH]; cbn [mkApps length]; intros h fv cl ev Hh.
+    - now apply Hh.
+    - eapply IH; tea. intros hv' ev'.
+      rewrite closedn_mkApps in cl. move/andP: cl => [cl _].
+      change (is_true (closedn 0 h && closedn 0 c)) in cl. move/andP: cl => [ch cc].
+      destruct (eval_app_inv _ _ _ ev') as (hv & eh & ev2).
+      destruct (Hh _ eh) as (na & b & -> & D).
+      destruct (eval_app_lambda_inv _ _ _ _ _ ev' eh) as (av & ea & eb).
+      have cav := eval_closed Σ HclΣ _ _ cc ea.
+      have D' := deadlam_csubst av 0 _ _ cav D.
+      destruct (deadlam_lambda _ _ D') as (na' & b' & E). rewrite E in eb.
+      apply eval_lambda_inv in eb. subst hv'. rewrite -E. exact D'.
+  Qed.
+
+  (** A function that ignores its next argument evaluates to a lambda whose
+      body does not mention its variable, or is such a fixpoint. *)
+  Lemma dead_head_eval f fv :
+    closed f -> dead_head f -> eval Σ f fv ->
+    deadlam 0 fv \/ (exists mf idx, f = tFix mf idx /\ fv = tFix mf idx /\ param_dead mf idx 0).
+  Proof.
+    intros cl [D|(mf & idx & cs & -> & P)] ev.
+    - left. destruct D as (na & d & ->). apply eval_lambda_inv in ev. subst. now eexists _, _.
+    - destruct cs as [|c cs].
+      + right. cbn in *. have E := eval_deterministic ev (eval_atom Σ (tFix mf idx) eq_refl).
+        subst. eauto.
+      + left. cbn [mkApps] in *. eapply (eval_dead_spine cs (tApp (tFix mf idx) c)); tea.
+        intros hv ev'.
+        rewrite closedn_mkApps in cl. move/andP: cl => [cl _].
+        change (is_true (closedn 0 (tFix mf idx) && closedn 0 c)) in cl.
+        move/andP: cl => [cf cc].
+        destruct (eval_app_fix_inv _ _ _ _ _ ev' (eval_atom Σ (tFix mf idx) eq_refl))
+          as (av & narg & fn & ea & Hc & ef).
+        destruct P as (d & Hd & D). change (deadlam (S #|cs|) (dbody d)) in D.
+        unfold cunfold_fix in Hc. rewrite Hd in Hc. injection Hc as <- <-.
+        have D1 := deadlam_substl (fix_subst mf) _ _ (closed_fix_subst' mf idx cf) D.
+        destruct D1 as (na & b & E & D1). rewrite E in ef.
+        destruct (eval_app_lambda_inv _ _ _ _ _ ef (eval_atom Σ (tLambda na b) eq_refl))
+          as (av' & ea' & eb).
+        have cav := eval_closed Σ HclΣ _ _ cc ea.
+        have cav' := eval_closed Σ HclΣ _ _ cav ea'.
+        have D' := deadlam_csubst av' 0 _ _ cav' D1.
+        destruct (deadlam_lambda _ _ D') as (na' & b' & E'). rewrite E' in eb.
+        apply eval_lambda_inv in eb. subst hv. rewrite -E'. exact D'.
   Qed.
 
 End Flags.

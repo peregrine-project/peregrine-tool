@@ -1,4 +1,4 @@
-(** * Unverified lambda-box simplifications mirroring Rocq's extraction
+(** * Lambda-box simplifications mirroring Rocq's extraction
 
     Rocq's legacy extraction performs a number of syntactic simplifications
     ([Mlutil] in the extraction plugin) that make a large difference for the
@@ -7,10 +7,11 @@
 
     1. [fix_eta]: fixpoint eta-hoisting.
          fun x1 .. xk => (fix F ..) x1 .. xk    ==>   fix F ..
-       when the fixpoint does not mention the [xi].  An argument may also be a
-       box ([tBox], or a variable bound to a box by an enclosing [let]) when
-       the corresponding parameter of the fixpoint is dead; it is then bound to
-       the caller's argument instead of the box, which cannot be observed.
+       when the fixpoint does not mention the [xi] and its body starts with
+       (at least) [k] lambdas.  An argument may also be a box ([tBox]) instead
+       of [xi] when the corresponding parameter of the fixpoint is dead; it is
+       then bound to the caller's argument instead of the box, which cannot be
+       observed (erasure passes erased type arguments as boxes).
        Rocq definitions by [Fixpoint] (and the output of inlining recursors)
        erase to this shape, and the eta-expanded version allocates a closure at
        every call on most backends.
@@ -42,17 +43,18 @@
 
     ** Verification status.  Well-formedness is proved in [ELboxOptsWf]
     (from one lemma per rewrite).  Preservation of evaluation is proved for
-    passes 2, 3 and 4, at the flags of the pipeline stage ([EExtraFlags]): if
+    all four passes, at the flags of the pipeline stage ([EExtraFlags]): if
     the source program evaluates to [v], the target evaluates to some [v']
     that is [v] with some subterms rewritten.  The passes change the shape of
     values (a closure instead of a case) and rewrite under binders, so [v']
     is not [optimize] of [v]; the relation between them is a chain of steps
     of the rewrite relation [R] of [ELboxOptsSim], which is shown to be a
     forward simulation in [ELboxOptsSimEval]; [ELboxOptsSimStatic] shows that
-    the passes are such chains.  Pass 1 is not covered: for option sets that
-    enable it, the pipeline transformation (in [ELboxOptsWf]) assumes that
-    the target terminates ([trust_fix_eta_terminates]) and states nothing
-    about its value. *)
+    the passes are such chains.  For pass 1 the source value may be the
+    eta-expansion (a closure) where the target value is the fixpoint or one
+    of its partial applications; [R] relates the two as long as the target
+    can still take the remaining arguments, which is why the pass checks the
+    number of leading lambdas of the fixpoint body. *)
 
 From Stdlib Require Import List Bool Arith.
 From MetaRocq.Utils Require Import utils.
@@ -363,10 +365,8 @@ Definition optimize_typed_env (o : lbox_opts) (Σ : ExAst.global_env) : ExAst.gl
 (** ** Stages
 
     The identity-case pass and the other three passes are separate
-    transformations (see [ELboxOptsWf]) with separate termination axioms, so
-    that the assumptions about case/function permutation, let/function
-    permutation and fixpoint eta-hoisting do not bear on the identity-case
-    pass. *)
+    transformations (see [ELboxOptsWf]), each with its own proof of
+    evaluation preservation. *)
 
 (** Only the identity-case pass. *)
 Definition case_id_opts : lbox_opts :=

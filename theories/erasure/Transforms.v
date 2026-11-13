@@ -146,8 +146,7 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
      beta reduction and before boxes are implemented (ELboxOpts.v,
      ELboxOptsWf.v).  The identity-case pass runs first, as its own
      transformation; the other three follow.  Wellformedness and evaluation
-     preservation are proved, except that with fixpoint eta-hoisting enabled
-     only termination is assumed (axiom trust_fix_eta_terminates).  Off by
+     preservation are proved, without axioms (ELboxOptsSim*.v).  Off by
      default. *)
   ETransform.optional_self_transform lbox.(lbox_case_id)
     case_id_transformation ▷

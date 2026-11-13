@@ -9,6 +9,7 @@ From MetaRocq.Utils Require Import utils.
 From MetaRocq.Common Require Import BasicAst Kernames.
 From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils EInduction ELiftSubst
   ECSubst EGlobalEnv EWcbvEval EProgram EWellformed EBeta.
+From MetaRocq.Erasure.Typed Require Optimize OptimizeCorrectness.
 From Peregrine Require ELboxOptsWf_case.
 From Peregrine Require Import ELboxOptsSimDB ELboxOpts ELboxOptsSim ELboxOptsSimEval.
 From Peregrine Require ELiftConstants.
@@ -501,12 +502,179 @@ Proof.
   - apply Rbrsall_refl.
 Qed.
 
-(** Every node rewrite other than [fix_eta]. *)
-Lemma lbox_node {wfl : WcbvFlags} o t :
-  lbox_fix_eta o = false -> chain t (rewrite_node o t).
+(** ** [fix_eta]
+
+    A variable that does not occur can be substituted and lifted back. *)
+
+Lemma dead_lift n k t :
+  (forall j, k <= j -> j < k + n -> Optimize.is_dead j t) ->
+  lift n k (subst (repeat tBox n) k t) = t.
 Proof.
-  intros Hf. destruct t; try apply chain_refl; unfold rewrite_node; rewrite ?Hf;
-    try apply chain_refl.
+  induction t in k |- * using term_forall_list_ind; intros H; cbn -[Nat.leb] in *;
+    rewrite ?length_map; auto.
+  - destruct (Nat.leb_spec k n0).
+    + destruct (nth_error (repeat tBox n) (n0 - k)) eqn:E.
+      * apply nth_error_Some_length in E. rewrite repeat_length in E.
+        specialize (H n0 ltac:(lia) ltac:(lia)). now rewrite Nat.eqb_refl in H.
+      * apply nth_error_None in E. rewrite !repeat_length in E |- *.
+        cbn -[Nat.leb]. destruct (Nat.leb_spec k (n0 - n)); f_equal; lia.
+    + cbn -[Nat.leb]. destruct (Nat.leb_spec k n0); auto; lia.
+  - f_equal. induction X; cbn; auto. f_equal.
+    + apply p. intros j h1 h2. specialize (H j h1 h2). cbn in H. now rtoProp.
+    + apply IHX. intros j h1 h2. specialize (H j h1 h2). cbn in H. now rtoProp.
+  - f_equal. apply IHt. intros [|j] h1 h2; [lia|]. apply (H j); lia.
+  - f_equal.
+    + apply IHt1. intros j h1 h2. specialize (H j h1 h2). now rtoProp.
+    + apply IHt2. intros [|j] h1 h2; [lia|]. specialize (H j ltac:(lia) ltac:(lia)). now rtoProp.
+  - f_equal.
+    + apply IHt1. intros j h1 h2. specialize (H j h1 h2). now rtoProp.
+    + apply IHt2. intros j h1 h2. specialize (H j h1 h2). now rtoProp.
+  - f_equal. induction X; cbn; auto. f_equal.
+    + apply p. intros j h1 h2. specialize (H j h1 h2). cbn in H. now rtoProp.
+    + apply IHX. intros j h1 h2. specialize (H j h1 h2). cbn in H. now rtoProp.
+  - f_equal.
+    + apply IHt. intros j h1 h2. specialize (H j h1 h2). now rtoProp.
+    + have H' : forall j, k <= j -> j < k + n ->
+        forallb (fun '(ctx, t) => Optimize.is_dead (#|ctx| + j) t) l.
+      { intros j h1 h2. specialize (H j h1 h2). now rtoProp. }
+      clear H. induction X; cbn; auto. f_equal.
+      * destruct x as [ctx b]. cbn in *. f_equal. apply p0.
+        intros j h1 h2. specialize (H' (j - #|ctx|) ltac:(lia) ltac:(lia)).
+        cbn in H'. replace (#|ctx| + (j - #|ctx|)) with j in H' by lia.
+        now move/andP: H' => [].
+      * apply IHX. intros j h1 h2. specialize (H' j h1 h2). cbn in H'. now rtoProp.
+  - f_equal. apply IHt. intros j h1 h2. now apply H.
+  - f_equal. set (L := #|m|) in *. clearbody L. induction X; cbn; auto. f_equal.
+    + destruct x as [na b r]. unfold map_def. cbn in *. f_equal. apply p.
+      intros j h1 h2. specialize (H (j - L) ltac:(lia) ltac:(lia)).
+      cbn in H. replace (L + (j - L)) with j in H by lia.
+      now move/andP: H => [].
+    + apply IHX. intros j h1 h2. specialize (H j h1 h2). cbn in H. now rtoProp.
+  - f_equal. set (L := #|m|) in *. clearbody L. induction X; cbn; auto. f_equal.
+    + destruct x as [na b r]. unfold map_def. cbn in *. f_equal. apply p.
+      intros j h1 h2. specialize (H (j - L) ltac:(lia) ltac:(lia)).
+      cbn in H. replace (L + (j - L)) with j in H by lia.
+      now move/andP: H => [].
+    + apply IHX. intros j h1 h2. specialize (H j h1 h2). cbn in H. now rtoProp.
+  - destruct p as [? []]; cbn in *; auto. depelim X. destruct p as [Hd Hv].
+    destruct a as [def vals]; cbn in *. do 3 f_equal.
+    unfold map_array_model, test_array_model in *; cbn in *. f_equal.
+    + apply Hd. intros j h1 h2. specialize (H j h1 h2). now move/andP: H => [].
+    + have H' : forall j, k <= j -> j < k + n -> forallb (Optimize.is_dead j) vals.
+      { intros j h1 h2. specialize (H j h1 h2). now move/andP: H => []. }
+      clear H. induction Hv; cbn; auto. f_equal.
+      * apply p. intros j h1 h2. specialize (H' j h1 h2). cbn in H'. now move/andP: H' => [].
+      * apply IHHv. intros j h1 h2. specialize (H' j h1 h2). cbn in H'. now move/andP: H' => [].
+  - f_equal. apply IHt. intros j h1 h2. now apply H.
+  - f_equal. apply IHt. intros j h1 h2. now apply H.
+Qed.
+
+Lemma has_lambdas_subst s k m t : has_lambdas m t -> has_lambdas m (subst s k t).
+Proof.
+  induction m in k, t |- *; destruct t; cbn; try discriminate; auto.
+Qed.
+
+Lemma strip_lambdas_subst s k m t :
+  has_lambdas m t -> strip_lambdas m (subst s k t) = subst s (m + k) (strip_lambdas m t).
+Proof.
+  induction m in k, t |- *; destruct t; cbn; try discriminate; auto.
+  intros H. rewrite IHm //. do 2 f_equal. lia.
+Qed.
+
+Lemma lift_mk_lambdas n k xs e :
+  lift n k (mk_lambdas xs e) = mk_lambdas xs (lift n (#|xs| + k) e).
+Proof.
+  induction xs in k |- *; cbn; auto. rewrite IHxs. do 3 f_equal. lia.
+Qed.
+
+Lemma deadlam_has n i t :
+  has_lambdas n t -> i < n -> Optimize.is_dead (n - 1 - i) (strip_lambdas n t) -> deadlam i t.
+Proof.
+  induction i in n, t |- *; (destruct n; [lia|]); destruct t; try discriminate;
+    cbn [has_lambdas strip_lambdas deadlam]; intros hl lt hd.
+  - replace (S n - 1 - 0) with n in hd by lia.
+    eexists _, (mk_lambdas (lambda_names n t) (subst [tBox] n (strip_lambdas n t))).
+    f_equal. rewrite lift_mk_lambdas length_lambda_names_has // Nat.add_0_r.
+    rewrite (dead_lift 1 n).
+    + intros j h1 h2. now replace j with n by lia.
+    + now apply mk_lambdas_strip.
+  - eexists _, _. split; [reflexivity|]. apply (IHi n); auto; [lia|].
+    now replace (n - 1 - i) with (S n - 1 - S i) by lia.
+Qed.
+
+Lemma fix_param_dead_subst s mfix idx n i K :
+  i < n -> fix_param_dead mfix idx n i ->
+  param_dead (map (map_def (subst s K)) mfix) idx i.
+Proof.
+  unfold fix_param_dead, param_dead. intros lt. rewrite nth_error_map.
+  destruct (nth_error mfix idx) as [d|]; [|discriminate]. move/andP => [hl hd].
+  eexists. split; [reflexivity|]. cbn.
+  apply (deadlam_has n); auto; [now apply has_lambdas_subst|].
+  rewrite strip_lambdas_subst // OptimizeCorrectness.is_dead_subst_other; [lia|].
+  unfold occurs_rel in hd. now rewrite negb_involutive in hd.
+Qed.
+
+Lemma args_ok_length mfix idx n i args :
+  fix_eta_args_ok mfix idx n i args -> i + #|args| = n.
+Proof.
+  induction args in i |- *; cbn.
+  - move/Nat.eqb_eq. lia.
+  - move/andP => [_ ok]. apply IHargs in ok. lia.
+Qed.
+
+Lemma args_ok_eta mfix idx n (dead : nat -> Prop) :
+  (forall i, i < n -> fix_param_dead mfix idx n i -> dead i) ->
+  forall args i xs, fix_eta_args_ok mfix idx n i args -> #|xs| + i = n ->
+  eta_args dead i xs args.
+Proof.
+  intros Hd. induction args; intros i xs ok L; cbn in ok.
+  - apply Nat.eqb_eq in ok. destruct xs; [constructor|cbn in L; lia].
+  - move/andP: ok => [h ok]. have len := args_ok_length _ _ _ _ _ ok.
+    destruct xs as [|x xs]; cbn in L; [lia|].
+    destruct a; try discriminate.
+    + constructor; [apply Hd; auto; lia|]. apply IHargs; auto; lia.
+    + apply Nat.eqb_eq in h. replace n0 with #|xs| by lia.
+      constructor. apply IHargs; auto; lia.
+Qed.
+
+Lemma nofree_range_lift k t :
+  nofree_range 0 k t -> lift0 k (subst (repeat tBox k) 0 t) = t.
+Proof.
+  unfold nofree_range. intros H. apply dead_lift. intros j _ lt.
+  eapply forallb_forall in H; [|apply in_seq; split; [apply Nat.le_0_l|exact lt]].
+  cbn in H. unfold occurs_rel in H. now rewrite negb_involutive in H.
+Qed.
+
+Lemma fix_eta_node {wfl : WcbvFlags} t : Rall t (fix_eta t).
+Proof.
+  intros Σ'. unfold fix_eta. cbv zeta.
+  destruct (Nat.eqb_spec (count_lambdas t) 0) as [|nz]; [apply R_refl|].
+  have hl : has_lambdas (count_lambdas t) t by (apply count_has_lambdas; lia).
+  have E := mk_lambdas_strip _ _ hl. have L := length_lambda_names_has _ _ hl.
+  destruct (decompose_app (strip_lambdas (count_lambdas t) t)) as [hd args] eqn:D.
+  apply decompose_app_inv in D.
+  destruct hd; try apply R_refl.
+  destruct (_ && _) eqn:C; [|apply R_refl].
+  move/andP: C => [/andP [nf ok] ar].
+  rewrite {1}E D. clear E D hl.
+  set (k := count_lambdas t) in *. clearbody k.
+  destruct (lambda_names k t) as [|x xs]; cbn in L; [lia|]. subst k.
+  rewrite -{1}(nofree_range_lift _ _ nf).
+  cbn [mk_lambdas]. apply R_head. cbn [subst].
+  eapply Rh_fix_eta; [reflexivity| | |].
+  - induction (map _ _) as [|[na b r] l]; constructor; auto. apply R_refl.
+  - unfold fix_arity_ok in *. rewrite nth_error_map.
+    destruct (nth_error _ _) as [d|]; [|discriminate].
+    cbn [option_map dbody map_def]. now apply has_lambdas_subst.
+  - eapply args_ok_eta; [|exact ok|cbn; lia].
+    intros i lt. now apply fix_param_dead_subst.
+Qed.
+
+(** Every node rewrite. *)
+Lemma lbox_node {wfl : WcbvFlags} o t : chain t (rewrite_node o t).
+Proof.
+  destruct t; try apply chain_refl; unfold rewrite_node.
+  - destruct (lbox_fix_eta o); [apply chain_one, fix_eta_node|apply chain_refl].
   - destruct (lbox_let_fun o); [apply chain_one, let_fun_node|apply chain_refl].
   - destruct (lbox_let_fun o); [apply beta_let_chain|apply chain_refl].
   - cbv zeta.
