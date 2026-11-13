@@ -2,6 +2,7 @@ From Stdlib Require Import List.
 From Stdlib Require Import ZArith.
 From Stdlib Require PrimInt63.
 From Stdlib Require PrimFloat.
+From Corelib Require Uint63Axioms PrimStringAxioms.
 From CeresBS Require Import Ceres.
 
 From MetaRocq.Utils Require Import bytestring.
@@ -13,9 +14,17 @@ Local Open Scope bs_scope.
 
 
 
-(** * Axioms *)
-(* Realized in extraction *)
-Axiom prim_string_of_string : string -> PrimString.string.
+(** * Primitive strings *)
+
+Definition char63_of_byte (b : Byte.byte) : PrimInt63.int :=
+  Uint63Axioms.of_Z (Z.of_N (Byte.to_N b)).
+
+(** [None] if the string is longer than [PrimString.max_length].
+    Realized in extraction by [Pstring.of_string]. *)
+Definition prim_string_of_string (s : string) : option PrimString.string :=
+  if (Z.of_nat (String.length s) <=? Uint63Axioms.to_Z PrimString.max_length)%Z
+  then Some (PrimStringAxioms.of_list (List.map char63_of_byte (String.print s)))
+  else None.
 
 
 
@@ -34,7 +43,11 @@ Instance Deserialize_prim_tag : Deserialize prim_tag :=
 Instance Deserialize_prim_string : Deserialize PrimString.string :=
   fun l e =>
     match e with
-    | Atom_ (Str s) => inr (prim_string_of_string s)
+    | Atom_ (Str s) =>
+        match prim_string_of_string s with
+        | Some p => inr p
+        | None => inl (DeserError l "string too long for a primitive string")
+        end
     | _ => inl (DeserError l "error")
     end.
 
