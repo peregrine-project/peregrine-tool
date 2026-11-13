@@ -31,19 +31,21 @@ Set Default Goal Selector "!".
 Definition rewrite_node_wf (efl : EEnvFlags) (o : lbox_opts) : Prop :=
   forall Σ, wf_glob Σ -> forall k t, wellformed Σ k t -> wellformed Σ k (rewrite_node o t).
 
-Lemma wellformed_rewrite_node {efl : EEnvFlags} o : has_tBox -> rewrite_node_wf efl o.
+Lemma wellformed_rewrite_node {efl : EEnvFlags} o :
+  has_tBox -> has_tLetIn -> rewrite_node_wf efl o.
 Proof.
-  intros hbox Σ wfΣ k t wft.
+  intros hbox hlet Σ wfΣ k t wft.
   destruct t; cbn [rewrite_node]; auto.
   - destruct lbox_fix_eta; auto using wellformed_fix_eta.
   - destruct lbox_let_fun; auto using wellformed_let_inline.
   - destruct lbox_let_fun; auto using wellformed_beta_let.
-  - destruct lbox_case_fun, lbox_case_id; auto using wellformed_case_fun, wellformed_case_id.
+  - destruct lbox_iota; [now apply wellformed_iota_case|].
+    destruct lbox_case_fun, lbox_case_id; auto using wellformed_case_fun, wellformed_case_id.
 Qed.
 
 (** At the flags of the pipeline (flag hypotheses are discharged here). *)
 Lemma rewrite_node_wf_extra o : rewrite_node_wf extra_env_flags o.
-Proof. apply wellformed_rewrite_node. reflexivity. Qed.
+Proof. apply wellformed_rewrite_node; reflexivity. Qed.
 
 (** ** Terms *)
 
@@ -287,4 +289,20 @@ Next Obligation.
 Qed.
 Next Obligation.
   intros. cbn. now apply case_id_terminates.
+Qed.
+
+(** Generalised iota (constructor scrutinees, case-of-let, case-of-case). *)
+Program Definition iota_transformation :
+  Transform.t _ _ EAst.term EAst.term _ _
+    (eval_eprogram extra_wcbv_flags) (eval_eprogram extra_wcbv_flags) :=
+  {| name := "lambda-box generalised iota";
+     transform p _ := lbox_opts_program iota_opts p;
+     pre p := wf_eprogram extra_env_flags p;
+     post p := wf_eprogram extra_env_flags p;
+     obseq _ _ _ v v' := lbox_obs v v' |}.
+Next Obligation.
+  intros. apply wf_eprogram_lbox_opts_program => //. apply rewrite_node_wf_extra.
+Qed.
+Next Obligation.
+  intros. cbn. subst p'. apply lbox_opts_program_eval; [intros; apply lbox_node|assumption..].
 Qed.

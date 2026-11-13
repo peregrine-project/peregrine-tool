@@ -128,6 +128,116 @@ Definition dead_head (f : term) : Prop :=
   deadlam 0 f \/
   exists mf idx cs, f = mkApps (tFix mf idx) cs /\ param_dead mf idx #|cs|.
 
+(** ** Rewrites of a case by its scrutinee (generalised iota)
+
+    [crw t u]: the case [t] is rewritten to [u] by reducing a case of a
+    constructor (its arguments are bound by lets), by moving a case below
+    the let of its scrutinee, or by moving it into the branches of the case
+    that is its scrutinee.  These are rewrites of the target of the
+    simulation: [u] evaluates to whatever [t] evaluates to ([crw_eval]). *)
+Inductive crw : term -> term -> Prop :=
+| crw_iota ci ind c args brs br :
+    nth_error brs c = Some br -> #|args| = ci.2 + #|br.1| ->
+    crw (tCase ci (tConstruct ind c args) brs) (bind_lets 0 (List.rev br.1) (skipn ci.2 args) br.2)
+| crw_iota_app ci ind c args brs br :
+    nth_error brs c = Some br -> #|args| = ci.2 + #|br.1| ->
+    crw (tCase ci (mkApps (tConstruct ind c []) args) brs)
+        (bind_lets 0 (List.rev br.1) (skipn ci.2 args) br.2)
+| crw_let ci z v b brs :
+    crw (tCase ci (tLetIn z v b) brs) (tLetIn z v (tCase ci b (lift_brs 1 brs)))
+| crw_case ci ci1 d brs1 brs :
+    crw (tCase ci (tCase ci1 d brs1) brs)
+        (tCase ci1 d (map (fun br => (br.1, tCase ci br.2 (lift_brs #|br.1| brs))) brs1)).
+
+Lemma closedn_bind_lets args : forall n nas b k,
+  forallb (closedn k) args -> closedn (#|args| + n + k) b ->
+  closedn (n + k) (bind_lets n nas args b).
+Proof.
+  induction args as [|a args IH]; intros n nas b k; cbn; [auto|].
+  move/andP => [ca cargs] cb. apply/andP; split.
+  - rewrite Nat.add_comm. now apply closedn_lift.
+  - apply (IH (S n)); auto. replace (#|args| + S n + k) with (S (#|args| + n + k)) by lia. exact cb.
+Qed.
+
+Lemma closedn_lift_brs n k brs :
+  forallb (fun br => closedn (#|br.1| + k) br.2) brs ->
+  forallb (fun br => closedn (#|br.1| + (n + k)) br.2) (lift_brs n brs).
+Proof.
+  intros H. unfold lift_brs. rewrite forallb_map. cbn. solve_all.
+  replace (#|x.1| + (n + k)) with (#|x.1| + k + n) by lia. now apply closedn_lift.
+Qed.
+
+Lemma crw_closed k t u : crw t u -> closedn k t -> closedn k u.
+Proof.
+  destruct 1; cbn.
+  1-2: move/andP => [cargs cbrs];
+    try (rewrite closedn_mkApps in cargs; move/andP: cargs => [_ cargs]);
+    apply (closedn_bind_lets (skipn ci.2 args) 0 _ _ k); [now apply forallb_skipn|];
+    rewrite Nat.add_0_r length_skipn H0;
+    replace (ci.2 + #|br.1| - ci.2) with #|br.1| by lia;
+    apply forallb_All in cbrs;
+    eapply All_nth_error in cbrs; tea.
+  - move/andP => [/andP [cv cb] cbrs]. rewrite cv cb. cbn.
+    now apply (closedn_lift_brs 1 k).
+  - move/andP => [/andP [cd cbrs1] cbrs]. rewrite cd. cbn.
+    rewrite forallb_map. cbn. have cl := closedn_lift_brs _ _ _ cbrs.
+    solve_all. rtoProp; split; auto.
+Qed.
+
+Lemma csubst_lift_gen a n j k x :
+  closed a -> csubst a (j + n + k) (lift n j x) = lift n j (csubst a (j + k) x).
+Proof.
+  intros cl. rewrite !closed_subst //.
+  rewrite (commut_lift_subst_rec x [a] n (j + k) j); [lia|]. f_equal. lia.
+Qed.
+
+Lemma csubst_lift_brs a n k brs :
+  closed a ->
+  map (fun br : list name × term => (br.1, csubst a (#|br.1| + (n + k)) br.2)) (lift_brs n brs) =
+  lift_brs n (map (fun br : list name × term => (br.1, csubst a (#|br.1| + k) br.2)) brs).
+Proof.
+  intros cl. unfold lift_brs. rewrite !map_map. apply map_ext. intros [nas b]. cbn. f_equal.
+  rewrite -(csubst_lift_gen a n #|nas| k) //. f_equal. lia.
+Qed.
+
+Lemma csubst_bind_lets a k args : forall n nas b,
+  closed a ->
+  csubst a (n + k) (bind_lets n nas args b) =
+  bind_lets n nas (map (csubst a k) args) (csubst a (#|args| + n + k) b).
+Proof.
+  induction args as [|a0 args IH]; intros n nas b cl; cbn; [reflexivity|].
+  f_equal; [exact (csubst_lift_gen a n 0 k a0 cl)|].
+  rewrite (IH (S n)) //. do 2 f_equal. lia.
+Qed.
+
+Lemma crw_csubst a k t u : closed a -> crw t u -> crw (csubst a k t) (csubst a k u).
+Proof.
+  intros cl H. destruct H.
+  1-2: change (csubst a k (bind_lets 0 (List.rev br.1) (skipn ci.2 args) br.2))
+      with (csubst a (0 + k) (bind_lets 0 (List.rev br.1) (skipn ci.2 args) br.2));
+    rewrite csubst_bind_lets //; cbn; rewrite ?csubst_mkApps; cbn;
+    rewrite Nat.add_0_r length_skipn H0 map_skipn;
+    replace (ci.2 + #|br.1| - ci.2) with #|br.1| by lia.
+  - apply (crw_iota ci ind c (map (csubst a k) args) _ (br.1, csubst a (#|br.1| + k) br.2)).
+    + rewrite nth_error_map H //.
+    + now rewrite length_map.
+  - apply (crw_iota_app ci ind c (map (csubst a k) args) _ (br.1, csubst a (#|br.1| + k) br.2)).
+    + rewrite nth_error_map H //.
+    + now rewrite length_map.
+  - cbn. rewrite (csubst_lift_brs a 1 k) //. apply crw_let.
+  - cbn. rewrite map_map. cbn.
+    match goal with |- crw _ (tCase _ _ ?B) =>
+      replace B with
+        (map (fun br : list name × term =>
+           (br.1, tCase ci br.2
+              (lift_brs #|br.1| (map (fun br : list name × term => (br.1, csubst a (#|br.1| + k) br.2)) brs))))
+           (map (fun br : list name × term => (br.1, csubst a (#|br.1| + k) br.2)) brs1))
+    end.
+    + apply crw_case.
+    + rewrite map_map. apply map_ext. intros [nas b]. cbn. do 2 f_equal.
+      now rewrite csubst_lift_brs.
+Qed.
+
 (** ** The relation *)
 
 Section Rel.
@@ -259,6 +369,9 @@ Section Rel.
   | Rh_app_dead f t0 a' :
       R f t0 -> dead_head f -> closed f -> closed t0 -> closed a' -> ∥ value Σ' a' ∥ ->
       Rh (tApp f tBox) (tApp t0 a')
+  (** generalised iota: a rewrite [crw] of the related case *)
+  | Rh_case_tgt ci d d' brs brs' u :
+      R d d' -> Rbrs brs brs' -> crw (tCase ci d' brs') u -> Rh (tCase ci d brs) u
   with Rs : list term -> list term -> Prop :=
   | Rs_nil : Rs [] []
   | Rs_cons t t' l l' : R t t' -> Rs l l' -> Rs (t :: l) (t' :: l')
@@ -503,6 +616,8 @@ Section Rel.
       rewrite -(Rdefs_length _ _ H0). auto.
     - (* dead argument *)
       apply/andP; split; eapply closed_upwards; tea; lia.
+    - (* generalised iota *)
+      eapply crw_closed; tea. cbn. rtoProp; intuition eauto.
   Qed.
 
   Lemma R_closed t t' k : R t t' -> closedn k t -> closedn k t'.
@@ -592,6 +707,9 @@ Section Rel.
     - (* dead argument *)
       rewrite !csubst_closed; try (eapply closed_upwards; tea; lia).
       apply R_head, Rh_app_dead; auto.
+    - (* generalised iota *)
+      apply R_head. eapply Rh_case_tgt; [apply H0|apply H2|].
+      exact (crw_csubst a' k _ _ cla H3).
   Qed.
 
   Lemma R_csubst a a' t t' k :
@@ -953,6 +1071,180 @@ Section Flags.
   Proof.
     intros cl ev. apply eval_app_inv in ev as (fv & ef & ev).
     exact (eval_case_app a r _ fv cl ef ci d brs eq_refl ev).
+  Qed.
+
+  (** *** Generalised iota: the rewritten case evaluates to the same value *)
+
+  Lemma eval_case_inv ci d brs r :
+    eval Σ (tCase ci d brs) r -> ∑ dv, eval Σ d dv × eval Σ (tCase ci dv brs) r.
+  Proof.
+    intros ev. depelim ev; try flag_contra.
+    all: eexists; split; [eassumption|].
+    all: let fin := try eassumption; try (eapply value_final, eval_to_value; eassumption) in
+      first [ solve [eapply eval_iota_block; fin] | solve [eapply eval_iota; fin]
+            | solve [eapply eval_cofix_case; fin] ].
+  Qed.
+
+  Lemma lift_brs_closed n brs :
+    forallb (fun br => closedn (#|br.1| + 0) br.2) brs -> lift_brs n brs = brs.
+  Proof.
+    induction brs as [|[nas b] brs IH]; cbn; [auto|].
+    move/andP => [cb cbrs]. fold (lift_brs n brs). rewrite IH //. rewrite Nat.add_0_r in cb. now rewrite lift_closed.
+  Qed.
+
+  Lemma csubst_brs_closed a brs :
+    forallb (fun br => closedn (#|br.1| + 0) br.2) brs ->
+    map (fun br : list name × term => (br.1, csubst a (#|br.1| + 0) br.2)) brs = brs.
+  Proof.
+    induction brs as [|[nas b] brs IH]; cbn; [auto|].
+    move/andP => [cb cbrs]. rewrite IH //. now rewrite csubst_closed.
+  Qed.
+
+  Lemma substl_tCase s ci x brs :
+    forallb (fun br => closedn (#|br.1| + 0) br.2) brs ->
+    substl s (tCase ci x brs) = tCase ci (substl s x) brs.
+  Proof.
+    intros cl. induction s in x |- *; cbn; [auto|]. rewrite csubst_brs_closed //.
+  Qed.
+
+  Lemma eval_case_case ci brs r t dv :
+    forallb (fun br => closedn (#|br.1| + 0) br.2) brs ->
+    eval Σ t dv -> forall ci1 d brs1, t = tCase ci1 d brs1 ->
+    eval Σ (tCase ci dv brs) r ->
+    eval Σ (tCase ci1 d (map (fun br => (br.1, tCase ci br.2 (lift_brs #|br.1| brs))) brs1)) r.
+  Proof.
+    intros cl ev. induction ev; intros cix dx brsx E ea; try discriminate; try flag_contra;
+      try (subst; flag_contra).
+    1-2: injection E as <- <- <-;
+      first [ eapply eval_iota_block with (br := (br.1, tCase ci br.2 (lift_brs #|br.1| brs)));
+              [eassumption|..]
+            | eapply eval_iota with (br := (br.1, tCase ci br.2 (lift_brs #|br.1| brs)));
+              [eassumption|..] ]; tea;
+      [ rewrite nth_error_map;
+        match goal with H : nth_error _ _ = Some _ |- _ => now rewrite H end
+      | unfold iota_red; cbn; rewrite lift_brs_closed // substl_tCase //;
+        eapply eval_case_scrut; eassumption ].
+    - injection E as <- <- <-.
+      eapply eval_cofix_case; tea. eapply IHev2; auto.
+  Qed.
+
+  Lemma csubst_substl_comm v l b :
+    closed v -> forallb (closedn 0) l ->
+    csubst v 0 (substl l b) = substl l (csubst v #|l| b).
+  Proof.
+    intros cv. induction l as [|a l IH] in b |- *; cbn; [auto|].
+    move/andP => [ca cl]. rewrite IH //. f_equal.
+    rewrite !closed_subst //.
+    rewrite (distr_subst_rec b [a] [v] #|l| 0). cbn.
+    rewrite -(closed_subst v #|l| a) // (csubst_closed v #|l| a) //.
+    eapply closed_upwards; tea. lia.
+  Qed.
+
+  Lemma csubst_bind_lets_closed v args : forall k n nas b,
+    forallb (closedn 0) args ->
+    csubst v k (bind_lets n nas args b) = bind_lets n nas args (csubst v (#|args| + k) b).
+  Proof.
+    induction args as [|a args IH]; intros k n nas b; cbn; [auto|].
+    move/andP => [ca cas].
+    rewrite (lift_closed n 0 a) // (csubst_closed v k a); [eapply closed_upwards; tea; lia|].
+    rewrite (IH (S k)) // Nat.add_succ_r //.
+  Qed.
+
+  Lemma eval_bind_lets args vs :
+    All2 (eval Σ) args vs -> forall n nas b r,
+    forallb (closedn 0) args ->
+    eval Σ (substl (List.rev vs) b) r -> eval Σ (bind_lets n nas args b) r.
+  Proof.
+    induction 1 as [|a v args vs ea eargs IH]; intros n nas b r; cbn; [auto|].
+    move/andP => [ca cas] ev.
+    have cv : closed v by (eapply eval_closed; eassumption).
+    have cvs : forallb (closedn 0) vs.
+    { clear -eargs cas HclΣ. induction eargs; cbn in *; auto.
+      move/andP: cas => [cx cl]. apply/andP; split; auto. eapply eval_closed; eassumption. }
+    rewrite (lift_closed n 0 a) //.
+    eapply eval_zeta; [exact ea|].
+    rewrite csubst_bind_lets_closed // Nat.add_0_r. apply IH => //.
+    unfold substl in ev. rewrite fold_left_app in ev. cbn in ev.
+    fold (substl (List.rev vs) b) in ev.
+    rewrite csubst_substl_comm ?forallb_rev // in ev.
+    rewrite List.length_rev -(All2_length eargs) in ev. exact ev.
+  Qed.
+
+  Lemma eval_construct_inv ind c args v :
+    eval Σ (tConstruct ind c args) v ->
+    ∑ args', (v = tConstruct ind c args') × All2 (eval Σ) args args'.
+  Proof.
+    intros ev. depelim ev; try flag_contra.
+    - eexists; split; [reflexivity|]. now apply All2_Set_All2.
+    - destruct args; [|cbn in i; discriminate].
+      eexists; split; [reflexivity|]. constructor.
+  Qed.
+
+  (** The value of a constructor, in either representation. *)
+  Lemma eval_cstr_scrut ind c args0 args v :
+    eval Σ (mkApps (tConstruct ind c args0) args) v ->
+    ∑ vs, All2 (eval Σ) (args0 ++ args) vs ×
+      ((v = tConstruct ind c vs) + (v = mkApps (tConstruct ind c []) vs)).
+  Proof.
+    intros ev. destruct with_constructor_as_block eqn:Hb.
+    - destruct (eval_mkApps_Construct_block_inv _ _ _ _ _ _ Hb ev) as (vs & -> & -> & e).
+      exists vs. rewrite app_nil_r. split; [exact e|now left].
+    - have E0 := eval_mkApps_Construct_nonblock _ _ _ _ _ Hb ev. subst args0.
+      destruct (eval_mkApps_Construct_inv _ _ _ _ _ Hb ev) as [vs [_ -> e]].
+      exists vs. split; [exact e|now right].
+  Qed.
+
+  Lemma cstr_val_inj ind c vs ind' c' a l :
+    ((mkApps (tConstruct ind' c' a) l = tConstruct ind c vs) +
+     (mkApps (tConstruct ind' c' a) l = mkApps (tConstruct ind c []) vs)) ->
+    ind' = ind /\ c' = c /\ a ++ l = vs.
+  Proof.
+    intros [E|E].
+    - destruct l using rev_case.
+      + cbn in E. injection E; intros; subst. now rewrite app_nil_r.
+      + rewrite mkApps_app in E. cbn in E. discriminate.
+    - apply mkApps_eq_inj in E as [E1 ->]; [|easy|easy].
+      injection E1; intros; subst. now cbn.
+  Qed.
+
+  Lemma iota_eval ci ind c a0 l args brs br r :
+    args = a0 ++ l -> nth_error brs c = Some br -> #|args| = ci.2 + #|br.1| ->
+    forallb (closedn 0) args ->
+    eval Σ (tCase ci (mkApps (tConstruct ind c a0) l) brs) r ->
+    eval Σ (bind_lets 0 (List.rev br.1) (skipn ci.2 args) br.2) r.
+  Proof.
+    intros -> Hbr Hn cl ev. destruct ci as [ind1 np]. cbn in Hn |- *.
+    remember (mkApps (tConstruct ind c a0) l) as d eqn:Ed.
+    depelim ev; try flag_contra.
+    all: match goal with Ed : ?x = mkApps (tConstruct _ _ _) _, H : eval Σ ?x _ |- _ =>
+           rewrite Ed in H; apply eval_cstr_scrut in H as (vs & evs & Ev) end.
+    3: destruct Ev as [E|E]; head_contra E.
+    2: match type of Ev with ((?w = _) + _)%type => change w with (mkApps w []) in Ev end.
+    all: apply cstr_val_inj in Ev as (-> & -> & <-); rewrite ?app_nil_r in evs.
+    all: match goal with H1 : nth_error ?bs ?c1 = Some ?b, H2 : nth_error ?bs ?c1 = Some ?b' |- _ =>
+           tryif constr_eq b b' then fail else (rewrite H1 in H2; injection H2; intros; subst) end.
+    all: eapply eval_bind_lets;
+      [eapply All2_skipn; exact evs | now apply forallb_skipn | eassumption].
+  Qed.
+
+  Lemma crw_eval t u r : closed t -> crw t u -> eval Σ t r -> ∥ eval Σ u r ∥.
+  Proof.
+    intros cl H. destruct H; cbn in cl; intros ev; constructor.
+    - move/andP: cl => [cargs cbrs].
+      match goal with Hb : nth_error _ _ = Some _, Hl : length _ = _ |- _ =>
+        exact (iota_eval ci ind c args [] args brs br r (eq_sym (app_nil_r args)) Hb Hl cargs ev) end.
+    - move/andP: cl => [cd cbrs]. rewrite closedn_mkApps in cd. move/andP: cd => [_ cargs].
+      match goal with Hb : nth_error _ _ = Some _, Hl : length _ = _ |- _ =>
+        exact (iota_eval ci ind c [] args args brs br r eq_refl Hb Hl cargs ev) end.
+    - move/andP: cl => [/andP [cv cb] cbrs].
+      apply eval_case_inv in ev as (dv & ed & ev).
+      depelim ed; try flag_contra.
+      eapply eval_zeta; [eassumption|]. cbn.
+      rewrite lift_brs_closed // csubst_brs_closed //.
+      eapply eval_case_scrut; eassumption.
+    - move/andP: cl => [/andP [cd cbrs1] cbrs].
+      apply eval_case_inv in ev as (dv & ed & ev).
+      exact (eval_case_case ci brs r _ dv cbrs ed ci1 d brs1 eq_refl ev).
   Qed.
 
   (** *** Applications of lambdas and fixpoints; functions ignoring an argument *)

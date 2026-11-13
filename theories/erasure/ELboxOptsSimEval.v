@@ -726,6 +726,9 @@ Section Sim.
 
   (** The case of a match on a constructor, for both representations of
       constructor applications. *)
+  Lemma crw_iota_eval t u r : closed t -> crw t u -> eval Σ' t r -> ∥ eval Σ' u r ∥.
+  Proof. intros. eapply crw_eval; eassumption. Qed.
+
   Lemma sim_iota ind pars cdecl discr c args brs br res t0 :
     eval Σ discr (cval ind c args) ->
     (closed discr -> forall t', Rh Σ' discr t' -> goal t' (cval ind c args)) ->
@@ -743,8 +746,12 @@ Section Sim.
     { eapply cfull_isprop; [|exact e3].
       rewrite -(ELiftConstants.same_constructor_isprop_pars_decl _ _ Hind); exact e1. }
     have Hbnd := cfull_cbound _ _ _ Hfull.
-    tgt_closed Ht cl cl0. inversion Ht; subst.
-    - (* congruence *)
+    assert (Hcong : forall d' brs', R Σ' discr d' -> Rbrs Σ' brs brs' ->
+                    goal (tCase (ind, pars) d' brs') res).
+    { intros d' brs' HRd HRb. clear Ht.
+      have Ht : Rh Σ' (tCase (ind, pars) discr brs) (tCase (ind, pars) d' brs')
+        by (apply Rh_case; assumption).
+      tgt_closed Ht cl cl0.
       have cl' := cl. split_cl cl c1 c2. split_cl cl0 c1' c2'.
       sim_ev ev1 w ee5 Hw; [auto|].
       have cw := eval_closed Σ' HclΣ' _ _ c1' ee5.
@@ -768,7 +775,10 @@ Section Sim.
           | rewrite -Hb1 -(Rs_length _ _ _ (Rs_skipn _ _ _ _ Hargs)); eassumption
           | exact ee6]. }
       destruct (unfolds_case _ _ _ _ _ _ U ev') as [ev'']. sq.
-      eapply eval_case_scrut; tea.
+      eapply eval_case_scrut; tea. }
+    tgt_closed Ht cl cl0. inversion Ht; subst.
+    - (* congruence *)
+      now apply Hcong.
     - (* identity case *)
       split_cl cl c1 c2.
       sim_ev ev1 w ee5 Hw; [auto|].
@@ -839,6 +849,13 @@ Section Sim.
       * subst B. rewrite nth_error_map Hn' //.
       * rewrite -(Rs_length _ _ _ Hargs); eassumption.
       * cbn. rewrite -Hb1 -(Rs_length _ _ _ (Rs_skipn _ _ _ _ Hargs)). exact e4.
+    - (* generalised iota: congruence, then [crw_eval] *)
+      match goal with Hd : R _ discr ?d', Hb : Rbrs _ brs ?brs', Hc : crw _ _ |- _ =>
+        destruct (Hcong _ _ Hd Hb) as (w & [ew] & Hw);
+        assert (ct : closed (tCase (ind, pars) d' brs'))
+          by (eapply R_closed; [apply R_head, Rh_case; eassumption|exact cl]);
+        destruct (crw_iota_eval _ _ _ ct Hc ew) as [ew'] end.
+      exists w. split; [now sq|exact Hw].
   Qed.
 
   (** The case of a projection out of a constructor, likewise. *)
@@ -1082,6 +1099,38 @@ Section Sim.
           [eapply tred_cofix; [sq; exact ee0|exact cd'|exact Hfn'|exact cfn']
           | eapply closed_case_scrut; [exact cfn'|exact cl0] | exact cl0
           | exists w3; split; [now sq|auto]].
+      + (* target-side case rewrite: congruence, then [crw_eval] *)
+        match goal with Hc : crw (tCase ?ip ?d' ?brs') _ |- goal _ ?r =>
+          enough (G : goal (tCase ip d' brs') r);
+          [ destruct G as (wG & [eG] & HwG);
+            assert (ct : closed (tCase ip d' brs'))
+              by (eapply R_closed; [apply R_head, Rh_case; eassumption|exact cl]);
+            destruct (crw_iota_eval _ _ _ ct Hc eG) as [eG'];
+            exists wG; split; [now sq|exact HwG]
+          | clear cl0 Hc Ht ] end.
+        match goal with Hd : R _ ?d ?d', Hb : Rbrs _ ?brs ?brs' |- goal (tCase ?ip ?d' ?brs') _ =>
+          pose proof (Rh_case _ ip _ _ _ _ Hd Hb) as Ht end.
+        tgt_closed Ht cl cl0.
+        split_cl cl c1 c2. split_cl cl0 c1' c2'.
+        sim_ev ev1 w ee0 Hw; [auto|].
+        apply R_mkApps_cofix_inv in Hw as (mf' & args' & -> & Hmf & Hargs); [|vof ee0].
+        have cw := eval_closed Σ' HclΣ' _ _ c1' ee0.
+        rewrite closedn_mkApps in cw. move/andP: cw => [cw1 cw2].
+        match type of ev1 with eval _ ?s0 (mkApps ?h _) =>
+          assert (csf : closed h) by
+            (assert (X : closed s0) by assumption; have := eval_closed Σ HclΣ _ _ X ev1;
+             rewrite closedn_mkApps; move/andP => [x1 _]; exact x1) end.
+        edestruct R_cunfold_cofix as (fn' & Hfn' & HRfn); [exact Hmf|exact csf|exact cw1|eassumption|].
+        clear csf.
+        match type of ev2 with eval _ (tCase _ ?d _) _ => assert (csrc : closed d) end.
+        { have := eval_closed Σ HclΣ _ _ c1 ev1. rewrite !closedn_mkApps.
+          move/andP => [x1 x2]. apply/andP; split; auto. eapply closed_cunfold_cofix; tea. }
+        match goal with HR : Rbrs _ _ ?brs' |- _ =>
+          match type of ev2 with eval _ (tCase ?ip _ _) _ =>
+          sim_ev_with ev2 (tCase ip (mkApps fn' args') brs') w3 ee3 Hw3 end end.
+        { cbn. apply/andP; split; auto. }
+        { apply R_head; constructor; auto. apply R_mkApps; auto. }
+        exists w3. split; [sq; eapply eval_cofix_case; tea|auto].
     - (* cofix proj *)
       tgt_closed Ht cl cl0. inversion Ht; subst.
       cbn in cl, cl0.

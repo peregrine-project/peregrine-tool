@@ -28,14 +28,15 @@ let pass_arg ?(aliases=[]) ?old name doc =
     let old = Arg.(value & opt_all bool [] & info [o] ~docs ~docv:"BOOL" ~deprecated) in
     Term.(const (fun n o -> match last n with Some _ as r -> r | None -> last o) $ flags $ old)
 
-(* The passes set by the presets: -O1 the lambda-box simplifications, -O2
-   also the rest of the benchmarks' "full route". *)
+(* The passes set by the presets: -O1 the lambda-box simplifications and the
+   standard inlinings, -O2 also the rest of the benchmarks' "full route". *)
 let passes_t =
   let docs = s_passes in
   let level_arg =
     let doc = "The pass preset: $(b,0) (the default) enables no optional pass, \
                $(b,1) the four lambda-box simplifications \
-               ($(b,--unwrap-fixpoints --hoist-case-lambdas --drop-identity-matches --inline-atomic-lets)), \
+               ($(b,--unwrap-fixpoints --hoist-case-lambdas --drop-identity-matches --inline-atomic-lets)) \
+               and $(b,--inline-standard-constants), \
                $(b,2) these and $(b,--inline-recursors --beta-reduce --lift-constants). \
                The last $(b,-O) wins. A pass's own option overrides the preset, \
                e.g. $(b,-O2 --no-unwrap-fixpoints). The passes a backend \
@@ -86,7 +87,49 @@ let passes_t =
        becomes let z := v in f b, (fun y => e) b becomes e[b/y] and arguments \
        are pushed into the branches of an applied match, for such atomic \
        arguments b.") in
-  let mk level lbox_opts ir br ub dc si cse lc fe cf ci lf =
+  let inline_standard_constants = pass_arg "inline-standard-constants"
+      "Inline the constants that Rocq's extraction always inlines (its \
+       manual inline set): andb, orb, proj1_sig, eq_rect_r, eq_rec_r, \
+       well_founded_induction, well_founded_induction_type, Fix, Fix_F \
+       and Acc_iter of Corelib.Init, as far as the program uses them and \
+       they are not remapped. They are added to the inlinings exactly as \
+       if an attribute file listed them, so this uses the verified \
+       inlining pass (AutoInlining.v). Enabled by $(b,-O1)." in
+  let inline_small_constants = pass_arg "inline-small-constants"
+      "Inline every small constant: one whose body contains no fixpoint, \
+       is a function or a constructor value (so that no computation is \
+       duplicated or moved), and has size below $(b,--inline-size-limit), \
+       measured after inlining the constants already selected (see \
+       theories/AutoInlining.v for the measure, which follows ml_size of \
+       Rocq's extraction). Remapped constants, the main constant and \
+       those given by $(b,--no-inline) are never selected. Uses the verified \
+       inlining pass; combine with $(b,--beta-reduce) and $(b,--iota-reduce). \
+       Not enabled by any preset." in
+  let inline_size_limit =
+    let doc = "Size limit of $(b,--inline-small-constants): constants of size \
+               strictly below $(docv) are inlined." in
+    Arg.(value & opt int 12 & info ["inline-size-limit"] ~docs ~docv:"N" ~doc)
+  in
+  let no_inline =
+    let doc = "Never select the constant $(docv) (a full kernel name such \
+               as Corelib.Init.Datatypes.andb) for \
+               $(b,--inline-standard-constants) or $(b,--inline-small-constants). \
+               Repeatable. Inlinings requested by attribute files or \
+               $(b,--inline-recursors) are not affected." in
+    Arg.(value & opt_all string [] & info ["no-inline"] ~docs ~docv:"NAME" ~doc)
+  in
+  let iota_reduce = pass_arg "iota-reduce"
+      "Generalised iota reduction (ELboxOpts.v, as in Mlutil of Rocq's \
+       extraction): a match on a constructor application becomes its \
+       branch, with the arguments bound by lets (atomic arguments are \
+       substituted); a match on a let is pushed under the let; a match on \
+       a match all of whose branches end in constructors is pushed into \
+       these branches, unless that would duplicate a large branch. Runs \
+       after inlining and beta reduction and before the other lambda-box \
+       simplifications and $(b,--lift-constants), for every backend. \
+       Well-formedness and evaluation preservation are proved without \
+       axioms. Not enabled by any preset." in
+  let mk level lbox_opts ir br ub dc si cse lc fe cf ci lf std small limit noinl iota =
     let level = Option.value ~default:0 (last level) in
     let level = if lbox_opts then max level 1 else level in
     (* A pass not set explicitly is on if the preset has it, and otherwise
@@ -97,11 +140,16 @@ let passes_t =
       dearg_constants = dc; specialize_instances = si;
       share_common_subterms = cse; lift_constants = pre 2 lc;
       unwrap_fixpoints = on 1 fe; hoist_case_lambdas = on 1 cf;
-      drop_identity_matches = on 1 ci; inline_atomic_lets = on 1 lf }
+      drop_identity_matches = on 1 ci; inline_atomic_lets = on 1 lf;
+      iota_reduce = on max_int iota;
+      inline_standard_constants = on 1 std; inline_small_constants = on max_int small;
+      inline_size_limit = limit; no_inline = noinl }
   in
   Term.(const mk $ level_arg $ lbox_opts_arg $ inline_recursors $ beta_reduce $ unbox
         $ dearg_constants $ specialize_instances $ share_common_subterms $ lift_constants
-        $ unwrap_fixpoints $ hoist_case_lambdas $ drop_identity_matches $ inline_atomic_lets)
+        $ unwrap_fixpoints $ hoist_case_lambdas $ drop_identity_matches $ inline_atomic_lets
+        $ inline_standard_constants $ inline_small_constants $ inline_size_limit $ no_inline
+        $ iota_reduce)
 
 (* The forms --specialize-instances=BOOL and --cse=BOOL (or with BOOL as the
    next argument) of before the pass options were flags, deprecated: they

@@ -75,13 +75,16 @@ Record lbox_opts := {
   lbox_case_fun : bool;  (* pass 2 *)
   lbox_case_id  : bool;  (* pass 3 *)
   lbox_let_fun  : bool;  (* pass 4 *)
+  lbox_iota     : bool;  (* generalised iota, a transformation of its own *)
 }.
 
 Definition no_lbox_opts : lbox_opts :=
-  {| lbox_fix_eta := false; lbox_case_fun := false; lbox_case_id := false; lbox_let_fun := false |}.
+  {| lbox_fix_eta := false; lbox_case_fun := false; lbox_case_id := false; lbox_let_fun := false;
+     lbox_iota := false |}.
 
 Definition all_lbox_opts : lbox_opts :=
-  {| lbox_fix_eta := true; lbox_case_fun := true; lbox_case_id := true; lbox_let_fun := true |}.
+  {| lbox_fix_eta := true; lbox_case_fun := true; lbox_case_id := true; lbox_let_fun := true;
+     lbox_iota := false |}.
 
 Definition any_lbox_opts (o : lbox_opts) : bool :=
   o.(lbox_fix_eta) || o.(lbox_case_fun) || o.(lbox_case_id) || o.(lbox_let_fun).
@@ -304,12 +307,136 @@ Definition beta_let (t : term) : term :=
   | _, _ => t
   end.
 
+(** ** Generalised iota ([Mlutil.iota_red], [Mlutil.iota_gen], and the
+    case-of-let rule of [Mlutil.simpl])
+
+    Three rewrites of a case, by recursion on its scrutinee:
+
+    - [match C a1 .. an with .. | C x1 .. xn => b | .. end
+         ==> let x1 := a1 in .. let xn := an in b]:
+      the arguments of the constructor are bound by lets, in order, since
+      they need not be values and evaluation is call-by-value; a let that
+      binds an atomic term ([atomic]: a variable, a box, a constant or a
+      constant constructor) is substituted right away ([let_inline]).
+      The constructor is a block [tConstruct ind c args] or the application
+      of [tConstruct ind c []] to its arguments; the rule requires the
+      number of arguments to be the number of parameters of the case plus
+      the number of binders of the branch, and drops the parameters (as
+      [iota_red] does).
+    - [match (let z := v in d) with brs end
+         ==> let z := v in match d with brs end] (always).
+    - [match (match d with p_i => e_i end) with brs end
+         ==> match d with p_i => match e_i with brs end end]
+      when every [e_i] ends in a constructor ([ends_in_constr]: a
+      constructor, or a let or case all of whose leaves do), so that the
+      copies of the outer case all reduce; and when [dup_ok] holds: an outer
+      branch reached by more than one leaf must have [ml_size] at most
+      [iota_dup_limit], which bounds the code duplicated by one rewrite by
+      [iota_dup_limit] per leaf.
+
+    The pass is run bottom-up as its own transformation ([iota_opts]), after
+    inlining and beta-reduction and before the lifting of constants. *)
+
+(** The size of a term, after [Mlutil.ml_size] of Rocq's extraction: the
+    number of applied arguments, lambdas, cases, lets and projections.
+    Variables, constants, boxes, primitive values and constructor heads count
+    0; an erased argument ([tBox]) is not counted as an argument (Rocq's
+    extraction removes most of them, and their application is free in the
+    backends which drop them).  Unlike [ml_size], a let counts 1 and the
+    let-bound term is counted too. *)
+Fixpoint ml_size (t : term) : nat :=
+  match t with
+  | tApp f a => match a with tBox => ml_size f | _ => 1 + ml_size f + ml_size a end
+  | tLambda _ b => 1 + ml_size b
+  | tLetIn _ v b => 1 + ml_size v + ml_size b
+  | tConstruct _ _ args => list_sum (map ml_size args)
+  | tCase _ d brs => 1 + ml_size d + list_sum (map (fun br => ml_size br.2) brs)
+  | tProj _ c => 1 + ml_size c
+  | tFix mfix _ | tCoFix mfix _ => list_sum (map (fun d => ml_size (dbody d)) mfix)
+  | tEvar _ args => list_sum (map ml_size args)
+  | tLazy t | tForce t => ml_size t
+  | tRel _ | tVar _ | tConst _ | tBox | tPrim _ => 0
+  end.
+
+Definition lift_brs (n : nat) (brs : list (list name * term)) : list (list name * term) :=
+  map (fun br => (br.1, lift n #|br.1| br.2)) brs.
+
+(** [let x1 := a1 in .. let xn := an in b], for [a1 .. an] in the scope
+    outside the lets, lifted from [n]. *)
+Fixpoint bind_lets (n : nat) (nas : list name) (args : list term) (b : term) : term :=
+  match args with
+  | [] => b
+  | a :: args => tLetIn (hd nAnon nas) (lift0 n a) (bind_lets (S n) (tl nas) args b)
+  end.
+
+(** The same, with atomic terms substituted. *)
+Fixpoint iota_lets (n : nat) (nas : list name) (args : list term) (b : term) : term :=
+  match args with
+  | [] => b
+  | a :: args => let_inline (tLetIn (hd nAnon nas) (lift0 n a) (iota_lets (S n) (tl nas) args b))
+  end.
+
+Fixpoint ends_in_constr (t : term) : bool :=
+  match t with
+  | tConstruct _ _ _ => true
+  | tLetIn _ _ b => ends_in_constr b
+  | tCase _ _ brs => forallb (fun br => ends_in_constr br.2) brs
+  | _ => false
+  end.
+
+(** The constructors at the leaves of a term that [ends_in_constr]. *)
+Fixpoint constr_leaves (t : term) : list nat :=
+  match t with
+  | tConstruct _ c _ => [c]
+  | tLetIn _ _ b => constr_leaves b
+  | tCase _ _ brs => flat_map (fun br => constr_leaves br.2) brs
+  | _ => []
+  end.
+
+Definition iota_dup_limit : nat := 12.
+
+Fixpoint dup_ok (leaves : list nat) (i : nat) (brs : list (list name * term)) : bool :=
+  match brs with
+  | [] => true
+  | br :: brs =>
+      ((count_occ Nat.eq_dec leaves i <=? 1) || (ml_size br.2 <=? iota_dup_limit))
+      && dup_ok leaves (S i) brs
+  end.
+
+(** The case [t] of constructor [c] applied to [args] (parameters
+    included: the case binds the [ci.2] parameters of the inductive). *)
+Definition iota_constr (ci : inductive * nat) (c : nat) (args : list term)
+  (brs : list (list name * term)) (t : term) : term :=
+  match nth_error brs c with
+  | Some br =>
+      if #|args| =? ci.2 + #|br.1| then iota_lets 0 (List.rev br.1) (skipn ci.2 args) br.2
+      else t
+  | None => t
+  end.
+
+Fixpoint iota_case (ci : inductive * nat) (d : term) (brs : list (list name * term)) {struct d} : term :=
+  match d with
+  | tConstruct _ c args => iota_constr ci c args brs (tCase ci d brs)
+  | tApp _ _ =>
+      match decompose_app d with
+      | (tConstruct _ c [], args) => iota_constr ci c args brs (tCase ci d brs)
+      | _ => tCase ci d brs
+      end
+  | tLetIn z v b => tLetIn z v (iota_case ci b (lift_brs 1 brs))
+  | tCase ci1 d1 brs1 =>
+      if ends_in_constr d && dup_ok (constr_leaves d) 0 brs then
+        tCase ci1 d1 (map (fun br => (br.1, iota_case ci br.2 (lift_brs #|br.1| brs))) brs1)
+      else tCase ci d brs
+  | _ => tCase ci d brs
+  end.
+
 (** ** The pass *)
 
 Definition rewrite_node (o : lbox_opts) (t : term) : term :=
   match t with
   | tLambda _ _ => if o.(lbox_fix_eta) then fix_eta t else t
-  | tCase _ _ _ =>
+  | tCase ci d brs =>
+      if o.(lbox_iota) then iota_case ci d brs else
       let t := if o.(lbox_case_id) then case_id t else t in
       if o.(lbox_case_fun) then case_fun t else t
   | tLetIn _ _ _ => if o.(lbox_let_fun) then let_inline t else t
@@ -374,12 +501,19 @@ Definition optimize_typed_env (o : lbox_opts) (Σ : ExAst.global_env) : ExAst.gl
 
 (** Only the identity-case pass. *)
 Definition case_id_opts : lbox_opts :=
-  {| lbox_fix_eta := false; lbox_case_fun := false; lbox_case_id := true; lbox_let_fun := false |}.
+  {| lbox_fix_eta := false; lbox_case_fun := false; lbox_case_id := true; lbox_let_fun := false;
+     lbox_iota := false |}.
+
+(** Only generalised iota. *)
+Definition iota_opts : lbox_opts :=
+  {| lbox_fix_eta := false; lbox_case_fun := false; lbox_case_id := false; lbox_let_fun := false;
+     lbox_iota := true |}.
 
 (** The given passes without the identity-case pass. *)
 Definition without_case_id (o : lbox_opts) : lbox_opts :=
   {| lbox_fix_eta := o.(lbox_fix_eta); lbox_case_fun := o.(lbox_case_fun);
-     lbox_case_id := false; lbox_let_fun := o.(lbox_let_fun) |}.
+     lbox_case_id := false; lbox_let_fun := o.(lbox_let_fun);
+     lbox_iota := false |}.
 
 (** The two stages as they are run in the pipeline: identity cases first (so
     that the other passes see the simplified branches), then the rest. *)

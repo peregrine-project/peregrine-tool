@@ -212,7 +212,15 @@ let mk_lbox_opts (p : passes) =
   { Peregrine.ELboxOpts.lbox_fix_eta = p.unwrap_fixpoints;
     lbox_case_fun = p.hoist_case_lambdas;
     lbox_case_id = p.drop_identity_matches;
-    lbox_let_fun = p.inline_atomic_lets }
+    lbox_let_fun = p.inline_atomic_lets;
+    lbox_iota = p.iota_reduce }
+
+(* Automatic inlining (AutoInlining.v) *)
+let mk_inline_opts (p : passes) =
+  { Peregrine.AutoInlining.inline_standard = p.inline_standard_constants;
+    inline_small = p.inline_small_constants;
+    inline_size_limit = Peregrine.Caml_nat.nat_of_caml_int (max 0 p.inline_size_limit);
+    inline_excluded = List.map bytestring_of_caml_string p.no_inline }
 
 let compile_aux opts fo ~typed f_input config =
   let f_prog, attrs, stem = Frontend.load opts fo ~typed f_input in
@@ -220,7 +228,7 @@ let compile_aux opts fo ~typed f_input config =
   let f_name = stem |> Filename.basename |> bytestring_of_caml_string in
   let attrs = read_attrs opts attrs in
   info opts "Compiling:";
-  let res = Pipeline.peregrine_pipeline config attrs opts.passes.inline_recursors (mk_lbox_opts opts.passes) prog f_name in
+  let res = Pipeline.peregrine_pipeline config attrs opts.passes.inline_recursors (mk_inline_opts opts.passes) (mk_lbox_opts opts.passes) prog f_name in
   match res with
   | ResultMonad.Ok p ->
     info opts "Compiled successfully:";

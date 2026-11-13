@@ -650,13 +650,71 @@ Proof.
 Qed.
 
 (** Every node rewrite. *)
+(** Generalised iota: every step is one target-side rewrite [crw] of a
+    case, followed by rewrites below. *)
+Lemma crw_chain {wfl : WcbvFlags} t u : crw t u -> chain t u.
+Proof.
+  intros H. apply chain_one. intros Σ'. have H' := H. revert H'.
+  destruct H; intros H'; apply R_head;
+    (eapply Rh_case_tgt; [apply R_refl|apply Rbrsall_refl|exact H']).
+Qed.
+
+Lemma iota_lets_chain {wfl : WcbvFlags} args :
+  forall n nas b, chain (bind_lets n nas args b) (iota_lets n nas args b).
+Proof.
+  induction args as [|a args IH]; intros n nas b; cbn [bind_lets iota_lets]; [apply chain_refl|].
+  eapply chain_trans; [apply chain_letin, IH|apply chain_one, let_inline_node].
+Qed.
+
+Lemma chbrs_pointwise_All {wfl : WcbvFlags} (g h : list name × term -> term) l :
+  All (fun br => chain (g br) (h br)) l ->
+  exists n, itr Rbrsall n (map (fun br => (br.1, g br)) l) (map (fun br => (br.1, h br)) l).
+Proof.
+  intros H. induction H as [|br l Hbr Hl IH]; cbn; [now exists 0|].
+  eapply (itr_lift2 Rall Rbrsall Rbrsall (fun b l => (br.1, b) :: l)); tea;
+    [apply Rall_refl|apply Rbrsall_refl|].
+  intros ? ? ? ? H1 H2 Σ'. constructor; auto.
+Qed.
+
+Lemma iota_constr_chain {wfl : WcbvFlags} ci d c args brs :
+  (forall br, nth_error brs c = Some br -> #|args| = ci.2 + #|br.1| ->
+     crw (tCase ci d brs) (bind_lets 0 (List.rev br.1) (skipn ci.2 args) br.2)) ->
+  chain (tCase ci d brs) (iota_constr ci c args brs (tCase ci d brs)).
+Proof.
+  intros H. unfold iota_constr.
+  destruct (nth_error brs c) as [br|] eqn:E; [|apply chain_refl].
+  destruct (Nat.eqb_spec #|args| (ci.2 + #|br.1|)) as [L|]; [|apply chain_refl].
+  eapply chain_trans; [apply crw_chain; exact (H br eq_refl L)|apply iota_lets_chain].
+Qed.
+
+Lemma iota_case_chain {wfl : WcbvFlags} ci d :
+  forall brs, chain (tCase ci d brs) (iota_case ci d brs).
+Proof.
+  induction d using term_forall_list_ind; intros brs; try apply chain_refl; cbn [iota_case].
+  - eapply chain_trans; [apply crw_chain, crw_let|apply chain_letin, IHd2].
+  - match goal with |- context [decompose_app ?t] =>
+      destruct (decompose_app t) as [hd xs] eqn:Ed end.
+    destruct hd; try apply chain_refl.
+    match goal with |- context [match ?l with [] => _ | _ :: _ => _ end] =>
+        destruct l; [|apply chain_refl] end.
+    apply decompose_app_inv in Ed. rewrite Ed.
+    apply iota_constr_chain. intros br Hb Hl. now apply crw_iota_app.
+  - apply iota_constr_chain. intros br Hb Hl. now apply crw_iota.
+  - destruct (_ && _); [|apply chain_refl].
+    eapply chain_trans; [apply crw_chain, crw_case|].
+    apply chain_case.
+    apply (chbrs_pointwise_All (fun br => tCase ci br.2 (lift_brs #|br.1| brs))
+             (fun br => iota_case ci br.2 (lift_brs #|br.1| brs))).
+    eapply All_impl; [eassumption|]. intros br Hbr. apply Hbr.
+Qed.
+
 Lemma lbox_node {wfl : WcbvFlags} o t : chain t (rewrite_node o t).
 Proof.
   destruct t; try apply chain_refl; unfold rewrite_node.
   - destruct (lbox_fix_eta o); [apply chain_one, fix_eta_node|apply chain_refl].
   - destruct (lbox_let_fun o); [apply chain_one, let_inline_node|apply chain_refl].
   - destruct (lbox_let_fun o); [apply beta_let_chain|apply chain_refl].
-  - cbv zeta.
+  - destruct (lbox_iota o); [apply iota_case_chain|]. cbv zeta.
     eapply chain_trans;
       [|destruct (lbox_case_fun o); [apply chain_one, case_fun_node|apply chain_refl]].
     destruct (lbox_case_id o); [apply chain_one, case_id_Rall|apply chain_refl].

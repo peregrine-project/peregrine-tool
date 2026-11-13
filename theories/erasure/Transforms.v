@@ -151,7 +151,14 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
      ELboxOptsWf.v).  The identity-case pass runs first, as its own
      transformation; the other three follow.  Wellformedness and evaluation
      preservation are proved, without axioms (ELboxOptsSim*.v).  Off by
-     default. *)
+     default.
+     Generalised iota (cases of constructors, of lets and of cases ending in
+     constructors; [iota_case] in ELboxOpts.v) runs before them: it needs the
+     constructors that inlining and beta reduction expose and that constant
+     lifting would hide, and the applied lets it leaves are simplified by the
+     let/function pass.  Proved in the same way.  Off by default. *)
+  ETransform.optional_self_transform lbox.(lbox_iota)
+    iota_transformation ▷
   ETransform.optional_self_transform lbox.(lbox_case_id)
     case_id_transformation ▷
   ETransform.optional_self_transform (any_lbox_opts (without_case_id lbox))
@@ -166,32 +173,37 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
   ETransform.optional_self_transform impl_lazy_force implement_lazy_force_transformation.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 Next Obligation.
   cbn. intros.
-  destruct spec_inst, cse, (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+    try assumption; try (apply switch_off_box_wf_eprogram; assumption).
+Qed.
+Next Obligation.
+  cbn. intros.
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
     try assumption; try (apply switch_off_box_wf_eprogram; assumption).
 Qed.
 
@@ -532,7 +544,7 @@ Qed.
 Program Definition typed_lbox_opts_transformation {fl : EWcbvEval.WcbvFlags}
   {efl : EWellformed.EEnvFlags} (activate : bool) (o : lbox_opts)
   (hguard : EWcbvEval.with_guarded_fix = false) (hprop : EWcbvEval.with_prop_case = false)
-  (hbox : EWellformed.has_tBox)
+  (hbox : EWellformed.has_tBox) (hlet : EWellformed.has_tLetIn)
   (hnode : forall t, ELboxOptsSimStatic.chain t (rewrite_node o t)) :
   Transform.t _ _ _ _ _ _ (eval_typed_eprogram_mapping fl) (eval_typed_eprogram_mapping fl) :=
   {| name := if activate then "lambda-box simplifications (typed)"
@@ -544,16 +556,16 @@ Program Definition typed_lbox_opts_transformation {fl : EWcbvEval.WcbvFlags}
                wf_eprogram efl (ExAst.trans_env p.2.1, p.2.2);
      obseq _ _ _ v v' := ELboxOptsSimStatic.obs (wfl := fl) v v' |}.
 Next Obligation.
-  intros fl efl [] o hguard hprop hbox hnode [m [Σ t]] [wfm wfp]; [|now split].
+  intros fl efl [] o hguard hprop hbox hlet hnode [m [Σ t]] [wfm wfp]; [|now split].
   cbn -[ExAst.trans_env optimize_typed_env optimize_env] in *.
   rewrite trans_env_optimize_typed_env. split.
   - move: wfm; rewrite /EReorderCstrs.wf_inductives_mapping; solve_all.
     move: H; rewrite /EReorderCstrs.wf_inductive_mapping. destruct x as [ind [na tags]].
     now rewrite lookup_inductive_optimize_env.
-  - apply (wf_eprogram_lbox_opts_program o (wellformed_rewrite_node o hbox) (ExAst.trans_env Σ, t) wfp).
+  - apply (wf_eprogram_lbox_opts_program o (wellformed_rewrite_node o hbox hlet) (ExAst.trans_env Σ, t) wfp).
 Qed.
 Final Obligation.
-  intros fl efl [] o hguard hprop hbox hnode [m [Σ t]] v [wfm wfp];
+  intros fl efl [] o hguard hprop hbox hlet hnode [m [Σ t]] v [wfm wfp];
     [|intros ev; exists v; split; [exact ev|constructor]].
   unfold eval_typed_eprogram_mapping, eval_typed_eprogram.
   cbn -[ExAst.trans_env optimize_typed_env optimize_env].
@@ -574,10 +586,15 @@ Program Definition typed_lbox_transform_pipeline {guard : abstract_guard_impl}
    typed_transform_pipeline econf ▷
    typed_unguarded_fix_transform (fl := EWcbvEval.opt_wcbv_flags) (wcon := eq_refl) (efl := efl) eq_refl ▷
    typed_lbox_opts_transformation (fl := EWcbvEval.target_wcbv_flags) (efl := efl)
-     lbox.(lbox_case_id) case_id_opts eq_refl eq_refl eq_refl ELboxOptsSimStatic.case_id_node ▷
+     lbox.(lbox_iota) iota_opts eq_refl eq_refl eq_refl eq_refl (ELboxOptsSimStatic.lbox_node _) ▷
    typed_lbox_opts_transformation (fl := EWcbvEval.target_wcbv_flags) (efl := efl)
-     (any_lbox_opts (without_case_id lbox)) (without_case_id lbox) eq_refl eq_refl eq_refl
+     lbox.(lbox_case_id) case_id_opts eq_refl eq_refl eq_refl eq_refl ELboxOptsSimStatic.case_id_node ▷
+   typed_lbox_opts_transformation (fl := EWcbvEval.target_wcbv_flags) (efl := efl)
+     (any_lbox_opts (without_case_id lbox)) (without_case_id lbox) eq_refl eq_refl eq_refl eq_refl
      (ELboxOptsSimStatic.lbox_node _).
+Next Obligation.
+  cbn. intros. exact H.
+Qed.
 Next Obligation.
   cbn. intros. exact H.
 Qed.

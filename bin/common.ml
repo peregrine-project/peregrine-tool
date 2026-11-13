@@ -16,6 +16,13 @@ type passes = {
   hoist_case_lambdas    : bool;
   drop_identity_matches : bool;
   inline_atomic_lets    : bool;
+  (* Generalised iota reduction (ELboxOpts.v) *)
+  iota_reduce           : bool;
+  (* Automatic inlining (AutoInlining.v) *)
+  inline_standard_constants : bool;
+  inline_small_constants    : bool;
+  inline_size_limit         : int;
+  no_inline                 : string list;
 }
 
 type copts = {
