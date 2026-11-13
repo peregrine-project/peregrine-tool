@@ -96,8 +96,6 @@ Section Rel.
   (** Head reduction steps of the target whose principal part is closed
       and evaluates. *)
   Inductive tred : term -> term -> Prop :=
-  | tred_zeta z v w b :
-      ∥ eval Σ' v w ∥ -> closed v -> closed w -> tred (tLetIn z v b) (csubst w 0 b)
   | tred_iota ind pars cdecl d c args brs br :
       ∥ eval Σ' d (tConstruct ind c args) ∥ -> closed d -> forallb (closedn 0) args ->
       constructor_isprop_pars_decl Σ' ind c = Some (false, pars, cdecl) ->
@@ -167,11 +165,10 @@ Section Rel.
       R d d' -> Rbrs brs brs' -> R a a' ->
       Rh (tApp (tCase ci d brs) a)
          (tCase ci d' (map (fun br => (br.1, tApp br.2 (lift0 #|br.1| a'))) brs'))
-  (** [let_fun] *)
-  | Rh_let_fun xs z v v' e e' :
-      R v v' -> R e e' ->
-      Rh (tLetIn z v (mk_lambdas xs e))
-         (mk_lambdas xs (tLetIn z (lift0 #|xs| v') (exchange #|xs| 1 0 e')))
+  (** [let_inline] (for any let-bound term: the source evaluates it to a
+      value before substituting it, and the target substitutes the term) *)
+  | Rh_let_inline z v v' b b' :
+      R v v' -> R b b' -> Rh (tLetIn z v b) (subst1 v' 0 b')
   (** [case_fun] *)
   | Rh_case_fun ci d d' brs brs1 ys :
       R d d' -> forallb (fun br => has_lambdas #|ys| br.2) brs ->
@@ -289,12 +286,8 @@ Section Rel.
       rtoProp. intuition eauto. rewrite forallb_map. cbn.
       specialize (H2 k ltac:(assumption)). specialize (H4 k ltac:(assumption)).
       solve_all. rtoProp. split; auto. rewrite Nat.add_comm. now apply closedn_lift.
-    - (* let_fun *)
-      move/andP: H3 => [cv ce]. rewrite closedn_mk_lambdas in ce.
-      rewrite closedn_mk_lambdas. cbn. apply/andP; split.
-      + rewrite Nat.add_comm. apply closedn_lift. auto.
-      + apply closedn_exchange; [lia|].
-        replace (S (#|xs| + k)) with (#|xs| + S k) by lia. auto.
+    - (* let_inline *)
+      move/andP: H3 => [cv cb]. apply closedn_subst; cbn; rewrite ?H0 //. apply H2. exact cb.
     - (* case_fun *)
       move/andP: H4 => [cd cb]. rewrite closedn_mk_lambdas. cbn. apply/andP; split.
       + rewrite Nat.add_comm. apply closedn_lift. auto.
@@ -354,12 +347,8 @@ Section Rel.
       { intros L x. rewrite !map_map. apply map_ext. intros [n b0]. cbn. now rewrite csubst_lift0. }
       rewrite E.
       apply R_head, Rh_app_case; auto.
-    - (* let_fun *)
-      rewrite !csubst_mk_lambdas. cbn.
-      rewrite (csubst_lift0 a' #|xs| k) //.
-      rewrite csubst_exchange //; [lia|].
-      replace (S (#|xs| + k)) with (#|xs| + S k) by lia.
-      apply R_head, Rh_let_fun; auto.
+    - (* let_inline *)
+      rewrite csubst_subst1 //. apply R_head, Rh_let_inline; auto.
     - (* case_fun *)
       rewrite csubst_mk_lambdas. cbn.
       rewrite (csubst_lift0 a' #|ys| k) //.

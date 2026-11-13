@@ -1,4 +1,4 @@
-(** * Well-formedness of the [let_fun] and [beta_let] rewrites of [ELboxOpts]
+(** * Well-formedness of the [let_inline] and [beta_let] rewrites of [ELboxOpts]
 
     Both rewrites preserve [wellformed Σ k] for every set of environment
     flags, without further hypotheses: they only permute, lift and
@@ -11,41 +11,23 @@ From Stdlib Require Import List Bool Arith Lia.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Common Require Import BasicAst Kernames.
 From MetaRocq.Erasure Require Import EPrimitive EAst EAstUtils ELiftSubst EWellformed EInduction.
-From Peregrine Require Import ELboxOpts ELboxOptsWf_case.
+From Peregrine Require Import ELboxOpts.
 From Stdlib Require Import ssreflect ssrbool.
 
 Import ListNotations.
 Local Open Scope bool_scope.
 
-(** The helpers [wellformed_exchange], [length_lambda_names],
-    [wellformed_strip_lambdas] and [wellformed_mk_lambdas] come from
-    [ELboxOptsWf_case]. *)
-
-(** ** [let_fun] and [beta_let] *)
+(** ** [let_inline] and [beta_let] *)
 
 Section LetFun.
   Context {efl : EEnvFlags} (Σ : global_declarations).
 
-  Lemma has_tLambda_count_lambdas j t :
-    0 < count_lambdas t -> wellformed Σ j t -> has_tLambda.
-  Proof. destruct t; cbn; intros h H; try lia. now apply andb_and in H as [? _]. Qed.
-
-  Lemma wellformed_let_fun k t : wellformed Σ k t -> wellformed Σ k (let_fun t).
+  Lemma wellformed_let_inline k t : wellformed Σ k t -> wellformed Σ k (let_inline t).
   Proof.
-    destruct t; cbn [let_fun]; try easy.
+    destruct t; cbn [let_inline]; try easy.
     destruct atomic; [|easy].
-    destruct (Nat.eqb_spec (count_lambdas t2) 0) as [e|ne]; [easy|].
-    cbn [wellformed]; intros H.
-    apply andb_and in H as [H H2]. apply andb_and in H as [hlet H1].
-    apply wellformed_mk_lambdas.
-    - eapply has_tLambda_count_lambdas with (t := t2); [lia|eassumption].
-    - rewrite length_lambda_names; [reflexivity|].
-      cbn [wellformed]. rewrite hlet /=.
-      apply andb_and; split.
-      + rewrite Nat.add_comm. now apply wellformed_lift.
-      + replace (S (count_lambdas t2 + k)) with (count_lambdas t2 + S k) by lia.
-        apply wellformed_exchange; [lia|].
-        now apply wellformed_strip_lambdas.
+    cbn [wellformed]. move/andP => [/andP [_ Hv] Hb].
+    unfold subst1. apply wellformed_subst; cbn; [now rewrite Hv|exact Hb].
   Qed.
 
   Lemma wellformed_mkApps_head j f args : wellformed Σ j (mkApps f args) -> wellformed Σ j f.

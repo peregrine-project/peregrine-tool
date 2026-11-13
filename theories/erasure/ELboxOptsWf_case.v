@@ -10,8 +10,7 @@ From Stdlib Require Import ssreflect ssrbool.
 Import ListNotations.
 Local Open Scope bool_scope.
 
-(** ** General helpers on [exchange], [strip_lambdas], [mk_lambdas]
-    (shared with the [let_fun] proof; candidates for deduplication) *)
+(** ** General helpers on [exchange], [strip_lambdas], [mk_lambdas] *)
 Section LboxOptsWfHelpers.
   Context {efl : EEnvFlags} (Σ : global_declarations).
 

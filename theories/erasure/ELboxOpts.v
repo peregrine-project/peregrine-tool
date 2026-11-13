@@ -28,13 +28,16 @@
        the scrutinee's field is a box depends on how it was erased (e.g.
        [match o with Some _ => Some I] on [o : option nat], where the field is
        a number), which this untyped pass cannot see.
-    4. [let_fun]: let/function permutation and the applied-let redex.
-         let z := a in fun ys => e          ==>  fun ys => let z := a in e
-         (let z := a in f) b1 .. bn          ==>  let z := a in f b1 .. bn
+    4. [let_inline] and [beta_let]: atomic lets and applied lets.
+         let z := a in e                     ==>  e[a/z]
+         (let z := v in f) b1 .. bn          ==>  let z := v in f b1 .. bn
          (fun y => e) b                      ==>  e[b/y]
+         (match d with C xs => fun y => e ..) b
+                                             ==>  match d with C xs => e[b/y] ..
        for atomic [a], [bi] (variables, boxes, constants, constant
        constructors), the convoy pattern left behind by [Function]/[Program]
-       definitions and by 2.
+       definitions and by 2.  Inlining atomic lets is [Mlutil.simpl] on
+       [MLletin]; the other three are [Mlutil.simpl_app].
 
     The passes are plain functions on erased terms, applied bottom-up to every
     constant body and to the main expression.  They are OFF by default and are
@@ -342,16 +345,13 @@ Definition case_id (t : term) : term :=
   | _ => t
   end.
 
-(** ** Pass 4: let/function permutation and applied lets *)
+(** ** Pass 4: atomic lets and applied lets *)
 
-Definition let_fun (t : term) : term :=
+(** [let z := a in b ==> b[a/z]] for atomic [a] ([Mlutil.simpl], which
+    substitutes atomic let-bound terms whatever the number of occurrences). *)
+Definition let_inline (t : term) : term :=
   match t with
-  | tLetIn z v b =>
-      if atomic v then
-        let m := count_lambdas b in
-        if Nat.eqb m 0 then t else
-        mk_lambdas (lambda_names m b) (tLetIn z (lift0 m v) (exchange m 1 0 (strip_lambdas m b)))
-      else t
+  | tLetIn _ v b => if atomic v then subst1 v 0 b else t
   | _ => t
   end.
 
@@ -402,7 +402,7 @@ Definition rewrite_node (o : lbox_opts) (t : term) : term :=
   | tCase _ _ _ =>
       let t := if o.(lbox_case_id) then case_id t else t in
       if o.(lbox_case_fun) then case_fun t else t
-  | tLetIn _ _ _ => if o.(lbox_let_fun) then let_fun t else t
+  | tLetIn _ _ _ => if o.(lbox_let_fun) then let_inline t else t
   | tApp _ _ => if o.(lbox_let_fun) then beta_let t else t
   | _ => t
   end.
@@ -460,9 +460,8 @@ Definition optimize_typed_env (o : lbox_opts) (Σ : ExAst.global_env) : ExAst.gl
 
     The identity-case pass and the other three passes are separate
     transformations (see [ELboxOptsWf]) with separate termination axioms, so
-    that the assumptions about case/function permutation, let/function
-    permutation and fixpoint eta-hoisting do not bear on the identity-case
-    pass. *)
+    that the assumptions about case/function permutation, atomic lets and
+    fixpoint eta-hoisting do not bear on the identity-case pass. *)
 
 (** Only the identity-case pass. *)
 Definition case_id_opts : lbox_opts :=
@@ -538,7 +537,8 @@ Module LboxOptsChecks.
   Definition fixEsc := fix1 (tLambda (nm "n0") (tLambda (nm "H0") (tApp (tRel 3) (tRel 2)))).
   Example fix_eta_escape :
     optimize O (tLambda (nm "g") (tLambda (nm "n") (tLetIn (nm "H") tBox (tApp (tApp fixEsc (tRel 1)) (tRel 0)))))
-    = tLambda (nm "g") (tLambda (nm "n") (tLetIn (nm "H") tBox (tApp (tApp fixEsc (tRel 1)) (tRel 0)))).
+    = tLambda (nm "g") (tLambda (nm "n")
+        (tApp (tApp (fix1 (tLambda (nm "n0") (tLambda (nm "H0") (tApp tBox (tRel 2))))) (tRel 0)) tBox)).
   Proof. vm_compute. reflexivity. Qed.
 
   (* 1''''. the fixpoint mentions the lambda-bound variable: unchanged *)
@@ -614,25 +614,32 @@ Module LboxOptsChecks.
        ([nm "a"; nm "b"], tConstruct ind 1 [tRel 0; tRel 1])].
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 4. let z := v in fun y => z y  ==>  fun y => let z := v in z y *)
-  Example let_fun_1 :
+  (* 4. let z := v in fun y => z y  ==>  fun y => v y, for a variable v *)
+  Example let_inline_1 :
     optimize O (tLetIn (nm "z") (tRel 5) (tLambda (nm "y") (tApp (tRel 1) (tRel 0))))
-    = tLambda (nm "y") (tLetIn (nm "z") (tRel 6) (tApp (tRel 0) (tRel 1))).
+    = tLambda (nm "y") (tApp (tRel 6) (tRel 0)).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 4'. (let z := v in fun y => z y) b  ==>  let z := v in z b *)
-  Example beta_let_1 :
+  (* 4'. a constant is inlined too: (let z := c in fun y => z y) b  ==>  c b *)
+  Example let_inline_const :
     optimize O (tApp (tLetIn (nm "z") (tConst (MPfile ["T"], "c")) (tLambda (nm "y") (tApp (tRel 1) (tRel 0)))) (tRel 3))
-    = tLetIn (nm "z") (tConst (MPfile ["T"], "c")) (tApp (tRel 0) (tRel 4)).
+    = tApp (tConst (MPfile ["T"], "c")) (tRel 3).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 4''. non-atomic argument: unchanged *)
+  (* 4''. non-atomic let: kept;
+     (let z := f x in fun y => z y) b  ==>  let z := f x in z b *)
+  Example beta_let_1 :
+    optimize O (tApp (tLetIn (nm "z") (tApp (tRel 5) (tRel 6)) (tLambda (nm "y") (tApp (tRel 1) (tRel 0)))) (tRel 3))
+    = tLetIn (nm "z") (tApp (tRel 5) (tRel 6)) (tApp (tRel 0) (tRel 4)).
+  Proof. vm_compute. reflexivity. Qed.
+
+  (* 4'''. non-atomic argument: unchanged *)
   Example beta_let_nonatomic :
     optimize O (tApp (tLambda (nm "y") (tRel 0)) (tApp (tRel 1) (tRel 2)))
     = tApp (tLambda (nm "y") (tRel 0)) (tApp (tRel 1) (tRel 2)).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 4'''. convoy with a non-variable scrutinee:
+  (* 4''''. convoy with a non-variable scrutinee:
      (match f x with true => fun teq => e1 | false => fun teq => e2) □
      ==>  match f x with true => e1[teq := □] | false => e2[teq := □] *)
   Example beta_case :

@@ -5,7 +5,7 @@
     rewrite of [rewrite_node] preserves [wellformed].  The latter are the five
     per-rewrite lemmas [wellformed_fix_eta] ([ELboxOptsWf_fix]),
     [wellformed_case_fun] and [wellformed_case_id] ([ELboxOptsWf_case]), and
-    [wellformed_let_fun] and [wellformed_beta_let] ([ELboxOptsWf_let]).
+    [wellformed_let_inline] and [wellformed_beta_let] ([ELboxOptsWf_let]).
 
     Threading extra hypotheses of the per-rewrite lemmas: the composition is
     generic over [rewrite_node_wf efl o], which may assume [wf_glob Σ].  Only
@@ -36,7 +36,7 @@ Proof.
   intros hbox Σ wfΣ k t wft.
   destruct t; cbn [rewrite_node]; auto.
   - destruct lbox_fix_eta; auto using wellformed_fix_eta.
-  - destruct lbox_let_fun; auto using wellformed_let_fun.
+  - destruct lbox_let_fun; auto using wellformed_let_inline.
   - destruct lbox_let_fun; auto using wellformed_beta_let.
   - destruct lbox_case_fun, lbox_case_id; auto using wellformed_case_fun, wellformed_case_id.
 Qed.
@@ -197,7 +197,7 @@ End env.
     Stated at the flags of the pipeline stage ([EExtraFlags]).
 
     Evaluation is preserved by the identity-case, case/function,
-    let/function and beta/let rewrites: if the source program evaluates to
+    atomic-let and beta/let rewrites: if the source program evaluates to
     [v], the target program evaluates to some [v'] with [lbox_obs v v'],
     where [lbox_obs] is a chain of steps of the rewrite relation [R] of
     [ELboxOptsSim] ("[v'] is [v] with some subterms rewritten").  A stronger
@@ -265,7 +265,7 @@ Qed.
 
 Import MetaRocq.Common.Transform.Transform.
 
-(** Fixpoint eta-hoisting, case/function and let/function permutation (the
+(** Fixpoint eta-hoisting, case/function permutation and atomic/applied lets (the
     identity-case component of [o] is ignored, see [case_id_transformation]). *)
 Program Definition lbox_opts_transformation (o : lbox_opts) :
   Transform.t _ _ EAst.term EAst.term _ _

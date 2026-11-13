@@ -462,17 +462,11 @@ Proof.
   apply R_head, Rh_case_id; [apply R_refl|exact E].
 Qed.
 
-Lemma let_fun_node {wfl : WcbvFlags} t : Rall t (let_fun t).
+Lemma let_inline_node {wfl : WcbvFlags} t : Rall t (let_inline t).
 Proof.
   intros Σ'. destruct t as [| | | | |z v b| | | | | | | | | |]; try apply R_refl.
-  unfold let_fun. destruct (atomic v); [|apply R_refl].
-  cbv zeta.
-  destruct (Nat.eqb_spec (count_lambdas b) 0) as [|nz]; [apply R_refl|].
-  have hl : has_lambdas (count_lambdas b) b by (apply count_has_lambdas; lia).
-  have E := mk_lambdas_strip _ _ hl. have L := length_lambda_names_has _ _ hl.
-  set (m := count_lambdas b) in *. set (xs := lambda_names m b) in *.
-  set (e := strip_lambdas m b) in *.
-  clearbody xs e m. subst b m. apply R_head, Rh_let_fun; apply R_refl.
+  unfold let_inline. destruct (atomic v); [|apply R_refl].
+  apply R_head, Rh_let_inline; apply R_refl.
 Qed.
 
 Lemma case_fun_node {wfl : WcbvFlags} t : Rall t (case_fun t).
@@ -507,7 +501,7 @@ Lemma lbox_node {wfl : WcbvFlags} o t :
 Proof.
   intros Hf. destruct t; try apply chain_refl; unfold rewrite_node; rewrite ?Hf;
     try apply chain_refl.
-  - destruct (lbox_let_fun o); [apply chain_one, let_fun_node|apply chain_refl].
+  - destruct (lbox_let_fun o); [apply chain_one, let_inline_node|apply chain_refl].
   - destruct (lbox_let_fun o); [apply beta_let_chain|apply chain_refl].
   - cbv zeta.
     eapply chain_trans;

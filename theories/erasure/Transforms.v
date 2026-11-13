@@ -142,7 +142,7 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
   ETransform.optional_self_transform cse
     (cse_transformation efl EImplementBox.block_wcbv_flags) ▷
   (* Lambda-box simplifications (fixpoint eta-hoisting, case/function
-     permutation, identity cases, let/function permutation), after inlining and
+     permutation, identity cases, atomic and applied lets), after inlining and
      beta reduction and before boxes are implemented (ELboxOpts.v,
      ELboxOptsWf.v).  The identity-case pass runs first, as its own
      transformation; the other three follow.  Wellformedness and evaluation
