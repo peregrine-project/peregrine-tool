@@ -390,9 +390,11 @@ Section GeneralConfigOptional.
       end
     end.
 
+  (* implement box and implement lazy are the backend's choice: its default
+     ([d]), whatever the configuration says. *)
   Definition enforce_phases (o : erasure_phases') (d : erasure_phases) (o' : erasure_phases_config) : erasure_phases := {|
-    implement_box  := enforce_phase' o.(implement_box')  d.(implement_box)  o'.(implement_box_c);
-    implement_lazy := enforce_phase' o.(implement_lazy') d.(implement_lazy) o'.(implement_lazy_c);
+    implement_box  := d.(implement_box);
+    implement_lazy := d.(implement_lazy);
     betared        := enforce_phase' o.(betared')        d.(betared)        o'.(betared_c);
     unboxing       := enforce_phase' o.(unboxing')       d.(unboxing)       o'.(unboxing_c);
     dearg_ctors    := enforce_phase' o.(dearg_ctors')    d.(dearg_ctors)    o'.(dearg_ctors_c);
