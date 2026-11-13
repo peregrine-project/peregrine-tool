@@ -241,12 +241,16 @@ Definition rebuilds (ind : inductive) (i : nat) (br : list name * term) : bool :
   | _ => false
   end.
 
+(** Only for matches on an inductive type without parameters: with
+    parameters, the scrutinee may carry them while the rebuilt constructor
+    does not. *)
 Definition case_id (t : term) : term :=
   match t with
-  | tCase (ind, _) d brs =>
+  | tCase (ind, p) d brs =>
       match brs with
       | [] => t
-      | _ => if forallb (fun '(i, br) => rebuilds ind i br) (combine (seq 0 #|brs|) brs) then d else t
+      | _ => if Nat.eqb p 0 &&
+                forallb (fun '(i, br) => rebuilds ind i br) (combine (seq 0 #|brs|) brs) then d else t
       end
   | _ => t
   end.

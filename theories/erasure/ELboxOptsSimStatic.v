@@ -201,7 +201,6 @@ End Static.
 
 Section Program.
   Context {wfl : WcbvFlags}.
-  Hypothesis Hblock : with_constructor_as_block = true.
   Hypothesis Hguard : with_guarded_fix = false.
   Hypothesis Hprop : with_prop_case = false.
 
@@ -268,54 +267,38 @@ Section Program.
     exact (R_closed [] _ _ 0 (H []) Hd).
   Qed.
 
-  Definition pars0 (Σ : global_declarations) :=
-    forall kn mdecl, lookup_minductive Σ kn = Some mdecl -> ind_npars mdecl = 0.
-
-  Lemma pars0_isprop Σ : pars0 Σ -> forall ind c b pars cdecl,
-    constructor_isprop_pars_decl Σ ind c = Some (b, pars, cdecl) -> pars = 0.
-  Proof.
-    intros H ind c b pars cdecl.
-    unfold constructor_isprop_pars_decl, lookup_constructor, lookup_inductive.
-    destruct (lookup_minductive Σ (inductive_mind ind)) as [m|] eqn:E; cbn; try discriminate.
-    destruct nth_error; cbn; try discriminate.
-    destruct nth_error; cbn; try discriminate.
-    intros [= _ <- _]. eauto.
-  Qed.
-
   (** the observable relation on values: a chain of rewrite steps *)
   Inductive obs : term -> term -> Prop :=
   | obs_refl v : obs v v
   | obs_step Σ' v v' v'' : R Σ' v v' -> obs v' v'' -> obs v v''.
 
   Lemma step_pres Σ Σ' t t' v :
-    env_step Σ Σ' -> Rall t t' -> closed_env Σ -> pars0 Σ -> closed t ->
+    env_step Σ Σ' -> Rall t t' -> closed_env Σ -> closed t ->
     eval Σ t v ->
-    (closed_env Σ' /\ pars0 Σ' /\ closed t') /\
+    (closed_env Σ' /\ closed t') /\
     exists v', ∥ eval Σ' t' v' ∥ /\ R Σ' v v'.
   Proof.
-    intros He Ht Hcl Hp Hct ev.
+    intros He Ht Hcl Hct ev.
     assert (Hcl' : closed_env Σ') by (eapply env_step_closed; tea).
     split.
-    - split; auto. split.
-      + intros kn m. rewrite -(env_step_minductive _ _ kn He). apply Hp.
-      + exact (R_closed [] _ _ 0 (Ht []) Hct).
-    - eapply (simulation Hblock Hguard Hprop Σ Σ'); tea.
+    - split; auto.
+      exact (R_closed [] _ _ 0 (Ht []) Hct).
+    - eapply (simulation Hguard Hprop Σ Σ'); tea.
       + intros kn. now apply env_step_minductive.
       + intros kn b. now apply env_step_constant.
-      + now apply pars0_isprop.
       + apply Ht.
   Qed.
 
   Lemma chain_pres n : forall Σ Σ' t t' v,
-    itr env_step n Σ Σ' -> itr Rall n t t' -> closed_env Σ -> pars0 Σ -> closed t ->
+    itr env_step n Σ Σ' -> itr Rall n t t' -> closed_env Σ -> closed t ->
     eval Σ t v ->
     exists v', ∥ eval Σ' t' v' ∥ /\ obs v v'.
   Proof.
-    induction n; cbn; intros Σ Σ' t t' v He Ht Hcl Hp Hct ev.
+    induction n; cbn; intros Σ Σ' t t' v He Ht Hcl Hct ev.
     - subst. exists v. split; [now sq|constructor].
     - destruct He as (Σ1 & He1 & He), Ht as (t1 & Ht1 & Ht).
-      destruct (step_pres _ _ _ _ _ He1 Ht1 Hcl Hp Hct ev) as [(Hcl1 & Hp1 & Hct1) (v1 & [ev1] & Hv1)].
-      destruct (IHn _ _ _ _ _ He Ht Hcl1 Hp1 Hct1 ev1) as (v' & ev' & Hv').
+      destruct (step_pres _ _ _ _ _ He1 Ht1 Hcl Hct ev) as [(Hcl1 & Hct1) (v1 & [ev1] & Hv1)].
+      destruct (IHn _ _ _ _ _ He Ht Hcl1 Hct1 ev1) as (v' & ev' & Hv').
       exists v'. split; auto. econstructor; tea.
   Qed.
 
@@ -339,11 +322,11 @@ Section Program.
   Qed.
 
   Theorem lbox_opts_program_pres (p : eprogram) v :
-    closed_env p.1 -> pars0 p.1 -> closed p.2 ->
+    closed_env p.1 -> closed p.2 ->
     eval p.1 p.2 v ->
     exists v', ∥ eval (lbox_opts_program o p).1 (lbox_opts_program o p).2 v' ∥ /\ obs v v'.
   Proof.
-    intros Hcl Hp Hct ev.
+    intros Hcl Hct ev.
     destruct (optimize_env_chain p.1) as [n Hn].
     destruct (optimize_chain o Hnode p.2) as [[m Hm] _].
     eapply (chain_pres (Nat.max n m)); tea.
@@ -449,6 +432,7 @@ Proof.
   apply chain_one.
   intros Σ'. destruct t as [| | | | | | | | |[ind pars] d l| | | | | |]; try apply R_refl. cbn.
   destruct l as [|br brs]; [apply R_refl|].
+  destruct pars as [|pars]; [|apply R_refl]. cbn.
   match goal with |- context [if ?c then _ else _] => destruct c eqn:E end; [|apply R_refl].
   apply R_head, Rh_case_id; [apply R_refl|exact E].
 Qed.
@@ -459,6 +443,7 @@ Lemma case_id_Rall {wfl : WcbvFlags} t : Rall t (case_id t).
 Proof.
   intros Σ'. destruct t as [| | | | | | | | |[ind pars] d l| | | | | |]; try apply R_refl. cbn.
   destruct l as [|br brs]; [apply R_refl|].
+  destruct pars as [|pars]; [|apply R_refl]. cbn.
   match goal with |- context [if ?c then _ else _] => destruct c eqn:E end; [|apply R_refl].
   apply R_head, Rh_case_id; [apply R_refl|exact E].
 Qed.

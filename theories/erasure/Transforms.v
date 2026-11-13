@@ -14,6 +14,7 @@ From Peregrine Require Utils CheckWf.
 From Peregrine Require Import EInstanceSpecialize.
 From Peregrine Require Import ECommonSubexpr.
 From Peregrine Require Import ELboxOpts ELboxOptsWf.
+From Peregrine Require ELboxOptsSimStatic.
 From Peregrine Require Import ELiftConstants.
 From Peregrine Require EBetaCorrect.
 From Malfunction Require Pipeline.
@@ -466,6 +467,131 @@ Final Obligation.
 Qed.
 
 
+(** ** The lambda-box simplifications on typed programs
+
+    Evaluation of a typed program is evaluation of its type-erased program
+    ([ExAst.trans_env]), and erasing the types commutes with the
+    simplifications ([trans_env_optimize_typed_env]), so the typed passes
+    inherit the proofs of the untyped ones ([ELboxOptsSim*], which hold for
+    applied constructors and with constructor parameters). Those proofs are
+    for unguarded fixpoints, so the typed pipeline first switches to them
+    ([typed_unguarded_fix_transform], the identity on programs). *)
+
+Lemma trans_env_optimize_typed_env o Σ :
+  ExAst.trans_env (optimize_typed_env o Σ) = optimize_env o (ExAst.trans_env Σ).
+Proof.
+  unfold ExAst.trans_env, optimize_typed_env, optimize_env. rewrite !map_map.
+  apply map_ext. intros [[kn b] d]. cbn. f_equal.
+  destruct d as [cb| |[]]; cbn; reflexivity.
+Qed.
+
+Definition lbox_opts_typed_program (o : lbox_opts) (p : ExAst.global_env * EAst.term) :
+  ExAst.global_env * EAst.term :=
+  (optimize_typed_env o p.1, optimize o p.2).
+
+Lemma trans_lbox_opts_typed_program o p :
+  (ExAst.trans_env (lbox_opts_typed_program o p).1, (lbox_opts_typed_program o p).2) =
+  lbox_opts_program o (ExAst.trans_env p.1, p.2).
+Proof. unfold lbox_opts_typed_program, lbox_opts_program. cbn [fst snd]. now rewrite trans_env_optimize_typed_env. Qed.
+
+(** The typed program [staged o optimize_typed_env], in two stages. *)
+Lemma staged_typed_env o Σ :
+  ExAst.trans_env (staged o optimize_typed_env Σ) = staged o optimize_env (ExAst.trans_env Σ).
+Proof.
+  unfold staged. destruct lbox_case_id, any_lbox_opts; now rewrite ?trans_env_optimize_typed_env.
+Qed.
+
+Program Definition typed_unguarded_fix_transform {fl : EWcbvEval.WcbvFlags}
+  {wcon : EWcbvEval.with_constructor_as_block = false} {efl : EWellformed.EEnvFlags}
+  (wguard : EWcbvEval.with_guarded_fix) :
+  Transform.t _ _ _ _ _ _ (eval_typed_eprogram_mapping fl)
+    (eval_typed_eprogram_mapping (EWcbvEval.switch_unguarded_fix fl)) :=
+  {| name := "switching to unguarded fixpoints (typed)";
+     transform p _ := p;
+     pre p := EReorderCstrs.wf_inductives_mapping (ExAst.trans_env p.2.1) p.1 /\
+              wf_eprogram efl (ExAst.trans_env p.2.1, p.2.2) /\
+              EEtaExpandedFix.expanded_eprogram (ExAst.trans_env p.2.1, p.2.2);
+     post p := EReorderCstrs.wf_inductives_mapping (ExAst.trans_env p.2.1) p.1 /\
+               wf_eprogram efl (ExAst.trans_env p.2.1, p.2.2);
+     obseq p hp p' v v' := v' = v |}.
+Next Obligation. cbn. intros. intuition auto. Qed.
+Final Obligation.
+  cbn. intros fl wcon efl wguard [m [Σ t]] v [_ [wfp [etae etat]]]. cbn in *.
+  unfold eval_typed_eprogram_mapping, eval_typed_eprogram. cbn.
+  intros [ev]. exists v. split => //. sq.
+  unshelve eapply EEtaExpandedFix.eval_opt_to_target => //. 1:auto. 2:apply wfp.
+  - now eapply EEtaExpandedFix.expanded_global_env_isEtaExp_env.
+  - now eapply EEtaExpandedFix.expanded_isEtaExp.
+Qed.
+
+(** The passes [o] on a typed program, for any set of rewrites whose node
+    rewrite is a chain of steps of the rewrite relation of [ELboxOptsSim].
+    With [activate = false] this is the identity ([ETransform.optional_self_transform]
+    does not apply to programs with an inductives mapping). *)
+Program Definition typed_lbox_opts_transformation {fl : EWcbvEval.WcbvFlags}
+  {efl : EWellformed.EEnvFlags} (activate : bool) (o : lbox_opts)
+  (hguard : EWcbvEval.with_guarded_fix = false) (hprop : EWcbvEval.with_prop_case = false)
+  (hbox : EWellformed.has_tBox)
+  (hnode : forall t, ELboxOptsSimStatic.chain t (rewrite_node o t)) :
+  Transform.t _ _ _ _ _ _ (eval_typed_eprogram_mapping fl) (eval_typed_eprogram_mapping fl) :=
+  {| name := if activate then "lambda-box simplifications (typed)"
+             else "skipped lambda-box simplifications (typed)";
+     transform p _ := if activate then (p.1, lbox_opts_typed_program o p.2) else p;
+     pre p := EReorderCstrs.wf_inductives_mapping (ExAst.trans_env p.2.1) p.1 /\
+              wf_eprogram efl (ExAst.trans_env p.2.1, p.2.2);
+     post p := EReorderCstrs.wf_inductives_mapping (ExAst.trans_env p.2.1) p.1 /\
+               wf_eprogram efl (ExAst.trans_env p.2.1, p.2.2);
+     obseq _ _ _ v v' := ELboxOptsSimStatic.obs (wfl := fl) v v' |}.
+Next Obligation.
+  intros fl efl [] o hguard hprop hbox hnode [m [Σ t]] [wfm wfp]; [|now split].
+  cbn -[ExAst.trans_env optimize_typed_env optimize_env] in *.
+  rewrite trans_env_optimize_typed_env. split.
+  - move: wfm; rewrite /EReorderCstrs.wf_inductives_mapping; solve_all.
+    move: H; rewrite /EReorderCstrs.wf_inductive_mapping. destruct x as [ind [na tags]].
+    now rewrite lookup_inductive_optimize_env.
+  - apply (wf_eprogram_lbox_opts_program o (wellformed_rewrite_node o hbox) (ExAst.trans_env Σ, t) wfp).
+Qed.
+Final Obligation.
+  intros fl efl [] o hguard hprop hbox hnode [m [Σ t]] v [wfm wfp];
+    [|intros ev; exists v; split; [exact ev|constructor]].
+  unfold eval_typed_eprogram_mapping, eval_typed_eprogram.
+  cbn -[ExAst.trans_env optimize_typed_env optimize_env].
+  intros ev. rewrite trans_env_optimize_typed_env.
+  exact (lbox_opts_program_eval_gen (efl := efl) o hguard hprop hnode (ExAst.trans_env Σ, t) v wfp ev).
+Qed.
+
+(** The typed pipeline for the typed backends: [typed_transform_pipeline]
+    followed by the lambda-box simplifications selected by [lbox], in the two
+    stages of [ELboxOpts.staged]. The result is evaluated with unguarded
+    fixpoints; it is not eta-expanded in general (fixpoint eta-hoisting leaves
+    fixpoints unapplied), which no typed backend needs. *)
+Program Definition typed_lbox_transform_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf (lbox : lbox_opts)
+  : Transform.t _ _ _ _ _ _
+   (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (eval_typed_eprogram_mapping EWcbvEval.target_wcbv_flags) :=
+   typed_transform_pipeline econf ▷
+   typed_unguarded_fix_transform (fl := EWcbvEval.opt_wcbv_flags) (wcon := eq_refl) (efl := efl) eq_refl ▷
+   typed_lbox_opts_transformation (fl := EWcbvEval.target_wcbv_flags) (efl := efl)
+     lbox.(lbox_case_id) case_id_opts eq_refl eq_refl eq_refl ELboxOptsSimStatic.case_id_node ▷
+   typed_lbox_opts_transformation (fl := EWcbvEval.target_wcbv_flags) (efl := efl)
+     (any_lbox_opts (without_case_id lbox)) (without_case_id lbox) eq_refl eq_refl eq_refl
+     (ELboxOptsSimStatic.lbox_node _).
+Next Obligation.
+  cbn. intros. exact H.
+Qed.
+Next Obligation.
+  cbn. intros. exact H.
+Qed.
+Final Obligation.
+  cbn. intros. exact H.
+Qed.
+
+(** What [typed_lbox_transform_pipeline] computes after [typed_transform_pipeline]. *)
+Lemma staged_lbox_opts_typed_program o p :
+  staged o lbox_opts_typed_program p =
+  (staged o optimize_typed_env p.1, staged o optimize p.2).
+Proof. unfold staged. destruct p, lbox_case_id, any_lbox_opts; reflexivity. Qed.
 
 
 Program Definition trans_env_transform {fl : EWcbvEval.WcbvFlags} {efl : EWellformed.EEnvFlags} :
@@ -556,6 +682,15 @@ Proof.
   exact (conj hm (conj hwf hexp)).
 Qed.
 
+(** The lambda-box stages of [typed_lbox_transform_pipeline] come after
+    [typed_transform_pipeline], so the two have the same precondition. *)
+Lemma typed_lbox_transform_pipeline_pre econf lbox m (p : ExAst.global_env * EAst.term) :
+  bool_of_result (@check_pipeline_pre nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
+  pre (typed_lbox_transform_pipeline econf lbox) (m, p).
+Proof.
+  exact (typed_transform_pipeline_pre econf m p).
+Qed.
+
 Lemma typed_to_untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m
   (p : ExAst.global_env * EAst.term) :
   bool_of_result (@check_pipeline_pre nocofix_env_flags m (ExAst.trans_env p.1, p.2)) = true ->
@@ -570,10 +705,10 @@ Definition run_untyped_transforms econf ind_reorder spec_inst cse lbox lift_cons
     (untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p)
     (run (untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).
 
-Definition run_typed_transforms econf ind_reorder (p : ExAst.global_env * EAst.term) :=
+Definition run_typed_transforms econf ind_reorder lbox (p : ExAst.global_env * EAst.term) :=
   with_check (@check_pipeline_pre nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
-    (typed_transform_pipeline_pre econf ind_reorder p)
-    (run (typed_transform_pipeline econf) (ind_reorder, p)).
+    (typed_lbox_transform_pipeline_pre econf lbox ind_reorder p)
+    (run (typed_lbox_transform_pipeline econf lbox) (ind_reorder, p)).
 
 Definition run_typed_to_untyped_transforms econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force
   (p : ExAst.global_env * EAst.term) :=

@@ -4,8 +4,11 @@
     rewriting some subterms of [t] with the local rewrites of [ELboxOpts]
     (one layer of rewrites: every rule looks at the shape of the *source*
     term).  [optimize] is a finite sequence of such steps, and each step is a
-    forward simulation for [EWcbvEval.eval] at the flags of the pipeline stage
-    (constructors as blocks, unguarded fixpoints, no propositional cases).
+    forward simulation for [EWcbvEval.eval] at any flags with unguarded
+    fixpoints and no propositional cases, for both representations of
+    constructor applications ([cval]: blocks, as in the untyped pipeline, or
+    applications, as in the typed one) and with or without constructor
+    parameters.
 
     Besides the congruence rules and the rewrite rules, [R] has rules that keep
     the source fixed and expand the target ([R_cofix], ...): they describe the
@@ -130,6 +133,19 @@ Definition dead_head (f : term) : Prop :=
 Section Rel.
   Context {wfl : WcbvFlags} (Σ' : global_declarations).
 
+  (** A constructor applied to [args], in the representation of constructor
+      applications selected by the evaluation flags: a block
+      [tConstruct ind c args], or the application of [tConstruct ind c []]
+      to [args]. *)
+  Definition cval (ind : inductive) (c : nat) (args : list term) : term :=
+    if with_constructor_as_block then tConstruct ind c args
+    else mkApps (tConstruct ind c []) args.
+
+  (** Constructor [c] of [ind] takes exactly [n] arguments. *)
+  Definition cfull (ind : inductive) (c n : nat) : Prop :=
+    exists mdecl idecl cdecl,
+      lookup_constructor Σ' ind c = Some (mdecl, idecl, cdecl) /\ n = cstr_arity mdecl cdecl.
+
   (** [tarity m w]: [w] can be applied to [m] closed values, one after the
       other, and each of these applications evaluates. *)
   Fixpoint tarity (m : nat) (w : term) : Prop :=
@@ -143,7 +159,7 @@ Section Rel.
       and evaluates. *)
   Inductive tred : term -> term -> Prop :=
   | tred_iota ind pars cdecl d c args brs br :
-      ∥ eval Σ' d (tConstruct ind c args) ∥ -> closed d -> forallb (closedn 0) args ->
+      ∥ eval Σ' d (cval ind c args) ∥ -> closed d -> forallb (closedn 0) args ->
       constructor_isprop_pars_decl Σ' ind c = Some (false, pars, cdecl) ->
       nth_error brs c = Some br ->
       #|args| = pars + cstr_nargs cdecl -> #|skipn pars args| = #|br.1| ->
@@ -158,14 +174,16 @@ Section Rel.
   Inductive R : term -> term -> Prop :=
   | R_head t t' : Rh t t' -> R t t'
   (** the target is a cofixpoint whose unfolding evaluates to (something
-      related to) the source constructor *)
+      related to) the source constructor, which has all its arguments (so
+      that the only way to use it is to analyse it, which unfolds the
+      cofixpoint) *)
   | R_cofix ind c args v0 mfix idx args' narg fn :
-      R (tConstruct ind c args) v0 ->
+      R (cval ind c args) v0 -> cfull ind c #|args| ->
       ∥ eval Σ' (mkApps fn args') v0 ∥ ->
       cunfold_cofix mfix idx = Some (narg, fn) ->
       ∥ value Σ' (mkApps (tCoFix mfix idx) args') ∥ ->
       closed (mkApps (tCoFix mfix idx) args') -> closed v0 ->
-      R (tConstruct ind c args) (mkApps (tCoFix mfix idx) args')
+      R (cval ind c args) (mkApps (tCoFix mfix idx) args')
   (** the target is any closed term evaluating to something related *)
   | R_eval t v0 t' :
       R t v0 -> ∥ eval Σ' t' v0 ∥ -> closed t' -> closed v0 -> R t t'
@@ -205,9 +223,10 @@ Section Rel.
          (tPrim (prim_array {| array_default := d'; array_value := v' |}))
   | Rh_lazy u u' : R u u' -> Rh (tLazy u) (tLazy u')
   | Rh_force u u' : R u u' -> Rh (tForce u) (tForce u')
-  (** [case_id] *)
-  | Rh_case_id ind p d d' brs :
-      R d d' -> all_rebuild ind brs -> Rh (tCase (ind, p) d brs) d'
+  (** [case_id], for inductive types without parameters: the branches
+      rebuild all the arguments of the constructor *)
+  | Rh_case_id ind d d' brs :
+      R d d' -> all_rebuild ind brs -> Rh (tCase (ind, 0) d brs) d'
   (** [beta_let]: beta-reduction, and pushing an argument into a let or
       into the branches of a case *)
   | Rh_beta na b b' a a' :
@@ -259,6 +278,34 @@ Section Rel.
   with Rbrs_mind := Minimality for Rbrs Sort Prop
   with Rdefs_mind := Minimality for Rdefs Sort Prop.
   Combined Scheme R_mutind from R_mind, Rh_mind, Rs_mind, Rbrs_mind, Rdefs_mind.
+
+  Lemma head_cval ind c args :
+    head (cval ind c args) = tConstruct ind c (if with_constructor_as_block then args else []).
+  Proof. unfold cval. destruct with_constructor_as_block; [reflexivity|]. now rewrite head_mkApps. Qed.
+
+  Lemma cval_block ind c args :
+    with_constructor_as_block = true -> cval ind c args = tConstruct ind c args.
+  Proof. unfold cval. now intros ->. Qed.
+
+  Lemma cval_app ind c args :
+    with_constructor_as_block = false -> cval ind c args = mkApps (tConstruct ind c []) args.
+  Proof. unfold cval. now intros ->. Qed.
+
+  Lemma cfull_isprop ind c b pars cdecl n :
+    constructor_isprop_pars_decl Σ' ind c = Some (b, pars, cdecl) ->
+    n = pars + cstr_nargs cdecl -> cfull ind c n.
+  Proof.
+    unfold constructor_isprop_pars_decl, cfull.
+    destruct lookup_constructor as [[[mdecl idecl] cdecl']|]; [|discriminate].
+    cbn. intros [= <- <- <-] ->. now eexists _, _, _.
+  Qed.
+
+  Lemma closedn_cval k ind c args : closedn k (cval ind c args) = forallb (closedn k) args.
+  Proof. unfold cval. destruct with_constructor_as_block; [reflexivity|]. now rewrite closedn_mkApps. Qed.
+
+  Lemma csubst_cval a k ind c args :
+    csubst a k (cval ind c args) = cval ind c (map (csubst a k) args).
+  Proof. unfold cval. destruct with_constructor_as_block; [reflexivity|]. now rewrite csubst_mkApps. Qed.
 
   Definition br_rel (br br' : list name × term) := br.1 = br'.1 /\ R br.2 br'.2.
   Definition def_rel (d d' : def term) :=
@@ -482,7 +529,8 @@ Section Rel.
     - (* cofix expansion *)
       rewrite (csubst_closed a' k (mkApps _ _)); [eapply closed_upwards; tea; lia|].
       specialize (H0 k). rewrite (csubst_closed a' k v0) in H0; [eapply closed_upwards; tea; lia|].
-      cbn in H0. eapply R_cofix; eauto.
+      rewrite csubst_cval in H0. rewrite csubst_cval.
+      eapply R_cofix; eauto. now rewrite length_map.
     - (* evaluation *)
       rewrite (csubst_closed a' k t'); [eapply closed_upwards; tea; lia|].
       specialize (H0 k). rewrite (csubst_closed a' k v0) in H0; [eapply closed_upwards; tea; lia|].
@@ -652,6 +700,13 @@ Section Rel.
 
 End Rel.
 
+Arguments cval : simpl never.
+
+(** [E : t = t'] where the heads of the two applications differ. *)
+Ltac head_contra E :=
+  exfalso; apply (f_equal head) in E; rewrite ?head_cval ?head_mkApps in E; cbn in E;
+  discriminate E.
+
 (** ** Evaluation at the flags of the pipeline stage *)
 
 Lemma map_seq_nth {A} (g : nat -> A) l s :
@@ -680,7 +735,6 @@ Qed.
 
 Section Flags.
   Context {wfl : WcbvFlags}.
-  Hypothesis Hblock : with_constructor_as_block = true.
   Hypothesis Hguard : with_guarded_fix = false.
   Hypothesis Hprop : with_prop_case = false.
   Variable Σ : global_declarations.
@@ -693,20 +747,25 @@ Section Flags.
     - eapply value_app_nonnil; auto; [constructor|discriminate].
   Qed.
 
-  Lemma value_tApp_inv f a :
-    value Σ (tApp f a) ->
-    ∑ mfix idx args, f = mkApps (tCoFix mfix idx) args × All (value Σ) (args ++ [a]).
+  Lemma value_app_head f a : value Σ (tApp f a) -> value Σ f.
   Proof.
     intros H. remember (tApp f a) as t eqn:E.
     destruct H as [? X|? ? ? ? ? ? ? ? ? ?|f0 args vh nn al].
     - exfalso. destruct X as [? i|?]; subst; [cbn in i|]; discriminate.
     - discriminate.
     - destruct (exists_last nn) as (l & x & ->). rewrite mkApps_app in E. cbn in E.
-      injection E as <- <-.
-      destruct vh.
-      + congruence.
-      + eexists _, _, _. split; [reflexivity|auto].
-      + rewrite Hguard in y. destruct y.
+      injection E as <- <-. apply All_app in al as [al _].
+      rewrite length_app in vh. cbn in vh.
+      destruct l as [|y l].
+      + cbn. destruct vh.
+        * constructor. constructor. unfold atom. now rewrite e e0.
+        * now do 2 constructor.
+        * rewrite Hguard in y. destruct y.
+      + eapply value_app_nonnil; auto; [|discriminate].
+        destruct vh.
+        * eapply value_head_cstr; tea. lia.
+        * constructor.
+        * rewrite Hguard in y0. destruct y0.
   Qed.
 
   Lemma eval_case_scrut ip d v0 brs r :
@@ -754,53 +813,11 @@ Section Flags.
   (** *** Identity cases evaluate to their scrutinee *)
 
   Hypothesis HclΣ : closed_env Σ.
-  Hypothesis Hpars : forall ind c b pars cdecl,
-    constructor_isprop_pars_decl Σ ind c = Some (b, pars, cdecl) -> pars = 0.
-
-  Lemma case_id_iota ind c br args res :
-    rebuilds ind c br -> #|args| = #|br.1| -> forallb (closedn 0) args ->
-    value Σ (tConstruct ind c args) ->
-    eval Σ (iota_red 0 args br) res -> res = tConstruct ind c args.
-  Proof.
-    intros Hr Hn cl V.
-    destruct (rebuild_iota _ _ _ _ Hr Hn cl) as (args0 & args1 & -> & E). intros ev.
-    destruct (eval_mkApps_Construct_block_inv _ _ _ _ _ _ Hblock ev) as (args' & -> & _ & _).
-    cbn in ev. rewrite app_nil_r in E. subst. symmetry. eapply eval_value; tea.
-  Qed.
-
-  Lemma case_id_result t v :
-    eval Σ t v -> forall ind p d brs, t = tCase (ind, p) d brs -> closed d ->
-    all_rebuild ind brs -> exists c args, v = tConstruct ind c args.
-  Proof.
-    induction 1; intros ind0 p0 d0 brs0 E cl Hb; try discriminate.
-    all: try (exfalso; unfold is_true in *; congruence).
-    - injection E; intros; subst.
-      match goal with H : constructor_isprop_pars_decl _ _ _ = Some (_, ?q, _) |- _ =>
-        pose proof (Hpars _ _ _ _ _ H) as Hq; rewrite Hq in H; try subst q end.
-      match goal with H : eval Σ ?d (tConstruct _ _ _) |- _ =>
-        have clv := eval_closed Σ HclΣ _ _ cl H; have vv := eval_to_value _ _ H end.
-      cbn in clv.
-      match goal with H : #|skipn 0 _| = _ |- _ => rewrite skipn_0 in H end.
-      do 2 eexists. eapply case_id_iota; tea.
-      eapply all_rebuild_nth; tea.
-    - injection E; intros; subst.
-      eapply IHeval2; [reflexivity| |tea].
-      have clv := eval_closed Σ HclΣ _ _ cl H. rewrite closedn_mkApps in clv.
-      move/andP: clv => [clf cla]. rewrite closedn_mkApps. apply/andP; split; auto.
-      eapply closed_cunfold_cofix; tea.
-    - subst. cbn in i. discriminate.
-  Qed.
 
   (** *** Applications: pushing an argument into a let or a case *)
 
   Lemma eval_lambda_inv na b v : eval Σ (tLambda na b) v -> v = tLambda na b.
   Proof. intros ev. exact (eval_deterministic ev (eval_atom Σ (tLambda na b) eq_refl)). Qed.
-
-  Lemma value_app_head f a : value Σ (tApp f a) -> value Σ f.
-  Proof.
-    intros H. destruct (value_tApp_inv _ _ H) as (mfix & idx & args & -> & Hall).
-    apply value_cofix_app. eapply All_app in Hall as [? _]. assumption.
-  Qed.
 
   Lemma mkApps_cofix_head mf idx args :
     match mkApps (tCoFix mf idx) args with
@@ -821,7 +838,8 @@ Section Flags.
     all: eexists; split; [eassumption|].
     all: let fin := try eassumption; try (eapply value_final, eval_to_value; eassumption) in
       first [ solve [eapply eval_box; fin] | solve [eapply eval_beta; fin]
-            | solve [eapply eval_fix'; fin] | solve [eapply eval_app_cong; fin] ].
+            | solve [eapply eval_fix'; fin] | solve [eapply eval_construct; fin]
+            | solve [eapply eval_app_cong; fin] ].
   Qed.
 
   Lemma eval_app_value x fv a r :
@@ -832,7 +850,61 @@ Section Flags.
     all: match goal with vf : value _ ?F, H : eval Σ ?F ?y |- _ =>
            eapply eval_value in H; [|exact vf]; subst end.
     all: first [ solve [eapply eval_box; eassumption] | solve [eapply eval_beta; eassumption]
-               | solve [eapply eval_fix'; eassumption] | solve [eapply eval_app_cong; eassumption] ].
+               | solve [eapply eval_fix'; eassumption] | solve [eapply eval_construct; eassumption]
+               | solve [eapply eval_app_cong; eassumption] ].
+  Qed.
+
+  (** Without constructors as blocks, a constructor carrying arguments is stuck. *)
+  Lemma eval_mkApps_Construct_nonblock ind c args0 args1 res :
+    with_constructor_as_block = false ->
+    eval Σ (mkApps (tConstruct ind c args0) args1) res -> args0 = [].
+  Proof.
+    intros Hb. revert res. induction args1 using rev_ind; intros res ev.
+    - cbn in ev. depelim ev; try flag_contra.
+      destruct args0; [reflexivity|]. cbn in i. discriminate.
+    - rewrite mkApps_app in ev. cbn in ev. apply eval_app_inv in ev as (fv & ef & _). eauto.
+  Qed.
+
+  (** *** Identity cases evaluate to their scrutinee *)
+
+  Lemma case_id_iota ind c br args res :
+    rebuilds ind c br -> #|args| = #|br.1| -> forallb (closedn 0) args ->
+    value Σ (cval ind c args) ->
+    eval Σ (iota_red 0 args br) res -> res = cval ind c args.
+  Proof.
+    intros Hr Hn cl V.
+    destruct (rebuild_iota _ _ _ _ Hr Hn cl) as (args0 & args1 & -> & E). intros ev.
+    destruct with_constructor_as_block eqn:Hb.
+    - destruct (eval_mkApps_Construct_block_inv _ _ _ _ _ _ Hb ev) as (args' & -> & _ & _).
+      cbn in ev. rewrite app_nil_r in E. subst.
+      rewrite (cval_block _ _ _ Hb) in V. rewrite (cval_block _ _ _ Hb).
+      symmetry. eapply eval_value; tea.
+    - have E0 := eval_mkApps_Construct_nonblock _ _ _ _ _ Hb ev. subst args0. cbn in E. subst args1.
+      rewrite (cval_app _ _ _ Hb) in V. rewrite (cval_app _ _ _ Hb). symmetry. eapply eval_value; tea.
+  Qed.
+
+  Lemma case_id_result t v :
+    eval Σ t v -> forall ind d brs, t = tCase (ind, 0) d brs -> closed d ->
+    all_rebuild ind brs -> exists c args, v = cval ind c args /\ cfull Σ ind c #|args|.
+  Proof.
+    induction 1; intros ind0 d0 brs0 E cl Hb; try discriminate.
+    all: try (exfalso; unfold is_true in *; congruence).
+    1-2: injection E; intros; subst;
+      match goal with H : eval Σ ?d _ |- _ =>
+        have clv := eval_closed Σ HclΣ _ _ cl H; have vv := eval_to_value _ _ H end;
+      match goal with H : #|skipn 0 _| = _ |- _ => rewrite skipn_0 in H end;
+      match goal with H : with_constructor_as_block = _ |- _ =>
+        first [erewrite <- cval_block in clv by exact H; erewrite <- cval_block in vv by exact H
+              |erewrite <- cval_app in clv by exact H; erewrite <- cval_app in vv by exact H] end;
+      rewrite closedn_cval in clv;
+      do 2 eexists; split; [eapply case_id_iota; tea; eapply all_rebuild_nth; tea|];
+      eapply cfull_isprop; tea; reflexivity.
+    - injection E; intros; subst.
+      eapply IHeval2; [reflexivity| |tea].
+      have clv := eval_closed Σ HclΣ _ _ cl H. rewrite closedn_mkApps in clv.
+      move/andP: clv => [clf cla]. rewrite closedn_mkApps. apply/andP; split; auto.
+      eapply closed_cunfold_cofix; tea.
+    - subst. cbn in i. discriminate.
   Qed.
 
   Lemma substl_tApp s x y : substl s (tApp x y) = tApp (substl s x) (substl s y).
@@ -861,13 +933,16 @@ Section Flags.
   Proof.
     intros cl ev. induction ev; intros ci0 d0 brs0 E ea; try discriminate; try flag_contra;
       try (subst; flag_contra).
-    - injection E as <- <- <-.
-      eapply eval_iota_block with (br := (br.1, tApp br.2 (lift0 #|br.1| a))); tea.
-      + unfold push_arg. rewrite nth_error_map.
-        match goal with H : nth_error _ _ = Some _ |- _ => now rewrite H end.
-      + unfold iota_red. cbn. rewrite substl_tApp.
-        rewrite (lift_closed _ 0 a) // (substl_closed _ a) //.
-        eapply eval_app_value; eassumption.
+    1-2: injection E as <- <- <-;
+      first [ eapply eval_iota_block with (br := (br.1, tApp br.2 (lift0 #|br.1| a)));
+              [eassumption|..]
+            | eapply eval_iota with (br := (br.1, tApp br.2 (lift0 #|br.1| a)));
+              [eassumption|..] ]; tea;
+      [ unfold push_arg; rewrite nth_error_map;
+        match goal with H : nth_error _ _ = Some _ |- _ => now rewrite H end
+      | unfold iota_red; cbn; rewrite substl_tApp;
+        rewrite (lift_closed _ 0 a) // (substl_closed _ a) //;
+        eapply eval_app_value; eassumption ].
     - injection E as <- <- <-.
       eapply eval_cofix_case; tea. eapply IHev2; auto.
   Qed.
@@ -890,6 +965,7 @@ Section Flags.
     all: match goal with H : eval Σ _ _ |- _ =>
            tryif constr_eq H ef then fail else have E := eval_deterministic H ef end.
     all: try discriminate E.
+    all: try (head_contra E).
     - injection E as -> ->. eexists; split; eassumption.
     - subst. cbn in *. discriminate.
   Qed.
@@ -902,6 +978,7 @@ Section Flags.
     all: match goal with H : eval Σ _ _ |- _ =>
            tryif constr_eq H ef then fail else have E := eval_deterministic H ef end.
     all: try discriminate E.
+    all: try (head_contra E).
     - injection E as -> ->. eexists _, _, _; repeat split; eassumption.
     - subst. rewrite Hguard in i. cbn in i. discriminate.
   Qed.
@@ -917,6 +994,7 @@ Section Flags.
     - eapply eval_box; tea.
     - eapply eval_beta; tea.
     - eapply eval_fix'; tea.
+    - eapply eval_construct; tea.
     - eapply eval_app_cong; tea.
   Qed.
 
