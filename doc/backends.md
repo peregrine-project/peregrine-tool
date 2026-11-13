@@ -55,12 +55,16 @@ Implemented in [coq-verified-extraction](https://github.com/yforster/coq-verifie
 
 Output — serialized malfunction AST. The CLI writes a `.mlf` file containing the source; it is compiled with the [malfunction](https://github.com/stedolan/malfunction) tool.
 
+The backend runs name annotation and the compilation to malfunction of verified extraction ([`OCamlBackend.v`](/theories/backends/OCamlBackend.v), `malfunction_pipeline`). Its correctness theorem assumes a precondition: the program is well formed for it (among others closed, without boxes and without primitive strings), and its inductive types have few enough constructors and constructor arguments. The backend checks it (`malfunction_check`), but compiles every program the same way, with `compile_ocaml`. When the check fails, it compiles the program anyway and warns, e.g. `Warning: OCaml backend: Program contains primitive strings; this program is outside verified-extraction's correctness theorem, so the generated code is not covered by the proof.` The proof does not cover such output. `--strict-verified` turns the warning into an error ([usage.md](usage.md#common-options)). `extract_ocaml_verified` proves that output without a warning is the printed result of `malfunction_pipeline`. Axioms and remapped constants get placeholder bodies for the check and are emitted as external references afterwards ([`ExtractionCheck.v`](/theories/backends/ExtractionCheck.v)); their realization is trusted.
+
 ## CakeML
 
 CakeML backend extracting to serialized CakeML AST 
 
 Output — serialized AST. The CLI writes a `.cml` file.
 The `.cml` file can be compiled using the [CakeML compiler](https://cakeml.org/) using the flags `--sexp=true --exclude_prelude=true --skip_type_inference=true`.
+
+As for OCaml, the backend checks the precondition of the name annotation pass (`cakeml_check` in [`CakeMLBackend.v`](/theories/backends/CakeMLBackend.v)), compiles every program with `compile_cakeml`, and warns when the check fails (an error with `--strict-verified`). `extract_cakeml_verified` proves that output without a warning is the printed result of `cakeml_pipeline`.
 
 ## Rust
 

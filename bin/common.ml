@@ -31,13 +31,17 @@ type copts = {
   output_file: string option;
   attrs: string list;
   passes: passes;
+  (* Fail instead of warning when the OCaml or CakeML backend's program is
+     outside verified extraction's correctness theorem *)
+  strict_verified: bool;
 }
-let mk_copts verbose debug output_file attrs passes = {
+let mk_copts verbose debug output_file attrs passes strict_verified = {
   verbose;
   debug;
   output_file;
   attrs;
   passes;
+  strict_verified;
 }
 
 (* The frontends, see frontend.ml *)
