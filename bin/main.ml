@@ -28,39 +28,60 @@ let pass_arg ?(aliases=[]) ?old name doc =
     let old = Arg.(value & opt_all bool [] & info [o] ~docs ~docv:"BOOL" ~deprecated) in
     Term.(const (fun n o -> match last n with Some _ as r -> r | None -> last o) $ flags $ old)
 
-(* The passes set by the presets: -O1 the lambda-box simplifications and the
-   standard inlinings, -O2 also the rest of the benchmarks' "full route". *)
+(* -O LEVEL. The default pass set (see [mk] below) is on unless -O0. -O2 is a
+   deprecated alias of the default, and -O1, the former intermediate level, is
+   rejected. normalize_argv turns a bare -O, the default, into -O default. *)
+type level = O0 | Default | O2
+
+let level_conv =
+  let parser = function
+    | "0" -> Ok O0
+    | "default" -> Ok Default
+    | "2" -> Ok O2
+    | "1" -> Error "-O1 was removed: there is no intermediate level any more. \
+                    The optional passes of the default are on unless -O0, and \
+                    each pass has its own option, e.g. -O0 --unwrap-fixpoints \
+                    or --no-lift-constants."
+    | v -> Error (Printf.sprintf "invalid value '%s', expected 0 (-O0 turns the \
+                                  optional passes off)" v) in
+  let pp ppf l = Format.pp_print_string ppf
+      (match l with O0 -> "0" | Default -> "default" | O2 -> "2") in
+  Arg.Conv.make ~docv:"LEVEL" ~parser ~pp ()
+
 let passes_t =
   let docs = s_passes in
   let level_arg =
-    let doc = "The pass preset: $(b,0) (the default) enables no optional pass, \
-               $(b,1) the four lambda-box simplifications \
-               ($(b,--unwrap-fixpoints --hoist-case-lambdas --drop-identity-matches --inline-atomic-lets)) \
-               and $(b,--inline-standard-constants), \
-               $(b,2) these and $(b,--inline-recursors --beta-reduce --lift-constants). \
-               The last $(b,-O) wins. A pass's own option overrides the preset, \
-               e.g. $(b,-O2 --no-unwrap-fixpoints). The passes a backend \
-               always runs or cannot run are not affected. For CertiRocq's \
-               optimization level, formerly $(b,-O), see $(b,--certirocq-O)." in
-    Arg.(value & opt_all (enum ["0", 0; "1", 1; "2", 2]) [] & info ["O"] ~docs ~docv:"LEVEL" ~doc)
+    let doc = "$(b,-O0) (or $(b,-O 0)) turns off the optional passes that \
+               are on by default: $(b,--inline-recursors \
+               --inline-standard-constants --beta-reduce --unwrap-fixpoints \
+               --hoist-case-lambdas --drop-identity-matches \
+               --inline-atomic-lets --lift-constants). Without it they all \
+               run. A pass's own option overrides the default and $(b,-O0), \
+               whatever the order, e.g. $(b,--no-lift-constants) or \
+               $(b,-O0 --beta-reduce). $(b,-O) alone selects the default, as \
+               does $(b,-O2), which is deprecated; $(b,-O1) was removed. The \
+               last $(b,-O) wins. The passes a backend always runs or cannot \
+               run are not affected. For CertiRocq's optimization level, \
+               formerly $(b,-O), see $(b,--certirocq-O)." in
+    Arg.(value & opt_all level_conv [] & info ["O"] ~docs ~docv:"LEVEL" ~doc)
   in
   let lbox_opts_arg =
-    Arg.(value & flag & info ["lbox-opts"] ~docs ~deprecated:"Use $(b,-O1) instead (with a higher $(b,-O), it has no effect).")
+    Arg.(value & flag & info ["lbox-opts"] ~docs ~deprecated:"Its passes are on by default; with $(b,-O0), use $(b,--unwrap-fixpoints --hoist-case-lambdas --drop-identity-matches --inline-atomic-lets --inline-standard-constants) instead.")
   in
   let lbox what = what ^ " A lambda-box simplification of ELboxOpts.v, as Rocq's \
                            extraction does in Mlutil; it runs after inlining and \
                            beta reduction, for every backend. Well-formedness \
                            and evaluation preservation are proved (ELboxOptsWf.v, \
-                           ELboxOptsSim*.v). Enabled by $(b,-O1)." in
+                           ELboxOptsSim*.v). On by default." in
   let inline_recursors = pass_arg "inline-recursors"
       "Inline the recursors of the program: every constant \
        $(i,I)_rect or $(i,I)_rec whose inductive $(i,I) is declared \
        in the same module is added to the inlinings, exactly as if \
        an attribute file listed it (see --attributes). Rocq's own \
        extraction always does this. Combine with $(b,--beta-reduce) to \
-       reduce the inlined recursors to direct recursion. Enabled by $(b,-O2)." in
+       reduce the inlined recursors to direct recursion. On by default." in
   let beta_reduce = pass_arg "beta-reduce" ~old:"betared"
-      "Beta-reduce. Enabled by $(b,-O2)." in
+      "Beta-reduce. On by default." in
   let unbox = pass_arg "unbox" ~old:"unboxing"
       "Unbox singleton types." in
   let dearg_constants = pass_arg "dearg-constants" ~old:"dearg-consts"
@@ -72,7 +93,7 @@ let passes_t =
       "Eliminate common subexpressions, restoring sharing that erasure drops." in
   let lift_constants = pass_arg "lift-constants"
       "Lift closed constructor values (e.g. nat literals) to shared global \
-       constants. Enabled by $(b,-O2)." in
+       constants. On by default." in
   let unwrap_fixpoints = pass_arg "unwrap-fixpoints" ~old:"lbox-fix-eta" (lbox
       "Fixpoint eta-hoisting: (fun xs => (fix F ..) xs) becomes the fixpoint, \
        where an argument may also be a box passed for a dead parameter.") in
@@ -94,7 +115,7 @@ let passes_t =
        and Acc_iter of Corelib.Init, as far as the program uses them and \
        they are not remapped. They are added to the inlinings exactly as \
        if an attribute file listed them, so this uses the verified \
-       inlining pass (AutoInlining.v). Enabled by $(b,-O1)." in
+       inlining pass (AutoInlining.v). On by default." in
   let inline_small_constants = pass_arg "inline-small-constants"
       "Inline every small constant: one whose body contains no fixpoint, \
        is a function or a constructor value (so that no computation is \
@@ -104,7 +125,7 @@ let passes_t =
        Rocq's extraction). Remapped constants, the main constant and \
        those given by $(b,--no-inline) are never selected. Uses the verified \
        inlining pass; combine with $(b,--beta-reduce) and $(b,--iota-reduce). \
-       Not enabled by any preset." in
+       Off by default." in
   let inline_size_limit =
     let doc = "Size limit of $(b,--inline-small-constants): constants of size \
                strictly below $(docv) are inlined." in
@@ -128,21 +149,28 @@ let passes_t =
        after inlining and beta reduction and before the other lambda-box \
        simplifications and $(b,--lift-constants), for every backend. \
        Well-formedness and evaluation preservation are proved without \
-       axioms. Not enabled by any preset." in
+       axioms. Off by default." in
   let mk level lbox_opts ir br ub dc si cse lc fe cf ci lf std small limit noinl iota =
-    let level = Option.value ~default:0 (last level) in
-    let level = if lbox_opts then max level 1 else level in
-    (* A pass not set explicitly is on if the preset has it, and otherwise
-       left to the configuration file or the backend *)
-    let pre n o = match o with Some _ -> o | None -> if level >= n then Some true else None in
-    let on n o = Option.value ~default:false (pre n o) in
-    { inline_recursors = on 2 ir; beta_reduce = pre 2 br; unbox = ub;
+    if List.mem O2 level then
+      prerr_endline "peregrine: -O2 is deprecated: its passes are the default (-O0 turns them off).";
+    let optimize = last level <> Some O0 in
+    (* A pass not set explicitly is on if it is in the default pass set and
+       not under -O0, and otherwise off. Beta reduction and constant lifting
+       are left to the configuration file, then to the default pass set
+       ([optimize], see mk_erasure_config in compile.ml), then to the backend.
+       The deprecated --lbox-opts turns on the former -O1 passes, also under
+       -O0. *)
+    let on o = Option.value ~default:optimize o in
+    let o1 o = Option.value ~default:(optimize || lbox_opts) o in
+    let off o = Option.value ~default:false o in
+    { optimize;
+      inline_recursors = on ir; beta_reduce = br; unbox = ub;
       dearg_constants = dc; specialize_instances = si;
-      share_common_subterms = cse; lift_constants = pre 2 lc;
-      unwrap_fixpoints = on 1 fe; hoist_case_lambdas = on 1 cf;
-      drop_identity_matches = on 1 ci; inline_atomic_lets = on 1 lf;
-      iota_reduce = on max_int iota;
-      inline_standard_constants = on 1 std; inline_small_constants = on max_int small;
+      share_common_subterms = cse; lift_constants = lc;
+      unwrap_fixpoints = o1 fe; hoist_case_lambdas = o1 cf;
+      drop_identity_matches = o1 ci; inline_atomic_lets = o1 lf;
+      iota_reduce = off iota;
+      inline_standard_constants = o1 std; inline_small_constants = off small;
       inline_size_limit = limit; no_inline = noinl }
   in
   Term.(const mk $ level_arg $ lbox_opts_arg $ inline_recursors $ beta_reduce $ unbox
@@ -153,7 +181,8 @@ let passes_t =
 
 (* The forms --specialize-instances=BOOL and --cse=BOOL (or with BOOL as the
    next argument) of before the pass options were flags, deprecated: they
-   become --X or --no-X, so the last of them wins. *)
+   become --X or --no-X, so the last of them wins. A bare -O becomes
+   -Odefault. *)
 let normalize_argv argv =
   let bool_flags = ["specialize-instances"; "cse"] in
   let flag n b = if b then "--" ^ n else "--no-" ^ n in
@@ -161,9 +190,18 @@ let normalize_argv argv =
     Printf.eprintf "peregrine: option '--%s %s' deprecated, use '%s' instead.\n%!"
       n v (flag n (v = "true")) in
   let is_bool v = v = "true" || v = "false" in
+  (* Digits are taken as a level, so that -O 3 is rejected as one *)
+  let is_level v =
+    v <> "" && String.for_all (fun c -> c >= '0' && c <= '9') v in
   let rec go = function
     | [] -> []
     | "--" :: rest -> "--" :: rest
+    (* A bare -O is the default; cmdliner would take the next argument as its
+       value, so it is given one. *)
+    | "-O" :: rest when (match rest with
+        | v :: _ -> not (v = "default" || is_level v)
+        | [] -> true) ->
+      "-Odefault" :: go rest
     | a :: rest ->
       match String.index_opt a '=' with
       | Some i when i > 2 && String.sub a 0 2 = "--"
@@ -226,7 +264,7 @@ let certirocq_opts_t =
     Arg.(value & opt (some int) None & info ["certirocq-c-args"] ~docs ~docv:"N" ~doc)
   in
   let o_level_arg =
-    let doc = "CertiRocq's optimization level: 1 (the default) enables lambda lifting, 0 disables it. Before, this was $(b,-O) $(docv), which now selects the pass preset." in
+    let doc = "CertiRocq's optimization level: 1 (the default) enables lambda lifting, 0 disables it. Before, this was $(b,-O) $(docv), which now turns peregrine's optional passes off ($(b,-O0))." in
     Arg.(value & opt (some int) None & info ["certirocq-O"] ~docs ~docv:"N" ~doc)
   in
   let body_name_arg =
@@ -297,8 +335,8 @@ let help_secs = [
       command accepts them; $(b,erase) and $(b,validate) ignore them. A \
       pass is set by its last $(b,--)$(i,PASS) or $(b,--no-)$(i,PASS), \
       otherwise by its deprecated $(i,BOOL) option, otherwise by the \
-      preset ($(b,-O)), otherwise by the configuration file of $(b,compile), \
-      otherwise by the backend's default. A backend that requires a pass or \
+      configuration file of $(b,compile), otherwise by the default pass \
+      set (unless $(b,-O0)), otherwise by the backend's default. A backend that requires a pass or \
       cannot run it ignores the setting.";
   `S "MORE HELP";
   `P "Use $(mname) $(i,COMMAND) --help for help on a single command.";`Noblank;

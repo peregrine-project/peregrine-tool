@@ -137,10 +137,13 @@ let mk_certirocq_config copts = {
 }
 
 (* The erasure phases of [base] (a configuration file's, or none), with the
-   passes given on the command line overriding them. implement box and
-   implement lazy are the backend's choice (ConfigUtils.enforce_phases). *)
+   passes given on the command line overriding them. Beta reduction and
+   constant lifting, which the default pass set has, are on where neither
+   sets them, unless -O0. implement box and implement lazy are the backend's
+   choice (ConfigUtils.enforce_phases). *)
 let mk_erasure_config ?base (p : passes) =
   let ov cli file = match cli with Some _ -> cli | None -> file in
+  let default = if p.optimize then Some true else None in
   let b = match base with
     | Some b -> b
     | None -> { ConfigUtils.implement_box' = None; implement_lazy' = None;
@@ -148,18 +151,18 @@ let mk_erasure_config ?base (p : passes) =
                 dearg_consts' = None; specialize_instances' = None;
                 cse' = None; lift_constants' = None } in
   { b with
-    ConfigUtils.betared'        = ov p.beta_reduce b.ConfigUtils.betared';
+    ConfigUtils.betared'        = ov p.beta_reduce (ov b.ConfigUtils.betared' default);
     ConfigUtils.unboxing'       = ov p.unbox b.ConfigUtils.unboxing';
     ConfigUtils.dearg_consts'   = ov p.dearg_constants b.ConfigUtils.dearg_consts';
     ConfigUtils.specialize_instances' = ov p.specialize_instances b.ConfigUtils.specialize_instances';
     ConfigUtils.cse'            = ov p.share_common_subterms b.ConfigUtils.cse';
-    ConfigUtils.lift_constants' = ov p.lift_constants b.ConfigUtils.lift_constants';
+    ConfigUtils.lift_constants' = ov p.lift_constants (ov b.ConfigUtils.lift_constants' default);
   }
 
-(* Does the command line set an erasure phase (one of those of a
-   configuration file)? *)
+(* Does the command line, or the default pass set, set an erasure phase (one
+   of those of a configuration file)? *)
 let sets_erasure_phase (p : passes) =
-  List.exists Option.is_some
+  p.optimize || List.exists Option.is_some
     [p.beta_reduce; p.unbox; p.dearg_constants; p.specialize_instances;
      p.share_common_subterms; p.lift_constants]
 
@@ -250,7 +253,8 @@ let compile opts fo f_prog f_config =
     | ResultMonad.Ok { Config.backend_opts = (Config.Rust _ | Config.Elm _ | Config.AST Config.LambdaBoxTyped); _ } -> true
     | _ -> false in
   (* The passes given on the command line override the file's erasure
-     phases. If the file does not parse, the pipeline reports it. *)
+     phases, which override the default pass set. If the file does not
+     parse, the pipeline reports it. *)
   let config =
     if not (sets_erasure_phase opts.passes) then Datatypes.Coq_inl config
     else match Peregrine.Deserialize.config_of_string config with
