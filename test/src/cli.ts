@@ -24,12 +24,20 @@ const cli_tests: [string[], number, string][] = [
     [["c", "--lbox-opts", "x.ast"], 1, "Failed parsing input program"],
     [["c", "--lbox-opts", "--lbox-case-id", "false", "x.ast"], 1, "Failed parsing input program"],
     [["c", "--lift-constants", "x.ast"], 1, "Failed parsing input program"],
-    [["c", "-O2", "x.ast"], 1, "Failed parsing input program"],
-    [["c", "-O1", "--no-drop-identity-matches", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "-O0", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "-O", "0", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "-O", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "-O0", "--no-drop-identity-matches", "x.ast"], 1, "Failed parsing input program"],
+    // -O2 is the default, deprecated
+    [["c", "-O2", "x.ast"], 1, "-O2 is deprecated"],
+    [["c", "-O", "2", "x.ast"], 1, "Failed parsing input program"],
     [["c", "--specialize-instances", "x.ast"], 1, "Failed parsing input program"],
     [["c", "--cse", "true", "x.ast"], 1, "Failed parsing input program"],
     [["c", "--certirocq-cps", "x.ast"], 1, "Failed parsing input program"],
     // removed options
+    [["c", "-O1", "x.ast"], 124, "-O1 was removed"],
+    [["c", "-O", "1", "x.ast"], 124, "-O1 was removed"],
+    [["c", "-O", "3", "x.ast"], 124, "invalid value"],
     [["c", "--dearg-ctors", "false", "x.ast"], 124, "unknown option"],
 ];
 
