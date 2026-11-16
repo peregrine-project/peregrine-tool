@@ -33,12 +33,15 @@ Section Tail.
     | _ => false
     end.
 
+  (* [rev'] ([rev_append]) is linear, while [rev] is quadratic: the main
+     function of a program with many lifted constants is one block of tens of
+     thousands of instructions, on which [rev] took most of the compile time. *)
   Definition tail_code (c : code typ) (r : raw_id) : code typ :=
-    match rev c with
+    match rev' c with
     | (IId x, INSTR_Call f args [] obs, md) :: rest =>
       if raw_id_eqb x r then
         if forallb tail_arg args
-        then rev ((IId x, INSTR_Call f args [ANN_tail Tail] obs, md) :: rest)
+        then rev' ((IId x, INSTR_Call f args [ANN_tail Tail] obs, md) :: rest)
         else c
       else c
     | _ => c
