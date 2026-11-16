@@ -179,42 +179,42 @@ These options apply to every command.
 
 These options switch the optional passes of the middle-end. Every command takes them; `erase` and `validate` ignore them. Each pass has a flag `--PASS` that enables it and `--no-PASS` that disables it.
 
-| Flag | Pass | Preset |
-|------|------|--------|
-| `--inline-recursors` | inline the program's recursors (see below) | `-O2` |
-| `--inline-standard-constants` | inline the constants that Rocq's extraction always inlines (see below) | `-O1` |
+| Flag | Pass | Default |
+|------|------|---------|
+| `--inline-recursors` | inline the program's recursors (see below) | on |
+| `--inline-standard-constants` | inline the constants that Rocq's extraction always inlines (see below) | on |
 | `--inline-small-constants` | inline small non-recursive constants, below `--inline-size-limit N`, except `--no-inline NAME` (see below) | |
-| `--beta-reduce` | beta reduction | `-O2` |
+| `--beta-reduce` | beta reduction | on |
 | `--unbox` | remove singleton types (inductives with one constructor of one argument) | |
 | `--dearg-constants` | trim the masks of dead constant arguments | |
 | `--specialize-instances` | specialize functions at the call sites that pass a statically known dictionary (record) value | |
 | `--share-common-subterms`, `--cse` | bind closed subterms that occur more than once with a `let` | |
-| `--lift-constants` | lift closed constructor values (for example unary `nat` literals `S (S (… O))`) out of function bodies into shared global constants | `-O2` |
+| `--lift-constants` | lift closed constructor values (for example unary `nat` literals `S (S (… O))`) out of function bodies into shared global constants | on |
 | `--iota-reduce` | generalised iota reduction: a `match` on a constructor becomes its branch, with lets; a `match` is pushed under a `let` or into the branches of a `match` that end in constructors (see below) | |
-| `--unwrap-fixpoints` | fixpoint eta-hoisting: `fun xs => (fix F ..) xs` becomes the fixpoint, where an argument may be $\square$ for a dead parameter | `-O1` |
-| `--hoist-case-lambdas` | case/function permutation: `match x with C => fun y => e` becomes `fun y => match x with C => e` for a variable `x` | `-O1` |
-| `--drop-identity-matches` | identity cases: `match e with C xs => C xs` becomes `e` | `-O1` |
-| `--inline-atomic-lets` | `let z := a in e` becomes `e[a/z]` when `a` is a variable, box, constant or constant constructor; `(let z := v in f) b` becomes `let z := v in f b`, `(fun y => e) b` becomes `e[b/y]` and arguments are pushed into the branches of an applied `match`, for such atomic `b` | `-O1` |
+| `--unwrap-fixpoints` | fixpoint eta-hoisting: `fun xs => (fix F ..) xs` becomes the fixpoint, where an argument may be $\square$ for a dead parameter | on |
+| `--hoist-case-lambdas` | case/function permutation: `match x with C => fun y => e` becomes `fun y => match x with C => e` for a variable `x` | on |
+| `--drop-identity-matches` | identity cases: `match e with C xs => C xs` becomes `e` | on |
+| `--inline-atomic-lets` | `let z := a in e` becomes `e[a/z]` when `a` is a variable, box, constant or constant constructor; `(let z := v in f) b` becomes `let z := v in f b`, `(fun y => e) b` becomes `e[b/y]` and arguments are pushed into the branches of an applied `match`, for such atomic `b` | on |
 
-`-O LEVEL` (`-O0`, `-O1`, `-O2`) selects a preset: `-O0`, the default, enables no optional pass; `-O1` enables the four $\lambda_\square$ simplifications (`--unwrap-fixpoints --hoist-case-lambdas --drop-identity-matches --inline-atomic-lets`) and `--inline-standard-constants`; `-O2` enables these and `--inline-recursors --beta-reduce --lift-constants`. No preset enables `--inline-small-constants` or `--iota-reduce`. The last `-O` wins. A preset only enables passes; `--no-PASS` disables a pass of the preset, e.g. `-O2 --no-unwrap-fixpoints`.
+There are two optimization settings. By default, the passes marked *on* run: `--inline-recursors --inline-standard-constants --beta-reduce --unwrap-fixpoints --hoist-case-lambdas --drop-identity-matches --inline-atomic-lets --lift-constants`. `-O0` (or `-O 0`) turns them all off, so that no optional pass runs. Every pass is verified, so there are no intermediate levels. A pass's own flag overrides the default and `-O0`, whatever the order: `--no-PASS` removes a pass from the default (e.g. `--no-unwrap-fixpoints`), and `-O0 --PASS` runs that pass alone. The passes marked *off* run only when their flag is given. `-O` alone selects the default, and so does `-O2` (or `-O 2`), which is deprecated and prints a note; `-O1` was removed and is an error. The last `-O` wins.
 
 A pass is set by, in this order of precedence:
 
 1. its last `--PASS` or `--no-PASS` flag;
 2. its last [deprecated](#deprecated-commands-and-options) `BOOL` option (e.g. `--betared=true`);
-3. the preset;
-4. for `compile`, the `erasure_phases` of the configuration file;
+3. for `compile`, the `erasure_phases` of the configuration file;
+4. the default set of passes above, unless `-O0`;
 5. the backend's default; the defaults are in the tables of [middleend.md](middleend.md#transformation-support-untyped-target-ast).
 
 A backend that requires a pass, or cannot run it, ignores the setting. Implement $\square$ and implement lazy are not options: each backend decides them ([middleend.md](middleend.md#optional-passes)).
 
 * Dearging removes dead constructor and constant arguments whenever MetaRocq's precondition holds; `--dearg-constants` does not switch it, it drops the kept arguments at the end of a constant's mask. Constructor masks are never trimmed: MetaRocq rejects a trimmed constructor mask, and dearging was then skipped for the whole program. The former `--dearg-ctors`, which had no effect, is removed.
-* `--specialize-instances`, `--share-common-subterms` and `--lift-constants` are off by default and act only on the untyped targets. The typed pipeline of `rust` and `elm` does not run them. `--lift-constants` helps the backends that rebuild a constant value at every evaluation (C, Wasm, CakeML, Lean). Their correctness rests on axioms ([middleend.md](middleend.md#optional-passes)).
+* `--specialize-instances` and `--share-common-subterms` are off by default; `--lift-constants` is on by default. The three act only on the untyped targets. The typed pipeline of `rust` and `elm` does not run them. `--lift-constants` helps the backends that rebuild a constant value at every evaluation (C, Wasm, CakeML, Lean). Their correctness rests on axioms ([middleend.md](middleend.md#optional-passes)).
 * `--inline-recursors` adds the program's recursors to the inlinings: every constant `I_rect` or `I_rec` whose inductive `I` is declared in the same module, exactly as if an attribute file listed it. Rocq's own extraction always does this; with `--beta-reduce` the inlined recursors become direct pattern matching and recursion ([RecursorInlining.v](/theories/RecursorInlining.v)). The inlining pass is MetaRocq's verified `EInlining`. The typed pipeline of `rust` and `elm` does not inline.
-* The four $\lambda_\square$ simplifications are those that Rocq's extraction performs (`Mlutil`), for every backend. They run after inlining and beta reduction, so they are most useful with `--inline-recursors --beta-reduce`, i.e. `-O2`. Their correctness is proved, without axioms ([middleend.md](middleend.md#optional-passes)).
-* `--inline-standard-constants` (enabled by `-O1`) adds to the inlinings the constants that Rocq's extraction always inlines (`Mlutil.manual_inline_set`), when the program defines them: `andb`, `orb`, `eq_rect_r`, `eq_rec_r`, `proj1_sig`, `well_founded_induction`, `well_founded_induction_type`, `Fix`, `Fix_F` and `Acc_iter` of the core library.
-* `--inline-small-constants` (off by default, in no preset) adds every small non-recursive constant to the inlinings, like Rocq's `Set Extraction AutoInline` but without its strictness test ([AutoInlining.v](/theories/AutoInlining.v)). A constant is chosen when its body contains no fixpoint, is a value (a function, a box, a constant or a constructor of values, so that no computation is duplicated or moved) and has size below `--inline-size-limit N` (default 12). The size follows Rocq's `ml_size`: one per application argument that is not a box, per lambda, per `let`, per `match` and per projection; variables, constants, boxes and constructors are free. Inlining is transitive (a chosen constant is inlined into later ones first); to bound the growth, a constant is only chosen if its body after inlining is below twice the limit. Remapped constants, the main constant, and constants named by `--no-inline NAME` (repeatable; `NAME` is the full kernel name such as `Corelib.Init.Datatypes.andb`) are never chosen by these two options. Both only compute a list of constants: the result is the same as listing them under `inlinings` in an attribute file, and the pass is MetaRocq's verified `EInlining`, which is correct for any list. Declarations are kept. The typed pipeline of `rust` and `elm` does not inline.
-* `--iota-reduce` (off by default, in no preset) enables generalised iota reduction (Rocq's `iota_red`/`iota_gen`): `match C a1 .. an with .. | C x1 .. xn => e | ..` becomes `let x1 := a1 in .. let xn := an in e` (an atomic `ai` is substituted instead; the parameters of `C`, if any, are dropped); `match (let z := v in d) with brs` becomes `let z := v in match d with brs`; and `match (match d with p => e ..) with brs` becomes `match d with p => (match e with brs) ..` when every branch of the inner match ends in a constructor (through lets and matches) and each outer branch is either reached by at most one of them or has size at most 12, so the outer match disappears in each inner branch. It runs once, bottom-up, after inlining and beta reduction and before the other $\lambda_\square$ simplifications and `--lift-constants` (which would hide constructors behind constants), so it is most useful with `--inline-small-constants --beta-reduce`, and `--inline-atomic-lets` cleans up after it. It runs for every backend, in the typed pipeline of `rust` and `elm` too. Its correctness is proved, without axioms ([middleend.md](middleend.md#optional-passes)).
+* The four $\lambda_\square$ simplifications are those that Rocq's extraction performs (`Mlutil`), for every backend. They run after inlining and beta reduction, so they are most useful with `--inline-recursors --beta-reduce`, which the default has. Their correctness is proved, without axioms ([middleend.md](middleend.md#optional-passes)).
+* `--inline-standard-constants` (on by default) adds to the inlinings the constants that Rocq's extraction always inlines (`Mlutil.manual_inline_set`), when the program defines them: `andb`, `orb`, `eq_rect_r`, `eq_rec_r`, `proj1_sig`, `well_founded_induction`, `well_founded_induction_type`, `Fix`, `Fix_F` and `Acc_iter` of the core library.
+* `--inline-small-constants` (off by default) adds every small non-recursive constant to the inlinings, like Rocq's `Set Extraction AutoInline` but without its strictness test ([AutoInlining.v](/theories/AutoInlining.v)). A constant is chosen when its body contains no fixpoint, is a value (a function, a box, a constant or a constructor of values, so that no computation is duplicated or moved) and has size below `--inline-size-limit N` (default 12). The size follows Rocq's `ml_size`: one per application argument that is not a box, per lambda, per `let`, per `match` and per projection; variables, constants, boxes and constructors are free. Inlining is transitive (a chosen constant is inlined into later ones first); to bound the growth, a constant is only chosen if its body after inlining is below twice the limit. Remapped constants, the main constant, and constants named by `--no-inline NAME` (repeatable; `NAME` is the full kernel name such as `Corelib.Init.Datatypes.andb`) are never chosen by these two options. Both only compute a list of constants: the result is the same as listing them under `inlinings` in an attribute file, and the pass is MetaRocq's verified `EInlining`, which is correct for any list. Declarations are kept. The typed pipeline of `rust` and `elm` does not inline.
+* `--iota-reduce` (off by default) enables generalised iota reduction (Rocq's `iota_red`/`iota_gen`): `match C a1 .. an with .. | C x1 .. xn => e | ..` becomes `let x1 := a1 in .. let xn := an in e` (an atomic `ai` is substituted instead; the parameters of `C`, if any, are dropped); `match (let z := v in d) with brs` becomes `let z := v in match d with brs`; and `match (match d with p => e ..) with brs` becomes `match d with p => (match e with brs) ..` when every branch of the inner match ends in a constructor (through lets and matches) and each outer branch is either reached by at most one of them or has size at most 12, so the outer match disappears in each inner branch. It runs once, bottom-up, after inlining and beta reduction and before the other $\lambda_\square$ simplifications and `--lift-constants` (which would hide constructors behind constants), so it is most useful with `--inline-small-constants --beta-reduce`, and `--inline-atomic-lets` cleans up after it. It runs for every backend, in the typed pipeline of `rust` and `elm` too. Its correctness is proved, without axioms ([middleend.md](middleend.md#optional-passes)).
 * Peregrine rejects programs with cofixpoints (coinductive types), whatever the backend. `c`, `wasm`, `llvm`, `ocaml`, `cakeml` and `eval` also reject a program that still has `lazy` or `force` after the middle-end; `lean`, `fsharp` and `koka` always run implement lazy, which removes them.
 
 
@@ -293,7 +293,8 @@ They keep working and print a warning on standard error. The deprecated commands
 | `--dearg-consts=BOOL` | `--dearg-constants`, `--no-dearg-constants` |
 | `--specialize-instances=BOOL` | `--specialize-instances`, `--no-specialize-instances` |
 | `--cse=BOOL` | `--share-common-subterms` (or `--cse`), `--no-share-common-subterms` |
-| `--lbox-opts` | `-O1` |
+| `--lbox-opts` | `--unwrap-fixpoints --hoist-case-lambdas --drop-identity-matches --inline-atomic-lets --inline-standard-constants` (now in the default) |
+| `-O2`, `-O 2` | the default (no option) |
 | `--lbox-fix-eta=BOOL` | `--unwrap-fixpoints`, `--no-unwrap-fixpoints` |
 | `--lbox-case-fun=BOOL` | `--hoist-case-lambdas`, `--no-hoist-case-lambdas` |
 | `--lbox-case-id=BOOL` | `--drop-identity-matches`, `--no-drop-identity-matches` |
@@ -338,8 +339,11 @@ peregrine erase main.coq --from rocq --entry main -o main.ast
 # A lambda box program, with an attribute file and optional passes
 peregrine ocaml main.ast --attributes=bool_reorder.attr --share-common-subterms --specialize-instances
 
-# The benchmarks' full route: the -O2 preset, without fixpoint eta-hoisting
-peregrine c main.ast -O2 --no-unwrap-fixpoints -o main.c
+# The default passes, without fixpoint eta-hoisting
+peregrine c main.ast --no-unwrap-fixpoints -o main.c
+
+# No optional pass
+peregrine c main.ast -O0 -o main.c
 
 # A full pipeline configuration
 peregrine compile main.ast config.sexp -o main.c

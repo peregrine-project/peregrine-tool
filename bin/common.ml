@@ -2,8 +2,11 @@ type verbose = Normal | Quiet | Verbose
 
 (* The optional passes of the pipeline, as resolved from the command line
    (see [passes_t] in main.ml). [None] leaves the pass to the configuration
-   file of `compile`, or else to the backend's default. *)
+   file of `compile`, or else to the default pass set (if [optimize]), or
+   else to the backend's default. *)
 type passes = {
+  (* The default pass set is on: false under -O0 *)
+  optimize              : bool;
   inline_recursors      : bool;
   beta_reduce           : bool option;
   unbox                 : bool option;

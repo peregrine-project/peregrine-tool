@@ -42,6 +42,10 @@ peregrine erase Prog.v --entry main -o prog.ast
 peregrine eval prog.ast
 ```
 
+Every optimisation pass is verified, so there is a single optimisation level,
+the default. `-O0` turns the default passes off, and each
+pass has its own `--PASS` / `--no-PASS` switch (see [doc/usage.md](doc/usage.md)).
+
 
 ## Frontends
 
