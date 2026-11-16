@@ -43,7 +43,7 @@ pin-depends: [
   # switch_no_params for MetaRocq#1286, MetaRocq/rocq-verified-extraction#44)
   # plus 7 commits that remove the axiom trust_coq_kernel: the correctness
   # theorems take the erasure precondition as a hypothesis.
-  ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/peregrine-project/rocq-verified-extraction.git#eaf5375613cc5c34507ca2601c7761df2797a47d"]
+  ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/peregrine-project/rocq-verified-extraction.git#f999f40ca7a2ecb52d71b5497a417ec46c5c0403"]
   # cakeml-backend ported to the MetaRocq 9.1 snapshot, with the datatype
   # declarations and qualified constructor names (cakeml-backend#16).
   ["rocq-cakeml-extraction.0.1.1+dev" "git+https://github.com/peregrine-project/cakeml-backend.git#8df83a16525ca08bb9b5b375b3331b3f480d346b"]
