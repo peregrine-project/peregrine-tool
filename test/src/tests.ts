@@ -308,11 +308,13 @@ var agda_tests: TestCase[] =
         // Untyped
         agda_nat_test("ErasedRecursion", 2, false),
         {
+            // Rust-untyped passes with the default passes. Without them (-O0),
+            // which no configuration runs on the untyped source,
+            // Prelude.splitAt takes its argument x : a as a function parameter
+            // and returns a closure capturing it, and the Rust printer does
+            // not bound a by the lifetime of the closure (E0309, #127)
             ...agda_nat_test("Fannkuch", 7, false),
-            xfail: {
-                ...elm_operator,
-                "Rust-untyped": "#127: after eta-expansion, Prelude.splitAt takes its argument x : a as a function parameter and returns a closure capturing it, and the Rust printer does not bound a by the lifetime of the closure (E0309)"
-            }
+            xfail: elm_operator
         },
         {
             ...agda_nat_test("InductionRecursion", 3, false),
