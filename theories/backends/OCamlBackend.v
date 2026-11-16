@@ -56,7 +56,8 @@ Local Existing Instance CanonicalPointer.
     [assume_can_be_extracted]) does not imply the precondition of
     [name_annotation] anyway: it allows boxes, while [name_annotation] needs a
     box-free program.  Instead, [extract_ocaml] checks the precondition of
-    [name_annotation] directly ([malfunction_check]). *)
+    [name_annotation] directly ([malfunction_check]), and warns when it fails
+    ([extract_ocaml_verified]). *)
 Program Definition malfunction_pipeline :
   Transform.t _ _ _ _ _ _ (EProgram.eval_eprogram final_wcbv_flags) (fun _ _ => True) :=
   name_annotation ▷
@@ -104,19 +105,59 @@ Proof.
       (ExtractionCheck.check_inductives_lookup _ _ _ _ _ _ _ _ hi hl)))).
 Qed.
 
+(** The compilation function of [malfunction_pipeline].  The [transform]s of
+    [name_annotation] and [compile_to_malfunction] do not use the proof of
+    their precondition, so [malfunction_pipeline] computes [compile_ocaml] on
+    every program that satisfies the precondition. *)
+Definition compile_ocaml (p : EAst.program) : Malfunction.Malfunction.program :=
+  Malfunction.Compile.compile_program
+    (EWcbvEvalNamed.annotate_env [] p.1, EWcbvEvalNamed.annotate [] p.2).
+
+Lemma run_malfunction_pipeline p pr :
+  run malfunction_pipeline p pr = compile_ocaml p.
+Proof. reflexivity. Qed.
+
+(** [extract_ocaml] compiles every program with [compile_ocaml].  It runs
+    [malfunction_check] only to report a warning when the program is outside
+    the precondition of [malfunction_pipeline], see [extract_ocaml_verified]. *)
 Definition extract_ocaml (remaps : constant_remappings)
                          (custom_attr : custom_attributes)
                          (opts : ocaml_config)
                          (file_name : string)
                          (p : EAst.program)
-                         : result' (list string * string) :=
+                         : result' (list string * (list string * string)) :=
   let nms := extract_names (snd p) in
   let remaps := mk_remaps remaps in
   (* Axioms get placeholder bodies for the verified passes, see
      [ExtractionCheck.fill_axioms]. *)
   let p0 := (ExtractionCheck.fill_axioms p.1, p.2) in
-  m <- map_error (fun e => "OCaml backend: " ++ e)
-         (CheckWf.with_check (malfunction_check p0) (malfunction_check_sound p0)
-            (run malfunction_pipeline p0)) ;;
+  let warnings := ExtractionCheck.unverified_warning "OCaml" (malfunction_check p0) in
+  let m := compile_ocaml p0 in
   let m := (ExtractionCheck.restore_axioms (ExtractionCheck.axiom_names p.1) m.1, m.2) in
-  Ok (print_program remaps opts.(Config.program_type) nms m).
+  Ok (warnings, print_program remaps opts.(Config.program_type) nms m).
+
+(** When [extract_ocaml] reports no warning, its output is the printed result
+    of [malfunction_pipeline], the pipeline of verified extraction's
+    correctness theorem, at a proof of its precondition. *)
+Lemma extract_ocaml_verified remaps custom_attr opts file_name p warnings out :
+  extract_ocaml remaps custom_attr opts file_name p = Ok (warnings, out) ->
+  warnings = [] ->
+  let p0 := (ExtractionCheck.fill_axioms p.1, p.2) in
+  exists pr : pre malfunction_pipeline p0,
+    let m := run malfunction_pipeline p0 pr in
+    out = print_program (mk_remaps remaps) opts.(Config.program_type) (extract_names (snd p))
+            (ExtractionCheck.restore_axioms (ExtractionCheck.axiom_names p.1) m.1, m.2).
+Proof.
+  intros h hw. unfold extract_ocaml in h. injection h as <- <-. cbv zeta.
+  apply ExtractionCheck.unverified_warning_nil in hw.
+  now exists (malfunction_check_sound _ hw).
+Qed.
+
+(** [extract_ocaml] reports a warning exactly when [malfunction_check] fails. *)
+Lemma extract_ocaml_warnings remaps custom_attr opts file_name p warnings out :
+  extract_ocaml remaps custom_attr opts file_name p = Ok (warnings, out) ->
+  warnings = [] <-> bool_of_result (malfunction_check (ExtractionCheck.fill_axioms p.1, p.2)) = true.
+Proof.
+  intros h. unfold extract_ocaml in h. injection h as <- _.
+  apply ExtractionCheck.unverified_warning_nil.
+Qed.

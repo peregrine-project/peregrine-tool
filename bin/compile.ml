@@ -233,7 +233,12 @@ let compile_aux opts fo ~typed f_input config =
   info opts "Compiling:";
   let res = Pipeline.peregrine_pipeline config attrs opts.passes.inline_recursors (mk_inline_opts opts.passes) (mk_lbox_opts opts.passes) prog f_name in
   match res with
-  | ResultMonad.Ok p ->
+  | ResultMonad.Ok (_ :: _ as warnings, _) when opts.strict_verified ->
+    print_endline "Could not compile:";
+    List.iter cprint_endline warnings;
+    exit 1
+  | ResultMonad.Ok (warnings, p) ->
+    List.iter (fun w -> prerr_endline ("Warning: " ^ caml_string_of_bytestring w)) warnings;
     info opts "Compiled successfully:";
     (* The only output that can have the name of a source: lean on a .lean *)
     (match p with

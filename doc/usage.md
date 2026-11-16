@@ -172,6 +172,7 @@ These options apply to every command.
 * `-q`, `--quiet`: do not print the progress lines (`Compiling:`, `Compiled successfully:`, `Validating AST:`, `AST is valid`).
 * `-v`, `--verbose`: print the command line of the frontend tool.
 * `-d`, `--debug`: keep the temporary directory of the frontend and print its path.
+* `--strict-verified`: with the `ocaml` and `cakeml` backends, fail instead of warning when the program is outside the precondition of verified extraction's correctness theorem ([backends.md](backends.md#ocaml)). `--no-strict-verified`, the default, compiles such a program and prints a `Warning:` line on standard error. The last of the two wins. Other backends ignore the option.
 * `--help`, `--version`
 
 
@@ -269,7 +270,7 @@ Attribute files ([format.md](format.md#attribute-files)) add inlinings, constant
 | Code | Meaning |
 |------|---------|
 | 0 | success |
-| 1 | the program is not valid or does not compile, or the output would overwrite a `.lean` input |
+| 1 | the program is not valid or does not compile, the output would overwrite a `.lean` input, or `--strict-verified` is given and the backend warns |
 | 10–19, 20–29 | listed by `--help` for parsing and compiler errors; not used yet (those errors exit with 1) |
 | 30 | the frontend tool is not on the `PATH` |
 | 31 | the frontend tool failed |

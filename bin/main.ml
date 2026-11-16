@@ -243,7 +243,19 @@ let copts_t =
     let doc = "Attribute config files." in
     Arg.(value & opt (list file) [] & info ["attributes"] ~docs ~doc)
   in
-  Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg $ passes_t)
+  let strict_verified_arg =
+    let doc = "Fail when the OCaml or CakeML backend cannot guarantee that the \
+               program satisfies the precondition of verified extraction's \
+               correctness theorem (for example, because it uses primitive \
+               strings), instead of compiling it with a warning. \
+               $(b,--no-strict-verified) (the default) only warns." in
+    let flags = Arg.(value & vflag_all []
+                       [true, info ["strict-verified"] ~docs ~doc;
+                        false, info ["no-strict-verified"] ~docs:Manpage.s_none]) in
+    Term.(const (fun l -> last l = Some true) $ flags)
+  in
+  Term.(const mk_copts $ verbose_arg $ debug_arg $ out_arg $ attrs_arg $ passes_t
+        $ strict_verified_arg)
 
 let certirocq_opts_t =
   let docs = s_certirocq in

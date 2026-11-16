@@ -204,7 +204,11 @@ Inductive extracted_program :=
 | EvalProgram : string -> extracted_program
 | ASTProgram : string -> extracted_program.
 
-Definition extraction_result : Type := result' extracted_program.
+(** A successful extraction carries a list of warnings for the driver to
+    print.  Only the OCaml and CakeML backends report warnings: when the
+    program is outside the precondition of verified extraction's correctness
+    theorem (see [OCamlBackend.extract_ocaml_verified]). *)
+Definition extraction_result : Type := result' (list string * extracted_program).
 
 Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result :=
   let const_remaps := c.(const_remappings_opts) in
@@ -220,7 +224,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       f
       p';;
-    Ok (RustProgram res)
+    Ok ([], RustProgram res)
 
   | Elm opts =>
     p' <- PAst_to_ExAst p;;
@@ -230,7 +234,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       f
       p';;
-    Ok (ElmProgram res)
+    Ok ([], ElmProgram res)
 
   | OCaml opts =>
     p' <- PAst_to_EAst p;;
@@ -240,7 +244,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       f
       p';;
-    Ok (OCamlProgram res)
+    Ok (res.1, OCamlProgram res.2)
 
   | CakeML opts =>
     p' <- PAst_to_EAst p;;
@@ -250,7 +254,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       f
       p';;
-    Ok (CakeMLProgram res)
+    Ok (res.1, CakeMLProgram res.2)
 
   | FSharp opts =>
     p' <- PAst_to_EAst p;;
@@ -260,7 +264,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       f
       p';;
-    Ok (FSharpProgram res)
+    Ok ([], FSharpProgram res)
 
   | Koka opts =>
     p' <- PAst_to_EAst p;;
@@ -270,7 +274,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       f
       p';;
-    Ok (KokaProgram res)
+    Ok ([], KokaProgram res)
 
   | KokaTyped opts =>
     p' <- PAst_to_ExAst p;;
@@ -280,7 +284,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       f
       p';;
-    Ok (KokaProgram res)
+    Ok ([], KokaProgram res)
 
   | C opts =>
     p' <- PAst_to_EAst_box p;;
@@ -290,7 +294,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       f
       p';;
-    Ok (CProgram res)
+    Ok ([], CProgram res)
 
   | Wasm opts =>
     p' <- PAst_to_EAst_box p;;
@@ -300,7 +304,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       f
       p';;
-    Ok (WasmProgram res)
+    Ok ([], WasmProgram res)
 
   | LLVM opts =>
     p' <- PAst_to_EAst_box p;;
@@ -310,7 +314,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       f
       p';;
-    Ok (LLVMProgram res)
+    Ok ([], LLVMProgram res)
 
   | Lean opts =>
     p' <- PAst_to_EAst p;;
@@ -322,7 +326,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       (NameSanitize.lean_sanitizer f)
       p';;
-    Ok (LeanProgram res)
+    Ok ([], LeanProgram res)
 
   | Eval opts =>
     p' <- PAst_to_EAst p;;
@@ -332,7 +336,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       f
       p';;
-    Ok (EvalProgram res)
+    Ok ([], EvalProgram res)
 
   | AST opts =>
     res <- ASTBackend.extract_ast
@@ -341,7 +345,7 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
       opts
       f
       p;;
-    Ok (ASTProgram res)
+    Ok ([], ASTProgram res)
   end.
 
 

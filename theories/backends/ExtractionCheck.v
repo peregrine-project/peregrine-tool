@@ -128,3 +128,21 @@ Definition axiom_names (Σ : global_declarations) : list string :=
 Definition restore_axioms {A} (names : list string) (env : list (string * option A)) :
   list (string * option A) :=
   map (fun '(n, b) => if existsb (eqb n) names then (n, None) else (n, b)) env.
+
+(** ** Warnings
+
+  The OCaml and CakeML backends compile every program, and run
+  [check_extractable] only to decide whether the correctness theorem of
+  verified extraction covers the output.  When the check fails, they report
+  [unverified_warning]; the driver prints it, or with [--strict-verified]
+  fails with it. *)
+Definition unverified_warning (backend : string) (r : result' unit) : list string :=
+  match r with
+  | Ok _ => []
+  | Err e => [backend ++ " backend: " ++ e ++
+              "; this program is outside verified-extraction's correctness theorem, so the generated code is not covered by the proof."]
+  end.
+
+Lemma unverified_warning_nil b r :
+  unverified_warning b r = [] <-> bool_of_result r = true.
+Proof. now destruct r. Qed.
