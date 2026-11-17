@@ -124,7 +124,8 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Equality.ast",
-            xfail: { "Elm": "#79: Elm prints the type name ≡ as __UU002261_, which Elm rejects", "Koka-typed": "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express" },
+            // Koka-typed passes now (CI, PR #160); #142 still applies to STLC
+            xfail: { "Elm": "#79: Elm prints the type name ≡ as __UU002261_, which Elm rejects" },
             main: "Equality_test",
             output_type: SimpleType.Nat,
             expected_output: [
