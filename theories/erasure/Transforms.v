@@ -411,6 +411,196 @@ Next Obligation.
 Qed.
 
 
+(** ** Preparing a typed program for dearging
+
+    MetaRocq's dearging is the identity unless [check_dearging_precond]
+    holds.  Two features of typed input make it fail on many programs.
+
+    - Typed erasure gives the constructors of a propositional inductive only
+      their parameters as arguments ([conj] gets [A] and [B]), while
+      [check_oib_masks] wants a constructor mask (the arguments after the
+      parameters) as long as the constructor's arity.  [pad_prop_env] adds
+      [(nAnon, TBox)] arguments to these constructors up to that length.  The
+      untyped environment does not record constructor arguments
+      ([ExAst.trans_ctors]), so evaluation, which is on the untyped
+      environment, is unchanged ([trans_env_pad_prop_env]).
+
+    - [Optimize.is_expanded] wants every occurrence of a constant applied to
+      at least as many arguments as its mask has entries, but a constant used
+      unapplied somewhere (e.g. a module alias [M.remove := PositiveMap.remove])
+      has a nonempty mask.  [dearg_config] overrides the mask of each constant
+      with its prefix as long as the fewest arguments the constant is applied
+      to in the program ([min_apps]).  This cuts the masks, so it is only
+      done when the masks of constants are trimmed ([dearg_consts]).
+
+    Beyond [trans_env_pad_prop_env], neither needs a proof: the masks are
+    checked by [check_dearging_precond] and MetaRocq's correctness theorem for dearging
+    ([ExtractionCorrectness.extract_correct_gen']) holds for any overriding
+    of the masks.  On a program that already satisfies the precondition both
+    are the identity on the masks: no constructor is padded (its mask already
+    has the length of its arity), and a constant's (trimmed) mask is at most
+    as long as the fewest arguments it is applied to, so it is a prefix of
+    the overriding mask. *)
+
+Definition pad_ctor_args (npars : nat) (c : (ident × list (BasicAst.name × ExAst.box_type)) × nat)
+  : (ident × list (BasicAst.name × ExAst.box_type)) × nat :=
+  let '(nm, args, ar) := c in
+  if #|skipn npars args| <? ar
+  then (nm, (args ++ repeat (BasicAst.nAnon, ExAst.TBox) (npars + ar - #|args|))%list, ar)
+  else (nm, args, ar).
+
+Definition pad_prop_oib (npars : nat) (oib : ExAst.one_inductive_body) : ExAst.one_inductive_body :=
+  if oib.(ExAst.ind_propositional) then
+    {| ExAst.ind_name := oib.(ExAst.ind_name);
+       ExAst.ind_propositional := oib.(ExAst.ind_propositional);
+       ExAst.ind_kelim := oib.(ExAst.ind_kelim);
+       ExAst.ind_type_vars := oib.(ExAst.ind_type_vars);
+       ExAst.ind_ctors := map (pad_ctor_args npars) oib.(ExAst.ind_ctors);
+       ExAst.ind_projs := oib.(ExAst.ind_projs) |}
+  else oib.
+
+Definition pad_prop_decl (d : ExAst.global_decl) : ExAst.global_decl :=
+  match d with
+  | ExAst.InductiveDecl mib =>
+    ExAst.InductiveDecl
+      {| ExAst.ind_finite := mib.(ExAst.ind_finite);
+         ExAst.ind_npars := mib.(ExAst.ind_npars);
+         ExAst.ind_bodies := map (pad_prop_oib mib.(ExAst.ind_npars)) mib.(ExAst.ind_bodies) |}
+  | d => d
+  end.
+
+Definition pad_prop_env (Σ : ExAst.global_env) : ExAst.global_env :=
+  map (fun d => (d.1, pad_prop_decl d.2)) Σ.
+
+Lemma trans_ctors_pad npars ctors :
+  ExAst.trans_ctors (map (pad_ctor_args npars) ctors) = ExAst.trans_ctors ctors.
+Proof.
+  unfold ExAst.trans_ctors. rewrite map_map. apply map_ext.
+  intros [[nm args] ar]. cbn. now destruct (_ <? _).
+Qed.
+
+Lemma trans_env_pad_prop_env Σ : ExAst.trans_env (pad_prop_env Σ) = ExAst.trans_env Σ.
+Proof.
+  unfold ExAst.trans_env, pad_prop_env. rewrite map_map. apply map_ext.
+  intros [kn d]. cbn. f_equal.
+  destruct d as [| mib |] => //.
+  cbn [pad_prop_decl ExAst.trans_global_decl]. f_equal.
+  unfold ExAst.trans_mib. cbn [ExAst.ind_finite ExAst.ind_npars ExAst.ind_bodies]. f_equal.
+  rewrite map_map. apply map_ext.
+  intros oib. unfold pad_prop_oib. destruct ExAst.ind_propositional eqn:hp => //.
+  unfold ExAst.trans_oib. cbn [ExAst.ind_name ExAst.ind_kelim ExAst.ind_propositional
+    ExAst.ind_ctors ExAst.ind_projs]. now rewrite trans_ctors_pad hp.
+Qed.
+
+Lemma forallbi_map_ext {A B} (f : nat -> A -> bool) (f' : nat -> B -> bool) (g : B -> A) n l :
+  (forall i x, f i (g x) = f' i x) ->
+  Optimize.forallbi f n (map g l) = Optimize.forallbi f' n l.
+Proof.
+  intros hf. induction l as [|x l IH] in n |- *; cbn; [reflexivity|].
+  now rewrite hf IH.
+Qed.
+
+(** Padding leaves the validity of the masks of a declaration unchanged:
+    [Optimize.valid_masks_decl] only looks at the arities of constructors. *)
+Lemma valid_masks_decl_pad im cm (d : (kername * bool * ExAst.global_decl)%type) :
+  Optimize.valid_masks_decl im cm (d.1, pad_prop_decl d.2) = Optimize.valid_masks_decl im cm d.
+Proof.
+  destruct d as [[kn b] [cst | mib | ta]]; try reflexivity.
+  cbn [fst snd pad_prop_decl Optimize.valid_masks_decl ExAst.ind_npars ExAst.ind_bodies].
+  destruct Optimize.get_mib_masks as [mask|]; [|reflexivity]. f_equal.
+  apply forallbi_map_ext. intros i oib.
+  unfold pad_prop_oib. destruct ExAst.ind_propositional; [|reflexivity].
+  unfold Optimize.check_oib_masks; cbn [ExAst.ind_ctors ExAst.ind_projs]. f_equal.
+  apply forallbi_map_ext. intros c [[nm args] ar].
+  unfold pad_ctor_args. now destruct (_ <? _).
+Qed.
+
+(** The fewest arguments each constant is applied to, as counted by
+    [Optimize.is_expanded_aux]. *)
+Section MinApps.
+  Import EAst.
+
+  Definition min_apps_add (kn : kername) (n : nat) (acc : KernameMap.t nat) : KernameMap.t nat :=
+    KernameMap.add kn (match KernameMap.find kn acc with Some m => Nat.min m n | None => n end) acc.
+
+  Fixpoint min_apps (nargs : nat) (t : term) (acc : KernameMap.t nat) {struct t} : KernameMap.t nat :=
+    match t with
+    | tBox | tRel _ | tVar _ | tConstruct _ _ _ => acc
+    | tEvar _ ts => fold_left (fun acc t => min_apps 0 t acc) ts acc
+    | tLambda _ body => min_apps 0 body acc
+    | tLetIn _ val body => min_apps 0 body (min_apps 0 val acc)
+    | tApp hd arg => min_apps (S nargs) hd (min_apps 0 arg acc)
+    | tConst kn => min_apps_add kn nargs acc
+    | tCase _ discr brs => fold_left (fun acc br => min_apps 0 br.2 acc) brs (min_apps 0 discr acc)
+    | tProj _ t => min_apps 0 t acc
+    | tFix defs _ | tCoFix defs _ => fold_left (fun acc d => min_apps 0 d.(dbody) acc) defs acc
+    | tPrim p =>
+      match p.π2 with
+      | EPrimitive.primArrayModel a =>
+        fold_left (fun acc t => min_apps 0 t acc) a.(EPrimitive.array_value)
+          (min_apps 0 a.(EPrimitive.array_default) acc)
+      | _ => acc
+      end
+    | tLazy t | tForce t => min_apps 0 t acc
+    end.
+End MinApps.
+
+Definition min_apps_env (Σ : ExAst.global_env) (t : EAst.term) : KernameMap.t nat :=
+  fold_left (fun acc d =>
+    match d.2 with
+    | ExAst.ConstantDecl {| ExAst.cst_body := Some body |} => min_apps 0 body acc
+    | _ => acc
+    end) Σ (min_apps 0 t (KernameMap.empty nat)).
+
+(** The dearging configuration for [Σ] and main term [t]: the masks of
+    [cf], each cut to the fewest arguments the constant is applied to.
+    Cutting a mask is a form of trimming it, so it is only done when the
+    configuration trims the masks of constants ([dearg_consts]); otherwise
+    [cf] is used as it is. *)
+Definition dearg_config (cf : ETransform.dearging_config) (Σ : ExAst.global_env) (t : EAst.term)
+  : ETransform.dearging_config :=
+  if negb cf.(do_trim_const_masks) then cf else
+  let apps := min_apps_env Σ t in
+  let masks := Optimize.const_masks (Optimize.analyze_env cf.(overridden_masks) Σ) in
+  let masks := fold_left (fun m '(kn, mask) => KernameMap.add kn mask m) (List.rev masks)
+                 (KernameMap.empty _) in
+  {| overridden_masks kn :=
+       match KernameMap.find kn apps, KernameMap.find kn masks with
+       | Some n, Some mask => Some (firstn n mask)
+       | _, _ => cf.(overridden_masks) kn
+       end;
+     do_trim_const_masks := cf.(do_trim_const_masks);
+     do_trim_ctor_masks := cf.(do_trim_ctor_masks) |}.
+
+(** Why [check_dearging_precond] fails, for a warning: the first check that
+    fails and, where there is one, the first declaration that fails it. *)
+Definition dearging_failure (cf : ETransform.dearging_config) (Σ : ExAst.global_env) (t : EAst.term)
+  : option string :=
+  let decl_name (d : (kername * bool * ExAst.global_decl)%type) :=
+    Kernames.string_of_kername d.1.1 in
+  if negb (EGlobalEnv.closed_env (ExAst.trans_env Σ)) then Some "the environment is not closed"
+  else
+  let ds := Optimize.analyze_env cf.(overridden_masks) Σ in
+  let cm := (if cf.(do_trim_const_masks) then Optimize.trim_const_masks else id) (Optimize.const_masks ds) in
+  let im := (if cf.(do_trim_ctor_masks) then Optimize.trim_ind_masks else id) (Optimize.ind_masks ds) in
+  let not_expanded d :=
+    match d.2 with
+    | ExAst.ConstantDecl {| ExAst.cst_body := Some body |} => negb (Optimize.is_expanded im cm body)
+    | _ => false
+    end in
+  match find not_expanded Σ with
+  | Some d => Some ("a constant is used with fewer arguments than its mask has entries in " ++ decl_name d)
+  | None =>
+    match find (fun d => negb (Optimize.valid_masks_decl im cm d)) Σ with
+    | Some d => Some ("invalid masks for " ++ decl_name d)
+    | None =>
+      if negb (Optimize.valid_cases im t) then Some "invalid case in the main term"
+      else if negb (Optimize.is_expanded im cm t) then
+        Some "a constant is used with fewer arguments than its mask has entries in the main term"
+      else None
+    end
+  end.
+
 Section Dearging.
   Import Optimize OptimizeCorrectness.
 
@@ -424,7 +614,7 @@ Section Dearging.
     Transform.t _ _  EAst.term EAst.term _ _ (eval_typed_eprogram_masks EWcbvEval.opt_wcbv_flags) (eval_typed_eprogram EWcbvEval.opt_wcbv_flags) :=
     {| name := "dearging";
       transform p _ := dearg p ;
-      pre p := post_dearging_checks efl cf p;
+      pre p := post_dearging_checks efl (dearg_config cf p.1.2 p.2) p;
       post p := wf_eprogram efl (ExAst.trans_env p.1, p.2) /\ EEtaExpandedFix.expanded_eprogram (ExAst.trans_env p.1, p.2) ;
       obseq p hp p' v v' := v' = (dearg (p.1, v)).2 |}.
   Next Obligation.
@@ -462,7 +652,8 @@ Section Dearging.
     intros [ev].
     unfold dearg. rewrite he.
     destruct (check_dearging_precond) as [masks|] eqn:cpre.
-    * eapply (ExtractionCorrectness.extract_correct_gen' _ _ _ masks cf.(overridden_masks) cf.(do_trim_const_masks) cf.(do_trim_ctor_masks)) in ev as ev'.
+    * set (cf' := dearg_config cf p.1.2 p.2) in *.
+      eapply (ExtractionCorrectness.extract_correct_gen' _ _ _ masks cf'.(overridden_masks) cf'.(do_trim_const_masks) cf'.(do_trim_ctor_masks)) in ev as ev'.
       destruct ev' as [ev'].
       eexists. split. red. sq. cbn. exact ev'. auto.
       - destruct wfe. now eapply EWellformed.wellformed_closed_env.
@@ -519,6 +710,35 @@ Proof.
   now unshelve eapply (preservation (dearging_transform cf)).
 Qed.
 
+(** The checks before dearging, in place of MetaRocq's
+    [dearging_checks_transform_mapping]: the constructors of propositional
+    inductives are padded ([pad_prop_env], which leaves the untyped
+    environment and thus evaluation unchanged) and the masks are computed and
+    checked with the configuration [dearg_config]. *)
+Program Definition dearging_checks_transform_mapping' {efl : EWellformed.EEnvFlags} (cf : ETransform.dearging_config) :
+  Transform.t _ _ _ _ _ _ (eval_typed_eprogram_mapping EWcbvEval.opt_wcbv_flags) (eval_typed_eprogram_masks_mapping EWcbvEval.opt_wcbv_flags) :=
+ {| name := "dearging";
+    pre p := EReorderCstrs.wf_inductives_mapping (ExAst.trans_env p.2.1) p.1 /\ pre_remove_match_on_box_typed efl p.2;
+    transform p _ :=
+      let Σ := pad_prop_env p.2.1 in
+      (p.1, ((check_dearging_precond (dearg_config cf Σ p.2.2) Σ p.2.2, Σ), p.2.2));
+    post p := EReorderCstrs.wf_inductives_mapping (ExAst.trans_env p.2.1.2) p.1 /\
+              post_dearging_checks efl (dearg_config cf p.2.1.2 p.2.2) p.2;
+    obseq p hp p' v v' := v' = v |}.
+Next Obligation.
+Proof.
+  intros efl cf [m [Σ t]] [hm [wf exp]].
+  unfold post_dearging_checks, trans_ex_prog in *. cbn -[ExAst.trans_env] in *.
+  rewrite trans_env_pad_prop_env. split; [exact hm|]. split; [reflexivity|]. split; [exact wf|exact exp].
+Qed.
+Next Obligation.
+Proof.
+  intros efl cf [m [Σ t]] v pr ev. exists v. split; [|reflexivity].
+  unfold eval_typed_eprogram_masks_mapping, eval_typed_eprogram_masks, eval_typed_eprogram_mapping,
+    eval_typed_eprogram in *.
+  cbn -[ExAst.trans_env] in *. now rewrite trans_env_pad_prop_env.
+Qed.
+
 (** The analysis part of the typed pipeline: matches on boxes are removed
     and the dearging masks are computed and checked.  The masks ([p.2.1.1] of
     the result) are what the dearging stage below removes. *)
@@ -531,7 +751,7 @@ Program Definition typed_analysis_pipeline {guard : abstract_guard_impl}
    remove_match_on_box_typed_transform_mapping (wcon := eq_refl) (hastrel := eq_refl) (hastbox := eq_refl)
     (fl := EWcbvEval.default_wcbv_flags) ▷
    (* Check if the preconditions for dearging are valid, otherwise dearging will be the identity *)
-   dearging_checks_transform_mapping econf.(dearging_config) (hastrel := eq_refl) (hastbox := eq_refl).
+   dearging_checks_transform_mapping' econf.(dearging_config).
 Solve All Obligations with (first [solve [program_simpl] | cbn; intros; apply H]).
 
 Program Definition typed_transform_pipeline {guard : abstract_guard_impl}
@@ -1064,3 +1284,36 @@ Definition run_typed_to_untyped_transforms {guard : abstract_guard_impl} econf i
   with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
     (typed_to_untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p)
     (run (eta_typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).
+
+(** ** Reporting skipped dearging
+
+    When [check_dearging_precond] fails, dearging is the identity.  The
+    driver warns about it: [typed_dearging_failure] runs the typed pipeline
+    up to the dearging checks on the same input as [run_typed_transforms]
+    and [run_typed_to_untyped_transforms] and, when no masks were computed,
+    says which check failed ([dearging_failure]).  It is a diagnostic only:
+    nothing is proved about it, and the pipelines do not use it. *)
+
+Program Definition eta_typed_analysis_pipeline {guard : abstract_guard_impl}
+  (efl := nocofix_env_flags) econf
+  : Transform.t _ _ _ _ _ _
+   (eval_typed_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (eval_typed_eprogram_masks_mapping EWcbvEval.opt_wcbv_flags) :=
+  eta_expand_typed_transform_mapping ▷ typed_analysis_pipeline econf.
+Next Obligation.
+  intros guard efl econf p (hm & hwf & hexp). exact (conj hm (conj hwf hexp)).
+Qed.
+
+Definition typed_dearging_failure {guard : abstract_guard_impl} econf ind_reorder
+  (p : ExAst.global_env * EAst.term) : option string :=
+  let econf := eta_econf econf p.1 in
+  match with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
+          (typed_transform_pipeline_pre econf ind_reorder p)
+          (run (eta_typed_analysis_pipeline econf) (ind_reorder, p)) with
+  | ResultMonad.Ok (_, ((None, Σ), t)) =>
+    Some (match dearging_failure (dearg_config econf.(dearging_config) Σ t) Σ t with
+          | Some e => e
+          | None => "unknown reason"
+          end)
+  | _ => None
+  end.

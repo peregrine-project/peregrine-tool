@@ -1,5 +1,6 @@
 From MetaRocq.Erasure Require EAst.
 From Peregrine Require Pipeline.
+From Peregrine Require PipelineParse.
 From Peregrine Require ConfigUtils.
 From Peregrine Require RustGMPRemaps.
 From Peregrine Require RustNativeRemaps.
@@ -97,7 +98,7 @@ Set Extraction Output Directory "src/extraction/".
 Require compcert.cfrontend.Csyntax
         compcert.cfrontend.Clight.
 
-Separate Extraction Pipeline.peregrine_pipeline Pipeline.peregrine_validate
+Separate Extraction Pipeline.peregrine_pipeline Pipeline.peregrine_validate PipelineParse.peregrine_pipeline_warn
                     ConfigUtils.empty_rust_config' ConfigUtils.empty_elm_config' ConfigUtils.empty_certirocq_config'
                     ConfigUtils.empty_ocaml_config' ConfigUtils.empty_cakeml_config' ConfigUtils.empty_lean_config' ConfigUtils.empty_fsharp_config' ConfigUtils.empty_koka_config'
                     ConfigUtils.empty_config'

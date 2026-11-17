@@ -9,6 +9,7 @@ module RustNativeRemaps = Peregrine.RustNativeRemaps
 module RustMixedRemaps = Peregrine.RustMixedRemaps
 module RustHybridRemaps = Peregrine.RustHybridRemaps
 module Pipeline = Peregrine.Pipeline2
+module PipelineParse = Peregrine.PipelineParse
 module ResultMonad = Peregrine.ResultMonad
 module Anf_term = Peregrine.Term0
 
@@ -231,14 +232,20 @@ let compile_aux opts fo ~typed f_input config =
   let f_name = stem |> Filename.basename |> bytestring_of_caml_string in
   let attrs = read_attrs opts attrs in
   info opts "Compiling:";
-  let res = Pipeline.peregrine_pipeline config attrs opts.passes.inline_recursors (mk_inline_opts opts.passes) (mk_lbox_opts opts.passes) prog f_name in
+  (* [notes]: skipped optimizations (PipelineParse.dearging_warnings), which
+     do not affect correctness; [warnings]: programs outside verified
+     extraction's correctness theorem, rejected by --strict-verified. *)
+  let res = PipelineParse.peregrine_pipeline_warn config attrs opts.passes.inline_recursors (mk_inline_opts opts.passes) (mk_lbox_opts opts.passes) prog f_name in
+  let print_warnings = List.iter (fun w -> prerr_endline ("Warning: " ^ caml_string_of_bytestring w)) in
   match res with
-  | ResultMonad.Ok (_ :: _ as warnings, _) when opts.strict_verified ->
+  | ResultMonad.Ok (notes, (_ :: _ as warnings, _)) when opts.strict_verified ->
+    print_warnings notes;
     print_endline "Could not compile:";
     List.iter cprint_endline warnings;
     exit 1
-  | ResultMonad.Ok (warnings, p) ->
-    List.iter (fun w -> prerr_endline ("Warning: " ^ caml_string_of_bytestring w)) warnings;
+  | ResultMonad.Ok (notes, (warnings, p)) ->
+    print_warnings notes;
+    print_warnings warnings;
     info opts "Compiled successfully:";
     (* The only output that can have the name of a source: lean on a .lean *)
     (match p with

@@ -253,7 +253,9 @@ Proof.
     [|exact Hl|reflexivity].
   intros kn b mib Hin.
   unfold Optimize.valid_masks_env, remove_match_on_box_typed_env, EEtaExpand.eta_expand_ex_env in Hv.
+  rewrite -(valid_masks_decl_pad _ _ (kn, b, ExAst.InductiveDecl mib)).
   refine (proj1 (List.forallb_forall _ _) Hv _ _).
+  apply (in_map (fun d => (d.1, pad_prop_decl d.2)) _ (kn, b, ExAst.InductiveDecl mib)).
   apply In_map_on_snd_ind; [reflexivity|]. apply In_map_on_snd_ind; [reflexivity|]. exact Hin.
 Qed.
 
