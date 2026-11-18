@@ -157,7 +157,10 @@ data ErasurePhases = ErasurePhases
     deargConst    :: Maybe Bool,
     specializeInstances :: Maybe Bool,
     cse           :: Maybe Bool,
-    liftConstants :: Maybe Bool
+    liftConstants :: Maybe Bool,
+    -- | Optional in the configuration format: written only when it is
+    -- 'Just' (a configuration without it reads as 'Nothing').
+    untypedDearg  :: Maybe Bool
   }
 
 -- Configuration of Peregrine

@@ -57,9 +57,10 @@ type erasure_opts = {
   cse                 : bool option;
   lower_cofix         : bool option;
   lift_constants      : bool option;
+  untyped_dearg       : bool option;
 }
 
-let mk_erasure_opts betared unboxing dearg_ctors dearg_consts specialize_instances cse lower_cofix lift_constants = {
+let mk_erasure_opts betared unboxing dearg_ctors dearg_consts specialize_instances cse lower_cofix lift_constants untyped_dearg = {
   betared;
   unboxing;
   dearg_ctors;
@@ -68,6 +69,7 @@ let mk_erasure_opts betared unboxing dearg_ctors dearg_consts specialize_instanc
   cse;
   lower_cofix;
   lift_constants;
+  untyped_dearg;
 }
 
 type certirocq_opts = {

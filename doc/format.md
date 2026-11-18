@@ -203,10 +203,12 @@ Field by field:
     <dearg_consts>
     <specialize_instances>
     <cse>
-    <lift_constants>)
+    <lift_constants>
+    [<untyped_dearg>])          ; optional, written only when set
   ```
-  All booleans. `specialize_instances`, `cse` and `lift_constants` select the three optional passes described in [middleend.md](middleend.md); every backend leaves them off by default.
-  Only the ten-field form parses. To migrate a configuration written for the earlier seven-field form, append `None None None` to its `erasure_phases` entry (`false false false` where the fields are not optional); for the nine-field form, append one `None` (or `false`). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
+  All booleans. `specialize_instances`, `cse` and `lift_constants` select the three optional passes described in [middleend.md](middleend.md); every backend leaves them off by default. `untyped_dearg` dearges untyped input on the untyped backends (`--untyped-dearg` in [usage.md](usage.md#middle-end-passes)); it is not a phase of the backends' `erasure_phases_config`, and it is off unless set.
+  The eleventh field `untyped_dearg` is optional and is written only when it is set: `(Some b)` at the optional layer (`true` where the fields are not optional). A configuration without it reads as `None` (resp. `false`), so ten-field configuration files keep working unchanged. The parser accepts exactly these canonical forms and rejects an eleventh field that writes the default (`None`, resp. `false`): every accepted configuration is printed back unchanged.
+  To migrate a configuration written for the earlier seven-field form, append `None None None` to its `erasure_phases` entry (`false false false` where the fields are not optional); for the nine-field form, append one `None` (or `false`). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
 
 * `inlinings_opts` (`inlinings`) — a list of `kername`s; constants in this list are inlined by MetaRocq's inlining pass (`EInlining`; untyped pipeline only). The CLI flag `--inline-recursors` extends this list automatically with the program's recursors `I_rect`/`I_rec` (see [usage.md](usage.md#middle-end-passes) and [RecursorInlining.v](/theories/RecursorInlining.v)); the result is identical to listing them in an attribute file.
 

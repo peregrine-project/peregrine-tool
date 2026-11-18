@@ -147,6 +147,7 @@ let mk_erasure_config eopts = {
   ConfigUtils.specialize_instances' = eopts.specialize_instances;
   ConfigUtils.cse'            = eopts.cse;
   ConfigUtils.lift_constants' = eopts.lift_constants;
+  ConfigUtils.untyped_dearg'  = eopts.untyped_dearg;
 }
 
 let mk_config ?(const_remaps=[]) ?(ind_remaps=[]) b eopts = {

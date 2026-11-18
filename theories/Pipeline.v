@@ -126,6 +126,24 @@ Definition apply_transforms (c : config) (lbox : lbox_opts) (p : PAst) (typed : 
   let spec_inst := c.(erasure_opts).(specialize_instances) in
   let cse := c.(erasure_opts).(cse) in
   let lift_consts := c.(erasure_opts).(lift_constants) in
+  (* [--untyped-dearg]: untyped input on an untyped backend is dearged when the
+     HM inference [infer_for_backend] succeeds on it.  The inferred environment
+     [env0] then takes the path of typed input (the [Typed env _, false]
+     branches below, with [iconf], so remapped constants keep every argument):
+     [typed_transform_pipeline] (dearging), [trans_env_transform], then the
+     untyped pipeline.  Correctness needs no property of the inferred types:
+     the correctness obligation of [dearging_transform] (Transforms.v, from
+     MetaRocq's [ExtractionCorrectness.extract_correct_gen']) is stated over
+     the evaluation of [ExAst.trans_env] of the typed environment, the types
+     only choose the masks, and the masks are checked at run time by
+     [check_dearging_precond] (dearging is the identity when the check fails).
+     [EHindleyMilner.infer_section] gives [trans_env env0 = env], so the
+     program evaluated is the input program.  The [Admitted] precondition
+     obligation of [run_typed_to_untyped_transforms] is the one of the typed
+     input path.  When inference fails, or without the flag, the untyped
+     pipeline runs as before. *)
+  let inferred env :=
+    if c.(erasure_opts).(untyped_dearg) then infer_for_backend env else Err "" in
   match p, typed with
   | Untyped env (Some t), true =>
       (* Typed backend on untyped (lambda-box) input: bridge to typed via the
@@ -143,11 +161,23 @@ Definition apply_transforms (c : config) (lbox : lbox_opts) (p : PAst) (typed : 
       let '(_, (env', _)) := run_typed_transforms (iconf env0) cstr_reorder (drop env0, EAst.tBox) in
       Ok (lbox_typed lbox env' None)
   | Untyped env (Some t), false =>
-      let (env', t') := run_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, t) in
-      Ok (Untyped env' (Some t'))
+      match inferred env with
+      | Ok env0 =>
+          let (env', t') := run_typed_to_untyped_transforms (iconf env0) cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env0, t) in
+          Ok (Untyped env' (Some t'))
+      | Err _ =>
+          let (env', t') := run_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, t) in
+          Ok (Untyped env' (Some t'))
+      end
   | Untyped env None, false =>
-      let (env', _) := run_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, EAst.tBox) in
-      Ok (Untyped env' None)
+      match inferred env with
+      | Ok env0 =>
+          let (env', _) := run_typed_to_untyped_transforms (iconf env0) cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env0, EAst.tBox) in
+          Ok (Untyped env' None)
+      | Err _ =>
+          let (env', _) := run_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, EAst.tBox) in
+          Ok (Untyped env' None)
+      end
   | Typed env (Some t), true =>
       let '(_, (env', t')) := run_typed_transforms (tconf env) cstr_reorder (drop env, t) in
       Ok (lbox_typed lbox env' (Some t'))

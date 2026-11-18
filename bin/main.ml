@@ -123,7 +123,11 @@ let erasure_opts_t =
     let doc = "Lift closed constructor values (e.g. nat literals) to shared global constants." in
     Arg.(value & vflag None [Some true, info ["lift-constants"] ~doc])
   in
-  Term.(const mk_erasure_opts $ betared_arg $ unbox_arg $ dearg_ctors_arg $ dearg_consts_arg $ specialize_instances_arg $ cse_arg $ lower_cofix_arg $ lift_constants_arg)
+  let untyped_dearg_arg =
+    let doc = "Remove dead and logical arguments of untyped input on the untyped backends, with the types inferred for it (verified dearging; without effect when inference fails)." in
+    Arg.(value & opt (some bool) None & info ["untyped-dearg"] ~doc)
+  in
+  Term.(const mk_erasure_opts $ betared_arg $ unbox_arg $ dearg_ctors_arg $ dearg_consts_arg $ specialize_instances_arg $ cse_arg $ lower_cofix_arg $ lift_constants_arg $ untyped_dearg_arg)
 
 let s_frontend = "FRONTEND OPTIONS"
 

@@ -347,6 +347,7 @@ Section GeneralConfigOptional.
     specialize_instances' : option bool;
     cse'            : option bool;
     lift_constants' : option bool;
+    untyped_dearg'  : option bool;
   }.
   Definition empty_erasure_phases' : erasure_phases' := {|
     implement_box'  := None;
@@ -359,6 +360,7 @@ Section GeneralConfigOptional.
     specialize_instances' := None;
     cse'            := None;
     lift_constants' := None;
+    untyped_dearg'  := None;
   |}.
 
   Definition get_default_phase_opt' (o : erasure_phases_config) (p : erasure_phases_config -> phases_config) : bool :=
@@ -379,6 +381,7 @@ Section GeneralConfigOptional.
     specialize_instances := get_default_phase_opt' o specialize_instances_c;
     cse            := get_default_phase_opt' o cse_c;
     lift_constants := get_default_phase_opt' o lift_constants_c;
+    untyped_dearg  := false;
   |}.
 
   Definition enforce_phase' (b' : option bool) (b : bool) (o : phases_config) : bool :=
@@ -403,6 +406,9 @@ Section GeneralConfigOptional.
     specialize_instances := enforce_phase' o.(specialize_instances') d.(specialize_instances) o'.(specialize_instances_c);
     cse            := enforce_phase' o.(cse')            d.(cse)            o'.(cse_c);
     lift_constants := enforce_phase' o.(lift_constants') d.(lift_constants) o'.(lift_constants_c);
+    (* Not a phase of the backends' [erasure_phases_config]: every backend
+       accepts it, and it is off unless set. *)
+    untyped_dearg  := match o.(untyped_dearg') with Some b => b | None => d.(untyped_dearg) end;
   |}.
 
   Definition mk_erasure_phases (b : backend_config') (o : option erasure_phases') : erasure_phases :=
