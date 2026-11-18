@@ -528,17 +528,17 @@ Qed.
     [fo_value_compile m p.1 unb impl_box v].  The correctness of the
     remapping of inductives on that value is assumed, only when a remapping
     is configured. *)
-Theorem run_untyped_transforms_fo {guard : PCUICWfEnvImpl.abstract_guard_impl}
-  econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force (p p' : eprogram) v :
+Theorem run_untyped_transforms_wf_fo {guard : PCUICWfEnvImpl.abstract_guard_impl}
+  econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force (p p' : eprogram) hwf v :
   let unb := econf.(enable_unsafe).(unboxing) in
-  run_untyped_transforms econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force p
+  run_untyped_transforms_wf econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force p hwf
     = ResultMonad.Ok p' ->
   fo_sat (fo_arity p.1) v ->
   (remap_on econf = true -> remap_fo econf (fo_unboxed_value m p.1 unb v)) ->
   eval_eprogram default_wcbv_flags p v ->
   eval_eprogram final_wcbv_flags p' (fo_value_compile m p.1 unb impl_box v).
 Proof.
-  intros unb Hrun Hv Hr ev. unfold run_untyped_transforms in Hrun.
+  intros unb Hrun Hv Hr ev. unfold run_untyped_transforms_wf in Hrun.
   destruct (remap_on econf).
   - apply join_with_check_ok in Hrun as [pf Hrun].
     destruct (fo_eta_untyped_prefix_pipeline econf m p.1 v Hv (m, p) pf v ev)
@@ -549,6 +549,22 @@ Proof.
     destruct (fo_eta_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box
                 impl_lazy_force m p.1 v Hv (m, p) pf v ev) as (w & evw & ->); [auto|].
     exact evw.
+Qed.
+
+Theorem run_untyped_transforms_fo {guard : PCUICWfEnvImpl.abstract_guard_impl}
+  econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force (p p' : eprogram) v :
+  let unb := econf.(enable_unsafe).(unboxing) in
+  run_untyped_transforms econf m spec_inst cse lbox lift_consts impl_box impl_lazy_force p
+    = ResultMonad.Ok p' ->
+  fo_sat (fo_arity p.1) v ->
+  (remap_on econf = true -> remap_fo econf (fo_unboxed_value m p.1 unb v)) ->
+  eval_eprogram default_wcbv_flags p v ->
+  eval_eprogram final_wcbv_flags p' (fo_value_compile m p.1 unb impl_box v).
+Proof.
+  intros unb Hrun. unfold run_untyped_transforms in Hrun.
+  apply join_with_check_ok in Hrun as [hwf Hrun].
+  exact (run_untyped_transforms_wf_fo econf m spec_inst cse lbox lift_consts impl_box
+           impl_lazy_force p p' hwf v Hrun).
 Qed.
 
 (** Without a configured remapping there is no hypothesis left. *)

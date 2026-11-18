@@ -22,6 +22,8 @@ From Peregrine Require KokaTypedBackend.
 From Peregrine Require EvalBackend.
 From Peregrine Require ASTBackend.
 From Peregrine Require NameSanitize.
+From Peregrine Require NameSanitizeCorrect EHindleyMilner.
+From Peregrine Require Import PipelineWf.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import ResultMonad.
 From MetaRocq.Common Require Import Kernames.
@@ -84,6 +86,41 @@ Definition check_wf (p : PAst) : result' unit :=
       @CheckWfExAst.check_wf_typed_program nocofix_env_flags env
   end.
 
+(** [check_wf] decides [wf_PAst]. *)
+Lemma check_wf_sound p : check_wf p = Ok tt -> wf_PAst p.
+Proof.
+  intros H. apply map_error_ok in H.
+  destruct p as [env [t|]|env [t|]]; cbv beta iota in H; unfold wf_PAst, PAst_prog, PAst_main.
+  - apply check_wf_program_sound. now rewrite H.
+  - split; [|apply wellformed_no_main_term].
+    pose proof (check_wf_globP (efl := nocofix_env_flags) env) as R.
+    rewrite H in R. now inversion R.
+  - destruct (@CheckWfExAst.check_wf_typed_program nocofix_env_flags env) as [[]|] eqn:E1;
+      cbn in H; [|discriminate].
+    split.
+    + unfold CheckWfExAst.check_wf_typed_program in E1.
+      pose proof (check_wf_globP (efl := nocofix_env_flags) (ExAst.trans_env env)) as R.
+      rewrite E1 in R. now inversion R.
+    + cbn. rewrite <- wellformed_equiv, H. reflexivity.
+  - split; [|apply wellformed_no_main_term].
+    unfold CheckWfExAst.check_wf_typed_program in H.
+    pose proof (check_wf_globP (efl := nocofix_env_flags) (ExAst.trans_env env)) as R.
+    rewrite H in R. now inversion R.
+Qed.
+
+(** [check_wf], with its proof as result. *)
+Definition check_wf_proof (p : PAst) : result' (wf_PAst p) :=
+  match with_eq (check_wf p) with
+  | exist (Ok tt) h => Ok (check_wf_sound p h)
+  | exist (Err e) _ => Err e
+  end.
+
+Lemma check_wf_proof_ok p h : check_wf_proof p = Ok h -> check_wf p = Ok tt.
+Proof.
+  unfold check_wf_proof. destruct (with_eq (check_wf p)) as [[[]|e] he]; cbn; [|discriminate].
+  now intros _.
+Qed.
+
 Definition needs_typed (c : config) : bool :=
   match c.(backend_opts) with
   | Rust _ | Elm _ | KokaTyped _ => true
@@ -115,12 +152,36 @@ Definition drop_remapped_bodies (c : config) (env : ExAst.global_env) : ExAst.gl
     ([Transforms.typed_lbox_transform_pipeline]), as they are for the untyped
     one. *)
 
-(** The transformation pipelines check their precondition on their actual
-    input (after sanitization, inference and dropping remapped bodies) and
-    fail with an error if it does not hold. The precondition is
-    well-formedness only: the pipelines start with the verified eta-expansion
-    pass of [EEtaExpand], so input from frontends that do not eta-expand
-    fixpoints and constructors is accepted.
+Lemma wf_drop_remapped_bodies c env t :
+  EProgram.wf_eprogram nocofix_env_flags (ExAst.trans_env env, t) ->
+  EProgram.wf_eprogram nocofix_env_flags (ExAst.trans_env (drop_remapped_bodies c env), t).
+Proof. apply wf_eprogram_drop_bodies. Qed.
+
+(** [infer_for_backend], with the inferred environment's untyped view. *)
+Definition infer_for_backend_eq (env : untyped_env) : result' {env0 : typed_env | ExAst.trans_env env0 = env} :=
+  match with_eq (infer_for_backend env) with
+  | exist (Ok env0) h =>
+      Ok (exist env0 (EHindleyMilner.infer_section env env0 (map_error_ok _ _ _ h)))
+  | exist (Err e) _ => Err e
+  end.
+
+Lemma wf_infer_drop c env (r : {env0 : typed_env | ExAst.trans_env env0 = env}) t :
+  EProgram.wf_eprogram nocofix_env_flags (env, t) ->
+  EProgram.wf_eprogram nocofix_env_flags (ExAst.trans_env (drop_remapped_bodies c (proj1_sig r)), t).
+Proof.
+  destruct r as [env0 e]; cbn. intros h. apply wf_drop_remapped_bodies. now rewrite e.
+Qed.
+
+(** The precondition of the transformation pipelines is the well-formedness
+    of their actual input (after sanitization, inference and dropping
+    remapped bodies), and the consistency of the constructor mapping with it.
+    [apply_transforms] gets the well-formedness of its input [hwf] from
+    [check_wf] (through [peregrine_front]); the lemmas above carry it over
+    inference and the dropping of remapped bodies.  The pipelines only check
+    the constructor mapping, and fail with an error if it does not hold.
+    The precondition is well-formedness only: the pipelines start with the
+    verified eta-expansion pass of [EEtaExpand], so input from frontends that
+    do not eta-expand fixpoints and constructors is accepted.
 
     [apply_transforms] and [peregrine_pipeline_gen] are generic in the
     implementation [guard] of the guard condition, which MetaRocq's pipelines
@@ -130,7 +191,7 @@ Definition drop_remapped_bodies (c : config) (env : ExAst.global_env) : ExAst.gl
 Definition pipeline_pre_error {A} (r : result' A) : result' A :=
   map_error (fun e => "Program does not satisfy the precondition of the transformation pipeline: " ++ e) r.
 
-Definition apply_transforms {guard : PCUICWfEnvImpl.abstract_guard_impl} (c : config) (lbox : lbox_opts) (p : PAst) (typed : bool) : result' PAst :=
+Definition apply_transforms {guard : PCUICWfEnvImpl.abstract_guard_impl} (c : config) (lbox : lbox_opts) (p : PAst) (typed : bool) (hwf : wf_PAst p) : result' PAst :=
   let drop := drop_remapped_bodies c in
   (* Untyped input: MetaRocq's dearging analysis as is. A typed environment: the
      masks of remapped constants from their types ([remap_masks]), with every
@@ -144,8 +205,8 @@ Definition apply_transforms {guard : PCUICWfEnvImpl.abstract_guard_impl} (c : co
   let spec_inst := c.(erasure_opts).(specialize_instances) in
   let cse := c.(erasure_opts).(cse) in
   let lift_consts := c.(erasure_opts).(lift_constants) in
-  match p, typed with
-  | Untyped env (Some t), true =>
+  match p as p, typed return wf_PAst p -> result' PAst with
+  | Untyped env (Some t), true => fun hwf =>
       (* Typed backend on untyped (lambda-box) input: bridge to typed via the
          HM inference [infer_for_backend] on the *raw* env (before the
          untyped pipeline turns constructors into blocks, which the typed
@@ -153,40 +214,42 @@ Definition apply_transforms {guard : PCUICWfEnvImpl.abstract_guard_impl} (c : co
          preserves applied constructors.  Inference failure is a pipeline
          error.  [EHindleyMilner.infer_section] gives [trans_env env0 = env];
          nothing is proved about the inferred types. *)
-      env0 <- infer_for_backend env;;
-      r <- pipeline_pre_error (run_typed_transforms (iconf env0) cstr_reorder lbox (drop env0, t));;
+      r0 <- infer_for_backend_eq env;;
+      let env0 := proj1_sig r0 in
+      r <- pipeline_pre_error (run_typed_transforms_wf (iconf env0) cstr_reorder lbox (drop env0, t) (wf_infer_drop c env r0 t hwf));;
       let '(_, (env', t')) := r in
       Ok (Typed env' (Some t'))
-  | Untyped env None, true =>
-      env0 <- infer_for_backend env;;
-      r <- pipeline_pre_error (run_typed_transforms (iconf env0) cstr_reorder lbox (drop env0, no_main_term));;
+  | Untyped env None, true => fun hwf =>
+      r0 <- infer_for_backend_eq env;;
+      let env0 := proj1_sig r0 in
+      r <- pipeline_pre_error (run_typed_transforms_wf (iconf env0) cstr_reorder lbox (drop env0, no_main_term) (wf_infer_drop c env r0 no_main_term hwf));;
       let '(_, (env', _)) := r in
       Ok (Typed env' None)
-  | Untyped env (Some t), false =>
-      r <- pipeline_pre_error (run_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, t));;
+  | Untyped env (Some t), false => fun hwf =>
+      r <- pipeline_pre_error (run_untyped_transforms_wf econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, t) hwf);;
       let (env', t') := r in
       Ok (Untyped env' (Some t'))
-  | Untyped env None, false =>
-      r <- pipeline_pre_error (run_untyped_transforms econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, no_main_term));;
+  | Untyped env None, false => fun hwf =>
+      r <- pipeline_pre_error (run_untyped_transforms_wf econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, no_main_term) hwf);;
       let (env', _) := r in
       Ok (Untyped env' None)
-  | Typed env (Some t), true =>
-      r <- pipeline_pre_error (run_typed_transforms (tconf env) cstr_reorder lbox (drop env, t));;
+  | Typed env (Some t), true => fun hwf =>
+      r <- pipeline_pre_error (run_typed_transforms_wf (tconf env) cstr_reorder lbox (drop env, t) (wf_drop_remapped_bodies c env t hwf));;
       let '(_, (env', t')) := r in
       Ok (Typed env' (Some t'))
-  | Typed env (Some t), false =>
-      r <- pipeline_pre_error (run_typed_to_untyped_transforms (tconf env) cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env, t));;
+  | Typed env (Some t), false => fun hwf =>
+      r <- pipeline_pre_error (run_typed_to_untyped_transforms_wf (tconf env) cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env, t) (wf_drop_remapped_bodies c env t hwf));;
       let (env', t') := r in
       (Ok (Untyped env' (Some t')))
-  | Typed env None, true =>
-      r <- pipeline_pre_error (run_typed_transforms (tconf env) cstr_reorder lbox (drop env, no_main_term));;
+  | Typed env None, true => fun hwf =>
+      r <- pipeline_pre_error (run_typed_transforms_wf (tconf env) cstr_reorder lbox (drop env, no_main_term) (wf_drop_remapped_bodies c env no_main_term hwf));;
       let '(_, (env', _)) := r in
       Ok (Typed env' None)
-  | Typed env None, false =>
-      r <- pipeline_pre_error (run_typed_to_untyped_transforms (tconf env) cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env, no_main_term));;
+  | Typed env None, false => fun hwf =>
+      r <- pipeline_pre_error (run_typed_to_untyped_transforms_wf (tconf env) cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env, no_main_term) (wf_drop_remapped_bodies c env no_main_term hwf));;
       let (env', _) := r in
       (Ok (Untyped env' None))
-  end.
+  end hwf.
 
 
 
@@ -412,23 +475,50 @@ Definition check_lowered (c : config) (p : PAst) : result' unit :=
     (see RecursorInlining.v); the remapped ones are left to the remapping.
     [inl]: likewise add the standard and/or the small constants
     (see AutoInlining.v). *)
-Definition peregrine_pipeline_gen {guard : PCUICWfEnvImpl.abstract_guard_impl}
-  (c : string + config') (attrs : list string) (inline_recursors : bool)
-  (inl : inline_opts) (lbox : lbox_opts) (p : string) (f : string) : extraction_result :=
-  p <- parse_ast p;; (* Parse input string into AST *)
+(** The front end: configuration, well-formedness check and name
+    sanitization.  The well-formedness proof of [check_wf] is carried through
+    sanitization ([sanitize_PAst_wf]) to the result, so the transformation
+    pipelines do not check it again. *)
+Definition peregrine_front (c : string + config') (attrs : list string) (inline_recursors : bool)
+  (inl : inline_opts) (p : PAst) : result' {cp : config * PAst | wf_PAst cp.2} :=
   c <- get_config c attrs;; (* Parse or construct config *)
   let remapped kn := List.existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) in
   let c := if inline_recursors then merge_attributes_config c [recursor_attributes remapped p] else c in
   let c := if inl.(inline_standard) || inl.(inline_small)
            then merge_attributes_config c [auto_inline_attributes inl remapped p] else c in
-  check_wf p;; (* Check that AST is wellformed *)
-  NameSanitize.check_sanitized_injective (NameSanitize.get_sanitizer c)
-    (List.app (NameSanitize.PAst_names p) (NameSanitize.config_names c));; (* Reject name collisions *)
-  p <- NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c) p;; (* Sanitize names in AST *)
-  c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;; (* Sanitize names in config *)
-  p <- apply_transforms c lbox p (needs_typed c);; (* Apply program transformation *)
+  let f := NameSanitize.get_sanitizer c in
+  let names := List.app (NameSanitize.PAst_names p) (NameSanitize.config_names c) in
+  hwf <- check_wf_proof p;; (* Check that AST is wellformed *)
+  match with_eq (NameSanitize.check_sanitized_injective f names) with (* Reject name collisions *)
+  | exist (Err e) _ => Err e
+  | exist (Ok tt) hi =>
+    match with_eq (NameSanitize.sanitize_PAst f p) with (* Sanitize names in AST *)
+    | exist (Err e) _ => Err e
+    | exist (Ok ps) hs =>
+      c <- NameSanitize.sanitize_config f c;; (* Sanitize names in config *)
+      Ok (exist (c, ps)
+            (sanitize_PAst_wf f p ps
+               (NameSanitizeCorrect.injective_on_incl f _ _
+                  (NameSanitizeCorrect.check_sanitized_injective_spec f names hi)
+                  (fun x hx => in_or_app _ _ x (or_introl hx)))
+               hs hwf))
+    end
+  end.
+
+(** The rest of the pipeline, on the result of [peregrine_front]. *)
+Definition peregrine_back {guard : PCUICWfEnvImpl.abstract_guard_impl} (lbox : lbox_opts) (f : string)
+  (cp : {cp : config * PAst | wf_PAst cp.2}) : extraction_result :=
+  let c := (proj1_sig cp).1 in
+  p <- apply_transforms c lbox (proj1_sig cp).2 (needs_typed c) (proj2_sig cp);; (* Apply program transformation *)
   check_lowered c p;; (* Reject terms that the backend would miscompile *)
   run_backend c f p. (* Run extraction backend *)
+
+Definition peregrine_pipeline_gen {guard : PCUICWfEnvImpl.abstract_guard_impl}
+  (c : string + config') (attrs : list string) (inline_recursors : bool)
+  (inl : inline_opts) (lbox : lbox_opts) (p : string) (f : string) : extraction_result :=
+  p <- parse_ast p;; (* Parse input string into AST *)
+  cp <- peregrine_front c attrs inline_recursors inl p;;
+  peregrine_back lbox f cp.
 
 (** The executable pipeline (extracted in Extraction.v): [peregrine_pipeline_gen]
     at MetaRocq's [fake_guard_impl], whose correctness is an axiom of MetaRocq

@@ -969,7 +969,7 @@ Next Obligation.
 Qed.
 
 
-Import Peregrine.Utils (bool_of_result, result', result_mapb).
+Import Peregrine.Utils (bool_of_result, result', result_mapb, result_assertb').
 Import Peregrine.CheckWf (check_pipeline_wf, check_pipeline_wf_sound, with_check,
   check_wf_program, check_wf_program_sound).
 
@@ -1191,20 +1191,58 @@ Definition join_result {A} (r : result' (result' A)) : result' A :=
   | ResultMonad.Err e => ResultMonad.Err e
   end.
 
-Definition run_untyped_transforms {guard : abstract_guard_impl} econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force p :=
+(** The constructor mapping part of [check_pipeline_wf], for input whose
+    well-formedness is already known: [Pipeline.peregrine_pipeline_gen] checks
+    it once, before sanitizing names, and carries the proof to the
+    [_wf] runners below. *)
+Definition check_mapping (m : EProgram.inductives_mapping) (p : eprogram) : result' unit :=
+  Peregrine.Utils.assert' (EReorderCstrs.wf_inductives_mapping (fst p) m)
+    (fun _ => "Constructor reordering mapping does not match the inductive declarations"%bs).
+
+Lemma check_mapping_sound m p :
+  bool_of_result (check_mapping m p) = true -> EReorderCstrs.wf_inductives_mapping (fst p) m.
+Proof. unfold check_mapping. now rewrite (result_assertb' (E := string)). Qed.
+
+(** [check_pipeline_wf] is [check_mapping] followed by the well-formedness check. *)
+Lemma check_pipeline_wf_wf m p :
+  bool_of_result (@check_pipeline_wf nocofix_env_flags m p) = true -> wf_eprogram nocofix_env_flags p.
+Proof. intros h. exact (proj2 (check_pipeline_wf_sound m p h)). Qed.
+
+Lemma untyped_transform_pipeline_pre_wf {guard : abstract_guard_impl} econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m p :
+  wf_eprogram nocofix_env_flags p ->
+  bool_of_result (check_mapping m p) = true ->
+  pre (eta_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (m, p).
+Proof. intros hwf h. exact (conj (check_mapping_sound m p h) hwf). Qed.
+
+Lemma untyped_prefix_pipeline_pre_wf {guard : abstract_guard_impl} econf m p :
+  wf_eprogram nocofix_env_flags p ->
+  bool_of_result (check_mapping m p) = true ->
+  pre (eta_untyped_prefix_pipeline econf) (m, p).
+Proof. intros hwf h. exact (conj (check_mapping_sound m p h) hwf). Qed.
+
+(** The untyped pipeline on a program [p] known to be well formed ([hwf]). *)
+Definition run_untyped_transforms_wf {guard : abstract_guard_impl} econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  p (hwf : wf_eprogram nocofix_env_flags p) : result' eprogram :=
   if remap_on econf then
     join_result
-      (with_check (@check_pipeline_wf nocofix_env_flags ind_reorder p)
-         (untyped_prefix_pipeline_pre econf ind_reorder p)
+      (with_check (check_mapping ind_reorder p)
+         (untyped_prefix_pipeline_pre_wf econf ind_reorder p hwf)
          (fun pf =>
             remap_then_suffix econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
               (run (eta_untyped_prefix_pipeline econf) (ind_reorder, p) pf)
               (untyped_prefix_pipeline_post econf _
                  (correctness (eta_untyped_prefix_pipeline econf) (ind_reorder, p) pf))))
   else
-  with_check (@check_pipeline_wf nocofix_env_flags ind_reorder p)
-    (untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p)
+  with_check (check_mapping ind_reorder p)
+    (untyped_transform_pipeline_pre_wf econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p hwf)
     (run (eta_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).
+
+(** The untyped pipeline on any program: [run_untyped_transforms_wf] after
+    checking the precondition. *)
+Definition run_untyped_transforms {guard : abstract_guard_impl} econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force p :=
+  join_result
+    (with_check (@check_pipeline_wf nocofix_env_flags ind_reorder p) (check_pipeline_wf_wf ind_reorder p)
+       (run_untyped_transforms_wf econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force p)).
 
 (** ** Dearging masks of eta-expanded typed programs
 
@@ -1262,28 +1300,69 @@ Definition eta_econf (econf : erasure_configuration) (Σ : ExAst.global_env) : e
      inlined_constants := econf.(inlined_constants);
      extracted_inductives := econf.(extracted_inductives) |}.
 
-Definition run_typed_transforms {guard : abstract_guard_impl} econf ind_reorder lbox (p : ExAst.global_env * EAst.term) :=
+Lemma typed_lbox_transform_pipeline_pre_wf {guard : abstract_guard_impl} econf lbox m (p : ExAst.global_env * EAst.term) :
+  wf_eprogram nocofix_env_flags (ExAst.trans_env p.1, p.2) ->
+  bool_of_result (check_mapping m (ExAst.trans_env p.1, p.2)) = true ->
+  pre (eta_typed_lbox_transform_pipeline econf lbox) (m, p).
+Proof. intros hwf h. exact (conj (check_mapping_sound m _ h) hwf). Qed.
+
+Lemma typed_transform_pipeline_pre_wf {guard : abstract_guard_impl} econf m (p : ExAst.global_env * EAst.term) :
+  wf_eprogram nocofix_env_flags (ExAst.trans_env p.1, p.2) ->
+  bool_of_result (check_mapping m (ExAst.trans_env p.1, p.2)) = true ->
+  pre (eta_typed_transform_pipeline econf) (m, p).
+Proof. intros hwf h. exact (conj (check_mapping_sound m _ h) hwf). Qed.
+
+Lemma typed_to_untyped_transform_pipeline_pre_wf {guard : abstract_guard_impl} econf spec_inst cse lbox lift_consts impl_box impl_lazy_force m
+  (p : ExAst.global_env * EAst.term) :
+  wf_eprogram nocofix_env_flags (ExAst.trans_env p.1, p.2) ->
+  bool_of_result (check_mapping m (ExAst.trans_env p.1, p.2)) = true ->
+  pre (eta_typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (m, p).
+Proof. intros hwf h. exact (conj (check_mapping_sound m _ h) hwf). Qed.
+
+Lemma typed_to_untyped_prefix_pipeline_pre_wf {guard : abstract_guard_impl} econf m (p : ExAst.global_env * EAst.term) :
+  wf_eprogram nocofix_env_flags (ExAst.trans_env p.1, p.2) ->
+  bool_of_result (check_mapping m (ExAst.trans_env p.1, p.2)) = true ->
+  pre (eta_typed_to_untyped_prefix_pipeline econf) (m, p).
+Proof. intros hwf h. exact (conj (check_mapping_sound m _ h) hwf). Qed.
+
+(** The typed pipelines on a program whose untyped view is known to be well
+    formed ([hwf]), and on any program after checking that. *)
+Definition run_typed_transforms_wf {guard : abstract_guard_impl} econf ind_reorder lbox (p : ExAst.global_env * EAst.term)
+  (hwf : wf_eprogram nocofix_env_flags (ExAst.trans_env p.1, p.2)) :=
   let econf := eta_econf econf p.1 in
-  with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
-    (typed_lbox_transform_pipeline_pre econf lbox ind_reorder p)
+  with_check (check_mapping ind_reorder (ExAst.trans_env p.1, p.2))
+    (typed_lbox_transform_pipeline_pre_wf econf lbox ind_reorder p hwf)
     (run (eta_typed_lbox_transform_pipeline econf lbox) (ind_reorder, p)).
 
-Definition run_typed_to_untyped_transforms {guard : abstract_guard_impl} econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force
-  (p : ExAst.global_env * EAst.term) :=
+Definition run_typed_transforms {guard : abstract_guard_impl} econf ind_reorder lbox (p : ExAst.global_env * EAst.term) :=
+  join_result
+    (with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
+       (check_pipeline_wf_wf ind_reorder _)
+       (run_typed_transforms_wf econf ind_reorder lbox p)).
+
+Definition run_typed_to_untyped_transforms_wf {guard : abstract_guard_impl} econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  (p : ExAst.global_env * EAst.term) (hwf : wf_eprogram nocofix_env_flags (ExAst.trans_env p.1, p.2)) : result' eprogram :=
   let econf := eta_econf econf p.1 in
   if remap_on econf then
     join_result
-      (with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
-         (typed_to_untyped_prefix_pipeline_pre econf ind_reorder p)
+      (with_check (check_mapping ind_reorder (ExAst.trans_env p.1, p.2))
+         (typed_to_untyped_prefix_pipeline_pre_wf econf ind_reorder p hwf)
          (fun pf =>
             remap_then_suffix econf spec_inst cse lbox lift_consts impl_box impl_lazy_force
               (run (eta_typed_to_untyped_prefix_pipeline econf) (ind_reorder, p) pf)
               (typed_to_untyped_prefix_pipeline_post econf _
                  (correctness (eta_typed_to_untyped_prefix_pipeline econf) (ind_reorder, p) pf))))
   else
-  with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
-    (typed_to_untyped_transform_pipeline_pre econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p)
+  with_check (check_mapping ind_reorder (ExAst.trans_env p.1, p.2))
+    (typed_to_untyped_transform_pipeline_pre_wf econf spec_inst cse lbox lift_consts impl_box impl_lazy_force ind_reorder p hwf)
     (run (eta_typed_to_untyped_transform_pipeline econf spec_inst cse lbox lift_consts impl_box impl_lazy_force) (ind_reorder, p)).
+
+Definition run_typed_to_untyped_transforms {guard : abstract_guard_impl} econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force
+  (p : ExAst.global_env * EAst.term) :=
+  join_result
+    (with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
+       (check_pipeline_wf_wf ind_reorder _)
+       (run_typed_to_untyped_transforms_wf econf ind_reorder spec_inst cse lbox lift_consts impl_box impl_lazy_force p)).
 
 (** ** Reporting skipped dearging
 
@@ -1305,10 +1384,10 @@ Next Obligation.
 Qed.
 
 Definition typed_dearging_failure {guard : abstract_guard_impl} econf ind_reorder
-  (p : ExAst.global_env * EAst.term) : option string :=
+  (p : ExAst.global_env * EAst.term) (hwf : wf_eprogram nocofix_env_flags (ExAst.trans_env p.1, p.2)) : option string :=
   let econf := eta_econf econf p.1 in
-  match with_check (@check_pipeline_wf nocofix_env_flags ind_reorder (ExAst.trans_env p.1, p.2))
-          (typed_transform_pipeline_pre econf ind_reorder p)
+  match with_check (check_mapping ind_reorder (ExAst.trans_env p.1, p.2))
+          (typed_transform_pipeline_pre_wf econf ind_reorder p hwf)
           (run (eta_typed_analysis_pipeline econf) (ind_reorder, p)) with
   | ResultMonad.Ok (_, ((None, Σ), t)) =>
     Some (match dearging_failure (dearg_config econf.(dearging_config) Σ t) Σ t with

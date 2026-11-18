@@ -18,7 +18,7 @@ From MetaRocq.SafeChecker Require PCUICWfEnvImpl.
 From CeresBS Require Import Ceres CeresParser.
 From Peregrine Require Import PAst Config ConfigUtils ELboxOpts CheckWf RecursorInlining AutoInlining Pipeline.
 From Peregrine Require NameSanitize Transforms.
-From Peregrine Require Import Utils.
+From Peregrine Require Import Utils PipelineWf.
 From Peregrine Require Import Serialize Deserialize SerializeComplete SerializeRoundtrip.
 From Peregrine Require Import SerializeConfig SerializePAst.
 
@@ -30,19 +30,8 @@ Local Open Scope bs_scope.
 Definition peregrine_pipeline_ast {guard : PCUICWfEnvImpl.abstract_guard_impl}
   (c : string + config') (attrs : list string) (inline_recursors : bool)
   (inl : inline_opts) (lbox : lbox_opts) (p : PAst) (f : string) : extraction_result :=
-  c <- get_config c attrs;;
-  let remapped kn := List.existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) in
-  let c := if inline_recursors then merge_attributes_config c [recursor_attributes remapped p] else c in
-  let c := if inl.(inline_standard) || inl.(inline_small)
-           then merge_attributes_config c [auto_inline_attributes inl remapped p] else c in
-  check_wf p;;
-  NameSanitize.check_sanitized_injective (NameSanitize.get_sanitizer c)
-    (List.app (NameSanitize.PAst_names p) (NameSanitize.config_names c));;
-  p <- NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c) p;;
-  c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;;
-  p <- apply_transforms c lbox p (needs_typed c);;
-  check_lowered c p;;
-  run_backend c f p.
+  cp <- peregrine_front c attrs inline_recursors inl p;;
+  peregrine_back lbox f cp.
 
 Definition peregrine_validate_ast (c : string + config') (attrs : list string) (p : PAst) : result' unit :=
   c <- get_config c attrs;;
@@ -166,7 +155,7 @@ Theorem peregrine_pipeline_printed {guard : PCUICWfEnvImpl.abstract_guard_impl} 
   peregrine_pipeline_ast (inr c0) (map Serialize.string_of_attributes_config as0) ir io lbox p0 f.
 Proof.
   intros Hp Hc Has. rewrite peregrine_pipeline_string_of_PAst by exact Hp.
-  unfold peregrine_pipeline_ast. rewrite get_config_string_of_config by exact Hc. reflexivity.
+  unfold peregrine_pipeline_ast, peregrine_front. rewrite get_config_string_of_config by exact Hc. reflexivity.
 Qed.
 
 (** ** Warnings about skipped optimizations
@@ -183,47 +172,32 @@ Qed.
     them, and [peregrine_pipeline_warn_result] shows that the extracted program
     is the one of [peregrine_pipeline_gen]. *)
 
-(** The input to [apply_transforms] (the prefix of [peregrine_pipeline_ast]). *)
-Definition peregrine_prepare (c : string + config') (attrs : list string) (inline_recursors : bool)
-  (inl : inline_opts) (p : PAst) : result' (config * PAst) :=
-  c <- get_config c attrs;;
-  let remapped kn := List.existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) in
-  let c := if inline_recursors then merge_attributes_config c [recursor_attributes remapped p] else c in
-  let c := if inl.(inline_standard) || inl.(inline_small)
-           then merge_attributes_config c [auto_inline_attributes inl remapped p] else c in
-  check_wf p;;
-  NameSanitize.check_sanitized_injective (NameSanitize.get_sanitizer c)
-    (List.app (NameSanitize.PAst_names p) (NameSanitize.config_names c));;
-  p <- NameSanitize.sanitize_PAst (NameSanitize.get_sanitizer c) p;;
-  c <- NameSanitize.sanitize_config (NameSanitize.get_sanitizer c) c;;
-  Ok (c, p).
-
-(** The warning for typed input, with the configuration of [apply_transforms].
-    Untyped input given to a typed backend is not checked: its typed
-    environment is only inferred inside [apply_transforms]. *)
-Definition dearging_warnings {guard : PCUICWfEnvImpl.abstract_guard_impl} (c : config) (p : PAst) : list string :=
-  match p with
-  | Typed env t =>
-    let t := match t with Some t => t | None => no_main_term end in
+(** The warning for typed input, with the configuration of [apply_transforms],
+    on the result of [peregrine_front].  Untyped input given to a typed
+    backend is not checked: its typed environment is only inferred inside
+    [apply_transforms]. *)
+Definition dearging_warnings {guard : PCUICWfEnvImpl.abstract_guard_impl} (c : config) (p : PAst)
+  (hwf : wf_PAst p) : list string :=
+  match p as p return wf_PAst p -> list string with
+  | Typed env t => fun hwf =>
     match Transforms.typed_dearging_failure (mk_opts c (needs_typed c) (remap_masks c false env))
-            (mk_cstr_reorders c) (drop_remapped_bodies c env, t) with
+            (mk_cstr_reorders c) (drop_remapped_bodies c env, PAst_main t)
+            (wf_drop_remapped_bodies c env (PAst_main t) hwf) with
     | Some why =>
       ["dearging was skipped, so unused arguments are kept (MetaRocq's check_dearging_precond failed: " ++ why ++ ")"]
     | None => []
     end
-  | Untyped _ _ => []
-  end.
+  | Untyped _ _ => fun _ => []
+  end hwf.
 
 Definition peregrine_pipeline_warn_gen {guard : PCUICWfEnvImpl.abstract_guard_impl}
   (c : string + config') (attrs : list string) (inline_recursors : bool)
   (inl : inline_opts) (lbox : lbox_opts) (s : string) (f : string)
   : result' (list string * (list string * extracted_program)) :=
   p <- parse_ast s;;
-  r <- peregrine_pipeline_ast c attrs inline_recursors inl lbox p f;;
-  let ws := match peregrine_prepare c attrs inline_recursors inl p with
-            | Ok (c', p') => dearging_warnings c' p'
-            | Err _ => []
-            end in
+  cp <- peregrine_front c attrs inline_recursors inl p;;
+  r <- peregrine_back lbox f cp;;
+  let ws := dearging_warnings (proj1_sig cp).1 (proj1_sig cp).2 (proj2_sig cp) in
   Ok (ws, r).
 
 Lemma peregrine_pipeline_warn_result {guard : PCUICWfEnvImpl.abstract_guard_impl} c attrs ir io lbox s f :
@@ -232,7 +206,9 @@ Lemma peregrine_pipeline_warn_result {guard : PCUICWfEnvImpl.abstract_guard_impl
 Proof.
   unfold peregrine_pipeline_warn_gen. destruct (parse_ast s) as [p|e] eqn:E; cbn.
   - rewrite (peregrine_pipeline_parsed c attrs ir io lbox s f p E).
-    now destruct peregrine_pipeline_ast.
+    unfold peregrine_pipeline_ast.
+    destruct peregrine_front; cbn; [|reflexivity].
+    now destruct peregrine_back.
   - symmetry. now apply peregrine_pipeline_parse_error.
 Qed.
 

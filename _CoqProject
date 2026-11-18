@@ -13,6 +13,7 @@ theories/CoqToLambdaBox.v
 theories/Extraction.v
 theories/RecursorInlining.v
 theories/AutoInlining.v
+theories/PipelineWf.v
 theories/Pipeline.v
 theories/PipelineParse.v
 
