@@ -26,14 +26,15 @@
       big-step semantics of CakeML expressions; it has no declarations, so
       [CompileCorrect.eval_program_decls] models the emitted [Dtype] blocks
       after CakeML's [build_tdefs] (fresh type stamps, constructor names and
-      arities; the placeholder argument types are ignored, and type inference,
+      arities; the printed argument types are ignored, and type inference,
       which [cake --skip_type_inference=true] skips, is not modelled) and the
-      [Dlet]s as bindings of the values of their expressions;
-    - the external realization of axioms: the correctness statement is about
-      the program in which each axiom has the placeholder body [fun x => x]
-      ([ExtractionCheck.fill_axioms]); the printed program instead refers to
-      the external realization ([ExtractionCheck.restore_axioms]).  Without
-      axioms the two coincide ([restore_axioms_nil]). *)
+      [Dlet]s as bindings of the values of their expressions.
+
+    Axioms are excluded: [cakeml_check] warns on a program with a constant
+    without a body (an axiom of the input that the middle-end keeps, or a
+    constant whose body the middle-end drops because it is remapped), so the
+    program handed to the backend has a body for every constant
+    ([cakeml_output_correct]). *)
 
 From Stdlib Require Import List ssreflect ssrbool.
 From MetaRocq.Utils Require Import utils ResultMonad bytestring.
@@ -89,45 +90,35 @@ Proof.
   end.
 Qed.
 
-(** Without axioms, the printed program is the compiled one. *)
-Lemma restore_axioms_nil {A} (l : list (string * option A)) :
-  ExtractionCheck.restore_axioms [] l = l.
-Proof.
-  unfold ExtractionCheck.restore_axioms.
-  induction l as [|[n b] l IH]; cbn; [reflexivity|]. now rewrite IH.
-Qed.
-
 (** The correctness of the CakeML output [out] for the lambda-box program
-    [(env, t)] with value [v]: [out] prints the compiled program [cp] (with the
-    axioms restored), and for every run of the declarations of [cp], the main
-    expression of [cp] evaluates to a CakeML value related to a named value
-    [vn] that represents [v]. *)
+    [(env, t)] with value [v]: every constant of [env] has a body, [out] prints
+    the compiled program [cp], and for every run of the declarations of [cp]
+    the main expression of [cp] evaluates to a CakeML value related to a
+    named value [vn] that represents [v]. *)
 Definition cakeml_output_correct (env : global_declarations) (t : term)
     (out : list string * string) (v : term) : Prop :=
-  let q := (ExtractionCheck.fill_axioms env, t) in
-  let cp := CakeMLBackend.compile_cakeml q in
-  out = CakeMLBackend.print_program (CakeMLBackend.extract_names t)
-          (cp.1.1, ExtractionCheck.restore_axioms (ExtractionCheck.axiom_names env) cp.1.2, cp.2) /\
+  let cp := CakeMLBackend.compile_cakeml (env, t) in
+  let Σn := (CakeMLBackend.annotate_program (env, t)).1 in
+  (forall kn cb, In (kn, ConstantDecl cb) env -> cst_body cb <> None) /\
+  out = CakeMLBackend.print_program (CakeMLBackend.extract_names t) cp /\
   exists vn, ∥ EWcbvEvalNamed.represents_value vn v ∥ /\
     forall n0 env0 genv,
       CompileCorrect.eval_program_decls n0 env0 cp.1 genv ->
       exists w, bigstep.evaluate genv cp.2 (namespace.Rval w) /\
-        CompileCorrect.vrel (CakeMLBackend.annotate_program q).1 (namespace.c _ genv)
-          (CompileCorrect.type_stamp n0 (CakeMLBackend.annotate_program q).1) vn w.
+        CompileCorrect.vrel Σn (namespace.c _ genv) (CompileCorrect.type_stamp n0 Σn) vn w.
 
 (** On constructor trees, the CakeML value is [CompileCorrect.compile_value]. *)
 Lemma cakeml_output_correct_fo env t out v :
   cakeml_output_correct env t out v ->
   CakeMLBackend.fo_cstrb v = true ->
-  let q := (ExtractionCheck.fill_axioms env, t) in
-  let cp := CakeMLBackend.compile_cakeml q in
+  let cp := CakeMLBackend.compile_cakeml (env, t) in
   forall n0 env0 genv,
     CompileCorrect.eval_program_decls n0 env0 cp.1 genv ->
     bigstep.evaluate genv cp.2
-      (namespace.Rval (CompileCorrect.compile_value (CakeMLBackend.annotate_program q).1 n0
+      (namespace.Rval (CompileCorrect.compile_value (CakeMLBackend.annotate_program (env, t)).1 n0
                          (PipelineCorrect.eval_fo v))).
 Proof.
-  intros [_ (vn & [hr] & h)] hfo; cbv zeta; intros n0 env0 genv hd.
+  intros [_ [_ (vn & [hr] & h)]] hfo; cbv zeta; intros n0 env0 genv hd.
   destruct (CakeMLBackend.represents_value_fo_cstr v vn hfo hr) as [-> hfvn].
   destruct (h n0 env0 genv hd) as (w & hw & hrel).
   pose proof (CompileCorrect.vrel_fo _ n0 _ _ _ hfvn hrel) as e.
@@ -142,17 +133,16 @@ Lemma cakeml_backend_correct c env t file warnings out v :
   eval_eprogram final_wcbv_flags (env, t) v ->
   cakeml_output_correct env t out v.
 Proof.
-  intros h hw [hev].
+  intros h hw hev.
   apply peregrine_backend_cakeml in h as (opts & q & _ & hq & hx).
   cbn in hq. injection hq as <-.
   pose proof (proj1 (CakeMLBackend.extract_cakeml_warnings _ _ _ _ _ _ _ hx) hw) as hc.
-  split.
-  - cbv beta iota zeta delta [CakeMLBackend.extract_cakeml CakeMLBackend.compile_cakeml
-      Compile.compile_program CakeMLBackend.annotate_program] in hx |- *.
-    cbn [fst snd] in hx |- *.
-    injection hx as _ <-. reflexivity.
-  - apply (CakeMLBackend.cakeml_pipeline_correct _ v hc).
-    constructor. exact (ExtractionCheck.eval_fill_axioms env t v hev).
+  split; [|split].
+  - intros kn cb hin hb.
+    pose proof (CakeMLBackend.cakeml_check_no_axioms _ hc kn _ hin) as hax.
+    destruct cb as [[]]; cbn in hb, hax; [discriminate|discriminate].
+  - unfold CakeMLBackend.extract_cakeml in hx. injection hx as _ <-. reflexivity.
+  - exact (CakeMLBackend.cakeml_pipeline_correct _ v hc hev).
 Qed.
 
 (** ** End-to-end theorems *)

@@ -104,6 +104,9 @@ Definition annotate_program (p : EAst.program) : EProgram.eprogram :=
     side condition [CompileCorrect.names_ok] of its correctness relation
     ([cakeml_obseq]) on the annotated program. *)
 Definition cakeml_check (p : EAst.program) : result' unit :=
+  assert' (forallb (fun d => negb (ExtractionCheck.is_axiom d)) p.1)
+    (fun _ => "Program contains axioms (constants without a body, e.g. remapped constants): " ++
+              String.concat ", " (ExtractionCheck.axiom_names p.1)) ;;
   @ExtractionCheck.check_extractable CakeML.Backend.Compile.blocks_until 200
     Uint63.wB (Uint63.to_Z array_length)
     (EImplementBox.switch_off_box extraction_env_flags_mlf) p ;;
@@ -115,6 +118,7 @@ Lemma cakeml_check_sound p :
   pre cakeml_pipeline p /\ CompileCorrect.names_ok (annotate_program p) = true.
 Proof.
   unfold cakeml_check.
+  destruct (forallb _ p.1); cbn -[ExtractionCheck.check_extractable CompileCorrect.names_ok Uint63.wB Uint63.to_Z array_length]; [|discriminate].
   destruct (ExtractionCheck.check_extractable _ _ _ _ p) eqn:h; cbn; [|discriminate].
   destruct (CompileCorrect.names_ok _) eqn:hn; cbn; [|discriminate]. intros _.
   split; [|reflexivity].
@@ -201,7 +205,10 @@ Qed.
 (** [extract_cakeml] compiles every program with [compile_cakeml].  It runs
     [cakeml_check] only to report a warning when the program is outside the
     precondition of [cakeml_pipeline] or of its correctness relation, see
-    [extract_cakeml_verified]. *)
+    [extract_cakeml_verified].  In particular a program with axioms (constants
+    without a body, which is also what remapped constants become) gets a
+    warning; their declarations are printed as references to an external
+    [$Axioms] structure. *)
 Definition extract_cakeml (remaps : constant_remappings)
                           (custom_attr : custom_attributes)
                           (opts : cakeml_config)
@@ -209,12 +216,8 @@ Definition extract_cakeml (remaps : constant_remappings)
                           (p : EAst.program)
                           : result' (list string * (list string * string)) :=
   let nms := extract_names (snd p) in
-  (* Axioms get placeholder bodies for the verified passes, see
-     [ExtractionCheck.fill_axioms]. *)
-  let p0 := (ExtractionCheck.fill_axioms p.1, p.2) in
-  let warnings := ExtractionCheck.unverified_warning "CakeML" (cakeml_check p0) in
-  let '(dtypes, env, main) := compile_cakeml p0 in
-  Ok (warnings, print_program nms (dtypes, ExtractionCheck.restore_axioms (ExtractionCheck.axiom_names p.1) env, main)).
+  let warnings := ExtractionCheck.unverified_warning "CakeML" (cakeml_check p) in
+  Ok (warnings, print_program nms (compile_cakeml p)).
 
 (** When [extract_cakeml] reports no warning, its output is the printed result
     of [cakeml_pipeline] at a proof of its precondition, and the side condition
@@ -222,26 +225,32 @@ Definition extract_cakeml (remaps : constant_remappings)
 Lemma extract_cakeml_verified remaps custom_attr opts file_name p warnings out :
   extract_cakeml remaps custom_attr opts file_name p = Ok (warnings, out) ->
   warnings = [] ->
-  let p0 := (ExtractionCheck.fill_axioms p.1, p.2) in
-  exists pr : pre cakeml_pipeline p0,
-    CompileCorrect.names_ok (annotate_program p0) = true /\
-    out = let '(dtypes, env, main) := run cakeml_pipeline p0 pr in
-          print_program (extract_names (snd p))
-            (dtypes, ExtractionCheck.restore_axioms (ExtractionCheck.axiom_names p.1) env, main).
+  exists pr : pre cakeml_pipeline p,
+    CompileCorrect.names_ok (annotate_program p) = true /\
+    out = print_program (extract_names (snd p)) (run cakeml_pipeline p pr).
 Proof.
-  intros h hw. unfold extract_cakeml in h. cbv zeta.
-  destruct (compile_cakeml _) as [[dtypes env] main] eqn:hc.
+  intros h hw. unfold extract_cakeml in h.
   injection h as <- <-.
   apply ExtractionCheck.unverified_warning_nil in hw.
   destruct (cakeml_check_sound _ hw) as [pr hn].
-  exists pr. split; [exact hn|]. now rewrite run_cakeml_pipeline, hc.
+  exists pr. split; [exact hn|]. now rewrite run_cakeml_pipeline.
 Qed.
 
 (** [extract_cakeml] reports a warning exactly when [cakeml_check] fails. *)
 Lemma extract_cakeml_warnings remaps custom_attr opts file_name p warnings out :
   extract_cakeml remaps custom_attr opts file_name p = Ok (warnings, out) ->
-  warnings = [] <-> bool_of_result (cakeml_check (ExtractionCheck.fill_axioms p.1, p.2)) = true.
+  warnings = [] <-> bool_of_result (cakeml_check p) = true.
 Proof.
-  intros h. unfold extract_cakeml in h. destruct compile_cakeml as [[dtypes env] main].
+  intros h. unfold extract_cakeml in h.
   injection h as <- _. apply ExtractionCheck.unverified_warning_nil.
+Qed.
+
+(** A program accepted by [cakeml_check] has no axioms. *)
+Lemma cakeml_check_no_axioms p :
+  bool_of_result (cakeml_check p) = true ->
+  forall kn d, In (kn, d) p.1 -> ExtractionCheck.is_axiom (kn, d) = false.
+Proof.
+  unfold cakeml_check. destruct (forallb _ p.1) eqn:h; cbn; [|discriminate].
+  intros _ kn d hin. rewrite forallb_forall in h. specialize (h _ hin).
+  now destruct ExtractionCheck.is_axiom.
 Qed.
