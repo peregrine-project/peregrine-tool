@@ -13,7 +13,9 @@
 From Stdlib Require Import ZArith List ssreflect ssrbool.
 From MetaRocq.Utils Require Import utils ResultMonad.
 From MetaRocq.Common Require Import Kernames.
-From MetaRocq.Erasure Require Import EAst EGlobalEnv EWellformed EProgram.
+From MetaRocq.Erasure Require Import EAst EGlobalEnv EWellformed EProgram EPrimitive.
+From MetaRocq.Erasure Require EWcbvEval.
+From Equations Require Import Equations.
 From Peregrine Require Import Utils CheckWf.
 
 Import ListNotations.
@@ -146,3 +148,74 @@ Definition unverified_warning (backend : string) (r : result' unit) : list strin
 Lemma unverified_warning_nil b r :
   unverified_warning b r = [] <-> bool_of_result r = true.
 Proof. now destruct r. Qed.
+
+(** ** Evaluation with filled axioms
+
+  Evaluation never unfolds an axiom, so a program that evaluates to a value
+  also does so after [fill_axioms]. *)
+
+Lemma lookup_env_fill_axioms Σ kn :
+  lookup_env (fill_axioms Σ) kn =
+  option_map (fun d => if is_axiom (kn, d)
+                       then ConstantDecl {| cst_body := Some axiom_placeholder |}
+                       else d) (lookup_env Σ kn).
+Proof.
+  induction Σ as [|[kn' d] Σ IH]; [reflexivity|].
+  unfold fill_axioms in *. cbn [map].
+  destruct (is_axiom (kn', d)) eqn:ha; cbn [lookup_env fst snd];
+    destruct (eqb kn kn') eqn:he; cbn; try exact IH;
+    apply eqb_eq in he; subst kn'; now rewrite ha.
+Qed.
+
+Lemma lookup_minductive_fill_axioms Σ kn :
+  lookup_minductive (fill_axioms Σ) kn = lookup_minductive Σ kn.
+Proof.
+  unfold lookup_minductive. rewrite lookup_env_fill_axioms.
+  destruct (lookup_env Σ kn) as [d|]; [|reflexivity].
+  destruct d as [[b]|]; [destruct b|]; reflexivity.
+Qed.
+
+Lemma lookup_inductive_fill_axioms Σ ind :
+  lookup_inductive (fill_axioms Σ) ind = lookup_inductive Σ ind.
+Proof. unfold lookup_inductive. now rewrite lookup_minductive_fill_axioms. Qed.
+
+Lemma lookup_constructor_fill_axioms Σ ind c :
+  lookup_constructor (fill_axioms Σ) ind c = lookup_constructor Σ ind c.
+Proof. unfold lookup_constructor. now rewrite lookup_inductive_fill_axioms. Qed.
+
+Lemma constructor_isprop_pars_decl_fill_axioms Σ ind c :
+  constructor_isprop_pars_decl (fill_axioms Σ) ind c = constructor_isprop_pars_decl Σ ind c.
+Proof. unfold constructor_isprop_pars_decl. now rewrite lookup_constructor_fill_axioms. Qed.
+
+Lemma inductive_isprop_and_pars_fill_axioms Σ ind :
+  inductive_isprop_and_pars (fill_axioms Σ) ind = inductive_isprop_and_pars Σ ind.
+Proof. unfold inductive_isprop_and_pars. now rewrite lookup_inductive_fill_axioms. Qed.
+
+Lemma declared_constant_fill_axioms Σ kn decl body :
+  declared_constant Σ kn decl -> cst_body decl = Some body ->
+  declared_constant (fill_axioms Σ) kn decl.
+Proof.
+  unfold declared_constant. intros h hb. rewrite lookup_env_fill_axioms h. cbn.
+  destruct decl as [[]]; cbn in *; congruence.
+Qed.
+
+Lemma eval_fill_axioms {wfl : EWcbvEval.WcbvFlags} Σ t v :
+  EWcbvEval.eval Σ t v -> EWcbvEval.eval (fill_axioms Σ) t v.
+Proof.
+  induction 1;
+  repeat match goal with
+  | H : constructor_isprop_pars_decl Σ _ _ = _ |- _ => rewrite <- constructor_isprop_pars_decl_fill_axioms in H
+  | H : inductive_isprop_and_pars Σ _ = _ |- _ => rewrite <- inductive_isprop_and_pars_fill_axioms in H
+  | H : lookup_constructor Σ _ _ = _ |- _ => rewrite <- lookup_constructor_fill_axioms in H
+  | H : declared_constant Σ _ ?d, H' : cst_body ?d = Some _ |- _ => eapply declared_constant_fill_axioms in H; [|exact H']
+  end;
+  try solve [econstructor; eassumption].
+  - econstructor; tea.
+    clear -a iha. induction a; constructor; eauto. apply iha. apply IHa, iha.
+  - constructor.
+    depelim X; constructor; eauto.
+    eapply All2_over_undep in a. now eapply All2_All2_Set.
+  - constructor.
+    destruct t; try exact i. cbn [EWcbvEval.atom] in i |- *.
+    destruct args; [|exact i]. now rewrite lookup_constructor_fill_axioms.
+Qed.
