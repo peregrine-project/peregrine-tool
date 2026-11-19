@@ -3,14 +3,15 @@ import { Lang, ProgramType, SimpleType, TestCase, TestConfiguration } from "./ty
 /* (backend, peregrine flags) pair configurations */
 export var test_configurations: TestConfiguration[] = [
     [Lang.OCaml, "", ""],
-    [Lang.C, "cps", "--cps"],
+    [Lang.C, "cps", "--certirocq-cps"],
     [Lang.C, "", ""],
+    // the deprecated alias of --certirocq-cps
     [Lang.Wasm, "cps", "--cps"],
     [Lang.Wasm, "", ""],
     [Lang.LLVM, "", ""],
-    // -O 0 turns off lambda lifting; the default is -O 1
-    [Lang.C, "O0", "-O 0"],
-    [Lang.LLVM, "O0", "-O 0"],
+    // --certirocq-O 0 turns off lambda lifting; the default is 1
+    [Lang.C, "O0", "--certirocq-O 0"],
+    [Lang.LLVM, "O0", "--certirocq-O=0"],
     [Lang.Rust, "", ""],
     [Lang.Elm, "", ""],
     // The typed backends on the untyped sources, whose types are inferred.
@@ -18,12 +19,13 @@ export var test_configurations: TestConfiguration[] = [
     // `rejected` must fail with "Could not infer types".
     [Lang.Rust, "untyped", "", true],
     [Lang.Elm, "untyped", "", true],
-    // The Rust verbs other than `peregrine compile`. The dearg flags match
-    // src/rust/config.sexp, so the rust verb expects the outputs of the Rust tests.
-    [Lang.Rust, "verb", "--dearg-ctors false --dearg-consts false", false, "rust"],
-    [Lang.Rust, "i64", "--dearg-ctors false --dearg-consts false", false, "rust-i64"],
+    // The Rust verbs other than `peregrine compile`. The dearg flag matches
+    // src/rust/config.sexp, so the rust verb expects the outputs of the Rust tests
+    // (rust-i64 uses the deprecated alias --dearg-consts BOOL).
+    [Lang.Rust, "verb", "--no-dearg-constants", false, "rust"],
+    [Lang.Rust, "i64", "--dearg-consts false", false, "rust-i64"],
     // i64 or GMP per value: prints as rust-i64 does
-    [Lang.Rust, "hybrid", "--dearg-ctors false --dearg-consts false", false, "rust-hybrid"],
+    [Lang.Rust, "hybrid", "--no-dearg-constants", false, "rust-hybrid"],
     [Lang.CakeML, "", ""],
     [Lang.Lean, "", ""],
     // The F# backend is experimental
@@ -34,18 +36,16 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.Koka, "typed", "", false, "koka-typed"],
     [Lang.Koka, "typed-untyped", "", true, "koka-typed"],
     // The two optional middle-end passes, which only the untyped pipeline runs
-    [Lang.OCaml, "passes", "--specialize-instances true --cse true"],
-    // The lowering of cofixpoints, a no-op on the programs without them
-    [Lang.OCaml, "cofix", "--lower-cofix true"],
-    [Lang.C, "cofix", "--lower-cofix true"],
-    [Lang.Wasm, "cofix", "--lower-cofix true"],
-    // The unverified lambda-box simplifications, which the typed pipeline runs
-    // too; Rust-lbox shares the expected failures of Rust
-    [Lang.Rust, "lbox", "--lbox-opts"],
-    // Everything the PR adds, as Rocq's extraction does: recursor inlining,
-    // beta reduction, the simplifications and constant lifting
-    [Lang.OCaml, "lbox", "--inline-recursors --betared true --lbox-opts --lift-constants"],
-    [Lang.C, "lbox", "--inline-recursors --betared true --lbox-opts --lift-constants"]
+    [Lang.OCaml, "passes", "--specialize-instances --share-common-subterms"],
+    // Every configuration above runs the default passes (recursor inlining,
+    // beta reduction, the lambda-box simplifications and constant lifting).
+    // These run without any optional pass (-O0); Rust-unopt shares the
+    // expected failures of Rust that the passes do not cause
+    [Lang.Rust, "unopt", "-O0"],
+    [Lang.OCaml, "unopt", "-O0"],
+    [Lang.C, "unopt", "-O0"],
+    // The default spelled out with the deprecated aliases
+    [Lang.C, "deprecated", "-O2 --inline-recursors --betared true --lbox-opts --lift-constants"]
 ];
 
 // The expected outputs of an Agda program that computes the natural number n,
@@ -97,13 +97,13 @@ const remap_attributes: TestCase["attributes"] = {
 // Known failures shared by several tests, by configuration
 const on = (configs: string[], reason: string) => Object.fromEntries(configs.map((c) => [c, reason]));
 const elm = (reason: string) => on(["Elm", "Elm-untyped"], reason);
-const rust = (reason: string) => on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"], reason);
+const rust = (reason: string) => on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-unopt"], reason);
 const elm_operator = elm("#79: Elm prints the names of operators and of other symbols ([], _∷_, ×, ℕ) with a leading underscore, which Elm rejects");
 const elm_ctor_clash = elm("#99: Elm prints the constructors of different types under the same name");
 const elm_module_clash = elm("#94: the Elm module is named after the file, which clashes with a module of the Elm core or test library");
-const rust_fn_fields = on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"],
+const rust_fn_fields = on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-unopt"],
     "#79: Debug and Serialize are derived for every type, which fails on the function-typed fields of the record (E0277)");
-const lean_untyped = on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox", "Koka-typed"],
+const lean_untyped = on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-unopt", "Koka-typed"],
     "peregrine-project/lean-to-lambdabox#21: the Lean frontend has no typed output, so a Lean program has no typed source");
 const lean_name_clash = on(["Lean", "FSharp-experimental", "Koka-experimental"],
     "#93, #99: two definitions whose module paths differ only in their last component (where-modules, record modules) get the same name: agda2lambox writes module paths outermost first, and the backend keeps only one component");
@@ -124,7 +124,8 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Equality.ast",
-            xfail: { "Elm": "#79: Elm prints the type name ≡ as __UU002261_, which Elm rejects", "Koka-typed": "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express" },
+            // Koka-typed passes now (CI, PR #160); #142 still applies to STLC
+            xfail: { "Elm": "#79: Elm prints the type name ≡ as __UU002261_, which Elm rejects" },
             main: "Equality_test",
             output_type: SimpleType.Nat,
             expected_output: [
@@ -268,7 +269,7 @@ var agda_tests: TestCase[] =
             // The type of the result of eval depends on the type of the term
             rejected: true,
             xfail: {
-                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"], "#127: the branches of eval have different types (the type of the value is indexed by the type of the term), and the Rust printer has no cast (E0308)"),
+                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-unopt"], "#127: the branches of eval have different types (the type of the value is indexed by the type of the term), and the Rust printer has no cast (E0308)"),
                 "Elm": "#79: Elm prints the type name ∋ as __UU00220b_, which Elm rejects",
                 "Koka-typed": "#142: agda2lambox gives this program a type that erases to TAny, which the typed Koka printer cannot express"
             },
@@ -307,7 +308,15 @@ var agda_tests: TestCase[] =
         },
         // Untyped
         agda_nat_test("ErasedRecursion", 2, false),
-        { ...agda_nat_test("Fannkuch", 7, false), xfail: elm_operator },
+        {
+            // Rust-untyped passes with the default passes. Without them (-O0),
+            // which no configuration runs on the untyped source,
+            // Prelude.splitAt takes its argument x : a as a function parameter
+            // and returns a closure capturing it, and the Rust printer does
+            // not bound a by the lifetime of the closure (E0309, #127)
+            ...agda_nat_test("Fannkuch", 7, false),
+            xfail: elm_operator
+        },
         {
             ...agda_nat_test("InductionRecursion", 3, false),
             // An ML type exists, but inference gives the first argument of the
@@ -357,7 +366,7 @@ var agda_tests: TestCase[] =
             ...agda_nat_test("Postulates", 84, true),
             attributes: remap_attributes,
             xfail: {
-                ...on(["WebAssembly", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
+                "WebAssembly": "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)",
                 "CakeML": "#126: the CakeML backend takes no constant remappings, so the postulate TODO is printed as a raise, which cake does not parse"
             }
         },
@@ -383,7 +392,7 @@ var rocq_tests: TestCase[] =
             tsrc: "rocq/extraction/Classy_typed.ast",
             xfail: {
                 "Rust": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the records",
-                "Rust-lbox": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the records",
+                "Rust-unopt": "#79: the Rust test configuration derives Debug for every type, which fails on the function-typed fields of the records",
                 "Rust-verb": "#79: the rust verb derives Debug for every type, which fails on the function-typed fields of the records",
                 "Rust-i64": "#79: the rust-i64 verb derives Debug for every type, which fails on the function-typed fields of the records",
                 "Rust-hybrid": "#79: the rust-hybrid verb derives Debug for every type, which fails on the function-typed fields of the records",
@@ -404,7 +413,7 @@ var rocq_tests: TestCase[] =
             expected_output: ["(S (S (S (S (S O)))))", "(S () (S () (S () (S () (S () (O))))))", "S (S (S (S (S O))))"],
             parameters: [],
             xfail: {
-                "Rust-lbox": "#127: after fixpoint eta-hoisting, walk returns a closure that captures d : A, and the Rust printer does not bound A by the lifetime of the closure (E0309)"
+                ...on(["Rust", "Rust-untyped", "Rust-verb", "Rust-i64", "Rust-hybrid"], "#127: after fixpoint eta-hoisting, walk returns a closure that captures d : A, and the Rust printer does not bound A by the lifetime of the closure (E0309)")
             }
         },
         {
@@ -420,11 +429,6 @@ var rocq_tests: TestCase[] =
             cofix: true,
             tsrc: "rocq/extraction/CoStream_typed.ast",
             rust_i64_output: "(cons () 0 (cons () 1 (cons () 0 (cons () 1 (nil)))))",
-            rejected: "#125: the Rust and Elm printers do not support cofixpoints, so neither does type inference",
-            xfail: {
-                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"], "#125: the Rust and Elm printers do not support cofixpoints (Cannot handle tCoFix)"),
-                "Koka-typed": "#125: the typed Koka printer does not support cofixpoints"
-            }
         },
         {
             src: "rocq/extraction/Prims.ast",
@@ -440,11 +444,10 @@ var rocq_tests: TestCase[] =
             rust_i64_output: "(cons () 1 (cons () 0 (nil)))",
             rejected: "#125: the Rust and Elm printers do not support primitive values, so neither does type inference",
             xfail: {
-                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
+                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-unopt"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
                 "Koka-typed": "#125: the typed Koka printer does not support primitive values",
                 "WebAssembly": "#125: the Wasm backend does not support primitive strings",
                 "WebAssembly-cps": "#125: the Wasm backend does not support primitive strings",
-                "WebAssembly-cofix": "#125: the Wasm backend does not support primitive strings",
                 "CakeML": "#125: the CakeML backend prints every primitive literal as a raise"
             }
         },
@@ -481,7 +484,7 @@ var rocq_tests: TestCase[] =
             rust_i64_output: "3",
             attributes: remap_attributes,
             xfail: {
-                ...on(["WebAssembly", "WebAssembly-cps", "WebAssembly-cofix"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
+                ...on(["WebAssembly", "WebAssembly-cps"], "#126: the Wasm backend rejects a remapped constant (Unsupported primitive operator)"),
                 "CakeML": "#126: the CakeML backend takes no constant remappings, so the axiom ext_id is printed as a raise, which cake does not parse",
                 "Rust-untyped": "#79: inference prints no method for the axiom ext_id, and gives the unused parameter of shadowed the type ()"
             },
@@ -504,7 +507,7 @@ var rocq_tests: TestCase[] =
             parameters: []
         },
         {
-            // --lbox-case-id must not identify a box with a field
+            // --drop-identity-matches must not identify a box with a field
             src: "rocq/extraction/CaseId.ast",
             tsrc: "rocq/extraction/CaseId_typed.ast",
             rust_i64_output: "1",
@@ -517,7 +520,8 @@ var rocq_tests: TestCase[] =
             parameters: []
         },
         {
-            // --lbox-opts drops a dead parameter before the structural one
+            // Fixpoint eta-hoisting (on by default) drops a dead parameter before
+            // the structural one
             src: "rocq/extraction/FixEtaRarg.ast",
             tsrc: "rocq/extraction/FixEtaRarg_typed.ast",
             rust_i64_output: "7",
@@ -613,7 +617,7 @@ var rocq_tests: TestCase[] =
             tsrc: "rocq/extraction/Phantom_typed.ast",
             xfail: {
                 "Rust": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
-                "Rust-lbox": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
+                "Rust-unopt": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
                 "Rust-verb": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
                 "Rust-i64": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)",
                 "Rust-hybrid": "#127: the typed Rust backend keeps the phantom parameter, which rustc cannot infer at the constructor (fixed upstream, not yet pinned; see #127)"
@@ -632,7 +636,7 @@ var rocq_tests: TestCase[] =
             // extraction generalises the let, the type inference does not
             rejected: "#79: the type inference does not generalise let-bound definitions",
             xfail: {
-                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"], "#127: the Rust printer binds the polymorphic id with a let, as a closure of a single type, so its uses at bool and at nat do not type-check (E0308)"),
+                ...on(["Rust", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-unopt"], "#127: the Rust printer binds the polymorphic id with a let, as a closure of a single type, so its uses at bool and at nat do not type-check (E0308)"),
                 "Koka-typed": "#138: the typed Koka printer binds the polymorphic id with a val, which Koka does not generalise"
             },
             main: "PolyLet_test",

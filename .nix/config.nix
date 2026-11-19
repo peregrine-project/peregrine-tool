@@ -30,9 +30,10 @@
       CertiRocq.override.version = "1396dbfa9738254c1837b61f8a0242277e2dd506";
       # CertiRocq needs coq-wasm >= 2.2.1
       wasmcert.override.version = "2.2.1";
-      verified-extraction.override.version = "0ed8aa88560a518e0822b583f45e1ebb45b10f7f";
+      verified-extraction.override.version = "f999f40ca7a2ecb52d71b5497a417ec46c5c0403";
       ceres-bs.override.version = "1.0.0";
-      CakeMLExtraction.override.version = "8df83a16525ca08bb9b5b375b3331b3f480d346b";
+      # cakeml-backend#17 (e2e-snapshot), compiler correctness proof on the 9.1 snapshot
+      CakeMLExtraction.override.version = "dae906dee07e3e0c7bc6de3229a3d7ea66a645dd";
     }; rocqPackages = {
       rocq-core.override.version = "9.1";
     };

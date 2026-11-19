@@ -38,7 +38,7 @@ Proof. repeat split; apply same_code_refl. Qed.
 
 Lemma tail_code_same t (c : LLVMAst.code typ) r : Forall2 same_instr c (LLVMTail.tail_code t c r).
 Proof.
-  unfold LLVMTail.tail_code.
+  unfold LLVMTail.tail_code, rev'. rewrite <- !rev_alt.
   destruct (rev c) as [|[[id ins] md] rest] eqn:E; try apply same_code_refl.
   assert (Ec : c = rev ((id, ins, md) :: rest))
     by (rewrite <- E, rev_involutive; reflexivity).
@@ -47,7 +47,7 @@ Proof.
   destruct anns; try apply same_code_refl.
   destruct (LLVMTail.raw_id_eqb x r); try apply same_code_refl.
   destruct (forallb (LLVMTail.tail_arg t) args); try apply same_code_refl.
-  rewrite Ec at 1. simpl rev. apply Forall2_app; [apply same_code_refl|].
+  rewrite <- rev_alt, Ec at 1. simpl rev. apply Forall2_app; [apply same_code_refl|].
   constructor; [|constructor]. right. do 7 eexists. split; reflexivity.
 Qed.
 

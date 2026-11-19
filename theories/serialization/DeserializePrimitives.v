@@ -2,6 +2,7 @@ From Stdlib Require Import List.
 From Stdlib Require Import ZArith.
 From Stdlib Require PrimInt63.
 From Stdlib Require PrimFloat.
+From Corelib Require Uint63Axioms PrimStringAxioms.
 From CeresBS Require Import Ceres.
 
 From MetaRocq.Utils Require Import bytestring.
@@ -13,9 +14,17 @@ Local Open Scope bs_scope.
 
 
 
-(** * Axioms *)
-(* Realized in extraction *)
-Axiom prim_string_of_string : string -> PrimString.string.
+(** * Primitive strings *)
+
+Definition char63_of_byte (b : Byte.byte) : PrimInt63.int :=
+  Uint63Axioms.of_Z (Z.of_N (Byte.to_N b)).
+
+(** [None] if the string is longer than [PrimString.max_length].
+    Realized in extraction by [Pstring.of_string]. *)
+Definition prim_string_of_string (s : string) : option PrimString.string :=
+  if (Z.of_nat (String.length s) <=? Uint63Axioms.to_Z PrimString.max_length)%Z
+  then Some (PrimStringAxioms.of_list (List.map char63_of_byte (String.print s)))
+  else None.
 
 
 
@@ -34,15 +43,44 @@ Instance Deserialize_prim_tag : Deserialize prim_tag :=
 Instance Deserialize_prim_string : Deserialize PrimString.string :=
   fun l e =>
     match e with
-    | Atom_ (Str s) => inr (prim_string_of_string s)
+    | Atom_ (Str s) =>
+        match prim_string_of_string s with
+        | Some p => inr p
+        | None => inl (DeserError l "string too long for a primitive string")
+        end
     | _ => inl (DeserError l "error")
     end.
 
-Instance Deserialize_array_model {T : Set} `{Deserialize T} : Deserialize (array_model T) :=
+(* The generic, combinator-based deserializer for [array_model]. *)
+Definition Deserialize_array_model_gen {T : Set} `{Deserialize T} : Deserialize (array_model T) :=
   fun l e =>
     Deser.match_con "array_model" []
       [ ("array_model", Deser.con2_ Build_array_model) ]
       l e.
+
+(* The instance is the combinator-based deserializer with the Ceres
+   combinators unfolded at definition time.
+   [Deserialize_array_model] is used nested inside the fixpoint
+   [deserialize_term] (through [Deserialize_prim_val]) with the recursive
+   function as instance for [T]. Rocq's guard checker re-checks an argument
+   containing an unapplied recursive call once per combinator it is passed
+   through, so nesting a second [Deser.match_con] inside the one of
+   [deserialize_term] multiplies the checking time by a large factor (~75s
+   instead of ~1s). With the combinators already unfolded there is nothing
+   left to expand. *)
+Instance Deserialize_array_model {T : Set} `{Deserialize T} : Deserialize (array_model T) :=
+  ltac:(let t := eval cbv [Deserialize_array_model_gen Deser.match_con Deser._con
+                           Deser.con2_ Deser.con2 Deser.fields Deser.bind_field Deser.ret
+                           _fields List.map fst CeresUtils._find_or CeresUtils._bind_sum]
+                 in (@Deserialize_array_model_gen T _) in
+        exact t).
+
+Lemma Deserialize_array_model_eq {T : Set} `{Deserialize T} l e :
+  @_from_sexp (array_model T) Deserialize_array_model l e =
+  Deser.match_con "array_model" []
+    [ ("array_model", Deser.con2_ Build_array_model) ]
+    l e.
+Proof. reflexivity. Qed.
 
 Instance Deserialize_prim_val {T : Set} `{Deserialize T} : Deserialize (prim_val T) :=
   fun l e =>
