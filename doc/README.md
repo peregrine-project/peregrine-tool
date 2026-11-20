@@ -9,3 +9,4 @@ This directory contains the Peregrine documentation.
 * [format.md](format.md): documentation of the Peregrine IR and configuration format as well as the serialized format
 * [dev.md](dev.md): Useful information for developers and contributors
 * [dependencies.md](dependencies.md): dependencies, their pins and the policy for forks
+* [review.md](review.md): review guide: per frontend and backend, the trusted definitions to read and the proofs to skip

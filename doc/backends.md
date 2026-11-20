@@ -7,11 +7,11 @@ The table below summarises supported the backends
 
 | Backend      | Source  | Verified | Verified printer | Target format       | Readability | Memory handling |
 |--------------|---------|----------|------------------|---------------------|-------------|-----------------|
-| C            | untyped | ✓ | ✗ | C-light                    | ✗ | Verified GC |
-| WebAssembly  | untyped | ✓ | ✓ | Binary format              | ✗ | Bump allocator, no GC |
+| C            | untyped | partial, see below | ✗ | C-light                    | ✗ | Verified GC |
+| WebAssembly  | untyped | ✓ | ✗ | Binary format              | ✗ | Bump allocator, no GC |
 | LLVM (experimental) | untyped | partial, see below | ✗ | Textual LLVM IR (`.ll`) | ✗ | CertiRocq GC (`gc_stack.c`) |
 | OCaml        | untyped | ✓ | ✗ | Malfunction Serialized AST | ✗ | GC |
-| CakeML       | untyped | ✓ | ✓ | Serialized AST             | ✗ | GC |
+| CakeML       | untyped | ✓ | ✗ | Serialized AST             | ✗ | GC |
 | Rust         | typed (untyped: experimental) | ✗ | ✗ | Source language            | ✓ | Bump allocator, no GC |
 | Elm          | typed (untyped: experimental) | ✗ | ✗ | Source language            | ✓ | - |
 | Lean         | untyped | ✗ | ✗ | Source language            | ✗ | Reference counting (Lean runtime) |
@@ -19,7 +19,9 @@ The table below summarises supported the backends
 | Koka (experimental) | untyped | ✗ | ✗ | Source language     | ✗ | Reference counting (Perceus) |
 | Koka, typed (experimental) | typed (untyped: inferred) | ✗ | ✗ | Source language | ✓ | Reference counting (Perceus) |
 | AST (debug)  | either  | ✓ | ✓ | Serialized AST             | ✗ | - |
-| Eval (debug) | either  | ✓ | ✗ | -                          | ✗ | -  |
+| Eval (debug) | either  | ✗ | ✗ | -                          | ✗ | -  |
+
+[review.md](review.md) lists, for each backend, the theorem, the trusted definitions and what is outside the proof.
 
 
 ## C
@@ -29,6 +31,8 @@ Implemented in [CertiRocq](https://github.com/CertiRocq/certirocq/).
 
 Output — a C-light program as a single `.c` and `.h` file. The CLI writes a `.c` file plus a `.h` header; the C must be linked against the CertiRocq runtime and glue code (see the [CertiRocq plugin docs](https://github.com/CertiRocq/certirocq/wiki/The-CertiRocq-plugin#compiling-the-generated-c-code)). The C output can then be compiled with [CompCert](https://compcert.org/) or any standard C compiler.
 
+What is proved: the translation from $\lambda_\square$ to LambdaANF and the LambdaANF passes (CertiRocq's `anf_correct_top` and `anf_pipeline_correct`). The C code generator that the pipeline uses, `LambdaANF_to_Clight_stack.v`, has no correctness theorem: `LambdaANF_to_Clight_correct.v` proves an older generator, is not in CertiRocq's `_CoqProject` and does not compile ([CertiRocq/certirocq#64](https://github.com/CertiRocq/certirocq/issues/64)). Code generation and the printer ([src/printC/printClight.ml](/src/printC/printClight.ml)) are therefore unverified; see [review.md](review.md#c).
+
 ## WebAssembly
 
 WebAssembly(Wasm) backend extracting to Wasm binary format. It uses the Wasm 2.0 standard with tail-call extension. It accepts both typed and untyped ASTs as input.
@@ -36,6 +40,8 @@ Implemented in [CertiRocq](https://github.com/CertiRocq/certirocq/).
 
 Output — a file the binary-encoded Wasm module. The CLI writes a `.wasm` file. The module exports the main function as `main_function`.
 The code can be executed by any Wasm 2.0 compatible runtime that supports the [tail-call extension](https://webassembly.org/features/) (e.g. recent Node.js, Wasmtime, modern browsers).
+
+What is proved: CertiRocq's `LambdaANF_Wasm_related` relates the evaluation of the LambdaANF program to the execution of the module in WasmCert-Coq's semantics. The binary encoding is WasmCert-Coq's `binary_of_module`, which has round-trip tests but no correctness theorem; see [review.md](review.md#webassembly).
 
 ## LLVM
 
@@ -70,7 +76,7 @@ As for OCaml, the backend checks a precondition (`cakeml_check` in [`CakeMLBacke
 
 Rust backend extracting to surface level Rust code. The backend works on typed AST.
 Untyped input is accepted as well: the middle-end first annotates it with types by Hindley-Milner inference ([EHindleyMilner.v](/theories/erasure/EHindleyMilner.v)), reconstructing the datatype signatures (type parameters, constructor field types) from how the constructors are used in the program. It is proved that erasing the annotations gives back the input and that the annotations are well scoped; the annotations themselves are unverified. When the program is not typable this way (dependent elimination, type-level computation, an inductive used at two incompatible field types, a constant used before its declaration, unsupported term forms such as primitives) peregrine fails with a message naming the constant and the types that did not unify; provide a typed program in that case. The reconstructed signature is the most general one consistent with the uses seen, so it can be more polymorphic than the source declaration (a record field may become a type parameter), and the body of an erased type parameter is typed `()`. Only type parameters become type parameters of the output: a parameter to which some constructor application passes a value (a syntactic criterion), or that no field type mentions (a `Prop` or phantom parameter), is dropped. Typed extraction drops value and `Prop` parameters too, but keeps phantom ones. `let`-bound and local fixpoint definitions are not generalised, so a `let`-bound function used at two types is rejected, and an axiom gets the type `forall a. a`. Postponed work, including a proof that the annotations type the terms, is tracked in [#79](https://github.com/peregrine-project/peregrine-tool/issues/79).
-The backend is located in [`peregrine-project/rocq-typed-extraction`](https://github.com/peregrine-project/rocq-typed-extraction).
+The backend is located in [`peregrine-project/rocq-typed-extraction`](https://github.com/peregrine-project/rocq-typed-extraction): the printer is [`rust/theories/RustExtract.v`](https://github.com/peregrine-project/rocq-typed-extraction/blob/74dcbc960a8d4fa04496b84d6447611159bd6c70/rust/theories/RustExtract.v) at the pinned commit, and Peregrine's wrapper is [`RustBackend.v`](/theories/backends/RustBackend.v). Typed erasure and the typed middle-end are proved (MetaRocq's `erasure/theories/Typed/`, Peregrine's `peregrine_typed_typed_fo`); the printer and the runtime crates are trusted ([review.md](review.md#rust)).
 
 Output
 * A single file; written to `<file>.rs` by the CLI.
