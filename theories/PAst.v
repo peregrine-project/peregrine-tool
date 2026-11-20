@@ -18,13 +18,27 @@ Inductive PAst :=
 
 
 
-Definition PAst_to_EAst (ast : PAst) : result' EAst.program :=
+(** The main term of a program without one: the identity function, a
+    closed value that every transformation and every backend check accepts.
+    (A [tBox] placeholder is rejected by the well-formedness checks of the
+    OCaml and CakeML backends, for which boxes are implemented away.) *)
+Definition no_main_term : EAst.term := EAst.tLambda BasicAst.nAnon (EAst.tRel 0).
+
+(** [PAst_to_EAst_main m] uses [m] as the main term of a program without one. *)
+Definition PAst_to_EAst_main (no_main : EAst.term) (ast : PAst) : result' EAst.program :=
   match ast with
   | Untyped env (Some t) => Ok (env, t)
-  | Untyped env None => Ok (env, EAst.tBox) (* TODO: what should we in this case? *)
+  | Untyped env None => Ok (env, no_main)
   | Typed env (Some t) => Ok (ExAst.trans_env env, t)
-  | Typed env None => Ok (ExAst.trans_env env, EAst.tBox)
+  | Typed env None => Ok (ExAst.trans_env env, no_main)
   end.
+
+Definition PAst_to_EAst : PAst -> result' EAst.program := PAst_to_EAst_main no_main_term.
+
+(** The CertiRocq backends (C, Wasm, LLVM, the lambda-ANF AST output) keep
+    [tBox] as the main term of a program without one: they compile a [tBox]
+    main to box ([CertiRocqBackend.implement_main_box] in CPS mode). *)
+Definition PAst_to_EAst_box : PAst -> result' EAst.program := PAst_to_EAst_main EAst.tBox.
 
 (** Untyped (lambda-box) input for a typed target: annotate it by the
     Hindley-Milner inference [EHindleyMilner.infer], or fail with the

@@ -33,13 +33,13 @@ Definition default_ast_c_config := {|
 Definition ast_phases := {|
   implement_box_c  := Compatible false;
   implement_lazy_c := Compatible false;
-  cofix_to_laxy_c  := Compatible false;
   betared_c        := Compatible false;
   unboxing_c       := Compatible false;
   dearg_ctors_c    := Compatible false;
   dearg_consts_c   := Compatible false;
   specialize_instances_c := Compatible false;
   cse_c            := Compatible false;
+  lift_constants_c := Compatible false;
 |}.
 
 Definition extract_untyped_ast (p : EAst.program)
@@ -99,12 +99,12 @@ Definition extract_ast (remaps : constant_remappings)
     | Err e => Err e
     end
   | LambdaANF c =>
-    match PAst_to_EAst p with
+    match PAst_to_EAst_box p with
     | Ok p => extract_anf_ast remaps c p
     | Err e => Err e
     end
   | LambdaANFC c =>
-    match PAst_to_EAst p with
+    match PAst_to_EAst_box p with
     | Ok p => extract_anfc_ast remaps c p
     | Err e => Err e
     end

@@ -97,12 +97,12 @@ function print_no_typed_source(src: string) {
   print_result({ type: "error", reason: "compile error", compiler: "the test suite", code: 0, error: "no typed source (tsrc)" }, src);
 }
 
-// Report the result of compiling a program with cofixpoints without lowering
-// them: peregrine must fail and name them
+// Report the result of compiling a program with cofixpoints, which peregrine
+// does not support: it must fail and name them
 function print_cofix_rejected(res: string | ExecFailure, test: string) {
   if (typeof res === "string") {
     print_result({ type: "error", reason: "incorrect result", expected: "a rejection of cofixpoints", actual: "a compiled program" }, test);
-  } else if (res.reason === "compile error" && res.error.includes("does not support cofixpoints")) {
+  } else if (res.reason === "compile error" && res.error.includes("Program contains tCoFix")) {
     print_line("rejected for its cofixpoints, as expected");
   } else {
     print_result(res, test);
@@ -190,6 +190,15 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
   // Keyed by the source, or by `src` for a test without the typed source
   xfails = new Map(tests.filter((t) => reason(t.xfail) !== undefined)
     .map((t) => [source(t) ?? t.src, reason(t.xfail)] as [string, string]));
+  // Every configuration must reject a program with cofixpoints
+  for (const test of tests.filter((t) => t.cofix)) {
+    const src = source(test) ?? test.src;
+    process.stdout.write(`  ${src}: `);
+    const config = lang === Lang.Rust && rust_verb === undefined ? "src/rust/config.sexp"
+      : lang === Lang.Elm ? "src/elm/config.sexp" : undefined;
+    print_cofix_rejected(compile_box(src, tmpdir, lang, with_args(lang, opts, test), config, rust_verb), src);
+  }
+  tests = tests.filter((t) => !t.cofix);
   switch (lang) {
     case Lang.OCaml:
       compile_types(compile_timeout);
@@ -198,10 +207,6 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile peregrine
         const f_mlf = compile_box(test.src, tmpdir, Lang.OCaml, with_args(lang, opts, test));
-        if (test.cofix && !opts.includes("--lower-cofix")) {
-          print_cofix_rejected(f_mlf, test.src);
-          continue;
-        }
         if (typeof f_mlf !== "string") {
           print_result(f_mlf, test.src);
           continue;
@@ -229,10 +234,6 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile peregrine
         const f_cml = compile_box(test.src, tmpdir, Lang.CakeML, with_args(lang, opts, test));
-        if (test.cofix && !opts.includes("--lower-cofix")) {
-          print_cofix_rejected(f_cml, test.src);
-          continue;
-        }
         if (typeof f_cml !== "string") {
           print_result(f_cml, test.src);
           continue;
@@ -260,10 +261,6 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile peregrine
         const f_c = compile_box(test.src, tmpdir, Lang.C, with_args(lang, opts, test));
-        if (test.cofix && !opts.includes("--lower-cofix")) {
-          print_cofix_rejected(f_c, test.src);
-          continue;
-        }
         if (typeof f_c !== "string") {
           print_result(f_c, test.src);
           continue;
@@ -290,10 +287,6 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile peregrine
         const f_ll = compile_box(test.src, tmpdir, Lang.LLVM, with_args(lang, opts, test));
-        if (test.cofix && !opts.includes("--lower-cofix")) {
-          print_cofix_rejected(f_ll, test.src);
-          continue;
-        }
         if (typeof f_ll !== "string") {
           print_result(f_ll, test.src);
           continue;
@@ -319,10 +312,6 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
         // Compile peregrine
         const f = compile_box(test.src, tmpdir, Lang.Wasm, with_args(lang, opts, test));
-        if (test.cofix && !opts.includes("--lower-cofix")) {
-          print_cofix_rejected(f, test.src);
-          continue;
-        }
         if (typeof f !== "string") {
           print_result(f, test.src);
           continue;

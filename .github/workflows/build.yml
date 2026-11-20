@@ -80,6 +80,19 @@ jobs:
           if [ "${{ steps.opam-cache.outputs.cache-hit }}" != 'true' ] && opam list -i --silent rocq-certirocq; then
             opam remove -y rocq-certirocq
           fi
+          # `opam install --deps-only` moves a pin but does not rebuild a
+          # package already installed at the same version (MetaRocq stays at
+          # 1.5.1+9.1+dev across commits). In a switch restored from an older
+          # lock file, remove each package whose pin changed, and with it
+          # everything that depends on it.
+          if [ "${{ steps.opam-cache.outputs.cache-hit }}" != 'true' ]; then
+            sed -n 's/^ *\["\([^".]*\)\.[^"]*" "\([^"]*\)"\]$/\1 \2/p' .github/rocq-peregrine.opam.locked |
+              while read -r pkg url; do
+                if opam list -i --silent "$pkg" && ! opam pin list | grep -qF "$url"; then
+                  echo "$pkg"
+                fi
+              done | xargs -r opam remove -y
+          fi
           opam install --deps-only -j${{ env.JOBS }} .github/rocq-peregrine.opam.locked
           opam clean -a -c -s --logs
 
@@ -114,10 +127,23 @@ jobs:
       - name: Generate Rocq ASTs
         run: opam exec -- make -C test/rocq build-ci
 
+      # HybridRuntimeGen.v is printed from HybridRuntime.v; fail if it is stale.
+      - name: Check the generated rust-hybrid runtime
+        run: |
+          opam exec -- python3 scripts/gen-hybrid-runtime.py --installed
+          git diff --exit-code theories/backends/HybridRuntimeGen.v
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: 1.85.0
+
+      # The rust-hybrid runtime against GMP on boundary values
+      - name: Test the rust-hybrid runtime
+        run: |
+          cd test/hybrid-runtime
+          python3 assemble.py
+          cargo run --release
 
       - name: Set up Elm
         run: |
@@ -267,7 +293,7 @@ jobs:
         run: |
           opam exec -- make -C examples/io check
           # the optional passes must keep the order of the primitive calls
-          opam exec -- make -C examples/io clean check PEREGRINE_FLAGS="--cse true --specialize-instances true"
+          opam exec -- make -C examples/io clean check PEREGRINE_FLAGS="--share-common-subterms --specialize-instances"
 
       - name: Tasks example (OCaml threads and Lean Task)
         run: opam exec -- make -C examples/tasks check

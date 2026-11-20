@@ -30,13 +30,13 @@ Definition default_eval_config := {|
 Definition eval_phases := {|
   implement_box_c  := Required;
   implement_lazy_c := Compatible false;
-  cofix_to_laxy_c  := Compatible false;
   betared_c        := Compatible false;
   unboxing_c       := Compatible false;
   dearg_ctors_c    := Compatible false;
   dearg_consts_c   := Compatible false;
   specialize_instances_c := Compatible false;
   cse_c            := Compatible false;
+  lift_constants_c := Compatible false;
 |}.
 
 
