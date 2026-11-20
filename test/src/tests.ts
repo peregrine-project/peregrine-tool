@@ -471,9 +471,9 @@ var rocq_tests: TestCase[] =
             parameters: [],
             rejected: "#125: the Rust and Elm printers do not support primitive values, so neither does type inference",
             xfail: {
-                ...on(["OCaml", "OCaml-passes", "OCaml-cofix", "C", "C-cps", "C-cofix", "C-O0", "LLVM", "LLVM-O0", "CakeML", "Lean", "FSharp-experimental", "Koka-experimental", "OCaml-lbox", "C-lbox"],
+                ...on(["OCaml", "OCaml-passes", "OCaml-unopt", "C", "C-cps", "C-O0", "C-unopt", "C-deprecated", "LLVM", "LLVM-O0", "CakeML", "Lean", "FSharp-experimental", "Koka-experimental"],
                     "#125: only the Wasm backend compiles the PrimInt63 operations; the others reject them or print them as missing axioms"),
-                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-lbox"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
+                ...on(["Rust", "Elm", "Rust-verb", "Rust-i64", "Rust-hybrid", "Rust-unopt"], "#125: the Rust and Elm printers do not support primitive values (Cannot handle Rocq primitive types)"),
                 ...on(["Koka-typed"], "#125: the typed Koka printer does not support primitive values")
             }
         },
