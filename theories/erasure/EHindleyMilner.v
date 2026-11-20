@@ -284,10 +284,14 @@ Fixpoint mem_nat (n : nat) (l : list nat) : bool :=
   | m :: l' => if Nat.eqb n m then true else mem_nat n l'
   end.
 
+(** The recursive call is shared by a [let]: written twice, as in
+    [if mem_nat n (dedup_nat l') then dedup_nat l' else n :: dedup_nat l'],
+    the extracted (strict) OCaml evaluates it twice per element, which takes
+    time exponential in the length of [l]. *)
 Fixpoint dedup_nat (l : list nat) : list nat :=
   match l with
   | [] => []
-  | n :: l' => if mem_nat n (dedup_nat l') then dedup_nat l' else n :: dedup_nat l'
+  | n :: l' => let r := dedup_nat l' in if mem_nat n r then r else n :: r
   end.
 
 Fixpoint idx_nat (n : nat) (l : list nat) : nat :=

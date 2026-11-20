@@ -94,6 +94,10 @@ let passes_t =
   let lift_constants = pass_arg "lift-constants"
       "Lift closed constructor values (e.g. nat literals) to shared global \
        constants. On by default." in
+  let untyped_dearg = pass_arg "untyped-dearg"
+      "Remove dead and logical arguments of untyped input on the untyped \
+       backends, with the types inferred for it (MetaRocq's verified \
+       dearging); without effect when inference fails. Off by default." in
   let unwrap_fixpoints = pass_arg "unwrap-fixpoints" ~old:"lbox-fix-eta" (lbox
       "Fixpoint eta-hoisting: (fun xs => (fix F ..) xs) becomes the fixpoint, \
        where an argument may also be a box passed for a dead parameter.") in
@@ -150,7 +154,7 @@ let passes_t =
        simplifications and $(b,--lift-constants), for every backend. \
        Well-formedness and evaluation preservation are proved without \
        axioms. Off by default." in
-  let mk level lbox_opts ir br ub dc si cse lc fe cf ci lf std small limit noinl iota =
+  let mk level lbox_opts ir br ub dc si cse lc ud fe cf ci lf std small limit noinl iota =
     if List.mem O2 level then
       prerr_endline "peregrine: -O2 is deprecated: its passes are the default (-O0 turns them off).";
     let optimize = last level <> Some O0 in
@@ -166,7 +170,7 @@ let passes_t =
     { optimize;
       inline_recursors = on ir; beta_reduce = br; unbox = ub;
       dearg_constants = dc; specialize_instances = si;
-      share_common_subterms = cse; lift_constants = lc;
+      share_common_subterms = cse; lift_constants = lc; untyped_dearg = ud;
       unwrap_fixpoints = o1 fe; hoist_case_lambdas = o1 cf;
       drop_identity_matches = o1 ci; inline_atomic_lets = o1 lf;
       iota_reduce = off iota;
@@ -175,6 +179,7 @@ let passes_t =
   in
   Term.(const mk $ level_arg $ lbox_opts_arg $ inline_recursors $ beta_reduce $ unbox
         $ dearg_constants $ specialize_instances $ share_common_subterms $ lift_constants
+        $ untyped_dearg
         $ unwrap_fixpoints $ hoist_case_lambdas $ drop_identity_matches $ inline_atomic_lets
         $ inline_standard_constants $ inline_small_constants $ inline_size_limit $ no_inline
         $ iota_reduce)

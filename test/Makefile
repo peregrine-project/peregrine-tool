@@ -59,3 +59,8 @@ node_modules: package.json
 test: node_modules
 	npm run test
 .PHONY: test
+
+# --untyped-dearg on inputs scaled by N, within a time limit
+perf:
+	perf/dearg-perf.sh
+.PHONY: perf

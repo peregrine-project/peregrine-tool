@@ -181,6 +181,7 @@ erasurePhasesConv ErasurePhases {..} =
     specializeInstances
     cse
     liftConstants
+    untypedDearg
 
 -- Configuration of Peregrine
 configConv :: Config -> ConfigUtils.Coq_config'

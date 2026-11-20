@@ -302,7 +302,8 @@ Instance Serialize_custom_attributes : Serialize custom_attributes :=
 
 Instance Serialize_erasure_phases : Serialize erasure_phases :=
   fun o =>
-    [Atom "erasure_phases";
+    List
+    ([Atom "erasure_phases";
      to_sexp (implement_box o);
      to_sexp (implement_lazy o);
      to_sexp (betared o);
@@ -312,11 +313,15 @@ Instance Serialize_erasure_phases : Serialize erasure_phases :=
      to_sexp (specialize_instances o);
      to_sexp (cse o);
      to_sexp (lift_constants o)
-    ]%sexp.
+     ] ++
+     (* [untyped_dearg] is written only when it is not the default
+        (see DeserializeConfig.v). *)
+     (if untyped_dearg o then [to_sexp true] else [])).
 
 Instance Serialize_erasure_phases' : Serialize erasure_phases' :=
   fun o =>
-    [Atom "erasure_phases";
+    List
+    ([Atom "erasure_phases";
      to_sexp (implement_box' o);
      to_sexp (implement_lazy' o);
      to_sexp (betared' o);
@@ -326,7 +331,13 @@ Instance Serialize_erasure_phases' : Serialize erasure_phases' :=
      to_sexp (specialize_instances' o);
      to_sexp (cse' o);
      to_sexp (lift_constants' o)
-    ]%sexp.
+     ] ++
+     (* [untyped_dearg'] is written only when it is not the default
+        (see DeserializeConfig.v). *)
+     match untyped_dearg' o with
+     | Some b => [to_sexp (Some b)]
+     | None => []
+     end).
 
 Instance Serialize_config : Serialize config :=
   fun o =>

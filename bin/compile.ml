@@ -150,7 +150,7 @@ let mk_erasure_config ?base (p : passes) =
     | None -> { ConfigUtils.implement_box' = None; implement_lazy' = None;
                 betared' = None; unboxing' = None; dearg_ctors' = None;
                 dearg_consts' = None; specialize_instances' = None;
-                cse' = None; lift_constants' = None } in
+                cse' = None; lift_constants' = None; untyped_dearg' = None } in
   { b with
     ConfigUtils.betared'        = ov p.beta_reduce (ov b.ConfigUtils.betared' default);
     ConfigUtils.unboxing'       = ov p.unbox b.ConfigUtils.unboxing';
@@ -158,6 +158,7 @@ let mk_erasure_config ?base (p : passes) =
     ConfigUtils.specialize_instances' = ov p.specialize_instances b.ConfigUtils.specialize_instances';
     ConfigUtils.cse'            = ov p.share_common_subterms b.ConfigUtils.cse';
     ConfigUtils.lift_constants' = ov p.lift_constants (ov b.ConfigUtils.lift_constants' default);
+    ConfigUtils.untyped_dearg'  = ov p.untyped_dearg b.ConfigUtils.untyped_dearg';
   }
 
 (* Does the command line, or the default pass set, set an erasure phase (one
@@ -165,7 +166,7 @@ let mk_erasure_config ?base (p : passes) =
 let sets_erasure_phase (p : passes) =
   p.optimize || List.exists Option.is_some
     [p.beta_reduce; p.unbox; p.dearg_constants; p.specialize_instances;
-     p.share_common_subterms; p.lift_constants]
+     p.share_common_subterms; p.lift_constants; p.untyped_dearg]
 
 let mk_config ?(const_remaps=[]) ?(ind_remaps=[]) b passes = {
   ConfigUtils.backend_opts' = b;

@@ -119,11 +119,19 @@ Proof. raw_ok_solve Serialize_inductive_remappings. Qed.
 #[global] Instance RawOk_custom_attributes : RawOk (custom_attributes).
 Proof. raw_ok_solve Serialize_custom_attributes. Qed.
 
+(* The serializers write the last field, [untyped_dearg], only when it is not
+   the default: the case analysis on it reduces the conditional. *)
 #[global] Instance RawOk_erasure_phases : RawOk (erasure_phases).
-Proof. raw_ok_solve Serialize_erasure_phases. Qed.
+Proof.
+  intros a; unfold to_sexp at 1, Serialize_erasure_phases.
+  destruct a as [a0 a1 a2 a3 a4 a5 a6 a7 a8 []]; raw_ok_tac.
+Qed.
 
 #[global] Instance RawOk_erasure_phases' : RawOk (erasure_phases').
-Proof. raw_ok_solve Serialize_erasure_phases'. Qed.
+Proof.
+  intros a; unfold to_sexp at 1, Serialize_erasure_phases'.
+  destruct a as [a0 a1 a2 a3 a4 a5 a6 a7 a8 [b|]]; raw_ok_tac.
+Qed.
 
 #[global] Instance RawOk_config : RawOk (config).
 Proof. raw_ok_solve Serialize_config. Qed.

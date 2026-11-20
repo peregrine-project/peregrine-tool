@@ -178,6 +178,10 @@ Section GeneralConfig.
       (* Lifting of closed constructor values to shared global constants
          (Peregrine-local unsafe pass, see erasure/ELiftConstants.v). *)
       lift_constants : bool;
+      (* Dearging of untyped input on the untyped backends, through the type
+         inference of EHindleyMilner.v (see [apply_transforms] in Pipeline.v).
+         Off by default. *)
+      untyped_dearg  : bool;
     }.
 
   Record config := {

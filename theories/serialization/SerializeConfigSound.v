@@ -556,6 +556,10 @@ Proof.
   typeclasses eauto.
 Qed.
 
+(** [erasure_phases] has an optional tenth field (see
+    DeserializeConfig.v): the nine-field form reads as the default, and a
+    ten-field form is accepted only with a non-default tenth field,
+    which the serializer then writes back. *)
 Instance Sound_erasure_phases : SoundClass erasure_phases.
 Proof.
   unfold SoundClass, Sound.
@@ -563,22 +567,51 @@ Proof.
   apply sound_match_con in He.
   destruct He as [He | He]; elim_Exists He.
   destruct He as [es [<- He]].
-  sound_field He.
-  apply sound_class in Ea0.
-  apply sound_class in Ea1.
-  apply sound_class in Ea2.
-  apply sound_class in Ea3.
-  apply sound_class in Ea4.
-  apply sound_class in Ea5.
-  apply sound_class in Ea6.
-  apply sound_class in Ea7.
-  apply sound_class in Ea8.
-  unfold to_sexp, Serialize_erasure_phases.
-  cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7, <- Ea8.
-  reflexivity.
+  cbn [fst snd] in He.
+  unfold deser_erasure_phases_fields in He.
+  destruct (Nat.leb (List.length es) 9).
+  - (* the nine-field form *)
+    sound_field He.
+    apply sound_class in Ea0.
+    apply sound_class in Ea1.
+    apply sound_class in Ea2.
+    apply sound_class in Ea3.
+    apply sound_class in Ea4.
+    apply sound_class in Ea5.
+    apply sound_class in Ea6.
+    apply sound_class in Ea7.
+    apply sound_class in Ea8.
+    unfold to_sexp, Serialize_erasure_phases.
+    cbn.
+    rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7, <- Ea8.
+    reflexivity.
+  - (* the ten-field form *)
+    destruct (Deser.con10_ _ l _ es) as [err | a'] eqn:Hc; [discriminate |].
+    destruct (untyped_dearg a') eqn:Eu; [| discriminate].
+    injection He as <-.
+    symmetry in Hc.
+    sound_field Hc.
+    apply sound_class in Ea0.
+    apply sound_class in Ea1.
+    apply sound_class in Ea2.
+    apply sound_class in Ea3.
+    apply sound_class in Ea4.
+    apply sound_class in Ea5.
+    apply sound_class in Ea6.
+    apply sound_class in Ea7.
+    apply sound_class in Ea8.
+    apply sound_class in Ea9.
+    cbn in Eu.
+    subst.
+    unfold to_sexp, Serialize_erasure_phases.
+    cbn.
+    reflexivity.
 Qed.
 
+(** [erasure_phases'] has an optional tenth field (see
+    DeserializeConfig.v): the nine-field form reads as the default, and a
+    ten-field form is accepted only with a non-default tenth field,
+    which the serializer then writes back. *)
 Instance Sound_erasure_phases' : SoundClass erasure_phases'.
 Proof.
   unfold SoundClass, Sound.
@@ -586,20 +619,45 @@ Proof.
   apply sound_match_con in He.
   destruct He as [He | He]; elim_Exists He.
   destruct He as [es [<- He]].
-  sound_field He.
-  apply sound_class in Ea0.
-  apply sound_class in Ea1.
-  apply sound_class in Ea2.
-  apply sound_class in Ea3.
-  apply sound_class in Ea4.
-  apply sound_class in Ea5.
-  apply sound_class in Ea6.
-  apply sound_class in Ea7.
-  apply sound_class in Ea8.
-  unfold to_sexp, Serialize_erasure_phases'.
-  cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7, <- Ea8.
-  reflexivity.
+  cbn [fst snd] in He.
+  unfold deser_erasure_phases'_fields in He.
+  destruct (Nat.leb (List.length es) 9).
+  - (* the nine-field form *)
+    sound_field He.
+    apply sound_class in Ea0.
+    apply sound_class in Ea1.
+    apply sound_class in Ea2.
+    apply sound_class in Ea3.
+    apply sound_class in Ea4.
+    apply sound_class in Ea5.
+    apply sound_class in Ea6.
+    apply sound_class in Ea7.
+    apply sound_class in Ea8.
+    unfold to_sexp, Serialize_erasure_phases'.
+    cbn.
+    rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7, <- Ea8.
+    reflexivity.
+  - (* the ten-field form *)
+    destruct (Deser.con10_ _ l _ es) as [err | a'] eqn:Hc; [discriminate |].
+    destruct (untyped_dearg' a') as [b |] eqn:Eu; [| discriminate].
+    injection He as <-.
+    symmetry in Hc.
+    sound_field Hc.
+    apply sound_class in Ea0.
+    apply sound_class in Ea1.
+    apply sound_class in Ea2.
+    apply sound_class in Ea3.
+    apply sound_class in Ea4.
+    apply sound_class in Ea5.
+    apply sound_class in Ea6.
+    apply sound_class in Ea7.
+    apply sound_class in Ea8.
+    apply sound_class in Ea9.
+    cbn in Eu.
+    subst.
+    unfold to_sexp, Serialize_erasure_phases'.
+    cbn.
+    reflexivity.
 Qed.
 
 Instance Sound_config : SoundClass config.

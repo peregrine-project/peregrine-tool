@@ -211,7 +211,9 @@ Qed.
 
 (** ** Corollaries: from the input file to the lambda-box program *)
 
-(** Untyped input, untyped backend. *)
+(** Untyped input, untyped backend, without [--untyped-dearg] (with it, the
+    program is dearged through the types inferred for it, see
+    [apply_transforms]). *)
 Theorem peregrine_untyped_fo {guard : PCUICWfEnvImpl.abstract_guard_impl} c attrs ir io lbox p0 env t c' p' v :
   let f := NameSanitize.get_sanitizer c' in
   let env_s := rename_env (NameSanitize.sanitized_kername f) (sanitized_name f) (sanitized_ident f) env in
@@ -223,6 +225,7 @@ Theorem peregrine_untyped_fo {guard : PCUICWfEnvImpl.abstract_guard_impl} c attr
   strings_ok p0 = true ->
   peregrine_middle_end_string c attrs ir io lbox (Serialize.string_of_PAst p0) = Ok (c', p') ->
   needs_typed c' = false ->
+  c'.(erasure_opts).(untyped_dearg) = false ->
   fo_sat (fo_arity env) v ->
   (remap_on econf = true -> remap_fo econf (fo_unboxed_value m env_s unb v_s)) ->
   eval_eprogram default_wcbv_flags (env, t) v ->
@@ -230,7 +233,7 @@ Theorem peregrine_untyped_fo {guard : PCUICWfEnvImpl.abstract_guard_impl} c attr
     eval_eprogram final_wcbv_flags (env', t')
       (fo_value_compile m env_s unb c'.(erasure_opts).(implement_box) v_s).
 Proof.
-  intros f env_s v_s econf m unb -> hs hme hnt hsat hremap [ev].
+  intros f env_s v_s econf m unb -> hs hme hnt hud hsat hremap [ev].
   rewrite peregrine_middle_end_string_of_PAst // in hme.
   apply peregrine_middle_end_inv in hme as (c1 & ps & hf & hwf & hinj & hsan & hcfg & hw & hat).
   apply check_wf_untyped_sound in hwf.
@@ -239,6 +242,7 @@ Proof.
   pose proof (sanitize_correct f env t env1 t1 v _ hinj he ht hwf ev) as [_ ev1].
   apply sanitize_untyped_env_spec in he. apply sanitize_term_spec in ht. subst env1 t1.
   move: hat. rewrite hnt. unfold apply_transforms. cbv zeta.
+  rewrite hud. cbv beta iota.
   destruct (pipeline_pre_error _) as [[env' t']|] eqn:hr; cbn; [|discriminate].
   intros [= <-]. exists env', t'. split; [reflexivity|].
   apply map_error_ok in hr.

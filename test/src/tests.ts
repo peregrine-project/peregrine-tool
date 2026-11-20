@@ -45,7 +45,11 @@ export var test_configurations: TestConfiguration[] = [
     [Lang.OCaml, "unopt", "-O0"],
     [Lang.C, "unopt", "-O0"],
     // The default spelled out with the deprecated aliases
-    [Lang.C, "deprecated", "-O2 --inline-recursors --betared true --lbox-opts --lift-constants"]
+    [Lang.C, "deprecated", "-O2 --inline-recursors --betared true --lbox-opts --lift-constants"],
+    // Dearging of the untyped sources, through the types inferred for them
+    // (the untyped pipeline when inference fails); same expected outputs
+    [Lang.OCaml, "udearg", "--untyped-dearg"],
+    [Lang.C, "udearg", "--untyped-dearg"]
 ];
 
 // The expected outputs of an Agda program that computes the natural number n,

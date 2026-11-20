@@ -497,26 +497,36 @@ Proof.
   typeclasses eauto.
 Qed.
 
+(** The default tenth field is not written (see DeserializeConfig.v):
+    by cases on it, the nine-field form or the ten-field form. *)
 Instance Complete_erasure_phases : CompleteClass erasure_phases.
 Proof.
   unfold CompleteClass, Complete.
-  intros l o.
-  cbn -[Deserialize_bool].
-  simpl_bytes.
-  rewrite 9!complete_class.
-  destruct o; cbn.
-  reflexivity.
+  intros l [a0 a1 a2 a3 a4 a5 a6 a7 a8 []];
+    cbn -[Deserialize_bool];
+    simpl_bytes;
+    unfold deser_erasure_phases_fields;
+    cbn -[Deserialize_bool];
+    rewrite ?complete_class;
+    cbn;
+    rewrite ?complete_class;
+    reflexivity.
 Qed.
 
+(** The default tenth field is not written (see DeserializeConfig.v):
+    by cases on it, the nine-field form or the ten-field form. *)
 Instance Complete_erasure_phases' : CompleteClass erasure_phases'.
 Proof.
   unfold CompleteClass, Complete.
-  intros l o.
-  cbn -[Deserialize_bool].
-  simpl_bytes.
-  rewrite 9!complete_class.
-  destruct o; cbn.
-  reflexivity.
+  intros l [a0 a1 a2 a3 a4 a5 a6 a7 a8 [b |]];
+    cbn -[Deserialize_bool];
+    simpl_bytes;
+    unfold deser_erasure_phases'_fields;
+    cbn -[Deserialize_bool];
+    rewrite ?complete_class;
+    cbn;
+    rewrite ?complete_class;
+    reflexivity.
 Qed.
 
 Instance Complete_config : CompleteClass config.
