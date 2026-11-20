@@ -27,12 +27,13 @@
       # v0.2.1 ported to the MetaRocq snapshot, see rocq-peregrine.opam
       TypedExtraction.override.version = "74dcbc960a8d4fa04496b84d6447611159bd6c70";
       # The peregrine branch of peregrine-project/certirocq, see rocq-peregrine.opam
-      CertiRocq.override.version = "d7aa46b5738a954d28d2ae235da4a9bc388d6401";
+      CertiRocq.override.version = "eee949ef628d99d6debb5f49976c8e267d193c10";
       # CertiRocq needs coq-wasm >= 2.2.1
       wasmcert.override.version = "2.2.1";
-      verified-extraction.override.version = "0ed8aa88560a518e0822b583f45e1ebb45b10f7f";
+      verified-extraction.override.version = "f999f40ca7a2ecb52d71b5497a417ec46c5c0403";
       ceres-bs.override.version = "1.0.0";
-      CakeMLExtraction.override.version = "8df83a16525ca08bb9b5b375b3331b3f480d346b";
+      # cakeml-backend#17 (e2e-snapshot), compiler correctness proof on the 9.1 snapshot
+      CakeMLExtraction.override.version = "dae906dee07e3e0c7bc6de3229a3d7ea66a645dd";
     }; rocqPackages = {
       rocq-core.override.version = "9.1";
     };

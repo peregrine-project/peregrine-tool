@@ -573,10 +573,9 @@ Proof.
   apply sound_class in Ea6.
   apply sound_class in Ea7.
   apply sound_class in Ea8.
-  apply sound_class in Ea9.
   unfold to_sexp, Serialize_erasure_phases.
   cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7, <- Ea8, <- Ea9.
+  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7, <- Ea8.
   reflexivity.
 Qed.
 
@@ -597,10 +596,9 @@ Proof.
   apply sound_class in Ea6.
   apply sound_class in Ea7.
   apply sound_class in Ea8.
-  apply sound_class in Ea9.
   unfold to_sexp, Serialize_erasure_phases'.
   cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7, <- Ea8, <- Ea9.
+  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7, <- Ea8.
   reflexivity.
 Qed.
 

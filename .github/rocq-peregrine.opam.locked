@@ -35,16 +35,20 @@ pin-depends: [
   # tail-call rewrite of a tail-position match (peregrine-project/certirocq#4)
   # the proof of merge_dup_funs_correct (peregrine-project/certirocq#6)
   # and the fast Qed of LLVM_nonvacuity (peregrine-project/certirocq#7).
-  ["rocq-certirocq.dev" "git+https://github.com/peregrine-project/certirocq.git#d7aa46b5738a954d28d2ae235da4a9bc388d6401"]
+  ["rocq-certirocq.dev" "git+https://github.com/peregrine-project/certirocq.git#eee949ef628d99d6debb5f49976c8e267d193c10"]
   ["rocq-vellvm.dev" "git+https://github.com/vellvm/vellvm.git#b63a28a0a36cbae73a454d99a97bb8171568343e"]
-  # The peregrine branch of peregrine-project/rocq-verified-extraction: a
-  # merge of its rocq-9.1 branch (64ced8c0, the same tree), which builds
-  # against MetaRocq 51b14e4b and has the rename of switch_no_params for
-  # MetaRocq#1286 (MetaRocq/rocq-verified-extraction#44).
-  ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/peregrine-project/rocq-verified-extraction.git#0ed8aa88560a518e0822b583f45e1ebb45b10f7f"]
+  # The peregrine branch of peregrine-project/rocq-verified-extraction:
+  # 0ed8aa88 (a merge of its rocq-9.1 branch at 64ced8c0, the same tree,
+  # which builds against MetaRocq 51b14e4b and has the rename of
+  # switch_no_params for MetaRocq#1286, MetaRocq/rocq-verified-extraction#44)
+  # plus 7 commits that remove the axiom trust_coq_kernel: the correctness
+  # theorems take the erasure precondition as a hypothesis.
+  ["rocq-verified-extraction.1.0.0+9.1+dev" "git+https://github.com/peregrine-project/rocq-verified-extraction.git#f999f40ca7a2ecb52d71b5497a417ec46c5c0403"]
   # cakeml-backend ported to the MetaRocq 9.1 snapshot, with the datatype
-  # declarations and qualified constructor names (cakeml-backend#16).
-  ["rocq-cakeml-extraction.0.1.1+dev" "git+https://github.com/peregrine-project/cakeml-backend.git#8df83a16525ca08bb9b5b375b3331b3f480d346b"]
+  # declarations and qualified constructor names (cakeml-backend#16) and the
+  # compiler correctness proof (CompileCorrect.v, PipelineCorrect.v) ported on top.
+  # (cakeml-backend#17, branch e2e-snapshot)
+  ["rocq-cakeml-extraction.0.1.1+dev" "git+https://github.com/peregrine-project/cakeml-backend.git#dae906dee07e3e0c7bc6de3229a3d7ea66a645dd"]
   # rocq-typed-extraction v0.2.1 ported to MetaRocq 51b14e4b: a qualified
   # Import String and the plugin's module lists (branch metarocq-51b14e4b).
   ["rocq-typed-extraction-common.0.2.1" "git+https://github.com/peregrine-project/rocq-typed-extraction.git#74dcbc960a8d4fa04496b84d6447611159bd6c70"]

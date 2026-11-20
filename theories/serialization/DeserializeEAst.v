@@ -24,14 +24,13 @@ Instance Deserialize_mfixpoint {T : Set} `{Deserialize T} : Deserialize (mfixpoi
  fun l e =>
     _from_sexp l e.
 
-#[bypass_check(guard)]
 Fixpoint deserialize_term (l : loc) (e : sexp) {struct e} : error + term :=
     let ds := deserialize_term in
     let ds_term_list : FromSexp (list term) := fun l e => @_from_sexp (list term) (@Deserialize_list term ds) l e in
     let ds_mfixpoint : FromSexp (mfixpoint term) := @_from_sexp (mfixpoint term) (@Deserialize_mfixpoint term ds) in
     let ds_cases : FromSexp (list (list BasicAst.name * term)) := @_from_sexp (list (list BasicAst.name * term))
       (@Deserialize_list (list BasicAst.name * term) (@Deserialize_prod (list BasicAst.name) term _from_sexp ds)) in
-    let ds_prim : FromSexp (EPrimitive.prim_val term) := @_from_sexp (EPrimitive.prim_val term) (@Deserialize_prim_val term ds) in
+    let ds_prim : FromSexp (EPrimitive.prim_val term) := @Deserialize_prim_val term ds in
     Deser.match_con "term"
       [ ("tBox", tBox) ]
       [ ("tRel", Deser.con1_ tRel)
@@ -51,6 +50,38 @@ Fixpoint deserialize_term (l : loc) (e : sexp) {struct e} : error + term :=
       ; ("tForce", Deser.con1 tForce ds)
       ]
       l e.
+
+(* Unfolding equation for [deserialize_term]: proofs should rewrite with this
+   instead of unfolding the fixpoint, so that no copy of the [fix] (which the
+   kernel would have to guard-check again) ends up in proof terms. *)
+Lemma deserialize_term_eq (l : loc) (e : sexp) :
+  deserialize_term l e =
+
+    let ds_term_list : FromSexp (list term) := fun l e => @_from_sexp (list term) (@Deserialize_list term deserialize_term) l e in
+    let ds_mfixpoint : FromSexp (mfixpoint term) := @_from_sexp (mfixpoint term) (@Deserialize_mfixpoint term deserialize_term) in
+    let ds_cases : FromSexp (list (list BasicAst.name * term)) := @_from_sexp (list (list BasicAst.name * term))
+      (@Deserialize_list (list BasicAst.name * term) (@Deserialize_prod (list BasicAst.name) term _from_sexp deserialize_term)) in
+    let ds_prim : FromSexp (EPrimitive.prim_val term) := @Deserialize_prim_val term deserialize_term in
+    Deser.match_con "term"
+      [ ("tBox", tBox) ]
+      [ ("tRel", Deser.con1_ tRel)
+      ; ("tVar", Deser.con1_ tVar)
+      ; ("tEvar", Deser.con2 tEvar _from_sexp ds_term_list)
+      ; ("tLambda", Deser.con2 tLambda _from_sexp deserialize_term)
+      ; ("tLetIn", Deser.con3 tLetIn _from_sexp deserialize_term deserialize_term)
+      ; ("tApp", Deser.con2 tApp deserialize_term deserialize_term)
+      ; ("tConst", Deser.con1_ tConst)
+      ; ("tConstruct", Deser.con3 tConstruct _from_sexp _from_sexp ds_term_list)
+      ; ("tCase", Deser.con3 tCase _from_sexp deserialize_term ds_cases)
+      ; ("tProj", Deser.con2 tProj _from_sexp deserialize_term)
+      ; ("tFix", Deser.con2 tFix ds_mfixpoint _from_sexp)
+      ; ("tCoFix", Deser.con2 tCoFix ds_mfixpoint _from_sexp)
+      ; ("tPrim", Deser.con1 tPrim ds_prim)
+      ; ("tLazy", Deser.con1 tLazy deserialize_term)
+      ; ("tForce", Deser.con1 tForce deserialize_term)
+      ]
+      l e.
+Proof. destruct e; reflexivity. Qed.
 
 Instance Deserialize_term : Deserialize term :=
   deserialize_term.

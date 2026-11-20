@@ -68,7 +68,7 @@ The host relies on the value layout and the calling convention of
 CertiRocq's Wasm backend (unboxed constructors as `2 * ordinal + 1`, boxed ones
 as a pointer to the ordinal and the arguments, closures as blocks holding a
 table index and an environment, code taking the environment and then the
-argument), and on the default direct-style pipeline (with `--cps` the closure
+argument), and on the default direct-style pipeline (with `--certirocq-cps` the closure
 calls do not match). The host is trusted and outside the proof, and it is more
 than the primitives: on OCaml and C `interp` is compiled with the program,
 here the host is the interpreter. CertiCoq-Wasm's theorem covers the run of

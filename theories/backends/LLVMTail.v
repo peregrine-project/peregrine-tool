@@ -1,11 +1,12 @@
-(* An unverified pass over the LLVM module that CertiRocq emits. *)
+(* A pass over the LLVM module that CertiRocq emits. *)
 From Stdlib Require Import List String PArith ZArith.
 From Vellvm Require Import Syntax.LLVMAst.
 Import ListNotations.
 
-(* [tail] on a call whose result the block returns at once (#134).  Not verified:
-   Vellvm gives the marker no semantics, so the correctness theorem of the LLVM
-   backend does not cover it.  The marker promises that the callee reads nothing of
+(* [tail] on a call whose result the block returns at once (#134).  Vellvm gives
+   the marker no semantics: [LLVMTail_correct] shows that the pass preserves the
+   behaviour in Vellvm, and what the marker promises to LLVM is not proved.
+   The marker promises that the callee reads nothing of
    the caller's stack frame.  At such a call the emitter has unlinked every
    shadow-stack frame of the caller, and the pass also requires each argument to be
    an [i64] value or the caller's own first parameter, the thread info.  An [i64]
@@ -32,12 +33,15 @@ Section Tail.
     | _ => false
     end.
 
+  (* [rev'] ([rev_append]) is linear, while [rev] is quadratic: the main
+     function of a program with many lifted constants is one block of tens of
+     thousands of instructions, on which [rev] took most of the compile time. *)
   Definition tail_code (c : code typ) (r : raw_id) : code typ :=
-    match rev c with
+    match rev' c with
     | (IId x, INSTR_Call f args [] obs, md) :: rest =>
       if raw_id_eqb x r then
         if forallb tail_arg args
-        then rev ((IId x, INSTR_Call f args [ANN_tail Tail] obs, md) :: rest)
+        then rev' ((IId x, INSTR_Call f args [ANN_tail Tail] obs, md) :: rest)
         else c
       else c
     | _ => c
