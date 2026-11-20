@@ -4,7 +4,7 @@
 #   make check   builds the program for OCaml and C and runs it with input 3,
 #                and wasm/WasmIO.v under the Node host wasm/host.mjs.
 PEREGRINE ?= peregrine
-# extra flags of the OCaml and Wasm builds, e.g. --cse true --specialize-instances true
+# extra flags of the OCaml and Wasm builds, e.g. --share-common-subterms --specialize-instances
 PEREGRINE_FLAGS ?=
 COQC      ?= coqc
 CC        ?= gcc

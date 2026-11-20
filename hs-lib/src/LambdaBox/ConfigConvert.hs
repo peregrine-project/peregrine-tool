@@ -174,7 +174,6 @@ erasurePhasesConv ErasurePhases {..} =
   ConfigUtils.Build_erasure_phases'
     implementBox
     implementLaxy
-    cofixToLazy
     betared
     unboxing
     deargCtor

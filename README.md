@@ -42,6 +42,10 @@ peregrine erase Prog.v --entry main -o prog.ast
 peregrine eval prog.ast
 ```
 
+Every optimisation pass is verified, so there is a single optimisation level,
+the default. `-O0` turns the default passes off, and each
+pass has its own `--PASS` / `--no-PASS` switch (see [doc/usage.md](doc/usage.md)).
+
 
 ## Frontends
 
@@ -62,8 +66,8 @@ Any other file is read as a $\lambda_\square$ program ([format.md](doc/format.md
 | `wasm` | `.wasm` | untyped | a Wasm engine with tail calls (e.g. Wasmtime, Node.js) | verified compiler and printer (CertiRocq-Wasm) |
 | `llvm` (experimental) | `.ll` | untyped | clang 15 or later and the CertiRocq runtime | partial, see [backends.md](doc/backends.md#llvm) |
 | `ocaml` | `.mlf` (Malfunction) | untyped | `malfunction` and the OCaml compiler | verified compiler (verified extraction); the glue assumes the axiom `trust_coq_kernel` |
-| `cakeml` | `.cml` | untyped | the CakeML compiler | verified compiler; the glue assumes the axiom `trust_coq_kernel` |
-| `rust` | `.rs` | typed (types of untyped input are inferred) | `rustc` or `cargo` and the `bumpalo` crate (`rug` for some `--numbers`) | typed erasure verified; printer unverified |
+| `cakeml` | `.cml` | untyped | the CakeML compiler | verified compiler to CakeML's AST, composed with the middle end (`peregrine_untyped_cakeml`); printer and type inference unverified, see [backends.md](doc/backends.md#cakeml) |
+| `rust` | `.rs` | typed (types of untyped input are inferred) | `rustc` or `cargo` and the `bumpalo` crate (`rug` for some `--rust-numbers`) | typed erasure verified; printer unverified |
 | `elm` | `.elm` | typed (types of untyped input are inferred) | the Elm compiler | typed erasure verified; printer unverified |
 | `lean` | `.lean` | untyped | Lake and the runtime in [lean/](lean/) | unverified |
 | `fsharp` (experimental) | `.fs` | untyped | the .NET SDK | unverified |
@@ -72,7 +76,7 @@ Any other file is read as a $\lambda_\square$ program ([format.md](doc/format.md
 | `eval` | the value, printed | untyped | nothing | debugging tool |
 | `ast` | `.ast` | either | nothing | debugging tool |
 
-The middle-end is only partly verified. Evaluation preservation for the passes that implement $\square$ and `lazy`/`force` is admitted (the first of them runs for every untyped backend except `ast`), and so are some pipeline preconditions ([Transforms.v](theories/erasure/Transforms.v)). The optional passes rest on axioms ([middleend.md](doc/middleend.md#optional-passes)). For each backend's output and runtime requirements, see [backends.md](doc/backends.md).
+The middle-end is only partly verified. Some pipeline preconditions are admitted ([Transforms.v](theories/erasure/Transforms.v)). Peregrine does not support cofixpoints (coinductive types): it rejects programs that contain them. The optional passes rest on axioms ([middleend.md](doc/middleend.md#optional-passes)). For each backend's output and runtime requirements, see [backends.md](doc/backends.md).
 
 
 ## Documentation

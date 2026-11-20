@@ -10,11 +10,7 @@ From Stdlib Require Import List.
 From Stdlib Require Import ZArith.
 From Stdlib Require PrimInt63.
 From Stdlib Require PrimFloat.
-
-
-
-(* TODO: validate axioms *)
-Axiom prim_string_ser_complete : forall x, (prim_string_of_string (string_of_prim_string x)) = x.
+From Peregrine Require Import PrimStringRoundtrip.
 
 
 
@@ -30,7 +26,7 @@ Proof.
   unfold CompleteClass, Complete.
   intros l x.
   cbn.
-  rewrite prim_string_ser_complete.
+  rewrite prim_string_of_string_of_prim_string.
   reflexivity.
 Qed.
 

@@ -287,7 +287,7 @@ Fixpoint mem_nat (n : nat) (l : list nat) : bool :=
 (** The recursive call is shared by a [let]: written twice, as in
     [if mem_nat n (dedup_nat l') then dedup_nat l' else n :: dedup_nat l'],
     the extracted (strict) OCaml evaluates it twice per element, which takes
-    time exponential in the length of [l] (DEARG-PERF). *)
+    time exponential in the length of [l]. *)
 Fixpoint dedup_nat (l : list nat) : list nat :=
   match l with
   | [] => []

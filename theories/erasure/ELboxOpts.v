@@ -1,4 +1,4 @@
-(** * Unverified lambda-box simplifications mirroring Rocq's extraction
+(** * Lambda-box simplifications mirroring Rocq's extraction
 
     Rocq's legacy extraction performs a number of syntactic simplifications
     ([Mlutil] in the extraction plugin) that make a large difference for the
@@ -7,10 +7,11 @@
 
     1. [fix_eta]: fixpoint eta-hoisting.
          fun x1 .. xk => (fix F ..) x1 .. xk    ==>   fix F ..
-       when the fixpoint does not mention the [xi].  An argument may also be a
-       box ([tBox], or a variable bound to a box by an enclosing [let]) when
-       the corresponding parameter of the fixpoint is dead; it is then bound to
-       the caller's argument instead of the box, which cannot be observed.
+       when the fixpoint does not mention the [xi] and its body starts with
+       (at least) [k] lambdas.  An argument may also be a box ([tBox]) instead
+       of [xi] when the corresponding parameter of the fixpoint is dead; it is
+       then bound to the caller's argument instead of the box, which cannot be
+       observed (erasure passes erased type arguments as boxes).
        Rocq definitions by [Fixpoint] (and the output of inlining recursors)
        erase to this shape, and the eta-expanded version allocates a closure at
        every call on most backends.
@@ -28,32 +29,35 @@
        the scrutinee's field is a box depends on how it was erased (e.g.
        [match o with Some _ => Some I] on [o : option nat], where the field is
        a number), which this untyped pass cannot see.
-    4. [let_fun]: let/function permutation and the applied-let redex.
-         let z := a in fun ys => e          ==>  fun ys => let z := a in e
-         (let z := a in f) b1 .. bn          ==>  let z := a in f b1 .. bn
+    4. [let_inline] and [beta_let]: atomic lets and applied lets.
+         let z := a in e                     ==>  e[a/z]
+         (let z := v in f) b1 .. bn          ==>  let z := v in f b1 .. bn
          (fun y => e) b                      ==>  e[b/y]
+         (match d with C xs => fun y => e ..) b
+                                             ==>  match d with C xs => e[b/y] ..
        for atomic [a], [bi] (variables, boxes, constants, constant
        constructors), the convoy pattern left behind by [Function]/[Program]
-       definitions and by 2.
+       definitions and by 2.  Inlining atomic lets is [Mlutil.simpl] on
+       [MLletin]; the other three are [Mlutil.simpl_app].
 
     The passes are plain functions on erased terms, applied bottom-up to every
     constant body and to the main expression.  They are OFF by default and are
     enabled per pass ([--lbox-fix-eta] etc.) or all together ([--lbox-opts]).
 
-    ** Verification status.  None of these rewrites is proved.  Passes 1, 2
-    and 4 change the shape of the values a program evaluates to (a fixpoint
-    instead of a closure, a closure instead of a case), so relating source and
-    target would need a logical relation; for pass 3 see the note before the
-    axioms below.  Following the precedent of MetaRocq's [EBeta] (whose
-    [betared] pass, like [EInlining]'s inlining pass, is assumed correct by the
-    axioms [trust_betared_wf]/[trust_betared_pres]), the pipeline obligations
-    are discharged by four axioms below: [trust_case_id_wf] and
-    [trust_case_id_pres] for pass 3, and [trust_lbox_opts_wf] and
-    [trust_lbox_opts_pres] for passes 1, 2 and 4, quantified over the set of
-    enabled passes.  Enabling pass 3 adds the first two assumptions to the
-    trusted base of the pipeline, enabling any of the others the last two, in
-    addition to those of the passes they rely on (inlining and beta
-    reduction). *)
+    ** Verification status.  Well-formedness is proved in [ELboxOptsWf]
+    (from one lemma per rewrite).  Preservation of evaluation is proved for
+    all four passes, at the flags of the pipeline stage ([EExtraFlags]): if
+    the source program evaluates to [v], the target evaluates to some [v']
+    that is [v] with some subterms rewritten.  The passes change the shape of
+    values (a closure instead of a case) and rewrite under binders, so [v']
+    is not [optimize] of [v]; the relation between them is a chain of steps
+    of the rewrite relation [R] of [ELboxOptsSim], which is shown to be a
+    forward simulation in [ELboxOptsSimEval]; [ELboxOptsSimStatic] shows that
+    the passes are such chains.  For pass 1 the source value may be the
+    eta-expansion (a closure) where the target value is the fixpoint or one
+    of its partial applications; [R] relates the two as long as the target
+    can still take the remaining arguments, which is why the pass checks the
+    number of leading lambdas of the fixpoint body. *)
 
 From Stdlib Require Import List Bool Arith.
 From MetaRocq.Utils Require Import utils.
@@ -71,13 +75,16 @@ Record lbox_opts := {
   lbox_case_fun : bool;  (* pass 2 *)
   lbox_case_id  : bool;  (* pass 3 *)
   lbox_let_fun  : bool;  (* pass 4 *)
+  lbox_iota     : bool;  (* generalised iota, a transformation of its own *)
 }.
 
 Definition no_lbox_opts : lbox_opts :=
-  {| lbox_fix_eta := false; lbox_case_fun := false; lbox_case_id := false; lbox_let_fun := false |}.
+  {| lbox_fix_eta := false; lbox_case_fun := false; lbox_case_id := false; lbox_let_fun := false;
+     lbox_iota := false |}.
 
 Definition all_lbox_opts : lbox_opts :=
-  {| lbox_fix_eta := true; lbox_case_fun := true; lbox_case_id := true; lbox_let_fun := true |}.
+  {| lbox_fix_eta := true; lbox_case_fun := true; lbox_case_id := true; lbox_let_fun := true;
+     lbox_iota := false |}.
 
 Definition any_lbox_opts (o : lbox_opts) : bool :=
   o.(lbox_fix_eta) || o.(lbox_case_fun) || o.(lbox_case_id) || o.(lbox_let_fun).
@@ -154,14 +161,6 @@ Definition atomic (t : term) : bool :=
 
 (** ** Pass 1: fixpoint eta-hoisting *)
 
-(** Strip [let _ := tBox in] prefixes (accessibility proofs of well-founded
-    definitions); returns how many were stripped. *)
-Fixpoint strip_box_lets (t : term) : nat * term :=
-  match t with
-  | tLetIn _ tBox b => let '(j, b') := strip_box_lets b in (S j, b')
-  | _ => (0, t)
-  end.
-
 (** Parameter [i] (0-based) of the [idx]-th function of [mfix], which must have
     at least [n] leading lambdas, is never used. *)
 Definition fix_param_dead (mfix : mfixpoint term) (idx n i : nat) : bool :=
@@ -170,115 +169,40 @@ Definition fix_param_dead (mfix : mfixpoint term) (idx n i : nat) : bool :=
   | None => false
   end.
 
-(** Under [k] lambdas and [j] box-lets, the fixpoint is applied to [n >= k]
-    arguments: argument [i < k] must be lambda parameter [i], i.e.
-    [tRel (k + j - 1 - i)], or a box when parameter [i] of the fixpoint is
-    dead; arguments [i >= k] must be boxes with dead parameters (they are
-    removed from the fixpoint, see [drop_fix_params]). *)
-Definition fix_eta_args_ok (mfix : mfixpoint term) (idx k j : nat) (args : list term) : bool :=
-  let n := #|args| in
-  Nat.leb k n &&
-  forallb (fun '(i, a) =>
-    match a with
-    | tRel r => (Nat.ltb i k && Nat.eqb r (k + j - 1 - i)) || (Nat.ltb r j && fix_param_dead mfix idx n i)
-    | tBox => fix_param_dead mfix idx n i
-    | _ => false
-    end) (combine (seq 0 n) args).
-
-(** Drop argument positions [k .. n-1] of every application of [tRel f] (the
-    fixpoint function, [f] is adjusted under binders); [None] if it occurs
-    unapplied or applied to fewer than [n] arguments.  [args] accumulates the
-    already processed arguments of the application being traversed. *)
-Fixpoint drop_aux (f k n : nat) (args : list term) (t : term) : option term :=
-  match t with
-  | tApp hd a =>
-      match drop_aux f k n [] a with
-      | Some a' => drop_aux f k n (a' :: args) hd
-      | None => None
-      end
-  | tRel r =>
-      if Nat.eqb r f
-      then (if Nat.leb n #|args| then Some (mkApps (tRel r) (firstn k args ++ skipn n args)) else None)
-      else Some (mkApps (tRel r) args)
-  | tLambda na b =>
-      match drop_aux (S f) k n [] b with
-      | Some b' => Some (mkApps (tLambda na b') args) | None => None end
-  | tLetIn na v b =>
-      match drop_aux f k n [] v, drop_aux (S f) k n [] b with
-      | Some v', Some b' => Some (mkApps (tLetIn na v' b') args) | _, _ => None end
-  | tCase ci d brs =>
-      match drop_aux f k n [] d,
-            map_option_out (map (fun br => match drop_aux (#|br.1| + f) k n [] br.2 with
-                                       | Some b' => Some (br.1, b') | None => None end) brs) with
-      | Some d', Some brs' => Some (mkApps (tCase ci d' brs') args) | _, _ => None end
-  | tFix mfix idx =>
-      match map_option_out (map (fun d => match drop_aux (#|mfix| + f) k n [] d.(dbody) with
-                                      | Some b' => Some {| dname := d.(dname); dbody := b'; rarg := d.(rarg) |}
-                                      | None => None end) mfix) with
-      | Some mfix' => Some (mkApps (tFix mfix' idx) args) | None => None end
-  | tCoFix mfix idx =>
-      match map_option_out (map (fun d => match drop_aux (#|mfix| + f) k n [] d.(dbody) with
-                                      | Some b' => Some {| dname := d.(dname); dbody := b'; rarg := d.(rarg) |}
-                                      | None => None end) mfix) with
-      | Some mfix' => Some (mkApps (tCoFix mfix' idx) args) | None => None end
-  | tConstruct ind i cargs =>
-      match map_option_out (map (drop_aux f k n []) cargs) with
-      | Some cargs' => Some (mkApps (tConstruct ind i cargs') args) | None => None end
-  | tEvar e ts =>
-      match map_option_out (map (drop_aux f k n []) ts) with
-      | Some ts' => Some (mkApps (tEvar e ts') args) | None => None end
-  | tProj p c =>
-      match drop_aux f k n [] c with Some c' => Some (mkApps (tProj p c') args) | None => None end
-  | tLazy c =>
-      match drop_aux f k n [] c with Some c' => Some (mkApps (tLazy c') args) | None => None end
-  | tForce c =>
-      match drop_aux f k n [] c with Some c' => Some (mkApps (tForce c') args) | None => None end
-  | tPrim _ => if occurs_rel f t then None else Some (mkApps t args)
-  | _ => Some (mkApps t args)
+(** Under [n] lambdas the fixpoint is applied to exactly [n] arguments
+    ([args] are the arguments from position [i] on): argument [i] must be
+    lambda parameter [i], i.e. [tRel (n - 1 - i)], or a box when parameter [i]
+    of the fixpoint is dead. *)
+Fixpoint fix_eta_args_ok (mfix : mfixpoint term) (idx n i : nat) (args : list term) : bool :=
+  match args with
+  | [] => Nat.eqb i n
+  | a :: args =>
+      match a with
+      | tRel r => Nat.eqb r (n - 1 - i)
+      | tBox => fix_param_dead mfix idx n i
+      | _ => false
+      end && fix_eta_args_ok mfix idx n (S i) args
   end.
 
-(** Remove the (dead) parameters [k .. n-1] of function [idx] of a fixpoint,
-    and the corresponding arguments of all its calls in the block. *)
-Definition drop_fix_params (k n : nat) (t : term) : option term :=
-  match t with
-  | tFix mfix idx =>
-      let f := #|mfix| - 1 - idx in
-      match map_option_out (map (fun '(i, d) =>
-        match drop_aux f k n [] d.(dbody) with
-        | Some b =>
-            if Nat.eqb i idx then
-              let b' := mk_lambdas (lambda_names k b) (subst (repeat tBox (n - k)) 0 (strip_lambdas n b)) in
-              (* The recursive argument keeps its index if it comes before the
-                 dropped parameters and moves down by [n - k] if it comes
-                 after them.  If it is itself dropped (a dead structural
-                 argument, such as the erased [Acc] proof of a well-founded
-                 fixpoint), there is no structural parameter left; we point
-                 at the last kept one ([k >= 1] here). *)
-              let r := d.(rarg) in
-              let r' := if Nat.ltb r k then r else if Nat.ltb r n then k - 1 else r - (n - k) in
-              Some {| dname := d.(dname); dbody := b'; rarg := r' |}
-            else Some {| dname := d.(dname); dbody := b; rarg := d.(rarg) |}
-        | None => None
-        end) (combine (seq 0 #|mfix|) mfix)) with
-      | Some mfix' => Some (tFix mfix' idx)
-      | None => None
-      end
-  | _ => None
+(** The [idx]-th function of [mfix] has at least [n] leading lambdas, so
+    that each of its partial applications to fewer than [n] arguments
+    evaluates to a closure, like the eta-expansion it replaces.  Without this
+    [fun x y => (fix f x := f x) x y], whose partial applications are
+    values, would become [fix f x := f x], whose applications diverge. *)
+Definition fix_arity_ok (mfix : mfixpoint term) (idx n : nat) : bool :=
+  match nth_error mfix idx with
+  | Some d => has_lambdas n d.(dbody)
+  | None => false
   end.
 
 Definition fix_eta (t : term) : term :=
   let k := count_lambdas t in
   if Nat.eqb k 0 then t else
-  let '(j, body) := strip_box_lets (strip_lambdas k t) in
-  let '(hd, args) := decompose_app body in
+  let '(hd, args) := decompose_app (strip_lambdas k t) in
   match hd with
   | tFix mfix idx =>
-      let n := #|args| in
-      if nofree_range 0 (k + j) hd && fix_eta_args_ok mfix idx k j args
-      then
-        let hd := subst (repeat tBox (k + j)) 0 hd in  (* lowers the free variables by k + j *)
-        if Nat.eqb n k then hd
-        else match drop_fix_params k n hd with Some hd' => hd' | None => t end
+      if nofree_range 0 k hd && fix_eta_args_ok mfix idx k 0 args && fix_arity_ok mfix idx k
+      then subst (repeat tBox k) 0 hd  (* lowers the free variables by k *)
       else t
   | _ => t
   end.
@@ -320,26 +244,27 @@ Definition rebuilds (ind : inductive) (i : nat) (br : list name * term) : bool :
   | _ => false
   end.
 
+(** Only for matches on an inductive type without parameters: with
+    parameters, the scrutinee may carry them while the rebuilt constructor
+    does not. *)
 Definition case_id (t : term) : term :=
   match t with
-  | tCase (ind, _) d brs =>
+  | tCase (ind, p) d brs =>
       match brs with
       | [] => t
-      | _ => if forallb (fun '(i, br) => rebuilds ind i br) (combine (seq 0 #|brs|) brs) then d else t
+      | _ => if Nat.eqb p 0 &&
+                forallb (fun '(i, br) => rebuilds ind i br) (combine (seq 0 #|brs|) brs) then d else t
       end
   | _ => t
   end.
 
-(** ** Pass 4: let/function permutation and applied lets *)
+(** ** Pass 4: atomic lets and applied lets *)
 
-Definition let_fun (t : term) : term :=
+(** [let z := a in b ==> b[a/z]] for atomic [a] ([Mlutil.simpl], which
+    substitutes atomic let-bound terms whatever the number of occurrences). *)
+Definition let_inline (t : term) : term :=
   match t with
-  | tLetIn z v b =>
-      if atomic v then
-        let m := count_lambdas b in
-        if Nat.eqb m 0 then t else
-        mk_lambdas (lambda_names m b) (tLetIn z (lift0 m v) (exchange m 1 0 (strip_lambdas m b)))
-      else t
+  | tLetIn _ v b => if atomic v then subst1 v 0 b else t
   | _ => t
   end.
 
@@ -382,22 +307,165 @@ Definition beta_let (t : term) : term :=
   | _, _ => t
   end.
 
+(** ** Generalised iota ([Mlutil.iota_red], [Mlutil.iota_gen], and the
+    case-of-let rule of [Mlutil.simpl])
+
+    Three rewrites of a case, by recursion on its scrutinee:
+
+    - [match C a1 .. an with .. | C x1 .. xn => b | .. end
+         ==> let x1 := a1 in .. let xn := an in b]:
+      the arguments of the constructor are bound by lets, in order, since
+      they need not be values and evaluation is call-by-value; a let that
+      binds an atomic term ([atomic]: a variable, a box, a constant or a
+      constant constructor) is substituted right away ([let_inline]).
+      The constructor is a block [tConstruct ind c args] or the application
+      of [tConstruct ind c []] to its arguments; the rule requires the
+      number of arguments to be the number of parameters of the case plus
+      the number of binders of the branch, and drops the parameters (as
+      [iota_red] does).
+    - [match (let z := v in d) with brs end
+         ==> let z := v in match d with brs end] (always).
+    - [match (match d with p_i => e_i end) with brs end
+         ==> match d with p_i => match e_i with brs end end]
+      when every [e_i] ends in a constructor ([ends_in_constr]: a
+      constructor, or a let or case all of whose leaves do), so that the
+      copies of the outer case all reduce; and when [dup_ok] holds: an outer
+      branch reached by more than one leaf must have [ml_size] at most
+      [iota_dup_limit], which bounds the code duplicated by one rewrite by
+      [iota_dup_limit] per leaf.
+
+    The pass is run bottom-up as its own transformation ([iota_opts]), after
+    inlining and beta-reduction and before the lifting of constants. *)
+
+(** The size of a term, after [Mlutil.ml_size] of Rocq's extraction: the
+    number of applied arguments, lambdas, cases, lets and projections.
+    Variables, constants, boxes, primitive values and constructor heads count
+    0; an erased argument ([tBox]) is not counted as an argument (Rocq's
+    extraction removes most of them, and their application is free in the
+    backends which drop them).  Unlike [ml_size], a let counts 1 and the
+    let-bound term is counted too. *)
+Fixpoint ml_size (t : term) : nat :=
+  match t with
+  | tApp f a => match a with tBox => ml_size f | _ => 1 + ml_size f + ml_size a end
+  | tLambda _ b => 1 + ml_size b
+  | tLetIn _ v b => 1 + ml_size v + ml_size b
+  | tConstruct _ _ args => list_sum (map ml_size args)
+  | tCase _ d brs => 1 + ml_size d + list_sum (map (fun br => ml_size br.2) brs)
+  | tProj _ c => 1 + ml_size c
+  | tFix mfix _ | tCoFix mfix _ => list_sum (map (fun d => ml_size (dbody d)) mfix)
+  | tEvar _ args => list_sum (map ml_size args)
+  | tLazy t | tForce t => ml_size t
+  | tRel _ | tVar _ | tConst _ | tBox | tPrim _ => 0
+  end.
+
+Definition lift_brs (n : nat) (brs : list (list name * term)) : list (list name * term) :=
+  map (fun br => (br.1, lift n #|br.1| br.2)) brs.
+
+(** [let x1 := a1 in .. let xn := an in b], for [a1 .. an] in the scope
+    outside the lets, lifted from [n]. *)
+Fixpoint bind_lets (n : nat) (nas : list name) (args : list term) (b : term) : term :=
+  match args with
+  | [] => b
+  | a :: args => tLetIn (hd nAnon nas) (lift0 n a) (bind_lets (S n) (tl nas) args b)
+  end.
+
+(** The same, with atomic terms substituted. *)
+Fixpoint iota_lets (n : nat) (nas : list name) (args : list term) (b : term) : term :=
+  match args with
+  | [] => b
+  | a :: args => let_inline (tLetIn (hd nAnon nas) (lift0 n a) (iota_lets (S n) (tl nas) args b))
+  end.
+
+Fixpoint ends_in_constr (t : term) : bool :=
+  match t with
+  | tConstruct _ _ _ => true
+  | tLetIn _ _ b => ends_in_constr b
+  | tCase _ _ brs => forallb (fun br => ends_in_constr br.2) brs
+  | _ => false
+  end.
+
+(** The constructors at the leaves of a term that [ends_in_constr]. *)
+Fixpoint constr_leaves (t : term) : list nat :=
+  match t with
+  | tConstruct _ c _ => [c]
+  | tLetIn _ _ b => constr_leaves b
+  | tCase _ _ brs => flat_map (fun br => constr_leaves br.2) brs
+  | _ => []
+  end.
+
+Definition iota_dup_limit : nat := 12.
+
+Fixpoint dup_ok (leaves : list nat) (i : nat) (brs : list (list name * term)) : bool :=
+  match brs with
+  | [] => true
+  | br :: brs =>
+      ((count_occ Nat.eq_dec leaves i <=? 1) || (ml_size br.2 <=? iota_dup_limit))
+      && dup_ok leaves (S i) brs
+  end.
+
+(** The case [t] of constructor [c] applied to [args] (parameters
+    included: the case binds the [ci.2] parameters of the inductive). *)
+Definition iota_constr (ci : inductive * nat) (c : nat) (args : list term)
+  (brs : list (list name * term)) (t : term) : term :=
+  match nth_error brs c with
+  | Some br =>
+      if #|args| =? ci.2 + #|br.1| then iota_lets 0 (List.rev br.1) (skipn ci.2 args) br.2
+      else t
+  | None => t
+  end.
+
+Fixpoint iota_case (ci : inductive * nat) (d : term) (brs : list (list name * term)) {struct d} : term :=
+  match d with
+  | tConstruct _ c args => iota_constr ci c args brs (tCase ci d brs)
+  | tApp _ _ =>
+      match decompose_app d with
+      | (tConstruct _ c [], args) => iota_constr ci c args brs (tCase ci d brs)
+      | _ => tCase ci d brs
+      end
+  | tLetIn z v b => tLetIn z v (iota_case ci b (lift_brs 1 brs))
+  | tCase ci1 d1 brs1 =>
+      if ends_in_constr d && dup_ok (constr_leaves d) 0 brs then
+        tCase ci1 d1 (map (fun br => (br.1, iota_case ci br.2 (lift_brs #|br.1| brs))) brs1)
+      else tCase ci d brs
+  | _ => tCase ci d brs
+  end.
+
 (** ** The pass *)
 
 Definition rewrite_node (o : lbox_opts) (t : term) : term :=
   match t with
   | tLambda _ _ => if o.(lbox_fix_eta) then fix_eta t else t
-  | tCase _ _ _ =>
+  | tCase ci d brs =>
+      if o.(lbox_iota) then iota_case ci d brs else
       let t := if o.(lbox_case_id) then case_id t else t in
       if o.(lbox_case_fun) then case_fun t else t
-  | tLetIn _ _ _ => if o.(lbox_let_fun) then let_fun t else t
+  | tLetIn _ _ _ => if o.(lbox_let_fun) then let_inline t else t
   | tApp _ _ => if o.(lbox_let_fun) then beta_let t else t
   | _ => t
   end.
 
+(** The body of a fixpoint keeps its leading lambda: below it the body is
+    optimized, but the lambda itself is not rewritten.  The only rewrite that
+    applies to a lambda is [fix_eta], which turns it into a fixpoint; at the
+    top of a fixpoint body that would break the [isLambda] condition of
+    [wellformed] (e.g. [fix G x := (fix F y := G y) x] would become
+    [fix G := fix F y := G y]). *)
+Definition optimize_fix_body (f : term -> term) (b : term) : term :=
+  match b with
+  | tLambda na b' => tLambda na (f b')
+  | _ => f b
+  end.
+
+(** [map_subterms], except for the bodies of fixpoints (see above). *)
+Definition map_subterms_fix (f : term -> term) (t : term) : term :=
+  match t with
+  | tFix mfix idx => tFix (map (map_def (optimize_fix_body f)) mfix) idx
+  | _ => map_subterms f t
+  end.
+
 (** Bottom-up: subterms first, then the node. *)
 Fixpoint optimize (o : lbox_opts) (t : term) : term :=
-  rewrite_node o (map_subterms (optimize o) t).
+  rewrite_node o (map_subterms_fix (optimize o) t).
 
 Definition optimize_decl (o : lbox_opts) (d : global_decl) : global_decl :=
   match d with
@@ -425,102 +493,33 @@ Definition optimize_typed_decl (o : lbox_opts) (d : ExAst.global_decl) : ExAst.g
 Definition optimize_typed_env (o : lbox_opts) (Σ : ExAst.global_env) : ExAst.global_env :=
   map (fun '(kn, b, d) => (kn, b, optimize_typed_decl o d)) Σ.
 
-(** ** Pipeline transformations (assumed correct, see the header)
+(** ** Stages
 
     The identity-case pass and the other three passes are separate
-    transformations with separate axioms, so that the assumptions about
-    case/function permutation, let/function permutation and fixpoint
-    eta-hoisting do not bear on the identity-case pass.
-
-    Status of the identity-case pass: NOT proved, axiomatised like the others
-    ([trust_case_id_wf], [trust_case_id_pres]).  What a proof against
-    [EWcbvEval] would need, beyond the local iota computation
-    ([eval_iota_block] + [substl] of the field variables):
-    - the pass is applied under binders, so the statement is a simulation
-      [eval p v -> eval (case_id p) (optimize case_id_opts v)], which needs
-      commutation of [optimize] with [csubst], [mkApps] and fixpoint unfolding
-      (the same reason MetaRocq axiomatises EBeta);
-    - [eval_cofix_case]: a scrutinee evaluating to a cofixpoint application
-      is not a constructor value; the rule needs the absence of cofixpoints
-      (guaranteed in the pipeline by the earlier coinductive-to-inductive
-      transformation, not by the environment flags of this stage). *)
+    transformations (see [ELboxOptsWf]), each with its own proof of
+    evaluation preservation. *)
 
 (** Only the identity-case pass. *)
 Definition case_id_opts : lbox_opts :=
-  {| lbox_fix_eta := false; lbox_case_fun := false; lbox_case_id := true; lbox_let_fun := false |}.
+  {| lbox_fix_eta := false; lbox_case_fun := false; lbox_case_id := true; lbox_let_fun := false;
+     lbox_iota := false |}.
+
+(** Only generalised iota. *)
+Definition iota_opts : lbox_opts :=
+  {| lbox_fix_eta := false; lbox_case_fun := false; lbox_case_id := false; lbox_let_fun := false;
+     lbox_iota := true |}.
 
 (** The given passes without the identity-case pass. *)
 Definition without_case_id (o : lbox_opts) : lbox_opts :=
   {| lbox_fix_eta := o.(lbox_fix_eta); lbox_case_fun := o.(lbox_case_fun);
-     lbox_case_id := false; lbox_let_fun := o.(lbox_let_fun) |}.
+     lbox_case_id := false; lbox_let_fun := o.(lbox_let_fun);
+     lbox_iota := false |}.
 
 (** The two stages as they are run in the pipeline: identity cases first (so
     that the other passes see the simplified branches), then the rest. *)
 Definition staged {A} (o : lbox_opts) (f : lbox_opts -> A -> A) (x : A) : A :=
   let x := if o.(lbox_case_id) then f case_id_opts x else x in
   if any_lbox_opts (without_case_id o) then f (without_case_id o) x else x.
-
-Axiom trust_lbox_opts_wf :
-  forall (efl : EEnvFlags) (o : lbox_opts),
-  o.(lbox_case_id) = false ->
-  WcbvFlags ->
-  forall (input : Transform.program _ term),
-  wf_eprogram efl input -> wf_eprogram efl (lbox_opts_program o input).
-
-Axiom trust_lbox_opts_pres :
-  forall (efl : EEnvFlags) (wfl : WcbvFlags) (o : lbox_opts) (p : Transform.program _ term) (v : term),
-  o.(lbox_case_id) = false ->
-  wf_eprogram efl p ->
-  eval_eprogram wfl p v ->
-  exists v' : term,
-  eval_eprogram wfl (lbox_opts_program o p) v' /\ v' = optimize o v.
-
-Axiom trust_case_id_wf :
-  forall (efl : EEnvFlags),
-  WcbvFlags ->
-  forall (input : Transform.program _ term),
-  wf_eprogram efl input -> wf_eprogram efl (lbox_opts_program case_id_opts input).
-
-Axiom trust_case_id_pres :
-  forall (efl : EEnvFlags) (wfl : WcbvFlags) (p : Transform.program _ term) (v : term),
-  wf_eprogram efl p ->
-  eval_eprogram wfl p v ->
-  exists v' : term,
-  eval_eprogram wfl (lbox_opts_program case_id_opts p) v' /\ v' = optimize case_id_opts v.
-
-Import MetaRocq.Common.Transform.Transform.
-
-(** Fixpoint eta-hoisting, case/function and let/function permutation (the
-    identity-case component of [o] is ignored, see [case_id_transformation]). *)
-Program Definition lbox_opts_transformation (o : lbox_opts) (efl : EEnvFlags) (wfl : WcbvFlags) :
-  Transform.t _ _ EAst.term EAst.term _ _
-    (eval_eprogram wfl) (eval_eprogram wfl) :=
-  {| name := "lambda-box simplifications (fix eta, case/fun, let/fun; unverified)";
-     transform p _ := lbox_opts_program (without_case_id o) p;
-     pre p := wf_eprogram efl p;
-     post p := wf_eprogram efl p;
-     obseq p hp p' v v' := v' = optimize (without_case_id o) v |}.
-Next Obligation.
-  now apply trust_lbox_opts_wf.
-Qed.
-Next Obligation.
-  now eapply trust_lbox_opts_pres.
-Qed.
-
-Program Definition case_id_transformation (efl : EEnvFlags) (wfl : WcbvFlags) :
-  Transform.t _ _ EAst.term EAst.term _ _
-    (eval_eprogram wfl) (eval_eprogram wfl) :=
-  {| name := "lambda-box identity cases (unverified)";
-     transform p _ := lbox_opts_program case_id_opts p;
-     pre p := wf_eprogram efl p;
-     post p := wf_eprogram efl p;
-     obseq p hp p' v v' := v' = optimize case_id_opts v |}.
-Next Obligation.
-  now apply trust_case_id_wf.
-Qed.
-Next Obligation.
-  now eapply trust_case_id_pres.
-Qed.
 
 (** ** Checks *)
 
@@ -554,34 +553,30 @@ Module LboxOptsChecks.
     = tLambda (nm "A") (tLambda (nm "x") (tApp (tApp fixAy tBox) (tRel 0))).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 1'''. let-bound box (Acc-style): fun n => let H := □ in (fix F n0 H0 := F n0 □) n H
-          ==>  fix F n0 := F n0  (the dead accessibility parameter is dropped) *)
+  (* 1'''. a let-bound box is inlined (pass 4), but the fixpoint is then
+     applied to more arguments than there are lambdas: not hoisted *)
   Definition fixAcc := fix1 (tLambda (nm "n0") (tLambda (nm "H0") (tApp (tApp (tRel 2) (tRel 1)) tBox))).
   Example fix_eta_acc :
     optimize O (tLambda (nm "n") (tLetIn (nm "H") tBox (tApp (tApp fixAcc (tRel 1)) (tRel 0))))
-    = fix1 (tLambda (nm "n0") (tApp (tRel 1) (tRel 0))).
+    = tLambda (nm "n") (tApp (tApp fixAcc (tRel 0)) tBox).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 1''''''. a dead parameter before the structural one is dropped, and the
-     recursive-argument index moves with the structural parameter:
-     fun x => (fix F x0 H m {struct m} := F x0 □ m) x □
-       ==>  fix F x0 m {struct m} := F x0 m *)
+  (* 1'''''. more arguments than lambdas: unchanged (dead parameters are not
+     dropped) *)
   Definition fixM := tFix [{| dname := nm "F";
     dbody := tLambda (nm "x0") (tLambda (nm "H") (tLambda (nm "m")
                (tApp (tApp (tApp (tRel 3) (tRel 2)) tBox) (tRel 0))));
     rarg := 2 |}] 0.
   Example fix_eta_rarg :
     optimize O (tLambda (nm "x") (tApp (tApp fixM (tRel 0)) tBox))
-    = tFix [{| dname := nm "F";
-               dbody := tLambda (nm "x0") (tLambda (nm "m") (tApp (tApp (tRel 2) (tRel 1)) (tRel 0)));
-               rarg := 1 |}] 0.
+    = tLambda (nm "x") (tApp (tApp fixM (tRel 0)) tBox).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 1'''''. the function escapes unapplied: not hoisted *)
-  Definition fixEsc := fix1 (tLambda (nm "n0") (tLambda (nm "H0") (tApp (tRel 3) (tRel 2)))).
-  Example fix_eta_escape :
-    optimize O (tLambda (nm "g") (tLambda (nm "n") (tLetIn (nm "H") tBox (tApp (tApp fixEsc (tRel 1)) (tRel 0)))))
-    = tLambda (nm "g") (tLambda (nm "n") (tLetIn (nm "H") tBox (tApp (tApp fixEsc (tRel 1)) (tRel 0)))).
+  (* 1''''''. a box for a dead parameter between two variables: hoisted *)
+  Example fix_eta_box_mid :
+    optimize O (tLambda (nm "x") (tLambda (nm "h") (tLambda (nm "m")
+                  (tApp (tApp (tApp fixM (tRel 2)) tBox) (tRel 0)))))
+    = fixM.
   Proof. vm_compute. reflexivity. Qed.
 
   (* 1''''. the fixpoint mentions the lambda-bound variable: unchanged *)
@@ -657,25 +652,32 @@ Module LboxOptsChecks.
        ([nm "a"; nm "b"], tConstruct ind 1 [tRel 0; tRel 1])].
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 4. let z := v in fun y => z y  ==>  fun y => let z := v in z y *)
-  Example let_fun_1 :
+  (* 4. let z := v in fun y => z y  ==>  fun y => v y, for a variable v *)
+  Example let_inline_1 :
     optimize O (tLetIn (nm "z") (tRel 5) (tLambda (nm "y") (tApp (tRel 1) (tRel 0))))
-    = tLambda (nm "y") (tLetIn (nm "z") (tRel 6) (tApp (tRel 0) (tRel 1))).
+    = tLambda (nm "y") (tApp (tRel 6) (tRel 0)).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 4'. (let z := v in fun y => z y) b  ==>  let z := v in z b *)
-  Example beta_let_1 :
+  (* 4'. a constant is inlined too: (let z := c in fun y => z y) b  ==>  c b *)
+  Example let_inline_const :
     optimize O (tApp (tLetIn (nm "z") (tConst (MPfile ["T"], "c")) (tLambda (nm "y") (tApp (tRel 1) (tRel 0)))) (tRel 3))
-    = tLetIn (nm "z") (tConst (MPfile ["T"], "c")) (tApp (tRel 0) (tRel 4)).
+    = tApp (tConst (MPfile ["T"], "c")) (tRel 3).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 4''. non-atomic argument: unchanged *)
+  (* 4''. non-atomic let: kept;
+     (let z := f x in fun y => z y) b  ==>  let z := f x in z b *)
+  Example beta_let_1 :
+    optimize O (tApp (tLetIn (nm "z") (tApp (tRel 5) (tRel 6)) (tLambda (nm "y") (tApp (tRel 1) (tRel 0)))) (tRel 3))
+    = tLetIn (nm "z") (tApp (tRel 5) (tRel 6)) (tApp (tRel 0) (tRel 4)).
+  Proof. vm_compute. reflexivity. Qed.
+
+  (* 4'''. non-atomic argument: unchanged *)
   Example beta_let_nonatomic :
     optimize O (tApp (tLambda (nm "y") (tRel 0)) (tApp (tRel 1) (tRel 2)))
     = tApp (tLambda (nm "y") (tRel 0)) (tApp (tRel 1) (tRel 2)).
   Proof. vm_compute. reflexivity. Qed.
 
-  (* 4'''. convoy with a non-variable scrutinee:
+  (* 4''''. convoy with a non-variable scrutinee:
      (match f x with true => fun teq => e1 | false => fun teq => e2) □
      ==>  match f x with true => e1[teq := □] | false => e2[teq := □] *)
   Example beta_case :

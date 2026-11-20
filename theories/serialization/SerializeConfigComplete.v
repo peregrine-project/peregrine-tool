@@ -497,12 +497,12 @@ Proof.
   typeclasses eauto.
 Qed.
 
-(** The default eleventh field is not written (see DeserializeConfig.v):
-    by cases on it, the ten-field form or the eleven-field form. *)
+(** The default tenth field is not written (see DeserializeConfig.v):
+    by cases on it, the nine-field form or the ten-field form. *)
 Instance Complete_erasure_phases : CompleteClass erasure_phases.
 Proof.
   unfold CompleteClass, Complete.
-  intros l [a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 []];
+  intros l [a0 a1 a2 a3 a4 a5 a6 a7 a8 []];
     cbn -[Deserialize_bool];
     simpl_bytes;
     unfold deser_erasure_phases_fields;
@@ -513,12 +513,12 @@ Proof.
     reflexivity.
 Qed.
 
-(** The default eleventh field is not written (see DeserializeConfig.v):
-    by cases on it, the ten-field form or the eleven-field form. *)
+(** The default tenth field is not written (see DeserializeConfig.v):
+    by cases on it, the nine-field form or the ten-field form. *)
 Instance Complete_erasure_phases' : CompleteClass erasure_phases'.
 Proof.
   unfold CompleteClass, Complete.
-  intros l [a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 [b |]];
+  intros l [a0 a1 a2 a3 a4 a5 a6 a7 a8 [b |]];
     cbn -[Deserialize_bool];
     simpl_bytes;
     unfold deser_erasure_phases'_fields;

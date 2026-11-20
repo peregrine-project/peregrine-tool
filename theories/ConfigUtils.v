@@ -68,7 +68,8 @@ Section ErasureConfig.
   Definition mk_opts (c : config) (typed : bool)
       (overridden : Kernames.kername -> option (list bool)) : erasure_configuration := {|
       enable_unsafe := {|
-        Erasure.cofix_to_lazy := c.(erasure_opts).(cofix_to_laxy);
+        (* Peregrine rejects cofixpoints in its input and ignores this field. *)
+        Erasure.cofix_to_lazy := false;
         Erasure.inductives_extraction := true;
         Erasure.unboxing := c.(erasure_opts).(unboxing);
         Erasure.betared := c.(erasure_opts).(betared);
@@ -339,7 +340,6 @@ Section GeneralConfigOptional.
   Record erasure_phases' := {
     implement_box'  : option bool;
     implement_lazy' : option bool;
-    cofix_to_laxy'  : option bool;
     betared'        : option bool;
     unboxing'       : option bool;
     dearg_ctors'    : option bool;
@@ -352,7 +352,6 @@ Section GeneralConfigOptional.
   Definition empty_erasure_phases' : erasure_phases' := {|
     implement_box'  := None;
     implement_lazy' := None;
-    cofix_to_laxy'  := None;
     betared'        := None;
     unboxing'       := None;
     dearg_ctors'    := None;
@@ -373,7 +372,6 @@ Section GeneralConfigOptional.
   Definition get_default_phases_opt (o : erasure_phases_config) := {|
     implement_box  := get_default_phase_opt' o implement_box_c;
     implement_lazy := get_default_phase_opt' o implement_lazy_c;
-    cofix_to_laxy  := get_default_phase_opt' o cofix_to_laxy_c;
     betared        := get_default_phase_opt' o betared_c;
     unboxing       := get_default_phase_opt' o unboxing_c;
     dearg_ctors    := get_default_phase_opt' o dearg_ctors_c;
@@ -395,10 +393,11 @@ Section GeneralConfigOptional.
       end
     end.
 
+  (* implement box and implement lazy are the backend's choice: its default
+     ([d]), whatever the configuration says. *)
   Definition enforce_phases (o : erasure_phases') (d : erasure_phases) (o' : erasure_phases_config) : erasure_phases := {|
-    implement_box  := enforce_phase' o.(implement_box')  d.(implement_box)  o'.(implement_box_c);
-    implement_lazy := enforce_phase' o.(implement_lazy') d.(implement_lazy) o'.(implement_lazy_c);
-    cofix_to_laxy  := enforce_phase' o.(cofix_to_laxy')  d.(cofix_to_laxy)  o'.(cofix_to_laxy_c);
+    implement_box  := d.(implement_box);
+    implement_lazy := d.(implement_lazy);
     betared        := enforce_phase' o.(betared')        d.(betared)        o'.(betared_c);
     unboxing       := enforce_phase' o.(unboxing')       d.(unboxing)       o'.(unboxing_c);
     dearg_ctors    := enforce_phase' o.(dearg_ctors')    d.(dearg_ctors)    o'.(dearg_ctors_c);

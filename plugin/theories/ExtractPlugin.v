@@ -46,7 +46,7 @@ Extract Constant MetaRocq.Common.Transform.time =>
 Extract Constant SerializePrimitives.string_of_prim_string =>
   "(fun f -> f |> Pstring.to_string |> Caml_bytestring.bytestring_of_caml_string)".
 Extract Constant DeserializePrimitives.prim_string_of_string =>
-  "(fun s -> s |> Caml_bytestring.caml_string_of_bytestring |> Pstring.of_string |> Option.get)".
+  "(fun s -> s |> Caml_bytestring.caml_string_of_bytestring |> Pstring.of_string)".
 
 Set Warnings "-extraction-reserved-identifier".
 Set Warnings "-extraction-opaque-accessed".

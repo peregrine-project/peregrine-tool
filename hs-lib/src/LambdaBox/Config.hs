@@ -150,7 +150,6 @@ type CustomAttributes = [(LambdaBox.LambdaBox.KerName, String)]
 data ErasurePhases = ErasurePhases
   { implementBox  :: Maybe Bool,
     implementLaxy :: Maybe Bool,
-    cofixToLazy   :: Maybe Bool,
     betared       :: Maybe Bool,
     unboxing      :: Maybe Bool,
     deargCtor     :: Maybe Bool,

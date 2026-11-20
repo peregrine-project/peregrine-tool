@@ -556,9 +556,9 @@ Proof.
   typeclasses eauto.
 Qed.
 
-(** [erasure_phases] has an optional eleventh field (see
-    DeserializeConfig.v): the ten-field form reads as the default, and an
-    eleven-field form is accepted only with a non-default eleventh field,
+(** [erasure_phases] has an optional tenth field (see
+    DeserializeConfig.v): the nine-field form reads as the default, and a
+    ten-field form is accepted only with a non-default tenth field,
     which the serializer then writes back. *)
 Instance Sound_erasure_phases : SoundClass erasure_phases.
 Proof.
@@ -569,8 +569,8 @@ Proof.
   destruct He as [es [<- He]].
   cbn [fst snd] in He.
   unfold deser_erasure_phases_fields in He.
-  destruct (Nat.leb (List.length es) 10).
-  - (* the ten-field form *)
+  destruct (Nat.leb (List.length es) 9).
+  - (* the nine-field form *)
     sound_field He.
     apply sound_class in Ea0.
     apply sound_class in Ea1.
@@ -581,13 +581,12 @@ Proof.
     apply sound_class in Ea6.
     apply sound_class in Ea7.
     apply sound_class in Ea8.
-    apply sound_class in Ea9.
     unfold to_sexp, Serialize_erasure_phases.
     cbn.
-    rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7, <- Ea8, <- Ea9.
+    rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7, <- Ea8.
     reflexivity.
-  - (* the eleven-field form *)
-    destruct (Deser.con11_ _ l _ es) as [err | a'] eqn:Hc; [discriminate |].
+  - (* the ten-field form *)
+    destruct (Deser.con10_ _ l _ es) as [err | a'] eqn:Hc; [discriminate |].
     destruct (untyped_dearg a') eqn:Eu; [| discriminate].
     injection He as <-.
     symmetry in Hc.
@@ -602,7 +601,6 @@ Proof.
     apply sound_class in Ea7.
     apply sound_class in Ea8.
     apply sound_class in Ea9.
-    apply sound_class in Ea10.
     cbn in Eu.
     subst.
     unfold to_sexp, Serialize_erasure_phases.
@@ -610,9 +608,9 @@ Proof.
     reflexivity.
 Qed.
 
-(** [erasure_phases'] has an optional eleventh field (see
-    DeserializeConfig.v): the ten-field form reads as the default, and an
-    eleven-field form is accepted only with a non-default eleventh field,
+(** [erasure_phases'] has an optional tenth field (see
+    DeserializeConfig.v): the nine-field form reads as the default, and a
+    ten-field form is accepted only with a non-default tenth field,
     which the serializer then writes back. *)
 Instance Sound_erasure_phases' : SoundClass erasure_phases'.
 Proof.
@@ -623,8 +621,8 @@ Proof.
   destruct He as [es [<- He]].
   cbn [fst snd] in He.
   unfold deser_erasure_phases'_fields in He.
-  destruct (Nat.leb (List.length es) 10).
-  - (* the ten-field form *)
+  destruct (Nat.leb (List.length es) 9).
+  - (* the nine-field form *)
     sound_field He.
     apply sound_class in Ea0.
     apply sound_class in Ea1.
@@ -635,13 +633,12 @@ Proof.
     apply sound_class in Ea6.
     apply sound_class in Ea7.
     apply sound_class in Ea8.
-    apply sound_class in Ea9.
     unfold to_sexp, Serialize_erasure_phases'.
     cbn.
-    rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7, <- Ea8, <- Ea9.
+    rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7, <- Ea8.
     reflexivity.
-  - (* the eleven-field form *)
-    destruct (Deser.con11_ _ l _ es) as [err | a'] eqn:Hc; [discriminate |].
+  - (* the ten-field form *)
+    destruct (Deser.con10_ _ l _ es) as [err | a'] eqn:Hc; [discriminate |].
     destruct (untyped_dearg' a') as [b |] eqn:Eu; [| discriminate].
     injection He as <-.
     symmetry in Hc.
@@ -656,7 +653,6 @@ Proof.
     apply sound_class in Ea7.
     apply sound_class in Ea8.
     apply sound_class in Ea9.
-    apply sound_class in Ea10.
     cbn in Eu.
     subst.
     unfold to_sexp, Serialize_erasure_phases'.

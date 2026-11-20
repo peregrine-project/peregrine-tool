@@ -255,42 +255,42 @@ Instance Deserialize_custom_attributes : Deserialize custom_attributes :=
   fun l e =>
     _from_sexp l e.
 
-(** The eleventh field of [erasure_phases], [untyped_dearg], is optional:
+(** The tenth field of [erasure_phases], [untyped_dearg], is optional:
     the serializer writes it only when it is not the default ([false], resp.
     [None] for [erasure_phases']). The parser accepts exactly these canonical
-    forms: the ten-field form, read with the default, and the eleven-field
-    form with a non-default eleventh field. An eleven-field form that writes
-    the default is rejected, so that [to_sexp (from_sexp e) = e] holds for
-    every accepted [e] (SerializeConfigSound.v). *)
+    forms: the nine-field form, read with the default, and the ten-field
+    form with a non-default tenth field. A ten-field form that writes the
+    default is rejected, so that [to_sexp (from_sexp e) = e] holds for every
+    accepted [e] (SerializeConfigSound.v). *)
 Definition deser_erasure_phases_fields : FromSexpList erasure_phases :=
   fun l err es =>
-    if Nat.leb (List.length es) 10 then
-      Deser.con10_
-        (fun a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 =>
-           Build_erasure_phases a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 false)
+    if Nat.leb (List.length es) 9 then
+      Deser.con9_
+        (fun a0 a1 a2 a3 a4 a5 a6 a7 a8 =>
+           Build_erasure_phases a0 a1 a2 a3 a4 a5 a6 a7 a8 false)
         l err es
     else
-      match Deser.con11_ Build_erasure_phases l err es with
+      match Deser.con10_ Build_erasure_phases l err es with
       | inr a =>
         if untyped_dearg a then inr a
-        else inl (DeserError (10 :: l)
+        else inl (DeserError (9 :: l)
                     (err (MsgStr "untyped_dearg false is written by omitting the field")))
       | inl e => inl e
       end.
 
 Definition deser_erasure_phases'_fields : FromSexpList erasure_phases' :=
   fun l err es =>
-    if Nat.leb (List.length es) 10 then
-      Deser.con10_
-        (fun a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 =>
-           Build_erasure_phases' a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 None)
+    if Nat.leb (List.length es) 9 then
+      Deser.con9_
+        (fun a0 a1 a2 a3 a4 a5 a6 a7 a8 =>
+           Build_erasure_phases' a0 a1 a2 a3 a4 a5 a6 a7 a8 None)
         l err es
     else
-      match Deser.con11_ Build_erasure_phases' l err es with
+      match Deser.con10_ Build_erasure_phases' l err es with
       | inr a =>
         match untyped_dearg' a with
         | Some _ => inr a
-        | None => inl (DeserError (10 :: l)
+        | None => inl (DeserError (9 :: l)
                          (err (MsgStr "untyped_dearg None is written by omitting the field")))
         end
       | inl e => inl e

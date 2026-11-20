@@ -153,7 +153,6 @@ Section GeneralConfig.
   Record erasure_phases_config := {
       implement_box_c  : phases_config;
       implement_lazy_c : phases_config;
-      cofix_to_laxy_c  : phases_config;
       betared_c        : phases_config;
       unboxing_c       : phases_config;
       dearg_ctors_c    : phases_config;
@@ -166,7 +165,6 @@ Section GeneralConfig.
   Record erasure_phases := {
       implement_box  : bool;
       implement_lazy : bool;
-      cofix_to_laxy  : bool;
       betared        : bool;
       unboxing       : bool;
       dearg_ctors    : bool;

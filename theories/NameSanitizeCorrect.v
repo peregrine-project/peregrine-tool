@@ -150,6 +150,61 @@ Section Spec.
       now rewrite (sanitize_global_decl_spec _ _ e) end.
   Qed.
 
+  (** * Typed environments: the untyped view of the sanitized environment is the
+      renamed untyped view *)
+
+  Lemma monad_map_spec_map {A B C} (g : A -> result' B) (k : B -> C) (h : A -> C) l l' :
+    (forall x y, g x = Ok y -> k y = h x) ->
+    monad_map g l = Ok l' -> map k l' = map h l.
+  Proof.
+    intros hg. induction l as [|x l IH] in l' |- *; cbn; intros H.
+    - now injection H as <-.
+    - inv_bind. cbn. f_equal; auto.
+  Qed.
+
+  Definition is_constant_decl_t (d : ExAst.global_decl) : bool :=
+    match d with ExAst.ConstantDecl _ => true | _ => false end.
+
+  Lemma sanitize_global_decl_t_spec d d' :
+    sanitize_global_decl_t f d = Ok d' ->
+    ExAst.trans_global_decl d' = rename_decl sk sn si (ExAst.trans_global_decl d) /\
+    is_constant_decl_t d' = is_constant_decl_t d.
+  Proof.
+    destruct d as [cb|mib|o]; cbn; intros H; inv_bind; (split; [|reflexivity]); cbn.
+    - rewrite /ExAst.trans_cst /rename_constant_body /=. do 2 f_equal.
+      match goal with e : sanitize_option f sanitize_term _ = Ok _ |- _ => revert e end.
+      destruct (ExAst.cst_body cb); cbn; intros e; inv_bind; [|reflexivity].
+      match goal with e : sanitize_term f _ = Ok _ |- _ => now rewrite (sanitize_term_spec _ _ e) end.
+    - rewrite /ExAst.trans_mib /rename_mutual_inductive_body /=. do 2 f_equal.
+      rewrite map_map.
+      match goal with e : monad_map (sanitize_one_inductive_body_t f) _ = Ok _ |- _ =>
+        eapply monad_map_spec_map; [|exact e] end.
+      intros oib oib' h.
+      rewrite /sanitize_one_inductive_body_t in h. inv_bind.
+      rewrite /ExAst.trans_oib /rename_one_inductive_body /=. f_equal.
+      + use_of_string.
+      + rewrite /ExAst.trans_ctors map_map.
+        eapply monad_map_spec_map; [|eassumption]. intros [[id ctor] n] y hy. cbn in hy. inv_bind.
+        rewrite /rename_constructor_body /=. f_equal. use_of_string.
+      + rewrite map_map.
+        match goal with e : monad_map _ (ExAst.ind_projs oib) = Ok _ |- _ =>
+          eapply monad_map_spec_map; [|exact e] end.
+        intros [id ty] y hy. cbn in hy. inv_bind.
+        rewrite /rename_projection_body /=. f_equal. use_of_string.
+    - match goal with e : sanitize_option f _ o = Ok _ |- _ => revert e end.
+      destruct o as [[tvs ty]|]; cbn; intros e; inv_bind; reflexivity.
+  Qed.
+
+  Lemma sanitize_typed_env_spec env env' :
+    sanitize_typed_env f env = Ok env' ->
+    Forall2 (fun d d' => d'.1.1 = sk d.1.1 /\ d'.1.2 = d.1.2 /\
+      sanitize_global_decl_t f d.2 = Ok d'.2) env env'.
+  Proof.
+    induction env as [|[[kn b] d] env IH] in env' |- *; cbn; intros H.
+    - injection H as <-. constructor.
+    - inv_bind. use_specs. constructor; [now repeat split|]. now apply IH.
+  Qed.
+
   (** * The injectivity check *)
 
   Lemma find_collision_spec (img : kername -> kername) l :

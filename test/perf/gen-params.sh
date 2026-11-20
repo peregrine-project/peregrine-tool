@@ -5,7 +5,7 @@
 # applies the constructor of each to a box.  The HM inference of
 # --untyped-dearg allocates one type variable per parameter, so the list of
 # global variables that `compact` (theories/erasure/EHindleyMilner.v)
-# deduplicates after `main` has at least N elements (DEARG-PERF).
+# deduplicates after `main` has at least N elements.
 n=${1:?usage: gen-params.sh N}
 mp='(MPfile ("Perf"))'
 ind() { printf '(inductive (%s "I%d") 0)' "$mp" "$1"; }
