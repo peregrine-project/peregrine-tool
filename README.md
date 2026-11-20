@@ -62,10 +62,10 @@ Any other file is read as a $\lambda_\square$ program ([format.md](doc/format.md
 
 | Command | Output | Input | Needed to run the output | Verification |
 |---------|--------|-------|--------------------------|--------------|
-| `c` | `.c` and `.h` (Clight) | untyped | a C compiler and the CertiRocq runtime | verified compiler (CertiRocq); printer unverified |
-| `wasm` | `.wasm` | untyped | a Wasm engine with tail calls (e.g. Wasmtime, Node.js) | verified compiler and printer (CertiRocq-Wasm) |
+| `c` | `.c` and `.h` (Clight) | untyped | a C compiler and the CertiRocq runtime | the stages up to LambdaANF verified (CertiRocq); C code generation and printer unverified, see [review.md](doc/review.md#c) |
+| `wasm` | `.wasm` | untyped | a Wasm engine with tail calls (e.g. Wasmtime, Node.js) | verified compiler (CertiRocq-Wasm); binary printer tested, not verified |
 | `llvm` (experimental) | `.ll` | untyped | clang 15 or later and the CertiRocq runtime | partial, see [backends.md](doc/backends.md#llvm) |
-| `ocaml` | `.mlf` (Malfunction) | untyped | `malfunction` and the OCaml compiler | verified compiler (verified extraction); the glue assumes the axiom `trust_coq_kernel` |
+| `ocaml` | `.mlf` (Malfunction) | untyped | `malfunction` and the OCaml compiler | verified compiler to Malfunction (verified extraction, `CompileCorrect.compile_correct`), not composed with the middle-end theorem; Malfunction and the OCaml compiler are trusted, see [review.md](doc/review.md#ocaml) |
 | `cakeml` | `.cml` | untyped | the CakeML compiler | verified compiler to CakeML's AST, composed with the middle end (`peregrine_untyped_cakeml`); printer and type inference unverified, see [backends.md](doc/backends.md#cakeml) |
 | `rust` | `.rs` | typed (types of untyped input are inferred) | `rustc` or `cargo` and the `bumpalo` crate (`rug` for some `--rust-numbers`) | typed erasure verified; printer unverified |
 | `elm` | `.elm` | typed (types of untyped input are inferred) | the Elm compiler | typed erasure verified; printer unverified |
@@ -91,4 +91,5 @@ The middle-end is only partly verified. Some pipeline preconditions are admitted
 | [format.md](doc/format.md) | the $\lambda_\square$ IR, the pipeline configuration and their S-expression format |
 | [dev.md](doc/dev.md) | building from source, repository layout, tests |
 | [dependencies.md](doc/dependencies.md) | every dependency with its repository and pin, the policy for forks, how to update a pin |
+| [review.md](doc/review.md) | for reviewers: per frontend and backend, the trusted definitions to read and the proofs to skip |
 | [test/README.md](test/README.md) | the test suite, its configurations and the rules for expected failures |
