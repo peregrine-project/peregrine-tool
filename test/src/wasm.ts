@@ -111,8 +111,6 @@ function pp_wasm(type: ProgramType, val: number, dataView: any): string {
       return pp_nat_sexp(val, dataView);
     case SimpleType.UInt63:
       return pp_uint63(val, dataView);
-    case SimpleType.Other:
-      return "";
     default:
       switch (type.type) {
         case "list":
@@ -160,12 +158,6 @@ export async function run_wasm(file: string, test: TestCase): Promise<ExecResult
 
     if (out_of_mem == 1) {
       return { type: "error", reason: "runtime error", error: "out of memory" };
-    }
-
-    // We skip checking the output if there is no expected output specified
-    // or if the program returns a type that we don't have printers for
-    if (test.expected_output === undefined || test.output_type === SimpleType.Other) {
-      return { type: "success", time: time_main };
     }
 
     // Pretty print output and check that it matches the expected output

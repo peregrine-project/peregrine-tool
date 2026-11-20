@@ -1,10 +1,10 @@
-# Local dev environemnt setup
+# Local dev environment setup
 ## Requirements
 To install Peregrine dependencies either [opam](http://opam.ocaml.org/) or [Nix](https://nixos.org/) package managers are recommended.
 
 To build the Peregrine Haskell libary GHC and cabal are required.
 
-Additionally, Lean, Node.JS, cargo, rustc, and gcc are required to run the test suite; the .NET SDK is needed for the tests of the experimental F# backend, which are skipped without it.
+Additionally, Lean, Node.JS, cargo, rustc, and gcc are required to run the test suite; the .NET SDK and Koka are needed for the tests of the experimental F# and Koka backends, which fail without them.
 
 ## Getting sources
 To checkout the Peregrine source code:
@@ -25,7 +25,7 @@ To install dependencies run:
 ```bash
 opam install . --deps-only
 ```
-This also pins the dependencies that have no release to the commits given in `pin-depends` of [rocq-peregrine.opam](/rocq-peregrine.opam): CertiRocq with the LLVM backend (used by the C, Wasm and LLVM backends and `eval`), the Vellvm commit it needs, and the MetaRocq 9.1 snapshot it is built against.
+This also pins the dependencies that have no release to the commits given in `pin-depends` of [rocq-peregrine.opam](/rocq-peregrine.opam): CertiRocq with the LLVM backend (used by the C, Wasm and LLVM backends and `eval`), the Vellvm commit it needs, and the MetaRocq 9.1 snapshot it is built against. [dependencies.md](dependencies.md) lists every pin, where it lives and how to update it.
 
 ## Installing using `Nix`
 ```bash

@@ -1,9 +1,11 @@
 From MetaRocq.Erasure Require EAst.
 From Peregrine Require Pipeline.
+From Peregrine Require PipelineParse.
 From Peregrine Require ConfigUtils.
 From Peregrine Require RustGMPRemaps.
 From Peregrine Require RustNativeRemaps.
 From Peregrine Require RustMixedRemaps.
+From Peregrine Require RustHybridRemaps.
 From Peregrine Require SerializePrimitives.
 From Peregrine Require DeserializePrimitives.
 From Stdlib Require Import ExtrOcamlBasic.
@@ -48,7 +50,7 @@ Extract Constant SerializePrimitives.string_of_prim_string =>
   "(fun f -> f |> Pstring.to_string |> Caml_bytestring.bytestring_of_caml_string)".
   (* "(fun s -> failwith "" "")". *)
 Extract Constant DeserializePrimitives.prim_string_of_string =>
-  "(fun s -> s |> Caml_bytestring.caml_string_of_bytestring |> Pstring.of_string |> Option.get)".
+  "(fun s -> s |> Caml_bytestring.caml_string_of_bytestring |> Pstring.of_string)".
   (* "(fun s -> failwith "" "")". *)
 
 
@@ -96,13 +98,14 @@ Set Extraction Output Directory "src/extraction/".
 Require compcert.cfrontend.Csyntax
         compcert.cfrontend.Clight.
 
-Separate Extraction Pipeline.peregrine_pipeline Pipeline.peregrine_validate
+Separate Extraction Pipeline.peregrine_pipeline Pipeline.peregrine_validate PipelineParse.peregrine_pipeline_warn
                     ConfigUtils.empty_rust_config' ConfigUtils.empty_elm_config' ConfigUtils.empty_certirocq_config'
-                    ConfigUtils.empty_ocaml_config' ConfigUtils.empty_cakeml_config' ConfigUtils.empty_lean_config' ConfigUtils.empty_fsharp_config'
+                    ConfigUtils.empty_ocaml_config' ConfigUtils.empty_cakeml_config' ConfigUtils.empty_lean_config' ConfigUtils.empty_fsharp_config' ConfigUtils.empty_koka_config'
                     ConfigUtils.empty_config'
                     RustGMPRemaps.gmp_const_remaps RustGMPRemaps.gmp_ind_remaps RustGMPRemaps.gmp_rust_config'
                     RustNativeRemaps.native_const_remaps RustNativeRemaps.native_ind_remaps RustNativeRemaps.native_rust_config'
                     RustMixedRemaps.mixed_const_remaps RustMixedRemaps.mixed_const_remaps2 RustMixedRemaps.mixed_ind_remaps RustMixedRemaps.mixed_rust_config'
+                    RustHybridRemaps.hybrid_const_remaps RustHybridRemaps.hybrid_ind_remaps RustHybridRemaps.hybrid_rust_config'
                     Floats.Float32.to_bits Floats.Float.to_bits
                     Floats.Float32.of_bits Floats.Float.of_bits
                     Csyntax

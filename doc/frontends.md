@@ -4,6 +4,7 @@ A *frontend* is a tool that takes a program written in a source language (genera
 
 The Peregrine middle-end intentionally has nothing to say about the source language — it only sees an [S-expression-encoded `PAst`](/doc/format.md).
 Frontends are not part of this repository proper: each is its own project.
+Given a source file, `peregrine` runs the Rocq, Agda or Lean frontend itself; [usage.md](usage.md#frontends) describes how it invokes each one and the options it passes. This page describes the frontends themselves.
 
 A frontend's job is, for a given top-level definition, to:
 
@@ -38,6 +39,8 @@ Peregrine Extract "test.ast" add_5.
 Peregrine Extract Typed "test.ast" add_5.
 ```
 
+From the command line, `peregrine BACKEND FILE.v --entry add_5` runs the same command on `FILE.v` ([usage.md](usage.md#rocq)).
+
 
 
 ### Agda
@@ -59,7 +62,7 @@ agda2lambox FILE            # → untyped λ_□
 agda2lambox --typed FILE    # → typed λ_□^T
 ```
 
-The output is the same `PAst` S-expression format consumed by `peregrine compile`.
+The output is the same `PAst` S-expression format that `peregrine` reads. `peregrine BACKEND FILE.agda` runs agda2lambox itself ([usage.md](usage.md#agda)).
 
 #### Limitations
 agda2lambox doesn't support
@@ -90,7 +93,7 @@ def val_at_false (f: Bool -> Nat): Nat := f .false
 #erase val_at_false to "out.ast"
 ```
 
-`#erase` also writes `out.ast.inlinings`, an [attribute file](/doc/format.md#attribute-files) listing the constants to inline. Pass it to Peregrine with `--attributes=out.ast.inlinings`.
+`#erase` also writes `out.ast.inlinings`, an [attribute file](/doc/format.md#attribute-files) listing the constants to inline. Pass it to Peregrine with `--attributes=out.ast.inlinings`. `peregrine BACKEND FILE.lean --entry NAME` runs `#erase` itself and passes the inlinings on ([usage.md](usage.md#lean)).
 
 #### Relation to LCNF
 

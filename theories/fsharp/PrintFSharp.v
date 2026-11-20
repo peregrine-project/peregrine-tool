@@ -4,6 +4,7 @@ From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import BasicAst.
 From MetaRocq.Erasure Require EAst.
 From Peregrine Require Import LeanIR.
+From Peregrine Require Import PrintPrim.
 (* The F# backend shares the Lean backend's IR ([LeanIR]), compiler
    ([LeanCompile]) and the name-disambiguation and inductive-lookup
    helpers of its printer; only the F# syntax below is specific. *)
@@ -482,6 +483,8 @@ Section Printer.
         ("(" ++ concat_with " " (("(" ++ target ++ ")")
                  :: List.map (fun a => print_fterm_k locals a []) args) ++ ")")
         pending
+    | LPrimInt i => wrap_applies ("(box " ++ prim_int_decimal i ++ "L)") pending
+    | LPrimString s => wrap_applies ("(box " ++ prim_string_literal s ++ ")") pending
     | LPanic _ =>
       (* Stand-in [obj] for computationally irrelevant terms (tBox
          replacements).  Must be a benign value — erased argument slots

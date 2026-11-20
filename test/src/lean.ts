@@ -39,7 +39,6 @@ function pp_call(type: ProgramType): string | undefined {
   if (type === SimpleType.Bool) return "Peregrine.pp_bool";
   if (type === SimpleType.Nat) return "Peregrine.pp_nat";
   if (type === SimpleType.UInt63) return undefined;
-  if (type === SimpleType.Other) return undefined;
   if (typeof type === "number") return undefined;
   switch (type.type) {
     case "list": {
@@ -117,8 +116,8 @@ export function run_lean(file: string, projectdir: string, test: TestCase, timeo
     const stop_main = Date.now();
     const time_main = stop_main - start_main;
 
-    if (test.expected_output === undefined || test.output_type === SimpleType.Other) {
-      return { type: "success", time: time_main };
+    if (pp_call(test.output_type) === undefined) {
+      return { type: "error", reason: "incorrect result", actual: res, expected: "(no Lean printer for the type of the result)" };
     }
 
     if (res !== test.expected_output[0]) {

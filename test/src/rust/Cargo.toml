@@ -11,3 +11,5 @@ lexpr = "=0.2.7"
 serde-lexpr = "=0.1.3"
 serde = "=1.0.219"
 serde_derive = "=1.0.219"
+# rust-hybrid represents large numbers with GMP
+rug = "1"

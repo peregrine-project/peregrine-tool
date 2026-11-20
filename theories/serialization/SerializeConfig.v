@@ -185,6 +185,20 @@ Instance Serialize_ast_config' : Serialize ast_config' :=
      to_sexp (ast_type' o)
     ]%sexp.
 
+Instance Serialize_koka_config : Serialize koka_config :=
+  fun o =>
+    [Atom "koka_config";
+     to_sexp (koka_module o);
+     to_sexp (koka_print_full_names o)
+    ]%sexp.
+
+Instance Serialize_koka_config' : Serialize koka_config' :=
+  fun o =>
+    [Atom "koka_config";
+     to_sexp (koka_module' o);
+     to_sexp (koka_print_full_names' o)
+    ]%sexp.
+
 Instance Serialize_backend_config : Serialize backend_config :=
   fun b =>
     match b with
@@ -197,6 +211,8 @@ Instance Serialize_backend_config : Serialize backend_config :=
     | CakeML o => [Atom "CakeML"; to_sexp o ]
     | Lean o => [Atom "Lean"; to_sexp o ]
     | FSharp o => [Atom "FSharp"; to_sexp o ]
+    | Koka o => [Atom "Koka"; to_sexp o ]
+    | KokaTyped o => [Atom "KokaTyped"; to_sexp o ]
     | Eval o => [Atom "Eval"; to_sexp o ]
     | AST o => [Atom "AST"; to_sexp o ]
     end%sexp.
@@ -213,6 +229,8 @@ Instance Serialize_backend_config' : Serialize backend_config' :=
     | CakeML' o => [Atom "CakeML"; to_sexp o ]
     | Lean' o => [Atom "Lean"; to_sexp o ]
     | FSharp' o => [Atom "FSharp"; to_sexp o ]
+    | Koka' o => [Atom "Koka"; to_sexp o ]
+    | KokaTyped' o => [Atom "KokaTyped"; to_sexp o ]
     | Eval' o => [Atom "Eval"; to_sexp o ]
     | AST' o => [Atom "AST"; to_sexp o ]
     end%sexp.
@@ -287,13 +305,13 @@ Instance Serialize_erasure_phases : Serialize erasure_phases :=
     [Atom "erasure_phases";
      to_sexp (implement_box o);
      to_sexp (implement_lazy o);
-     to_sexp (cofix_to_laxy o);
      to_sexp (betared o);
      to_sexp (unboxing o);
      to_sexp (dearg_ctors o);
      to_sexp (dearg_consts o);
      to_sexp (specialize_instances o);
-     to_sexp (cse o)
+     to_sexp (cse o);
+     to_sexp (lift_constants o)
     ]%sexp.
 
 Instance Serialize_erasure_phases' : Serialize erasure_phases' :=
@@ -301,13 +319,13 @@ Instance Serialize_erasure_phases' : Serialize erasure_phases' :=
     [Atom "erasure_phases";
      to_sexp (implement_box' o);
      to_sexp (implement_lazy' o);
-     to_sexp (cofix_to_laxy' o);
      to_sexp (betared' o);
      to_sexp (unboxing' o);
      to_sexp (dearg_ctors' o);
      to_sexp (dearg_consts' o);
      to_sexp (specialize_instances' o);
-     to_sexp (cse' o)
+     to_sexp (cse' o);
+     to_sexp (lift_constants' o)
     ]%sexp.
 
 Instance Serialize_config : Serialize config :=
@@ -394,6 +412,12 @@ Definition string_of_fsharp_config (x : fsharp_config) : string :=
 
 Definition string_of_fsharp_config' (x : fsharp_config') : string :=
   @to_string fsharp_config' Serialize_fsharp_config' x.
+
+Definition string_of_koka_config (x : koka_config) : string :=
+  @to_string koka_config Serialize_koka_config x.
+
+Definition string_of_koka_config' (x : koka_config') : string :=
+  @to_string koka_config' Serialize_koka_config' x.
 
 Definition string_of_eval_config (x : eval_config) : string :=
   @to_string eval_config Serialize_eval_config x.

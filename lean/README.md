@@ -17,7 +17,7 @@ LeanIR.lprogram                     theories/lean/LeanIR.v
 Lean 4 source
 ```
 
-The backend requires the *implement box*, *implement lazy*, and *cofix to lazy* passes. Beta reduction, unboxing, and dearging are optional and off by default (`lean_phases` in [`theories/backends/LeanBackend.v`](/theories/backends/LeanBackend.v)).
+The backend requires the *implement box* and *implement lazy* passes. Beta reduction, unboxing, and dearging are optional and off by default (`lean_phases` in [`theories/backends/LeanBackend.v`](/theories/backends/LeanBackend.v)).
 
 `LeanIR` is a small named-variable IR loosely modelled on Lean 4's $\lambda_{pure}$: variables, constants, constructors, projections, application, lambda, `let`, `case`, and nested fixpoints. It is not in ANF.
 
@@ -101,7 +101,7 @@ A configuration or attribute file can remap a constant, whether it is an axiom o
 
 ## Limitations
 
-* `tPrim` (primitive integers, floats, strings, arrays) and `tEvar` are not supported. They compile to the placeholder `()` without a compile-time error, so a program that uses them misbehaves at run time. Cofixpoints are supported: the required *cofix to lazy* pass turns them into fixpoints before the backend runs.
+* `tPrim` (primitive integers, floats, strings, arrays) and `tEvar` are not supported. They compile to the placeholder `()` without a compile-time error, so a program that uses them misbehaves at run time. Peregrine rejects cofixpoints for every backend.
 * A top-level mutual fixpoint is emitted together with the constant named after its first member, when that constant selects that member. A constant with that name that selects another member emits nothing. If the program only reaches another member, the group is missing and the output does not compile in Lean.
 * A mutual fixpoint nested inside a term compiles to a run-time `panic!`.
 * Axioms (constants without a body) are skipped. A program that references one does not compile in Lean.

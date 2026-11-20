@@ -1,5 +1,5 @@
 import { exit } from "process";
-import { Lang, TestCase, TestConfiguration, ExecResult, SimpleType, ExecFailure } from "./types";
+import { Lang, TestCase, TestConfiguration, ExecResult, ExecFailure, Expectations } from "./types";
 import { run_wasm } from "./wasm";
 import { execSync } from "child_process";
 import path from "path";
@@ -7,12 +7,14 @@ import { existsSync, mkdirSync } from "fs";
 import { lang_to_ext, lang_to_peregrine_arg, print_line, replace_ext } from "./utils";
 import { compile_c, compile_llvm, set_c_env } from "./c";
 import { compile_ocaml, compile_types } from "./ocaml";
-import { cakeml_output_checked, compile_cakeml, get_cake } from "./cakeml";
+import { compile_cakeml, get_cake } from "./cakeml";
 import { compile_rust, make_printable, prepare_cargo, run_rust } from "./rust";
 import { prepare_elm_project, run_elm } from "./elm";
 import { prepare_lean_project, run_lean } from "./lean";
 import { build_fsharp, has_dotnet, prepare_fsharp_project, run_fsharp } from "./fsharp";
+import { compile_koka, has_koka, run_koka } from "./koka";
 import { test_configurations, tests } from "./tests";
+import { run_cli_tests } from "./cli";
 
 
 // Timeout used when executing the compiled code
@@ -24,9 +26,15 @@ var remove_output = true;
 // List of failed tests
 var failed_tests: string[] = [];
 
+// The known failures of the configuration being run (see TestCase.xfail),
+// by the source file the runner names in its report
+var xfails = new Map<string, string>();
+
 var tmpdir = process.env.TMPDIR;
 
 var use_local_binary = false;
+// Path of the installed peregrine binary
+var peregrine_path = "";
 function get_exec(local: boolean): string {
   if (local) {
     // For local testing without installing
@@ -62,34 +70,47 @@ function compile_box(file: string, outdir: string, lang: Lang, opts: string, con
   }
 }
 
+// The options of a configuration followed by the compiler arguments of a test
+// and its attribute file for the backend
+function with_args(lang: Lang, opts: string, test: TestCase): string {
+  const attrs = test.attributes?.[lang];
+  return [opts, test.compiler_args, attrs && `--attributes=${attrs}`].filter((a) => a).join(" ");
+}
+
 // Report the result of compiling, with a typed backend, an untyped program
 // marked as `rejected`: peregrine must fail and say that it could not infer
 // the types
-function print_rejected(res: string | ExecFailure, test: string) {
+function print_rejected(res: string | ExecFailure, test: string, reason: true | string) {
   if (typeof res === "string") {
     print_result({ type: "error", reason: "incorrect result", expected: "a rejection by type inference", actual: "a compiled program" }, test);
   } else if (res.reason === "compile error" && res.error.includes("Could not infer types")) {
-    print_line("rejected by type inference, as expected");
+    print_line(`rejected by type inference, as expected${reason === true ? "" : ` (${reason})`}`);
   } else {
     print_result(res, test);
   }
 }
 
+// Report a test that has no typed source on a typed configuration: it cannot
+// run there, so it fails, and must be marked as an expected failure
+function print_no_typed_source(src: string) {
+  process.stdout.write(`  ${src}: `);
+  print_result({ type: "error", reason: "compile error", compiler: "the test suite", code: 0, error: "no typed source (tsrc)" }, src);
+}
 
-// Run the given executable and compare against the expected test result
-// Report the result of compiling a program with cofixpoints without lowering
-// them: peregrine must fail and name them
+// Report the result of compiling a program with cofixpoints, which peregrine
+// does not support: it must fail and name them
 function print_cofix_rejected(res: string | ExecFailure, test: string) {
   if (typeof res === "string") {
     print_result({ type: "error", reason: "incorrect result", expected: "a rejection of cofixpoints", actual: "a compiled program" }, test);
-  } else if (res.reason === "compile error" && res.error.includes("does not support cofixpoints")) {
+  } else if (res.reason === "compile error" && res.error.includes("Program contains tCoFix")) {
     print_line("rejected for its cofixpoints, as expected");
   } else {
     print_result(res, test);
   }
 }
 
-function run_exec(file: string, test: TestCase, skip_output_check: boolean): ExecResult {
+// Run the given executable and compare against the expected test result
+function run_exec(file: string, test: TestCase): ExecResult {
   // Command to run
   const cmd = file;
 
@@ -99,12 +120,6 @@ function run_exec(file: string, test: TestCase, skip_output_check: boolean): Exe
     const res = execSync(cmd, { stdio: "pipe", timeout: exec_timeout, encoding: "utf8" }).trim();
     const stop_main = Date.now();
     const time_main = stop_main - start_main;
-
-    // Return success if there is no expected output to compare against or if the program
-    // returns a type that we don't know how to print
-    if (test.expected_output === undefined || test.output_type === SimpleType.Other || skip_output_check) {
-      return { type: "success", time: time_main };
-    }
 
     // Compare output against the expected output
     if (res !== test.expected_output[0]) {
@@ -124,6 +139,16 @@ function run_exec(file: string, test: TestCase, skip_output_check: boolean): Exe
 
 // Print result of execution
 function print_result(res: ExecResult, test: string): boolean {
+  const xfail = xfails.get(test);
+  if (xfail !== undefined) {
+    if (res.type === "error") {
+      print_line(`expected failure (${xfail})`);
+      return false;
+    }
+    failed_tests.push(test);
+    print_line(`passed, but is marked as an expected failure (${xfail}): remove the mark`);
+    return true;
+  }
   switch (res.type) {
     case "error":
       // Add failed test program to list of failed tests
@@ -157,29 +182,31 @@ function print_result(res: ExecResult, test: string): boolean {
 async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[], untyped: boolean, rust_verb?: string) {
   // Source that the typed backends compile
   const typed_src = (t: TestCase) => untyped ? t.src : t.tsrc;
-  print_line(`Running ${lang}${n.length > 0 ? "-"+n : ""} tests:`);
-  tests = tests.filter((t) => {
-    if (!t.skip?.includes(lang)) return true;
-    // The typed backends would not run a test without a source for them
-    if ((lang === Lang.Rust || lang === Lang.Elm) && typed_src(t) === undefined) return false;
-    print_line(`  ${typed_src(t) ?? t.src ?? t.tsrc}: skipped (known failure)`);
-    return false;
-  });
-  // A configuration lowering cofixpoints only runs the programs that use them
-  if (opts.includes("--lower-cofix")) tests = tests.filter((t) => t.cofix);
+  // Source that this configuration compiles
+  const source = (t: TestCase) => lang === Lang.Rust || lang === Lang.Elm || rust_verb === "koka-typed" ? typed_src(t) : t.src;
+  const name = `${lang}${n.length > 0 ? "-"+n : ""}`;
+  const reason = (e?: Expectations) => e?.[name];
+  print_line(`Running ${name} tests:`);
+  // Keyed by the source, or by `src` for a test without the typed source
+  xfails = new Map(tests.filter((t) => reason(t.xfail) !== undefined)
+    .map((t) => [source(t) ?? t.src, reason(t.xfail)] as [string, string]));
+  // Every configuration must reject a program with cofixpoints
+  for (const test of tests.filter((t) => t.cofix)) {
+    const src = source(test) ?? test.src;
+    process.stdout.write(`  ${src}: `);
+    const config = lang === Lang.Rust && rust_verb === undefined ? "src/rust/config.sexp"
+      : lang === Lang.Elm ? "src/elm/config.sexp" : undefined;
+    print_cofix_rejected(compile_box(src, tmpdir, lang, with_args(lang, opts, test), config, rust_verb), src);
+  }
+  tests = tests.filter((t) => !t.cofix);
   switch (lang) {
     case Lang.OCaml:
       compile_types(compile_timeout);
       for (var test of tests) {
-        if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f_mlf = compile_box(test.src, tmpdir, Lang.OCaml, opts);
-        if (test.cofix && !opts.includes("--lower-cofix")) {
-          print_cofix_rejected(f_mlf, test.src);
-          continue;
-        }
+        const f_mlf = compile_box(test.src, tmpdir, Lang.OCaml, with_args(lang, opts, test));
         if (typeof f_mlf !== "string") {
           print_result(f_mlf, test.src);
           continue;
@@ -193,7 +220,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // Run executable
-        const res = run_exec(f_exec, test, false);
+        const res = run_exec(f_exec, test);
 
         // Report result
         print_result(res, test.src);
@@ -203,15 +230,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       //compile_types(compile_timeout);
       get_cake(compile_timeout, tmpdir)
       for (var test of tests) {
-        if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f_cml = compile_box(test.src, tmpdir, Lang.CakeML, opts);
-        if (test.cofix && !opts.includes("--lower-cofix")) {
-          print_cofix_rejected(f_cml, test.src);
-          continue;
-        }
+        const f_cml = compile_box(test.src, tmpdir, Lang.CakeML, with_args(lang, opts, test));
         if (typeof f_cml !== "string") {
           print_result(f_cml, test.src);
           continue;
@@ -226,7 +248,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // Run executable
-        const res = run_exec(f_exec, test, !cakeml_output_checked(test));
+        const res = run_exec(f_exec, test);
 
         // Report result
         print_result(res, test.src);
@@ -235,15 +257,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
     case Lang.C:
       await set_c_env(compile_timeout);
       for (var test of tests) {
-        if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f_c = compile_box(test.src, tmpdir, Lang.C, opts);
-        if (test.cofix && !opts.includes("--lower-cofix")) {
-          print_cofix_rejected(f_c, test.src);
-          continue;
-        }
+        const f_c = compile_box(test.src, tmpdir, Lang.C, with_args(lang, opts, test));
         if (typeof f_c !== "string") {
           print_result(f_c, test.src);
           continue;
@@ -257,7 +274,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // Run executable
-        const res = run_exec(f_exec, test, false);
+        const res = run_exec(f_exec, test);
 
         // Report result
         print_result(res, test.src);
@@ -266,15 +283,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
     case Lang.LLVM:
       await set_c_env(compile_timeout);
       for (var test of tests) {
-        if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f_ll = compile_box(test.src, tmpdir, Lang.LLVM, opts);
-        if (test.cofix && !opts.includes("--lower-cofix")) {
-          print_cofix_rejected(f_ll, test.src);
-          continue;
-        }
+        const f_ll = compile_box(test.src, tmpdir, Lang.LLVM, with_args(lang, opts, test));
         if (typeof f_ll !== "string") {
           print_result(f_ll, test.src);
           continue;
@@ -288,7 +300,7 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
         }
 
         // Run executable
-        const res = run_exec(f_exec, test, false);
+        const res = run_exec(f_exec, test);
 
         // Report result
         print_result(res, test.src);
@@ -296,15 +308,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       break;
     case Lang.Wasm:
       for (var test of tests) {
-        if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f = compile_box(test.src, tmpdir, Lang.Wasm, opts);
-        if (test.cofix && !opts.includes("--lower-cofix")) {
-          print_cofix_rejected(f, test.src);
-          continue;
-        }
+        const f = compile_box(test.src, tmpdir, Lang.Wasm, with_args(lang, opts, test));
         if (typeof f !== "string") {
           print_result(f, test.src);
           continue;
@@ -323,18 +330,22 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
       for (var test of tests) {
         const src = typed_src(test);
-        if (src === undefined) continue;
-        // rust-i64 prints numbers and booleans natively, so it needs its own outputs
-        const expected = rust_verb === "rust-i64" ? test.rust_i64_output : test.expected_output?.[1];
-        if (rust_verb === "rust-i64" && expected === undefined) continue;
+        if (src === undefined) {
+          print_no_typed_source(test.src);
+          continue;
+        }
+        // rust-i64 and rust-hybrid print numbers and booleans natively, so they
+        // need their own outputs
+        const native = rust_verb === "rust-i64" || rust_verb === "rust-hybrid";
+        const expected = native ? test.rust_i64_output : test.expected_output[1];
         process.stdout.write(`  ${src}: `);
 
         // Compile peregrine
         const f_rs = rust_verb === undefined
-          ? compile_box(src, otudir, Lang.Rust, opts, "src/rust/config.sexp")
-          : compile_box(src, otudir, Lang.Rust, opts, undefined, rust_verb);
+          ? compile_box(src, otudir, Lang.Rust, with_args(lang, opts, test), "src/rust/config.sexp")
+          : compile_box(src, otudir, Lang.Rust, with_args(lang, opts, test), undefined, rust_verb);
         if (untyped && test.rejected) {
-          print_rejected(f_rs, src);
+          print_rejected(f_rs, src, test.rejected);
           continue;
         }
         if (typeof f_rs !== "string") {
@@ -366,13 +377,16 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
 
       for (var test of tests) {
         const src = typed_src(test);
-        if (src === undefined) continue;
+        if (src === undefined) {
+          print_no_typed_source(test.src);
+          continue;
+        }
         process.stdout.write(`  ${src}: `);
 
         // Compile peregrine
-        const f_elm = compile_box(src, otudir, Lang.Elm, opts, "src/elm/config.sexp");
+        const f_elm = compile_box(src, otudir, Lang.Elm, with_args(lang, opts, test), "src/elm/config.sexp");
         if (untyped && test.rejected) {
-          print_rejected(f_elm, src);
+          print_rejected(f_elm, src, test.rejected);
           continue;
         }
         if (typeof f_elm !== "string") {
@@ -392,11 +406,10 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       var leandir = prepare_lean_project(tmpdir, compile_timeout);
 
       for (var test of tests) {
-        if (test.src === undefined) continue;
         process.stdout.write(`  ${test.src}: `);
 
         // Compile peregrine
-        const f_lean = compile_box(test.src, leandir, Lang.Lean, opts, test.configs?.[Lang.Lean]);
+        const f_lean = compile_box(test.src, leandir, Lang.Lean, with_args(lang, opts, test));
         if (typeof f_lean !== "string") {
           print_result(f_lean, test.src);
           continue;
@@ -410,19 +423,19 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       }
       break;
     case Lang.FSharp:
-      // The F# backend is experimental, and its tests are skipped without the .NET SDK
       if (!has_dotnet()) {
-        print_line("  skipped: dotnet not found");
+        failed_tests.push(name);
+        print_line("  error: dotnet not found");
         break;
       }
       var fsharpdir = prepare_fsharp_project(tmpdir, compile_timeout);
 
       // Compile every test with peregrine, then build all of them at once.
       // Each test gets its own directory, as several tests share a file name.
-      const compiled = tests.filter((t) => t.src !== undefined).map((test, k) => {
+      const compiled = tests.map((test, k) => {
         const outdir = path.join(fsharpdir, "gen", `${k}`);
         mkdirSync(outdir, { recursive: true });
-        return { test, f_fs: compile_box(test.src, outdir, Lang.FSharp, opts, test.configs?.[Lang.FSharp]) };
+        return { test, f_fs: compile_box(test.src, outdir, Lang.FSharp, with_args(lang, opts, test)) };
       });
       const programs = compiled.filter((c) => typeof c.f_fs === "string")
         .map((c) => ({ test: c.test, file: c.f_fs as string }));
@@ -440,6 +453,43 @@ async function run_tests(lang: Lang, n: string, opts: string, tests: TestCase[],
       }
       break;
 
+    case Lang.Koka:
+      if (!has_koka()) {
+        failed_tests.push(name);
+        print_line("  error: koka not found");
+        break;
+      }
+      tests.forEach((test, k) => {
+        // The typed backend (verb koka-typed) compiles the typed source, or
+        // the untyped one through type inference
+        const typed = rust_verb === "koka-typed";
+        const src = typed ? typed_src(test) : test.src;
+        if (src === undefined) {
+          print_no_typed_source(test.src);
+          return;
+        }
+        process.stdout.write(`  ${src}: `);
+        // Each test gets its own directory, as several tests share a file name.
+        const outdir = path.join(tmpdir, "koka", `${n}-${k}`);
+        mkdirSync(outdir, { recursive: true });
+        const f_kk = compile_box(src, outdir, Lang.Koka, with_args(lang, opts, test), undefined, rust_verb);
+        if (typed && untyped && test.rejected) {
+          print_rejected(f_kk, src, test.rejected);
+          return;
+        }
+        if (typeof f_kk !== "string") {
+          print_result(f_kk, src);
+          return;
+        }
+        const built = compile_koka(f_kk, test, compile_timeout * 4);
+        if ("type" in built) {
+          print_result(built, src);
+          return;
+        }
+        print_result(run_koka(built.exe, test, built.checked, exec_timeout), src);
+      });
+      break;
+
     default:
       print_line("Error: unkown backend");
       exit(1);
@@ -450,7 +500,7 @@ function check_peregrine() {
   const cmd = `which peregrine`;
 
   try {
-    execSync(cmd, { stdio: "pipe", timeout: compile_timeout });
+    peregrine_path = execSync(cmd, { stdio: "pipe", timeout: compile_timeout, encoding: "utf8" }).trim();
     use_local_binary = false;
   } catch (e) {
     print_line("Could not locate peregrine, falling back to using dune");
@@ -475,12 +525,40 @@ async function main() {
   // or only the configurations named on the command line, e.g. `Rust` or `WebAssembly-cps`
   // (exact, case-sensitive match on the name the runner prints)
   const config_name = (c: TestConfiguration) => c[0] + (c[1].length > 0 ? "-" + c[1] : "");
-  const names = test_configurations.map(config_name);
+  // `CLI` names the checks of src/cli.ts
+  const names = ["CLI", ...test_configurations.map(config_name)];
+  // Every expected failure, and every rejection caused by a limitation of the
+  // typed backends, names its issue: check-issues.sh checks that it is open
+  const marks = tests.flatMap((t) => [
+    ...Object.entries(t.xfail ?? {}).map(([c, r]) => ({ test: t, what: `xfail on ${c}`, config: c, reason: r })),
+    ...(typeof t.rejected === "string" ? [{ test: t, what: "rejected", config: undefined, reason: t.rejected }] : [])
+  ]);
+  // A rejected test must be rejected on Rust-untyped, Elm-untyped and
+  // Koka-typed-untyped: an xfail there would hide a program that type
+  // inference wrongly accepts
+  const rejected_configs = ["Rust-untyped", "Elm-untyped", "Koka-typed-untyped"];
+  const bad_marks = marks.filter((m) => !/(?<![\w-])([\w.-]+\/[\w.-]+)?#(\d+|TBD-[\w-]+)\b/.test(m.reason)
+    || (m.config !== undefined && !names.includes(m.config))
+    || (m.config !== undefined && m.test.rejected !== undefined && rejected_configs.includes(m.config)));
+  for (const m of bad_marks)
+    print_line(`error: ${m.test.src}: ${m.what} needs a configuration name, an issue reference (#N or owner/repo#N), and no xfail where the test is rejected: "${m.reason}"`);
+  if (bad_marks.length > 0) exit(2);
   const selected = process.argv.slice(2);
   const unknown = selected.filter((n) => !names.includes(n));
   if (unknown.length > 0) {
     print_line(`error: unknown test configuration ${unknown.join(", ")}; the configurations are ${names.join(", ")}`);
     exit(2);
+  }
+  if (selected.length === 0 || selected.includes("CLI")) {
+    print_line("Running CLI tests:");
+    if (use_local_binary) {
+      failed_tests.push("CLI");
+      print_line("  error: they need peregrine on the PATH");
+    } else {
+      const clidir = path.join(tmpdir, "cli");
+      if (!existsSync(clidir)) mkdirSync(clidir);
+      failed_tests.push(...run_cli_tests(peregrine_path, clidir));
+    }
   }
   for (var backend of test_configurations) {
     if (selected.length > 0 && !selected.includes(config_name(backend))) continue;

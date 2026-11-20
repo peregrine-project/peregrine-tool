@@ -1,0 +1,14 @@
+name = "tasks"
+version = "0.1.0"
+defaultTargets = ["tasks"]
+
+[[lean_lib]]
+name = "Peregrine"
+roots = ["Peregrine.Runtime"]
+
+[[lean_lib]]
+name = "Gen"
+
+[[lean_exe]]
+name = "tasks"
+root = "Main"

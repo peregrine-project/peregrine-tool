@@ -17,7 +17,7 @@ Local Open Scope bs_scope.
 Definition default_c_config := {|
   direct    := true;
   c_args    := 5;
-  o_level   := 0;
+  o_level   := 1;  (* lambda lifting; 0 keeps every closure (#133) *)
   anf_conf  := 0;
   prefix    := "";
   body_name := "body";
@@ -26,13 +26,13 @@ Definition default_c_config := {|
 Definition c_phases := {|
   implement_box_c  := Required;
   implement_lazy_c := Compatible false;
-  cofix_to_laxy_c  := Compatible false;
   betared_c        := Compatible false;
   unboxing_c       := Compatible false;
   dearg_ctors_c    := Compatible true;
   dearg_consts_c   := Compatible true;
   specialize_instances_c := Compatible false;
   cse_c            := Compatible false;
+  lift_constants_c := Compatible false;
 |}.
 
 
@@ -48,8 +48,8 @@ Definition extract_c (remaps : constant_remappings)
                      : result' (Cprogram * list string) :=
   let config := mk_opts opts in
   let prs := mk_prims remaps in
-  let gc_lib := if opts.(direct) then "gc_stack.h" else "gc.h" in
-  let libs := gc_lib :: (Kernames.IdentSetProp.to_list (get_libs remaps)) in
+  (* Both pipelines target the runtime's gc_stack.h; CertiRocq no longer installs gc.h *)
+  let libs := "gc_stack.h" :: (Kernames.IdentSetProp.to_list (get_libs remaps)) in
   let (res, _) := run_pipeline EAst.program Cprogram config p (c_pipeline prs) in
   match res with
   | compM.Ret p => Ok (p, libs)
