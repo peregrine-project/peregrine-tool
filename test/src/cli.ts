@@ -19,7 +19,32 @@ const cli_tests: [string[], number, string][] = [
     [["erase", "x.ast"], 32, "is a lambda box program already"],
     [["erase", "x.lean", "--entry", "f", "--typed"], 32, "the Lean frontend has no typed output"],
     [["rust", "x.lean", "--entry", "f"], 32, "is in no Lake project"],
+    // A flag must not consume the input file as its value
+    [["c", "--inline-recursors", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "--lbox-opts", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "--lbox-opts", "--lbox-case-id", "false", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "--lift-constants", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "-O0", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "-O", "0", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "-O", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "-O0", "--no-drop-identity-matches", "x.ast"], 1, "Failed parsing input program"],
+    // -O2 is the default, deprecated
+    [["c", "-O2", "x.ast"], 1, "-O2 is deprecated"],
+    [["c", "-O", "2", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "--specialize-instances", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "--cse", "true", "x.ast"], 1, "Failed parsing input program"],
+    [["c", "--certirocq-cps", "x.ast"], 1, "Failed parsing input program"],
+    // removed options
+    [["c", "-O1", "x.ast"], 124, "-O1 was removed"],
+    [["c", "-O", "1", "x.ast"], 124, "-O1 was removed"],
+    [["c", "-O", "3", "x.ast"], 124, "invalid value"],
+    [["c", "--dearg-ctors", "false", "x.ast"], 124, "unknown option"],
 ];
+
+// Remove the ANSI escape sequences of `s`: cmdliner colours its error messages
+// whenever TERM names a colour terminal, even when they go to a pipe, so that a
+// message such as "unknown option" is split by escape sequences
+const strip_ansi = (s: string) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
 
 // Run the checks with the peregrine binary `exec`, in `dir`, and return the
 // failed ones
@@ -32,7 +57,7 @@ export function run_cli_tests(exec: string, dir: string): string[] {
         const name = `peregrine ${args.join(" ")}`;
         process.stdout.write(`  ${name}: `);
         const r = spawnSync(exec, args, { cwd: dir, env: env ?? process.env, encoding: "utf8" });
-        const out = (r.stdout ?? "") + (r.stderr ?? "");
+        const out = strip_ansi((r.stdout ?? "") + (r.stderr ?? ""));
         if (r.status === code && out.includes(msg)) {
             print_line("ok");
         } else {
@@ -60,7 +85,7 @@ function run_frontend_cli_tests(exec: string, dir: string): string[] {
                    msg: string, not_msg: string | undefined, ast: string) => {
         process.stdout.write(`  ${name}: `);
         const r = spawnSync(exec, ["erase", ...args, "-o", out], { cwd: cwd, encoding: "utf8" });
-        const err = r.stderr ?? "";
+        const err = strip_ansi(r.stderr ?? "");
         let content = "";
         try { content = readFileSync(out, "utf8"); } catch (e) { }
         if (r.status === 0 && err.includes(msg) && (not_msg === undefined || !err.includes(not_msg)) && content.includes(ast)) {

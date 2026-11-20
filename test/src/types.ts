@@ -79,8 +79,8 @@ export type TestCase = {
   // lack, and the string is the reason, which names the open issue of that
   // limitation, as for `xfail`
   rejected?: true | string,
-  // The program has cofixpoints: C, Wasm, LLVM, OCaml and CakeML must reject it
-  // without --lower-cofix
+  // The program has cofixpoints, which peregrine does not support: every
+  // configuration must reject it
   cofix?: boolean,
   // The expected output of the Rust-i64 test configuration, where nat is i64
   // and bool is the Rust bool, and of Rust-hybrid; a test without one fails there

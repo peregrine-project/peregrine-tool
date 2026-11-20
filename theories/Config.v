@@ -97,6 +97,8 @@ Section BackendConfig.
   | Lean   : lean_config -> backend_config
   | FSharp : fsharp_config -> backend_config
   | Koka   : koka_config -> backend_config
+  (* the typed Koka backend (experimental): typed lambda-box, no casts *)
+  | KokaTyped : koka_config -> backend_config
   | Eval   : eval_config -> backend_config
   | AST    : ast_config -> backend_config.
 
@@ -152,19 +154,18 @@ Section GeneralConfig.
   Record erasure_phases_config := {
       implement_box_c  : phases_config;
       implement_lazy_c : phases_config;
-      cofix_to_laxy_c  : phases_config;
       betared_c        : phases_config;
       unboxing_c       : phases_config;
       dearg_ctors_c    : phases_config;
       dearg_consts_c   : phases_config;
       specialize_instances_c : phases_config;
       cse_c            : phases_config;
+      lift_constants_c : phases_config;
     }.
 
   Record erasure_phases := {
       implement_box  : bool;
       implement_lazy : bool;
-      cofix_to_laxy  : bool;
       betared        : bool;
       unboxing       : bool;
       dearg_ctors    : bool;
@@ -175,6 +176,9 @@ Section GeneralConfig.
       (* Common-subexpression elimination (Peregrine-local unsafe pass,
          see erasure/ECommonSubexpr.v). *)
       cse            : bool;
+      (* Lifting of closed constructor values to shared global constants
+         (Peregrine-local unsafe pass, see erasure/ELiftConstants.v). *)
+      lift_constants : bool;
     }.
 
   Record config := {

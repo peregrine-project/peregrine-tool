@@ -3,9 +3,8 @@
     This middle-end pass hoists a repeated closed subterm of a constant body
     into a single outermost [tLetIn] and replaces its occurrences by a bound
     variable, so a value that the source shared but erasure duplicated is
-    computed once at run time.  Wellformedness preservation and the algebraic
-    core of the transform are proved; whole-program evaluation preservation
-    rests on one axiom ([cse_pres_eval]).
+    computed once at run time.  Wellformedness preservation and whole-program
+    evaluation preservation ([cse_pres_eval]) are proved without axioms.
 
     Motivation.  Several Peregrine frontends do not preserve [let] bindings:
     Agda inlines its internal let-bindings before erasure, and Lean drops them
@@ -70,8 +69,9 @@
     [implement_box], which creates no sharing opportunities.  It runs only in
     the untyped pipeline and is off by default in every backend.
 
-    Verification status: wellformedness preservation and the algebraic core are
-    proved; whole-program evaluation preservation rests on one axiom.
+    Verification status: fully proved, with no custom axioms.  Wellformedness
+    preservation, the algebraic core, and whole-program evaluation preservation
+    are all proved.
 
       - The core algebraic fact is proved: [abstract_subst] shows that for a
         closed [s], [subst [s] k (abstract s k t) = t] whenever [closedn k t] --
@@ -97,12 +97,11 @@
         change termination.
 
       - Evaluation preservation ([cse_pres]) uses the observational relation
-        [v' = v]: a sharing pass returns the same value.  It reduces to one
-        axiom, [cse_pres_eval], the whole-program CBV simulation, which is
-        not proved.  Its algebraic backbone
-        [abstract_subst] is proved; the remaining cross-environment induction
-        over the [EWcbvEval] rules is the sole non-primitive axiom
-        [cse_transformation] depends on. *)
+        [v' = v]: a sharing pass returns the same value.  It follows from the
+        proved theorem [cse_pres_eval], a whole-program CBV simulation between
+        [Σ] and [cse_env Σ] (section (3) below).  [Print Assumptions
+        cse_transformation] reports only the primitive-type axioms of the
+        kernel ([PrimInt63], [PrimFloat], ...), not any CSE-specific axiom. *)
 
 From Stdlib Require Import List Arith.
 From MetaRocq.Utils Require Import utils.
@@ -748,21 +747,490 @@ From MetaRocq.Common Require Import Transform.
     pass would be unsound — it could lift a subterm out of a [tLambda] body or
     an untaken [tCase] branch and force it eagerly, changing termination.
 
-    [cse_pres_eval] below is the single residual: the whole-program CBV
-    simulation with the [v' = v] conclusion.  It holds for the strict-guarded
-    selection above; the outstanding work is the cross-environment induction
-    over the [EWcbvEval] rules (relating eval under [Σ] and under [cse_env Σ],
-    threading the strict-position hoist), comparable in size to MetaRocq's
-    [EBeta]/[Optimize] evaluation-preservation developments and stated as an
-    explicit axiom in the manner of [EBeta.trust_betared_pres]. *)
+    PROOF OF [cse_pres_eval].  The strict positions ([collect_strict]) are
+    exactly the positions every applicable [EWcbvEval] rule evaluates before
+    producing a value: both sides of [tLetIn] and [tApp], the [tCase] and
+    [tProj] scrutinee, [tConstruct] arguments and the [tForce] argument.  Under
+    binders, [tCase] branches, [tFix]/[tCoFix] bodies, [tLazy] and [tPrim]
+    payloads nothing is hoisted.  The proof has three parts.
+      (3a) Counting.  Equal strict and full occurrence counts give
+           [strict_only s t] ([count_eq_strict_only]): [abstract s] is the
+           identity away from strict positions.  Every strict occurrence is a
+           [strict_sub] of [t] ([collect_strict_sub]).
+      (3b) Environment.  [cse_env] keeps every inductive declaration and every
+           constant name, so all lookups used by evaluation agree ([*_cse]).
+      (3c) Simulation.  [cse_rel t t'] says that [t'] is [t] with some closed
+           strict subterms replaced by their values (holes).  Induction over
+           [eval Σ t v] shows that
+             (i) every [t'] with [cse_rel t t'] evaluates to the same [v] under
+                 [Σ'], and
+             (ii) every closed strict subterm of [t] evaluates under [Σ] (with
+                 the IH available for it) ([cse_sim]).
+           [cse_term_sim] then handles [cse_term] itself: [let x := s in
+           abstract s 0 t] forces [s] to [sv] by (ii), and
+           [csubst sv 0 (abstract s 0 t)] is [cse_rel]-related to [t]
+           ([abstract_rel]).  The delta rule uses [cse_term_sim] for the
+           rewritten constant body.
+    The conclusion of [cse_pres_eval] is squashed ([∥ _ ∥]) because the
+    simulation is proved in [Prop].  This is enough for [eval_eprogram], which
+    is squashed as well.  Holes are evaluated values, so they are closed
+    values that evaluate to themselves under both environments.  This is why
+    replacing [s] by [sv] does not change the result even when [sv] is a
+    [tLambda]/[tFix] closure: the value [v] is produced by the same rule
+    instance and is syntactically identical. *)
 
-Axiom cse_pres_eval :
-  forall (efl : EEnvFlags) (wfl : WcbvFlags) (Σ : global_declarations)
-    (t v : term),
+From Stdlib Require Import Lia.
+From MetaRocq.Erasure Require Import ECSubst.
+From Equations Require Import Equations.
+
+(** *** (3a) Occurrence counting: equal strict and full counts mean that every
+    occurrence of the candidate is in a strict position. *)
+
+Lemma tsize_pos t : 0 < tsize t.
+Proof. destruct t; cbn; lia. Qed.
+
+Lemma In_list_size_le {A} (f : A -> nat) x l : In x l -> f x <= list_size f l.
+Proof.
+  induction l as [|a l IH]; cbn; [ intros [] | ].
+  intros [->|H]; [ lia | specialize (IH H); lia ].
+Qed.
+
+Lemma count_term_cons x y l :
+  count_term x (y :: l) = (if eqb x y then 1 else 0) + count_term x l.
+Proof. unfold count_term. cbn. destruct (eqb x y); reflexivity. Qed.
+
+Local Arguments count_term : simpl never.
+
+Lemma count_term_app x l l' :
+  count_term x (l ++ l') = count_term x l + count_term x l'.
+Proof. unfold count_term. now rewrite filter_app, length_app. Qed.
+
+Lemma count_term_cons_neq x y l : x <> y -> count_term x (y :: l) = count_term x l.
+Proof. intros H. rewrite count_term_cons. destruct (eqb_specT x y); [ congruence | reflexivity ]. Qed.
+
+Lemma count_term_nil x : count_term x [] = 0.
+Proof. reflexivity. Qed.
+
+Lemma count_flat_map_zero {A} s (g : A -> list term) (l : list A) :
+  count_term s (flat_map g l) = 0 -> forall x, In x l -> count_term s (g x) = 0.
+Proof.
+  induction l as [|a l IH]; cbn; [ intros _ _ [] | ].
+  rewrite count_term_app. intros H x [<-|Hx]; [ lia | apply IH; [ lia | exact Hx ] ].
+Qed.
+
+Lemma count_flat_map_le {A} s (g h : A -> list term) (l : list A) :
+  (forall x, count_term s (g x) <= count_term s (h x)) ->
+  count_term s (flat_map g l) <= count_term s (flat_map h l).
+Proof.
+  intros H. induction l as [|a l IH]; cbn; [ lia | ].
+  rewrite !count_term_app. specialize (H a). lia.
+Qed.
+
+Lemma count_flat_map_eq {A} s (g h : A -> list term) (l : list A) :
+  (forall x, count_term s (g x) <= count_term s (h x)) ->
+  count_term s (flat_map g l) = count_term s (flat_map h l) ->
+  forall x, In x l -> count_term s (g x) = count_term s (h x).
+Proof.
+  intros Hle. induction l as [|a l IH]; cbn; [ intros _ _ [] | ].
+  rewrite !count_term_app. intros Heq x Hx.
+  pose proof (Hle a). pose proof (count_flat_map_le s g h l Hle).
+  destruct Hx as [<-|Hx]; [ lia | apply IH; [ lia | exact Hx ] ].
+Qed.
+
+Lemma abstract_hit s k : abstract s k s = tRel k.
+Proof. destruct s; cbn [abstract]; now rewrite eqb_refl. Qed.
+
+(** No occurrence (with enough fuel): [abstract] is the identity. *)
+Lemma count_collect_zero s : forall fuel t k,
+  tsize t <= fuel -> count_term s (collect fuel t) = 0 -> abstract s k t = t.
+Proof.
+  induction fuel as [|fuel IH]; intros t k Hle H.
+  { pose proof (tsize_pos t). lia. }
+  cbn [collect] in H. rewrite count_term_cons in H.
+  destruct (eqb s t) eqn:Est; [ lia | ]. cbn in H.
+  destruct t; cbn [abstract]; rewrite Est; cbn [tsize] in Hle; try reflexivity.
+  - (* tEvar *) f_equal. erewrite map_ext_in; [ apply map_id | ].
+    intros x Hx. apply IH; [ pose proof (In_list_size_le tsize _ _ Hx); lia | ].
+    eapply count_flat_map_zero; eassumption.
+  - (* tLambda *) f_equal. apply IH; [ lia | exact H ].
+  - (* tLetIn *) rewrite count_term_app in H. f_equal; apply IH; lia.
+  - (* tApp *) rewrite count_term_app in H. f_equal; apply IH; lia.
+  - (* tConstruct *) f_equal. erewrite map_ext_in; [ apply map_id | ].
+    intros x Hx. apply IH; [ pose proof (In_list_size_le tsize _ _ Hx); lia | ].
+    eapply count_flat_map_zero; eassumption.
+  - (* tCase *) rewrite count_term_app in H. f_equal; [ apply IH; lia | ].
+    erewrite map_ext_in; [ apply map_id | ]. intros [nas br] Hx. cbn. f_equal.
+    apply IH; [ pose proof (In_list_size_le (fun b : list name × term => tsize b.2) _ _ Hx); cbn in *; lia | ].
+    exact (count_flat_map_zero s (fun b : list name × term => collect fuel b.2) brs ltac:(lia) _ Hx).
+  - (* tProj *) f_equal. apply IH; [ lia | exact H ].
+  - (* tFix *) f_equal. erewrite map_ext_in; [ apply map_id | ]. intros [dn db ra] Hx.
+    unfold map_def; cbn. f_equal.
+    apply IH; [ pose proof (In_list_size_le (fun d : def term => tsize (dbody d)) _ _ Hx); cbn in *; lia | ].
+    exact (count_flat_map_zero s (fun d : def term => collect fuel (dbody d)) mfix H _ Hx).
+  - (* tCoFix *) f_equal. erewrite map_ext_in; [ apply map_id | ]. intros [dn db ra] Hx.
+    unfold map_def; cbn. f_equal.
+    apply IH; [ pose proof (In_list_size_le (fun d : def term => tsize (dbody d)) _ _ Hx); cbn in *; lia | ].
+    exact (count_flat_map_zero s (fun d : def term => collect fuel (dbody d)) mfix H _ Hx).
+  - (* tLazy *) f_equal. apply IH; [ lia | exact H ].
+  - (* tForce *) f_equal. apply IH; [ lia | exact H ].
+Qed.
+
+Lemma count_strict_le s : forall fuel t,
+  count_term s (collect_strict fuel t) <= count_term s (collect fuel t).
+Proof.
+  induction fuel as [|fuel IH]; intros t; [ cbn; lia | ].
+  cbn [collect collect_strict]. rewrite !count_term_cons.
+  destruct t; rewrite ?count_term_app, ?count_term_nil; try lia.
+  - pose proof (IH t1); pose proof (IH t2); lia.
+  - pose proof (IH t1); pose proof (IH t2); lia.
+  - pose proof (count_flat_map_le s _ _ args IH); lia.
+  - pose proof (IH t); lia.
+  - pose proof (IH t); lia.
+  - pose proof (IH t); lia.
+Qed.
+
+(** [strict_only s t]: every occurrence of [s] in [t] is in a strict
+    position (the positions [collect_strict] descends into). *)
+Inductive strict_only (s : term) : term -> Prop :=
+| so_hit : strict_only s s
+| so_none t : (forall k, abstract s k t = t) -> strict_only s t
+| so_app f a : strict_only s f -> strict_only s a -> strict_only s (tApp f a)
+| so_letin na b0 b1 :
+    strict_only s b0 -> strict_only s b1 -> strict_only s (tLetIn na b0 b1)
+| so_case ci d brs :
+    strict_only s d ->
+    (forall k nas br, In (nas, br) brs -> abstract s k br = br) ->
+    strict_only s (tCase ci d brs)
+| so_proj p u : strict_only s u -> strict_only s (tProj p u)
+| so_construct ind c args :
+    Forall (strict_only s) args -> strict_only s (tConstruct ind c args)
+| so_force u : strict_only s u -> strict_only s (tForce u).
+
+Lemma count_eq_strict_only s : forall fuel t, tsize t <= fuel ->
+  count_term s (collect_strict fuel t) = count_term s (collect fuel t) ->
+  strict_only s t.
+Proof.
+  induction fuel as [|fuel IH]; intros t Hle Heq.
+  { pose proof (tsize_pos t). lia. }
+  destruct (eqb_specT s t) as [<-|Hne]; [ apply so_hit | ].
+  cbn [collect collect_strict] in Heq. rewrite !count_term_cons in Heq.
+  destruct t as [|n|i|n l|na b|na t1 t2|t1 t2|kn|ind c args|ci t l|p t|mf idx|mf idx|p|t|t]; cbn [tsize] in Hle; rewrite ?count_term_app, ?count_term_nil in Heq;
+    try solve [ apply so_none; intros k; apply (count_collect_zero s (S fuel));
+      [ cbn [tsize]; lia
+      | cbn [collect]; rewrite count_term_cons_neq by exact Hne;
+        rewrite ?count_term_app, ?count_term_nil; lia ] ].
+  - (* tLetIn *) pose proof (count_strict_le s fuel t1); pose proof (count_strict_le s fuel t2).
+    apply so_letin; apply IH; lia.
+  - (* tApp *) pose proof (count_strict_le s fuel t1); pose proof (count_strict_le s fuel t2).
+    apply so_app; apply IH; lia.
+  - (* tConstruct *) apply so_construct. apply Forall_forall. intros x Hx.
+    apply IH; [ pose proof (In_list_size_le tsize _ _ Hx); lia | ].
+    eapply count_flat_map_eq; [ apply count_strict_le | | exact Hx ]. lia.
+  - (* tCase *) pose proof (count_strict_le s fuel t).
+    apply so_case; [ apply IH; lia | ]. intros k nas br Hx.
+    apply count_collect_zero with (fuel := fuel).
+    + pose proof (In_list_size_le (fun b : list name × term => tsize b.2) _ _ Hx); cbn in *; lia.
+    + exact (count_flat_map_zero s (fun b : list name × term => collect fuel b.2) l ltac:(lia) _ Hx).
+  - (* tProj *) apply so_proj; apply IH; lia.
+  - (* tForce *) apply so_force; apply IH; lia.
+Qed.
+
+(** [strict_sub s t]: [s] occurs in [t] at a strict position. *)
+Inductive strict_sub (s : term) : term -> Prop :=
+| ss_refl : strict_sub s s
+| ss_app_l f a : strict_sub s f -> strict_sub s (tApp f a)
+| ss_app_r f a : strict_sub s a -> strict_sub s (tApp f a)
+| ss_letin_l na b0 b1 : strict_sub s b0 -> strict_sub s (tLetIn na b0 b1)
+| ss_letin_r na b0 b1 : strict_sub s b1 -> strict_sub s (tLetIn na b0 b1)
+| ss_case ci d brs : strict_sub s d -> strict_sub s (tCase ci d brs)
+| ss_proj p u : strict_sub s u -> strict_sub s (tProj p u)
+| ss_construct ind c args a :
+    In a args -> strict_sub s a -> strict_sub s (tConstruct ind c args)
+| ss_force u : strict_sub s u -> strict_sub s (tForce u).
+
+Lemma collect_strict_sub : forall fuel t s,
+  In s (collect_strict fuel t) -> strict_sub s t.
+Proof.
+  induction fuel as [|fuel IH]; intros t s Hin.
+  - destruct Hin as [<-|[]]. apply ss_refl.
+  - cbn in Hin. destruct Hin as [<-|Hin]; [ apply ss_refl | ].
+    destruct t; try solve [ destruct Hin ].
+    + apply in_app_or in Hin as [Hin|Hin]; [ apply ss_letin_l | apply ss_letin_r ]; eauto.
+    + apply in_app_or in Hin as [Hin|Hin]; [ apply ss_app_l | apply ss_app_r ]; eauto.
+    + apply in_flat_map in Hin as [x [Hx Hin]]. eapply ss_construct; eauto.
+    + apply ss_case; eauto.
+    + apply ss_proj; eauto.
+    + apply ss_force; eauto.
+Qed.
+
+Lemma strict_sub_csubst s a k t :
+  closedn 0 s -> strict_sub s t -> strict_sub s (csubst a k t).
+Proof.
+  intros Hs H. induction H in k |- *; cbn.
+  - rewrite csubst_closed; [ apply ss_refl | eapply closed_upwards; [ exact Hs | lia ] ].
+  - apply ss_app_l; auto.
+  - apply ss_app_r; auto.
+  - apply ss_letin_l; auto.
+  - apply ss_letin_r; auto.
+  - apply ss_case; auto.
+  - apply ss_proj; auto.
+  - eapply ss_construct; [ apply in_map; eassumption | auto ].
+  - apply ss_force; auto.
+Qed.
+
+(** *** (3b) Environment lookups used by evaluation are unchanged by [cse_env]. *)
+
+Lemma constructor_isprop_pars_decl_cse efl Σ ind c :
+  constructor_isprop_pars_decl (cse_env efl Σ) ind c = constructor_isprop_pars_decl Σ ind c.
+Proof. unfold constructor_isprop_pars_decl. now rewrite lookup_constructor_cse. Qed.
+
+Lemma inductive_isprop_and_pars_cse efl Σ ind :
+  inductive_isprop_and_pars (cse_env efl Σ) ind = inductive_isprop_and_pars Σ ind.
+Proof. unfold inductive_isprop_and_pars. now rewrite lookup_inductive_cse. Qed.
+
+Lemma atom_cse {wfl : WcbvFlags} efl Σ t : atom (cse_env efl Σ) t = atom Σ t.
+Proof. unfold atom. destruct t; try reflexivity. now rewrite lookup_constructor_cse. Qed.
+
+(** *** (3c) The simulation relation.
+
+    [cse_rel t t'] holds when [t'] is [t] in which some closed subterms [s]
+    at strict positions have been replaced by their value [sv] (a hole).
+    Non-strict positions are left untouched, so both terms evaluate to the
+    same value. *)
+
+Section Simulation.
+  Context {wfl : WcbvFlags} (efl : EEnvFlags) (Σ : global_declarations).
+  Hypothesis HclΣ : closed_env Σ.
+  Notation Σ' := (cse_env efl Σ).
+
+  Inductive cse_rel : term -> term -> Prop :=
+  | cr_box : cse_rel tBox tBox
+  | cr_rel n : cse_rel (tRel n) (tRel n)
+  | cr_var na : cse_rel (tVar na) (tVar na)
+  | cr_evar n ts : cse_rel (tEvar n ts) (tEvar n ts)
+  | cr_lambda na b : cse_rel (tLambda na b) (tLambda na b)
+  | cr_letin na b0 b0' b1 b1' :
+      cse_rel b0 b0' -> cse_rel b1 b1' -> cse_rel (tLetIn na b0 b1) (tLetIn na b0' b1')
+  | cr_app f f' a a' : cse_rel f f' -> cse_rel a a' -> cse_rel (tApp f a) (tApp f' a')
+  | cr_const kn : cse_rel (tConst kn) (tConst kn)
+  | cr_construct ind c args args' :
+      Forall2 cse_rel args args' -> cse_rel (tConstruct ind c args) (tConstruct ind c args')
+  | cr_case ci d d' brs : cse_rel d d' -> cse_rel (tCase ci d brs) (tCase ci d' brs)
+  | cr_proj p u u' : cse_rel u u' -> cse_rel (tProj p u) (tProj p u')
+  | cr_fix mf idx : cse_rel (tFix mf idx) (tFix mf idx)
+  | cr_cofix mf idx : cse_rel (tCoFix mf idx) (tCoFix mf idx)
+  | cr_prim p : cse_rel (tPrim p) (tPrim p)
+  | cr_lazy u : cse_rel (tLazy u) (tLazy u)
+  | cr_force u u' : cse_rel u u' -> cse_rel (tForce u) (tForce u')
+  | cr_hole s sv : closedn 0 s -> closedn 0 sv ->
+      ∥ eval Σ s sv ∥ -> ∥ eval Σ' sv sv ∥ -> cse_rel s sv.
+
+  Lemma cse_rel_refl t : cse_rel t t.
+  Proof.
+    induction t using term_forall_list_ind; try now constructor.
+    apply cr_construct. induction X; constructor; auto.
+  Qed.
+
+  Lemma cse_rel_csubst a : forall k t t',
+    cse_rel t t' -> cse_rel (csubst a k t) (csubst a k t').
+  Proof.
+    fix IH 4. intros k t t' H. destruct H.
+    1-5, 8, 12-15: apply cse_rel_refl.
+    - cbn. apply cr_letin; apply IH; assumption.
+    - cbn. apply cr_app; apply IH; assumption.
+    - cbn. apply cr_construct. revert args args' H.
+      fix IHl 3. intros ? ? []; cbn; constructor; [ apply IH; assumption | apply IHl; assumption ].
+    - cbn. apply cr_case; apply IH; assumption.
+    - cbn. apply cr_proj; apply IH; assumption.
+    - cbn. apply cr_force; apply IH; assumption.
+    - rewrite (csubst_closed a k s), (csubst_closed a k sv);
+        [ now apply cr_hole | eapply closed_upwards; [ eassumption | lia ]
+        | eapply closed_upwards; [ eassumption | lia ] ].
+  Qed.
+
+  (** Hoisting a strict-only candidate and substituting its value back gives
+      a related term. *)
+  Lemma abstract_rel s sv :
+    closedn 0 s -> closedn 0 sv -> ∥ eval Σ s sv ∥ -> ∥ eval Σ' sv sv ∥ ->
+    forall t, strict_only s t -> forall k, closedn k t ->
+    cse_rel t (csubst sv k (abstract s k t)).
+  Proof.
+    intros Hs Hsv Hev Hev' t.
+    induction t using term_forall_list_ind; intros Hso k Hcl; inversion Hso; subst;
+      try solve [ rewrite abstract_hit; cbn; rewrite Nat.compare_refl; now apply cr_hole
+                | match goal with Hn : forall k, abstract _ k _ = _ |- _ => rewrite Hn end;
+                  rewrite csubst_closed by exact Hcl; apply cse_rel_refl ].
+    all: cbn [abstract]; match goal with |- context [eqb ?s' ?t] =>
+      destruct (eqb_specT s' t) as [->|Hne] end;
+      [ cbn; rewrite Nat.compare_refl; now apply cr_hole | ].
+    all: cbn in Hcl |- *; rtoProp.
+    - (* tLetIn *) apply cr_letin; auto.
+    - (* tApp *) apply cr_app; auto.
+    - (* tConstruct *) apply cr_construct.
+      match goal with HF : Forall _ _ |- _ => rename HF into Hargs end.
+      clear Hso Hne. induction X as [|x l Px X IHX]; cbn in *; [ constructor | ].
+      inversion Hargs; subst; rtoProp. constructor; auto.
+    - (* tCase *)
+      match goal with |- cse_rel (tCase _ _ ?l) (tCase _ _ ?l') => replace l' with l end;
+        [ apply cr_case; auto | ].
+      rewrite map_map. symmetry. erewrite map_ext_in; [ apply map_id | ].
+      intros [nas br] Hx. cbn.
+      match goal with Hb : forall k nas br, In (nas, br) _ -> _ |- _ => rewrite (Hb _ nas br Hx) end.
+      match goal with Hf : is_true (forallb _ l) |- _ =>
+        pose proof (proj1 (forallb_forall _ _) Hf _ Hx) as Hc; cbn in Hc end.
+      rewrite csubst_closed; [ reflexivity | eapply closed_upwards; [ exact Hc | lia ] ].
+    - (* tProj *) apply cr_proj; auto.
+    - (* tForce *) apply cr_force; auto.
+  Qed.
+
+
+  (** *** (3d) The simulation. *)
+
+  Definition sim1 t v := forall t', cse_rel t t' -> ∥ eval Σ' t' v ∥.
+  Definition sim2 t := forall s, closedn 0 s -> strict_sub s t ->
+    exists sv, ∥ eval Σ s sv ∥ /\ sim1 s sv.
+  Definition simP t v (ev : eval Σ t v) := sim1 t v /\ sim2 t.
+
+  Lemma simP_intro t v (ev : eval Σ t v) :
+    (forall t', cse_rel t t' ->
+      ∥ eval Σ' t' v ∥ \/ (∥ eval Σ t t' ∥ /\ ∥ eval Σ' t' t' ∥)) ->
+    (forall s, closedn 0 s -> strict_sub s t -> s = t \/ exists sv, ∥ eval Σ s sv ∥ /\ sim1 s sv) ->
+    simP t v ev.
+  Proof.
+    intros H1 H2. split.
+    - intros t' Hr. destruct (H1 t' Hr) as [H|[[e] [e']]]; [ exact H | ].
+      now rewrite (eval_deterministic ev e).
+    - intros s Hs Hss. destruct (H2 s Hs Hss) as [->|H]; [ | exact H ].
+      exists v. split; [ now sq | ]. intros t' Hr.
+      destruct (H1 t' Hr) as [H|[[e] [e']]]; [ exact H | ].
+      now rewrite (eval_deterministic ev e).
+  Qed.
+
+  Lemma over_sim2 args args' (a : All2_Set (eval Σ) args args') :
+    All2_over a (fun x y e => simP x y e) -> forall x, In x args -> sim2 x.
+  Proof.
+    induction a; cbn; [ intros _ _ [] | ].
+    intros [h1 h2] z [<-|Hz]; [ exact (proj2 h1) | exact (IHa h2 z Hz) ].
+  Qed.
+
+  Lemma over_sim1 args args' (a : All2_Set (eval Σ) args args') :
+    All2_over a (fun x y e => simP x y e) ->
+    forall args0, Forall2 cse_rel args args0 -> ∥ All2_Set (eval Σ') args0 args' ∥.
+  Proof.
+    induction a; cbn; intros iha args0 H; inversion H; subst; [ sq; constructor | ].
+    destruct iha as [[h1 _] h2]. destruct (h1 _ ltac:(eassumption)) as [e].
+    destruct (IHa h2 _ ltac:(eassumption)) as [es]. sq; now constructor.
+  Qed.
+
+  Lemma Forall2_refl_rel l : Forall2 cse_rel l l.
+  Proof. induction l; constructor; auto using cse_rel_refl. Qed.
+
+  (** Evaluating [cse_term body] in the new environment. *)
+  Lemma cse_term_sim body res (ev : eval Σ body res) :
+    closedn 0 body -> simP body res ev -> ∥ eval Σ' (cse_term efl body) res ∥.
+  Proof.
+    intros Hcl [H1 H2]. unfold cse_term.
+    destruct (cse_enabled efl); [ | apply H1, cse_rel_refl ].
+    destruct (best_candidate _ _) as [s|] eqn:Hbest; [ | apply H1, cse_rel_refl ].
+    apply best_candidate_In in Hbest. apply dedup_In in Hbest.
+    apply filter_In in Hbest as [Hin Hok].
+    unfold candidate_ok in Hok.
+    apply andb_and in Hok as [Hok Hcnt]. apply andb_and in Hok as [Hok _].
+    apply andb_and in Hok as [Hok _]. apply andb_and in Hok as [Hs _].
+    apply Nat.eqb_eq in Hcnt.
+    pose proof (count_eq_strict_only s (tsize body) body (le_n _) Hcnt) as Hso.
+    apply collect_strict_sub in Hin.
+    destruct (H2 s Hs Hin) as [sv [[evs] Hsv1]].
+    destruct (Hsv1 s (cse_rel_refl s)) as [evs'].
+    pose proof (eval_closed Σ HclΣ s sv Hs evs) as Hsvcl.
+    pose proof (value_final _ (eval_to_value _ _ evs')) as evsv.
+    destruct (H1 _ (abstract_rel s sv Hs Hsvcl (sq evs) (sq evsv) body Hso 0 Hcl)) as [e].
+    sq. eapply eval_zeta; [ exact evs' | exact e ].
+  Qed.
+
+
+  Ltac sim1_pre := let tr := fresh "tr" in let Hrel := fresh "Hrel" in intros tr Hrel; inversion Hrel; subst;
+    try solve [ right; split; assumption ].
+  Ltac sim2_pre := let s := fresh "s" in let Hs := fresh "Hs" in let Hss := fresh "Hss" in intros s Hs Hss; inversion Hss; subst;
+    [ left; reflexivity | .. ]; right.
+  Ltac use_ih2 := match goal with
+    | H : strict_sub ?s ?u, IH : simP ?u _ _, Hs : is_true (closedn 0 ?s) |- _ => exact (proj2 IH s Hs H)
+    | H : strict_sub ?s ?b, IH : simP (csubst ?a 0 ?b) _ _, Hs : is_true (closedn 0 ?s) |- _ =>
+        exact (proj2 IH s Hs (strict_sub_csubst s a 0 b Hs H))
+    | H : strict_sub ?s ?x, Hin : In ?x _, iha : All2_over ?a _, Hs : is_true (closedn 0 ?s) |- _ =>
+        exact (over_sim2 _ _ a iha x Hin s Hs H)
+    end.
+  Ltac ihs := repeat match goal with
+    | H : cse_rel ?b ?b', IH : simP (csubst ?a 0 ?b) _ _ |- _ =>
+        apply (cse_rel_csubst a 0) in H
+    end;
+    repeat match goal with
+    | IH : simP ?x _ _, H : cse_rel ?x ?x' |- _ =>
+        let e := fresh "ev" in destruct (proj1 IH _ H) as [e]; clear H
+    end;
+    repeat match goal with
+    | IH : simP ?x _ _ |- _ =>
+        let e := fresh "ev" in destruct (proj1 IH _ (cse_rel_refl x)) as [e]; clear IH
+    end.
+
+  Ltac evtac := rewrite ?constructor_isprop_pars_decl_cse, ?inductive_isprop_and_pars_cse,
+    ?lookup_constructor_cse, ?atom_cse; eauto.
+  Ltac fin := ihs; sq; first
+    [ solve [ eapply eval_box; evtac ] | solve [ eapply eval_beta; evtac ]
+    | solve [ eapply eval_zeta; evtac ] | solve [ eapply eval_iota; evtac ]
+    | solve [ eapply eval_iota_block; evtac ] | solve [ eapply eval_iota_sing; evtac ]
+    | solve [ eapply eval_fix; evtac ] | solve [ eapply eval_fix_value; evtac ]
+    | solve [ eapply eval_fix'; evtac ] | solve [ eapply eval_cofix_case; evtac ]
+    | solve [ eapply eval_cofix_proj; evtac ] | solve [ eapply eval_proj; evtac ]
+    | solve [ eapply eval_proj_block; evtac ] | solve [ eapply eval_proj_prop; evtac ]
+    | solve [ eapply eval_construct; evtac ] | solve [ eapply eval_app_cong; evtac ]
+    | solve [ eapply eval_force; evtac ] | solve [ eapply eval_atom; evtac ] ].
+
+  Lemma cse_sim t v (ev : eval Σ t v) : simP t v ev.
+  Proof.
+    induction ev using eval_rect; (apply simP_intro; [ sim1_pre | sim2_pre ]).
+    all: try solve [ use_ih2 ].
+    all: try solve [ left; fin ].
+    (* atom: structurally related forms are not atoms *)
+    all: try solve [ exfalso; match goal with H : is_true (atom _ _) |- _ => cbn in H; congruence end ].
+    all: try solve [ match goal with H : is_true (atom _ (tConstruct _ _ ?l)) |- _ =>
+        destruct l; [ | cbn in H; congruence ] end;
+      first [ exfalso; match goal with Hin : In _ [] |- _ => destruct Hin end
+            | left; match goal with HF : Forall2 _ [] _ |- _ => inversion HF; subst end;
+              sq; apply eval_atom; now rewrite atom_cse ] ].
+    - (* delta *)
+      left. match goal with isdecl : declared_constant Σ ?c ?decl, e : cst_body ?decl = Some ?body,
+          IH : simP ?body ?res ?ev |- _ =>
+        pose proof (lookup_env_closed HclΣ isdecl) as Hcl; cbn in Hcl; rewrite e in Hcl; cbn in Hcl;
+        destruct (cse_term_sim body res ev Hcl IH) as [e'];
+        sq; eapply eval_delta with (decl := cse_in_constant_body efl decl);
+        [ unfold declared_constant; rewrite lookup_env_cse, isdecl; reflexivity
+        | cbn; rewrite e; reflexivity | exact e' ] end.
+    - (* construct block *)
+      left. match goal with H : Forall2 cse_rel _ ?l, iha : All2_over ?a _ |- _ =>
+        destruct (over_sim1 _ _ a iha _ H) as [es]; pose proof (Forall2_length H) end.
+      sq; eapply eval_construct_block; tea; [ rewrite lookup_constructor_cse; eassumption | lia ].
+    - (* prim *)
+      left. depelim X; try solve [ sq; eapply eval_prim; constructor ].
+      match goal with ev : All2_Set _ ?v _, a : All2_over ?ev _ |- _ =>
+        destruct (over_sim1 _ _ ev a _ (Forall2_refl_rel v)) as [evs] end.
+      match goal with IH : simP ?d _ _ |- _ => destruct (proj1 IH _ (cse_rel_refl d)) as [evd] end.
+      sq; eapply eval_prim; now constructor.
+  Qed.
+
+End Simulation.
+
+Theorem cse_pres_eval (efl : EEnvFlags) (wfl : WcbvFlags) (Σ : global_declarations)
+    (t v : term) :
   wf_glob Σ ->
   wellformed Σ 0 t ->
   EWcbvEval.eval (wfl := wfl) Σ t v ->
-  EWcbvEval.eval (wfl := wfl) (cse_env efl Σ) (cse_term efl t) v.
+  ∥ EWcbvEval.eval (wfl := wfl) (cse_env efl Σ) (cse_term efl t) v ∥.
+Proof.
+  intros Hwf Hwt ev.
+  pose proof (wellformed_closed_env (efl := efl) Hwf) as HclΣ.
+  exact (cse_term_sim efl Σ HclΣ t v ev (wellformed_closed Hwt) (cse_sim efl Σ HclΣ t v ev)).
+Qed.
 
 Lemma cse_pres (efl : EEnvFlags) (wfl : WcbvFlags) (p : eprogram) (v : term) :
   wf_eprogram efl p ->
@@ -771,7 +1239,7 @@ Lemma cse_pres (efl : EEnvFlags) (wfl : WcbvFlags) (p : eprogram) (v : term) :
   eval_eprogram wfl (cse_program efl p) v' /\ v' = v.
 Proof.
   intros [Hglob Hmain] [Hev]. exists v. split; [ | reflexivity ].
-  constructor. exact (cse_pres_eval efl wfl p.1 p.2 v Hglob Hmain Hev).
+  exact (cse_pres_eval efl wfl p.1 p.2 v Hglob Hmain Hev).
 Qed.
 
 Import Transform.

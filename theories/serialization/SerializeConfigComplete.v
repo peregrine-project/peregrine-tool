@@ -336,6 +336,10 @@ Proof.
     simpl_bytes.
     rewrite complete_class.
     reflexivity.
+  - cbn -[Deserialize_koka_config].
+    simpl_bytes.
+    rewrite complete_class.
+    reflexivity.
   - cbn -[Deserialize_eval_config].
     simpl_bytes.
     rewrite complete_class.
@@ -384,6 +388,10 @@ Proof.
     rewrite complete_class.
     reflexivity.
   - cbn -[Deserialize_fsharp_config'].
+    simpl_bytes.
+    rewrite complete_class.
+    reflexivity.
+  - cbn -[Deserialize_koka_config'].
     simpl_bytes.
     rewrite complete_class.
     reflexivity.

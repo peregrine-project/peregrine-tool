@@ -38,10 +38,10 @@ let
   release = {
     "0.2.1".sha256 = "sha256-GWdu/l7CipeBubgS5OGHsZfpP2Fkr1cfiZMRH5d1n0g=";
     "0.2.0".sha256 = "sha256-rgg39X45IXjcnejBhh8N7wMiH+gHQrfO8pBbFEWOGVI=";
-    # 0.2.1 plus the Rust reference-counting mode (rust-rc-memory, PR #25), see rocq-peregrine.opam
-    "6f94d87c14768feaee3699ad2164eaf12f64431e" = {
-      rev = "6f94d87c14768feaee3699ad2164eaf12f64431e";
-      hash = "sha256-VnTzWLm6tD6oNYWopQ0z6Ky9GBYw4pLm6YHYKxLk+So=";
+    # v0.2.1 ported to the MetaRocq 9.1 snapshot with the Rust reference-counting mode, see rocq-peregrine.opam
+    "fb3853458aee429f0ab43dda24f678d16b79056a" = {
+      rev = "fb3853458aee429f0ab43dda24f678d16b79056a";
+      sha256 = "sha256-AR5LV0zjzyFnWDUL/achSeBRqqnFzo6KsFTrP32BEIc=";
     };
   };
   releaseRev = v: "v${v}";

@@ -11,6 +11,7 @@ This directory contains the Peregrine middle-end Rocq source code.
 * [EvalBox.v](EvalBox.v): LambdaBox interpreter
 * [Extraction.v](Extraction.v): Extracts middle-end to OCaml for use in CLI, extracted code in [src/extraction](/src/extraction/)
 * [NameSanitize.v](NameSanitize.v): Name sanitization pass
+* [NameSanitizeCorrect.v](NameSanitizeCorrect.v): Sanitization is an injective renaming of global names, so it preserves well-formedness and evaluation
 * [PAst.v](PAst.v): AST definition
 * [Pipeline.v](Pipeline.v): Main file defining the middle-end pipeline
 * [Unicode.v](Unicode.v): Unicode definition and utilities

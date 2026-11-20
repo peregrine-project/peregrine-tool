@@ -14,6 +14,7 @@ From Peregrine Require Import CakeMLBackend.
 From Peregrine Require Import LeanBackend.
 From Peregrine Require Import FSharpBackend.
 From Peregrine Require Import KokaBackend.
+From Peregrine Require Import KokaTypedBackend.
 From Peregrine Require Import CBackend.
 From Peregrine Require Import WasmBackend.
 From Peregrine Require Import LLVMBackend.
@@ -35,17 +36,53 @@ Section ErasureConfig.
       end
     ) c.(ind_remappings_opts).
 
-  Definition mk_opts (c : config) (typed : bool) : erasure_configuration := {|
+  Fixpoint arrow_domains (bt : ExAst.box_type) : list ExAst.box_type :=
+    match bt with
+    | ExAst.TArr a b => a :: arrow_domains b
+    | _ => nil
+    end.
+
+  (* The dearging mask of a remapped constant. Its body is dropped
+     ([drop_remapped_bodies]), and MetaRocq's analysis of a constant without a body
+     removes every argument of type [TBox] or [TAny]. With typed input
+     ([inferred = false]) only the [TBox] arguments are removed: they are erased
+     type arguments, and the arity of a remapping counts the arguments left after
+     them (the postulate TODO of agda/Postulates has arity 0 in the Rust tests).
+     After the type inference of untyped input ([inferred = true]) erasure has
+     already happened, and a [TBox] or [TAny] domain is only what inference gave
+     an unused parameter, so every argument is kept (shadowed in the Remap test on
+     typed-untyped Koka and on Elm-untyped). *)
+  Definition remap_masks (c : config) (inferred : bool) (env : ExAst.global_env)
+      (kn : Kernames.kername) : option (list bool) :=
+    if List.existsb (fun '(kn', _) => Kernames.eq_kername kn kn') c.(const_remappings_opts) then
+      match ExAst.lookup_constant env kn with
+      | Some cst =>
+          Some (List.map (fun bt => match bt with ExAst.TBox => negb inferred | _ => false end)
+                         (arrow_domains (snd cst.(ExAst.cst_type))))
+      | None => None
+      end
+    else None.
+
+  (* [overridden] gives the dearging masks that replace MetaRocq's analysis:
+     [remap_masks c env] for a typed environment, [fun _ => None] otherwise. *)
+  Definition mk_opts (c : config) (typed : bool)
+      (overridden : Kernames.kername -> option (list bool)) : erasure_configuration := {|
       enable_unsafe := {|
-        Erasure.cofix_to_lazy := c.(erasure_opts).(cofix_to_laxy);
+        (* Peregrine rejects cofixpoints in its input and ignores this field. *)
+        Erasure.cofix_to_lazy := false;
         Erasure.inductives_extraction := true;
         Erasure.unboxing := c.(erasure_opts).(unboxing);
         Erasure.betared := c.(erasure_opts).(betared);
       |};
       dearging_config := {|
-        overridden_masks := fun _ => None;
+        overridden_masks := overridden;
         do_trim_const_masks := c.(erasure_opts).(dearg_consts);
-        do_trim_ctor_masks := c.(erasure_opts).(dearg_ctors);
+        (* Never trim constructor masks: MetaRocq's [check_oib_masks] requires a
+           constructor mask as long as the constructor's arity, so a trimmed
+           mask fails [compute_masks] and [check_dearging_precond] skips
+           dearging altogether (#146). Constructor arguments are removed with
+           untrimmed masks too. *)
+        do_trim_ctor_masks := false;
       |};
       enable_typed_erasure := typed;
       Erasure.inlining := true;
@@ -290,6 +327,7 @@ Section BackendConfigOptional.
   | Lean'   : lean_config' -> backend_config'
   | FSharp' : fsharp_config' -> backend_config'
   | Koka'   : koka_config' -> backend_config'
+  | KokaTyped' : koka_config' -> backend_config'
   | Eval'   : eval_config' -> backend_config'
   | AST'    : ast_config' -> backend_config'.
   Definition mk_backend_config (o : backend_config') : backend_config :=
@@ -304,6 +342,7 @@ Section BackendConfigOptional.
     | Lean' o   => Lean (mk_lean_config o)
     | FSharp' o => FSharp (mk_fsharp_config o)
     | Koka' o   => Koka (mk_koka_config o)
+    | KokaTyped' o => KokaTyped (mk_koka_config o)
     | Eval' o   => Eval (mk_eval_config o)
     | AST' o    => AST (mk_ast_config o)
     end.
@@ -317,24 +356,24 @@ Section GeneralConfigOptional.
   Record erasure_phases' := {
     implement_box'  : option bool;
     implement_lazy' : option bool;
-    cofix_to_laxy'  : option bool;
     betared'        : option bool;
     unboxing'       : option bool;
     dearg_ctors'    : option bool;
     dearg_consts'   : option bool;
     specialize_instances' : option bool;
     cse'            : option bool;
+    lift_constants' : option bool;
   }.
   Definition empty_erasure_phases' : erasure_phases' := {|
     implement_box'  := None;
     implement_lazy' := None;
-    cofix_to_laxy'  := None;
     betared'        := None;
     unboxing'       := None;
     dearg_ctors'    := None;
     dearg_consts'   := None;
     specialize_instances' := None;
     cse'            := None;
+    lift_constants' := None;
   |}.
 
   Definition get_default_phase_opt' (o : erasure_phases_config) (p : erasure_phases_config -> phases_config) : bool :=
@@ -347,13 +386,13 @@ Section GeneralConfigOptional.
   Definition get_default_phases_opt (o : erasure_phases_config) := {|
     implement_box  := get_default_phase_opt' o implement_box_c;
     implement_lazy := get_default_phase_opt' o implement_lazy_c;
-    cofix_to_laxy  := get_default_phase_opt' o cofix_to_laxy_c;
     betared        := get_default_phase_opt' o betared_c;
     unboxing       := get_default_phase_opt' o unboxing_c;
     dearg_ctors    := get_default_phase_opt' o dearg_ctors_c;
     dearg_consts   := get_default_phase_opt' o dearg_consts_c;
     specialize_instances := get_default_phase_opt' o specialize_instances_c;
     cse            := get_default_phase_opt' o cse_c;
+    lift_constants := get_default_phase_opt' o lift_constants_c;
   |}.
 
   Definition enforce_phase' (b' : option bool) (b : bool) (o : phases_config) : bool :=
@@ -367,16 +406,18 @@ Section GeneralConfigOptional.
       end
     end.
 
+  (* implement box and implement lazy are the backend's choice: its default
+     ([d]), whatever the configuration says. *)
   Definition enforce_phases (o : erasure_phases') (d : erasure_phases) (o' : erasure_phases_config) : erasure_phases := {|
-    implement_box  := enforce_phase' o.(implement_box')  d.(implement_box)  o'.(implement_box_c);
-    implement_lazy := enforce_phase' o.(implement_lazy') d.(implement_lazy) o'.(implement_lazy_c);
-    cofix_to_laxy  := enforce_phase' o.(cofix_to_laxy')  d.(cofix_to_laxy)  o'.(cofix_to_laxy_c);
+    implement_box  := d.(implement_box);
+    implement_lazy := d.(implement_lazy);
     betared        := enforce_phase' o.(betared')        d.(betared)        o'.(betared_c);
     unboxing       := enforce_phase' o.(unboxing')       d.(unboxing)       o'.(unboxing_c);
     dearg_ctors    := enforce_phase' o.(dearg_ctors')    d.(dearg_ctors)    o'.(dearg_ctors_c);
     dearg_consts   := enforce_phase' o.(dearg_consts')   d.(dearg_consts)   o'.(dearg_consts_c);
     specialize_instances := enforce_phase' o.(specialize_instances') d.(specialize_instances) o'.(specialize_instances_c);
     cse            := enforce_phase' o.(cse')            d.(cse)            o'.(cse_c);
+    lift_constants := enforce_phase' o.(lift_constants') d.(lift_constants) o'.(lift_constants_c);
   |}.
 
   Definition mk_erasure_phases (b : backend_config') (o : option erasure_phases') : erasure_phases :=
@@ -392,6 +433,7 @@ Section GeneralConfigOptional.
       | Lean' _   => get_default_phases_opt lean_phases
       | FSharp' _ => get_default_phases_opt fsharp_phases
       | Koka' _   => get_default_phases_opt koka_phases
+      | KokaTyped' _ => get_default_phases_opt koka_typed_phases
       | Eval' _   => get_default_phases_opt eval_phases
       | AST' _   => get_default_phases_opt ast_phases
       end in
@@ -408,6 +450,7 @@ Section GeneralConfigOptional.
       | Lean' _   => enforce_phases o def_opt lean_phases
       | FSharp' _ => enforce_phases o def_opt fsharp_phases
       | Koka' _   => enforce_phases o def_opt koka_phases
+      | KokaTyped' _ => enforce_phases o def_opt koka_typed_phases
       | Eval' _   => enforce_phases o def_opt eval_phases
       | AST' _   => enforce_phases o def_opt ast_phases
       end

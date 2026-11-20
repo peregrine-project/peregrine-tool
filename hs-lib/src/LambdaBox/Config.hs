@@ -102,6 +102,7 @@ data BackendConfig
   | Lean LeanConfig
   | FSharp FSharpConfig
   | Koka KokaConfig
+  | KokaTyped KokaConfig
   | Eval EvalConfig
   | AST ASTConfig
 
@@ -150,13 +151,13 @@ type CustomAttributes = [(LambdaBox.LambdaBox.KerName, String)]
 data ErasurePhases = ErasurePhases
   { implementBox  :: Maybe Bool,
     implementLaxy :: Maybe Bool,
-    cofixToLazy   :: Maybe Bool,
     betared       :: Maybe Bool,
     unboxing      :: Maybe Bool,
     deargCtor     :: Maybe Bool,
     deargConst    :: Maybe Bool,
     specializeInstances :: Maybe Bool,
-    cse           :: Maybe Bool
+    cse           :: Maybe Bool,
+    liftConstants :: Maybe Bool
   }
 
 -- Configuration of Peregrine

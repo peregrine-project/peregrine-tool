@@ -13,5 +13,5 @@
     None None None None None
     (Some "#[derive(Debug, Clone, Serialize)]")
     None))
-  (Some (erasure_phases None None None None None (Some false) (Some false) None None))
+  (Some (erasure_phases None None None None (Some false) (Some false) None None None))
   () () () () ())

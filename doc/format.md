@@ -126,6 +126,8 @@ tBox
 
 `tEvar`, `tConstruct`, `tFix`/`tCoFix` carry plain lists in their argument positions (the `(...)` may itself be empty for nullary cases).
 
+The AST format can express `tCoFix`, but peregrine rejects every program that contains a cofixpoint.
+
 ### Typed $\lambda_\square^T$ AST
 
 A typed environment is a list of `(<kername> <has_deps> <global_decl>)` triples where `<has_deps>` is a boolean (the extra field added by `ExAst.global_env`).
@@ -196,18 +198,19 @@ Field by field:
   (erasure_phases
     <implement_box>
     <implement_lazy>
-    <cofix_to_laxy>
     <betared>
     <unboxing>
     <dearg_ctors>
     <dearg_consts>
     <specialize_instances>
-    <cse>)
+    <cse>
+    <lift_constants>)
   ```
-  All booleans. `specialize_instances` and `cse` select the two optional passes described in [middleend.md](middleend.md); every backend leaves them off by default.
-  Only the nine-field form parses. To migrate a configuration written for the earlier seven-field form, append `None None` to its `erasure_phases` entry (`false false` where the fields are not optional). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
+  All booleans. The format is positional: the fields have no keys. Each field but the first two and `dearg_ctors` is the setting of a [pass option](usage.md#middle-end-passes), which overrides it on the command line of `compile`: `betared` is `--beta-reduce`, `unboxing` `--unbox`, `dearg_consts` `--dearg-constants`, `specialize_instances` `--specialize-instances`, `cse` `--share-common-subterms` and `lift_constants` `--lift-constants`. `specialize_instances`, `cse` and `lift_constants` select the three optional passes described in [middleend.md](middleend.md); every backend leaves them off by default.
+  `implement_box`, `implement_lazy` and `dearg_ctors` are ignored, and kept so that existing files parse: the backend decides implement $\square$ and implement lazy (its `Required` or `Compatible` default, see below), and constructor masks are never trimmed. The $\lambda_\square$ simplifications, `--inline-standard-constants` and `--inline-recursors` have no field: only the command line sets them.
+  Only the nine-field form parses. To migrate a configuration written for the earlier ten-field form, delete its third field (`cofix_to_laxy`; peregrine no longer supports cofixpoints). From the seven-field form, delete the third field and append `None None None` (`false false false` where the fields are not optional); from the nine-field form that predates `lift_constants` (with `cofix_to_laxy`), delete the third field and append one `None` (or `false`). Each backend declares an `<name>_phases : erasure_phases_config` value (see [theories/backends/](/theories/backends/)). For each phase the backend marks it `Required`, `Incompatible`, or `(Compatible <default>)`; `Required`/`Incompatible` *enforce* the value (the user's choice is ignored), and `Compatible` uses the user's value when present and otherwise the declared default; for `implement_box` and `implement_lazy` the declared default is used whatever the file says. When the whole `erasure_opts` field is `None`, every phase takes its declared default.
 
-* `inlinings_opts` (`inlinings`) — a list of `kername`s; constants in this list are inlined by the typed-erasure pass.
+* `inlinings_opts` (`inlinings`) — a list of `kername`s; constants in this list are inlined by MetaRocq's inlining pass (`EInlining`; untyped pipeline only). The CLI flag `--inline-recursors` extends this list automatically with the program's recursors `I_rect`/`I_rec` (see [usage.md](usage.md#middle-end-passes) and [RecursorInlining.v](/theories/RecursorInlining.v)); the result is identical to listing them in an attribute file.
 
 * `const_remappings_opts` (`constant_remappings`) — a list of `(<kername> <remapped_constant>)` pairs (see below).
 
@@ -275,6 +278,7 @@ The `attributes_config` payload accepted via `--attributes` is the 5-element sub
 (Lean   <lean_config>)
 (FSharp <fsharp_config>)   ; experimental
 (Koka   <koka_config>)     ; experimental
+(KokaTyped <koka_config>)  ; experimental, typed lambda-box
 (Eval   <eval_config>)
 (AST    <ast_config>)
 ```
@@ -318,11 +322,12 @@ The generated module starts with `module <elm_module_name> exposing (..)` follow
 (certirocq_config
   <direct>     ; true   — use the direct (ANF) pipeline
   <c_args>     ; 5      — number of C arguments (for CertiRocq)
-  <o_level>    ; 0      — optimisation level
+  <o_level>    ; 1      — optimisation level (1: lambda lifting; --certirocq-O)
   <anf_conf>   ; 0      — not read by the pipeline
   <prefix>     ; ""     — not read (CertiRocq no longer generates an FFI)
   <body_name>) ; "body" — name of the top-level function
 ```
+On the command line, `--certirocq-cps` sets `direct` to false, and `--certirocq-c-args`, `--certirocq-O` and `--certirocq-body-name` set `c_args`, `o_level` and `body_name` ([usage.md](usage.md#certirocq-options-c-wasm-llvm-eval-ast)); `anf_conf` and `prefix` have no option.
 The C, Wasm and LLVM backends use this record verbatim; the LLVM backend ignores `body_name` and always names its entry point `certirocq_main`. The C backend additionally prepends the GC header `gc_stack.h` to the list of `#include`s, for both values of `direct`.
 
 #### OCaml (`ocaml_config`)
@@ -364,12 +369,12 @@ and is forwarded to the Malfunction printer. Default: `Standalone`.
   <koka_print_full_names>)  ; true
 ```
 * `koka_module` is printed as the `module` declaration of the generated file when it is not empty; Koka requires it to match the file name.
-* `koka_print_full_names` toggles printing of names qualified by the input file's basename and the module path, as for Lean.
+* `koka_print_full_names` toggles printing of names qualified by the input file's basename and the module path, as for Lean. The typed backend (`KokaTyped`) ignores it and always prints qualified names.
 
 #### Eval (`eval_config`)
 ```
 (eval_config
-  <copts>     ; certirocq_config, defaulting to the C/Wasm defaults
+  <copts>     ; certirocq_config, defaulting to the C/Wasm defaults (--certirocq-O=1)
   <fuel>)     ; 2^14
 ```
 The `eval` command runs the program in-process using CertiRocq's evaluator (after the relevant prefix of the C pipeline) and prints its result to stdout. `fuel` bounds the number of reduction steps before giving up.

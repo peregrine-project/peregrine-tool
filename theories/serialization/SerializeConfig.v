@@ -214,6 +214,7 @@ Instance Serialize_backend_config : Serialize backend_config :=
     | Lean o => [Atom "Lean"; to_sexp o ]
     | FSharp o => [Atom "FSharp"; to_sexp o ]
     | Koka o => [Atom "Koka"; to_sexp o ]
+    | KokaTyped o => [Atom "KokaTyped"; to_sexp o ]
     | Eval o => [Atom "Eval"; to_sexp o ]
     | AST o => [Atom "AST"; to_sexp o ]
     end%sexp.
@@ -231,6 +232,7 @@ Instance Serialize_backend_config' : Serialize backend_config' :=
     | Lean' o => [Atom "Lean"; to_sexp o ]
     | FSharp' o => [Atom "FSharp"; to_sexp o ]
     | Koka' o => [Atom "Koka"; to_sexp o ]
+    | KokaTyped' o => [Atom "KokaTyped"; to_sexp o ]
     | Eval' o => [Atom "Eval"; to_sexp o ]
     | AST' o => [Atom "AST"; to_sexp o ]
     end%sexp.
@@ -305,13 +307,13 @@ Instance Serialize_erasure_phases : Serialize erasure_phases :=
     [Atom "erasure_phases";
      to_sexp (implement_box o);
      to_sexp (implement_lazy o);
-     to_sexp (cofix_to_laxy o);
      to_sexp (betared o);
      to_sexp (unboxing o);
      to_sexp (dearg_ctors o);
      to_sexp (dearg_consts o);
      to_sexp (specialize_instances o);
-     to_sexp (cse o)
+     to_sexp (cse o);
+     to_sexp (lift_constants o)
     ]%sexp.
 
 Instance Serialize_erasure_phases' : Serialize erasure_phases' :=
@@ -319,13 +321,13 @@ Instance Serialize_erasure_phases' : Serialize erasure_phases' :=
     [Atom "erasure_phases";
      to_sexp (implement_box' o);
      to_sexp (implement_lazy' o);
-     to_sexp (cofix_to_laxy' o);
      to_sexp (betared' o);
      to_sexp (unboxing' o);
      to_sexp (dearg_ctors' o);
      to_sexp (dearg_consts' o);
      to_sexp (specialize_instances' o);
-     to_sexp (cse' o)
+     to_sexp (cse' o);
+     to_sexp (lift_constants' o)
     ]%sexp.
 
 Instance Serialize_config : Serialize config :=
