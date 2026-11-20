@@ -118,6 +118,8 @@ logic1.ml
 logic1.mli
 logic2.ml
 logic2.mli
+mRClasses.mli
+mRClasses.ml
 mRCompare.ml
 mRCompare.mli
 mRFSets.ml
@@ -245,6 +247,12 @@ typing0.ml
 typing0.mli
 uint63Axioms.ml
 uint63Axioms.mli
+semiLattice.mli
+semiLattice.ml
+univConstraintType.mli
+univConstraintType.ml
+nonEmptyLevelExprSet.mli
+nonEmptyLevelExprSet.ml
 universes0.ml
 universes0.mli
 wf.ml

@@ -174,13 +174,13 @@ erasurePhasesConv ErasurePhases {..} =
   ConfigUtils.Build_erasure_phases'
     implementBox
     implementLaxy
-    cofixToLazy
     betared
     unboxing
     deargCtor
     deargConst
     specializeInstances
     cse
+    liftConstants
 
 -- Configuration of Peregrine
 configConv :: Config -> ConfigUtils.Coq_config'

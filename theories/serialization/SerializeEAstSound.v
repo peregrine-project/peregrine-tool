@@ -109,7 +109,7 @@ Proof.
     inversion Hss as [|fields HP_list Hss_inner Heq]; subst.
     apply Forall_cons_iff in Hss_inner as [_ Hss_inner].
     apply Forall_cons_iff in Hss_inner as [Hss_val _].
-    unfold _from_sexp, Deserialize_array_model in Hval.
+    rewrite Deserialize_array_model_eq in Hval.
     apply sound_match_con in Hval.
     destruct Hval as [Hval | Hval]; elim_Exists Hval.
     destruct Hval as [fields' [Heq' Hfields']].
@@ -182,7 +182,6 @@ Proof.
   assumption.
 Qed.
 
-#[bypass_check(guard)]
 Lemma Sound_term_aux : SoundClass term.
 Proof.
   unfold SoundClass, Sound.
@@ -192,7 +191,8 @@ Proof.
   induction e as [a|es Hall];
     constructor; auto;
     intros l t He;
-    unfold _from_sexp, Deserialize_term, deserialize_term in He;
+    unfold _from_sexp, Deserialize_term in He;
+    rewrite deserialize_term_eq in He;
     apply sound_match_con in He;
     destruct He as [He | He]; elim_Exists He;
       try (destruct He as [? [H ?]]; cbn in H; discriminate);

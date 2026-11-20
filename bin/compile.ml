@@ -10,6 +10,7 @@ module RustMixedRemaps = Peregrine.RustMixedRemaps
 module RustHybridRemaps = Peregrine.RustHybridRemaps
 module KokaIntRemaps = Peregrine.KokaIntRemaps
 module Pipeline = Peregrine.Pipeline2
+module PipelineParse = Peregrine.PipelineParse
 module ResultMonad = Peregrine.ResultMonad
 module Anf_term = Peregrine.Term0
 
@@ -132,26 +133,44 @@ let mk_certirocq_config copts = {
   ConfigUtils.direct'    = Some (not copts.cps);
   ConfigUtils.c_args'    = Option.map Peregrine.Caml_nat.nat_of_caml_int copts.c_args;
   ConfigUtils.o_level'   = Option.map Peregrine.Caml_nat.nat_of_caml_int copts.o_level;
-  ConfigUtils.anf_conf'  = Option.map Peregrine.Caml_nat.nat_of_caml_int copts.anf_conf;
-  ConfigUtils.prefix'    = Option.map bytestring_of_caml_string copts.prefix;
+  ConfigUtils.anf_conf'  = None;
+  ConfigUtils.prefix'    = None;
   ConfigUtils.body_name' = Option.map bytestring_of_caml_string copts.body_name;
 }
 
-let mk_erasure_config eopts = {
-  ConfigUtils.implement_box'  = None;
-  ConfigUtils.implement_lazy' = eopts.lower_cofix;
-  ConfigUtils.cofix_to_laxy'  = eopts.lower_cofix;
-  ConfigUtils.betared'        = eopts.betared;
-  ConfigUtils.unboxing'       = eopts.unboxing;
-  ConfigUtils.dearg_ctors'    = eopts.dearg_ctors;
-  ConfigUtils.dearg_consts'   = eopts.dearg_consts;
-  ConfigUtils.specialize_instances' = eopts.specialize_instances;
-  ConfigUtils.cse'            = eopts.cse;
-}
+(* The erasure phases of [base] (a configuration file's, or none), with the
+   passes given on the command line overriding them. Beta reduction and
+   constant lifting, which the default pass set has, are on where neither
+   sets them, unless -O0. implement box and implement lazy are the backend's
+   choice (ConfigUtils.enforce_phases). *)
+let mk_erasure_config ?base (p : passes) =
+  let ov cli file = match cli with Some _ -> cli | None -> file in
+  let default = if p.optimize then Some true else None in
+  let b = match base with
+    | Some b -> b
+    | None -> { ConfigUtils.implement_box' = None; implement_lazy' = None;
+                betared' = None; unboxing' = None; dearg_ctors' = None;
+                dearg_consts' = None; specialize_instances' = None;
+                cse' = None; lift_constants' = None } in
+  { b with
+    ConfigUtils.betared'        = ov p.beta_reduce (ov b.ConfigUtils.betared' default);
+    ConfigUtils.unboxing'       = ov p.unbox b.ConfigUtils.unboxing';
+    ConfigUtils.dearg_consts'   = ov p.dearg_constants b.ConfigUtils.dearg_consts';
+    ConfigUtils.specialize_instances' = ov p.specialize_instances b.ConfigUtils.specialize_instances';
+    ConfigUtils.cse'            = ov p.share_common_subterms b.ConfigUtils.cse';
+    ConfigUtils.lift_constants' = ov p.lift_constants (ov b.ConfigUtils.lift_constants' default);
+  }
 
-let mk_config ?(const_remaps=[]) ?(ind_remaps=[]) b eopts = {
+(* Does the command line, or the default pass set, set an erasure phase (one
+   of those of a configuration file)? *)
+let sets_erasure_phase (p : passes) =
+  p.optimize || List.exists Option.is_some
+    [p.beta_reduce; p.unbox; p.dearg_constants; p.specialize_instances;
+     p.share_common_subterms; p.lift_constants]
+
+let mk_config ?(const_remaps=[]) ?(ind_remaps=[]) b passes = {
   ConfigUtils.backend_opts' = b;
-  ConfigUtils.erasure_opts' = Some (mk_erasure_config eopts);
+  ConfigUtils.erasure_opts' = Some (mk_erasure_config passes);
   ConfigUtils.inlinings_opts' = [];
   ConfigUtils.const_remappings_opts' = const_remaps;
   ConfigUtils.ind_remappings_opts' = ind_remaps;
@@ -193,15 +212,41 @@ let validate opts fo f_input f_config =
 
 
 (* Compile functions *)
+(* The lambda-box simplification passes (ELboxOpts.v) *)
+let mk_lbox_opts (p : passes) =
+  { Peregrine.ELboxOpts.lbox_fix_eta = p.unwrap_fixpoints;
+    lbox_case_fun = p.hoist_case_lambdas;
+    lbox_case_id = p.drop_identity_matches;
+    lbox_let_fun = p.inline_atomic_lets;
+    lbox_iota = p.iota_reduce }
+
+(* Automatic inlining (AutoInlining.v) *)
+let mk_inline_opts (p : passes) =
+  { Peregrine.AutoInlining.inline_standard = p.inline_standard_constants;
+    inline_small = p.inline_small_constants;
+    inline_size_limit = Peregrine.Caml_nat.nat_of_caml_int (max 0 p.inline_size_limit);
+    inline_excluded = List.map bytestring_of_caml_string p.no_inline }
+
 let compile_aux opts fo ~typed f_input config =
   let f_prog, attrs, stem = Frontend.load opts fo ~typed f_input in
   let prog = f_prog |> read_file |> bytestring_of_caml_string in
   let f_name = stem |> Filename.basename |> bytestring_of_caml_string in
   let attrs = read_attrs opts attrs in
   info opts "Compiling:";
-  let res = Pipeline.peregrine_pipeline config attrs prog f_name in
+  (* [notes]: skipped optimizations (PipelineParse.dearging_warnings), which
+     do not affect correctness; [warnings]: programs outside verified
+     extraction's correctness theorem, rejected by --strict-verified. *)
+  let res = PipelineParse.peregrine_pipeline_warn config attrs opts.passes.inline_recursors (mk_inline_opts opts.passes) (mk_lbox_opts opts.passes) prog f_name in
+  let print_warnings = List.iter (fun w -> prerr_endline ("Warning: " ^ caml_string_of_bytestring w)) in
   match res with
-  | ResultMonad.Ok p ->
+  | ResultMonad.Ok (notes, (_ :: _ as warnings, _)) when opts.strict_verified ->
+    print_warnings notes;
+    print_endline "Could not compile:";
+    List.iter cprint_endline warnings;
+    exit 1
+  | ResultMonad.Ok (notes, (warnings, p)) ->
+    print_warnings notes;
+    print_warnings warnings;
     info opts "Compiled successfully:";
     (* The only output that can have the name of a source: lean on a .lean *)
     (match p with
@@ -220,7 +265,17 @@ let compile opts fo f_prog f_config =
   let typed = match Pipeline.parse_config config with
     | ResultMonad.Ok { Config.backend_opts = (Config.Rust _ | Config.Elm _ | Config.AST Config.LambdaBoxTyped); _ } -> true
     | _ -> false in
-  compile_aux opts fo ~typed f_prog (Datatypes.Coq_inl config)
+  (* The passes given on the command line override the file's erasure
+     phases, which override the default pass set. If the file does not
+     parse, the pipeline reports it. *)
+  let config =
+    if not (sets_erasure_phase opts.passes) then Datatypes.Coq_inl config
+    else match Peregrine.Deserialize.config_of_string config with
+      | Datatypes.Coq_inr c ->
+        Datatypes.Coq_inr { c with ConfigUtils.erasure_opts' =
+          Some (mk_erasure_config ?base:c.ConfigUtils.erasure_opts' opts.passes) }
+      | Datatypes.Coq_inl _ -> Datatypes.Coq_inl config in
+  compile_aux opts fo ~typed f_prog config
 
 (* Write the lambda box program of a source file, and the attribute files of
    its frontend next to it *)
@@ -244,12 +299,12 @@ type target = {
 let target ?(typed=false) ?(const_remaps=[]) ?(ind_remaps=[]) backend =
   { backend; const_remaps; ind_remaps; typed }
 
-let compile_backend t opts eopts fo f_prog =
-  let config = mk_config ~const_remaps:t.const_remaps ~ind_remaps:t.ind_remaps t.backend eopts in
+let compile_backend t opts fo f_prog =
+  let config = mk_config ~const_remaps:t.const_remaps ~ind_remaps:t.ind_remaps t.backend opts.passes in
   compile_aux opts fo ~typed:t.typed f_prog (Datatypes.Coq_inr config)
 
 (* The representations of nat/positive/N/Z in Rust, chosen by `rust
-   --numbers`. Each also has its own, deprecated, verb. *)
+   --rust-numbers`. Each also has its own, deprecated, verb. *)
 type rust_numbers = {
   rust_numbers : string;
   rust_verb_name : string;
