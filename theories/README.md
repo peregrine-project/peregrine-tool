@@ -2,7 +2,7 @@
 This directory contains the Peregrine middle-end Rocq source code.
 
 * [backends/](backends/): Wrappers for Peregrine backends
-* [erasure/](erasure/): Code transform/optimization pipeline, Rocq frontend utilities, and type inference for untyped input given to the typed backends (annotations unverified; erasure and scoping proved)
+* [erasure/](erasure/): Code transform/optimization pipeline, Rocq frontend utilities, type inference for untyped input given to the typed backends (annotations unverified; erasure and scoping proved), and borrow inference for reference-counted backends
 * [serialization/](serialization/): Serializers, deserializers and correctness proofs
 * [CheckWF.v](CheckWf.v): AST wellformedness checker
 * [Config.v](Config.v): Configuration definitions
@@ -11,6 +11,7 @@ This directory contains the Peregrine middle-end Rocq source code.
 * [EvalBox.v](EvalBox.v): LambdaBox interpreter
 * [Extraction.v](Extraction.v): Extracts middle-end to OCaml for use in CLI, extracted code in [src/extraction](/src/extraction/)
 * [NameSanitize.v](NameSanitize.v): Name sanitization pass
+* [NameSanitizeCorrect.v](NameSanitizeCorrect.v): Sanitization is an injective renaming of global names, so it preserves well-formedness and evaluation
 * [PAst.v](PAst.v): AST definition
 * [Pipeline.v](Pipeline.v): Main file defining the middle-end pipeline
 * [Unicode.v](Unicode.v): Unicode definition and utilities

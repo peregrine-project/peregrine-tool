@@ -46,6 +46,8 @@ Output — a single `.ll` module that defines `i64 @certirocq_main(ptr %tinfo)` 
 
 What is proved ([`LLVM_sim_exp.v`](https://github.com/peregrine-project/certirocq/blob/peregrine/theories/CodegenLLVM/LLVM_sim_exp.v), theorem `LambdaANF_to_LLVM_correct`): when a LambdaANF program terminates with a value, the emitted module, run in Vellvm's semantics, either runs out of memory or returns a word that represents that value. The theorem assumes `runtime_correct`, a specification of `garbage_collect` and `make_tinfo` that is not proved for the real `gc_stack.c` (and that `gc_stack.c` violates for boxed constructor ordinals 251 to 255, see CertiRocq's `tests/llvm-corpus/README.md`), and that the program is `llvm_restricted`: no primitive operations, no primitive values other than 63-bit integers, no nested function definitions. Programs outside these restrictions are still compiled; for them nothing is proved, and allocating primitives are known to be miscompiled (no GC roots are registered around them). Divergence is not covered, nor is the LambdaBox to LambdaANF part, which is the same as for the C backend. The printer from Vellvm's AST to `.ll` text, and clang, are outside the proof.
 
+After CertiRocq, Peregrine marks `tail` a call whose result the block returns at once and whose arguments are `i64` values or the thread info ([`LLVMTail.v`](/theories/backends/LLVMTail.v), #134). Vellvm gives the marker no semantics, so the pass preserves the behaviour in Vellvm and the theorem extends to the marked module ([`LLVMTail_correct.v`](/theories/backends/LLVMTail_correct.v)). That theorem holds whether the marker is right or not, so the promise the marker makes to LLVM is outside it. The marker is right because of two properties of the emitter that the pass does not check: it converts no `alloca` address to an `i64`, and it has unlinked every shadow-stack frame of the caller at such a call. At the current CertiRocq pin only the calls of `Eapp` have that shape, and the pipeline rarely emits them: a call in tail position is an `Eletapp`, followed by the restore of the frame pointer, so tail recursion still grows the native stack. With the frame change of CertiRocq/certirocq#155 (396d1204), the calls of such an `Eletapp` are marked too, and clang can turn them into jumps: on Fannkuch the peak goes from 324 MB to 11 MB.
+
 ## OCaml
 
 OCaml backend extracting to serialized [malfunction](https://github.com/stedolan/malfunction) AST. It accepts both typed and untyped ASTs as input.
@@ -53,12 +55,16 @@ Implemented in [coq-verified-extraction](https://github.com/yforster/coq-verifie
 
 Output — serialized malfunction AST. The CLI writes a `.mlf` file containing the source; it is compiled with the [malfunction](https://github.com/stedolan/malfunction) tool.
 
+The backend runs name annotation and the compilation to malfunction of verified extraction ([`OCamlBackend.v`](/theories/backends/OCamlBackend.v), `malfunction_pipeline`). Its correctness theorem assumes a precondition: the program is well formed for it (among others closed, without boxes and without primitive strings), and its inductive types have few enough constructors and constructor arguments. The backend checks it (`malfunction_check`), but compiles every program the same way, with `compile_ocaml`. When the check fails, it compiles the program anyway and warns, e.g. `Warning: OCaml backend: Program contains primitive strings; this program is outside verified-extraction's correctness theorem, so the generated code is not covered by the proof.` The proof does not cover such output. `--strict-verified` turns the warning into an error ([usage.md](usage.md#common-options)). `extract_ocaml_verified` proves that output without a warning is the printed result of `malfunction_pipeline`. Axioms and remapped constants get placeholder bodies for the check and are emitted as external references afterwards ([`ExtractionCheck.v`](/theories/backends/ExtractionCheck.v)); their realization is trusted.
+
 ## CakeML
 
 CakeML backend extracting to serialized CakeML AST 
 
 Output — serialized AST. The CLI writes a `.cml` file.
 The `.cml` file can be compiled using the [CakeML compiler](https://cakeml.org/) using the flags `--sexp=true --exclude_prelude=true --skip_type_inference=true`.
+
+As for OCaml, the backend checks a precondition (`cakeml_check` in [`CakeMLBackend.v`](/theories/backends/CakeMLBackend.v)), compiles every program with `compile_cakeml`, and warns when the check fails (an error with `--strict-verified`). The check has three parts: the program has no axioms (constants without a body; this includes remapped constants, whose bodies the middle end drops), the precondition of the name annotation pass (the program is well formed for it: among others closed, without boxes and without primitive values), and `names_ok` of cakeml-backend's `CompileCorrect.v` on the annotated program, since the compiler keeps Rocq's names. `names_ok` asks that the printed names of the constants are pairwise distinct, and likewise those of the constructors; that local binders contain no `.`, so that they do not shadow a constant; and that the binders of each `match` branch are distinct and as many as the constructor's arguments. `extract_cakeml_verified` proves that output without a warning is the printed result of `cakeml_pipeline`, whose transform `compile_to_cakeml` carries cakeml-backend's compiler correctness theorem (`cakeml_correct_named_vrel`). [`PipelineCakeML.v`](/theories/PipelineCakeML.v) composes it with the middle end: `peregrine_untyped_cakeml` (and `peregrine_typed_cakeml` for typed input) states that when the middle end and the backend succeed without a warning and the input program evaluates to a first-order value `v`, the main expression of the `.cml` file evaluates, in CakeML's big-step semantics and after its datatype and `val` declarations, to a value related to `v`; `cakeml_output_correct_fo` gives the CakeML value itself when `v` is a tree of constructors. The theorems use CakeML's semantics as formalized in cakeml-backend; type inference, which `cake` skips, is not covered, and the generated datatype declarations are only read for their constructor names and arities.
 
 ## Rust
 
@@ -72,23 +78,23 @@ Output
 * Is compiled with the [Rust compiler](https://rust-lang.org/tools/install/)
 
 ### Numeric representations
-`peregrine rust --numbers=NUMBERS` selects the representation of `nat`, `positive`, `N` and `Z`. Each value is a backend configuration together with constant and inductive remappings ([theories/backends/](/theories/backends/)). The verbs `rust-gmp`, `rust-i64`, `rust-mixed`, `rust-mixed-narrow` and `rust-hybrid` are deprecated aliases of `rust --numbers=gmp` and so on. `peregrine compile` with a configuration file uses no remapping unless the file gives one.
+`peregrine rust --rust-numbers=NUMBERS` selects the representation of `nat`, `positive`, `N` and `Z`. Each value is a backend configuration together with constant and inductive remappings ([theories/backends/](/theories/backends/)). The verbs `rust-gmp`, `rust-i64`, `rust-mixed`, `rust-mixed-narrow` and `rust-hybrid` are deprecated aliases of `rust --rust-numbers=gmp` and so on. `peregrine compile` with a configuration file uses no remapping unless the file gives one.
 
-| `--numbers` | `nat`/`positive`/`N`/`Z` | Operations | Remaps | Extra crate |
+| `--rust-numbers` | `nat`/`positive`/`N`/`Z` | Operations | Remaps | Extra crate |
 |----------|--------------------------|------------|--------|-------------|
 | `peano` (default) | the inductive types, as extracted | the extracted functions | none | - |
 | `gmp` | `&'a rug::Integer` (GMP) | GMP arithmetic | [RustGMPRemaps.v](/theories/backends/RustGMPRemaps.v) | [rug](https://docs.rs/rug/) 1 |
 | `i64` | `i64` | native `i64` arithmetic, overflow not checked | [RustNativeRemaps.v](/theories/backends/RustNativeRemaps.v) | - |
 | `mixed` | `&'a rug::Integer` | GMP, except `Nat.add`/`mul`/`sub`/`div`/`modulo`/`pow`/`eqb`/`leb`/`ltb` in `i64` | [RustMixedRemaps.v](/theories/backends/RustMixedRemaps.v) | rug 1 |
 | `mixed-narrow` | `&'a rug::Integer` | GMP, except `Nat.div`/`modulo`/`pow` in `i64` | [RustMixedRemaps.v](/theories/backends/RustMixedRemaps.v) | rug 1 |
-| `hybrid` | `Num<'a>`: `i64` when the value fits, else `&'a rug::Integer` | `i64` with overflow checks, GMP on overflow or for a large argument | [RustHybridRemaps.v](/theories/backends/RustHybridRemaps.v) | rug 1 |
+| `hybrid` | `Num<'a>`: one tagged word, a 63-bit integer when the value fits, else the address of an arena-allocated `rug::Integer` | tagged-word arithmetic with overflow checks, GMP on overflow or for a large argument | [RustHybridRemaps.v](/theories/backends/RustHybridRemaps.v) | rug 1 |
 
 All but `peano` also remap `bool` to the Rust `bool` and `comparison` to `std::cmp::Ordering`. `peano` remaps nothing and produces what `peregrine compile` produces with an empty configuration.
 The remapped operations are hand-written Rust strings; nothing about them is verified.
 
 * `i64` computes in `i64` and does not check overflow: a result outside the `i64` range panics in a debug build and wraps around in a release build. `Nat.pow` casts its exponent to `u32`. Use it only for programs whose numbers stay in `i64`.
 * `mixed` and `mixed-narrow` convert the arguments of the operations they run in `i64` with `to_i64().unwrap()`, which panics on an argument outside `i64`; the result of the `i64` operation is not checked, as for `i64`. [RustMixedCoherence.v](/theories/backends/RustMixedCoherence.v) proves, for a ZArith model of these operations, that they agree with the `nat` operations when arguments and result fit in `i64`; it says nothing about the emitted Rust.
-* `hybrid` keeps a value in `i64` while it fits and computes exactly otherwise: an operation on small arguments uses `checked_*` arithmetic and moves to GMP on overflow, and a result that fits in `i64` is stored as an `i64` again. Only large values are allocated.
+* `hybrid` keeps a value in a tagged 63-bit word while it fits and computes exactly otherwise: an operation on small arguments uses `checked_*` arithmetic on the tagged words and moves to GMP on overflow, and a result that fits is stored as a small value again. Only large values are allocated, and a number takes 8 bytes, as in `i64`. [RustHybridCoherence.v](/theories/backends/RustHybridCoherence.v) proves, for a model of these operations over `Z`, that the fast paths, floor division, the comparisons, the eliminators and every remapped function agree with the Rocq definitions; it says nothing about the emitted Rust.
 * The GMP eliminators of `gmp`, `mixed`, `mixed-narrow` and `hybrid` leak (`Box::leak`) the predecessor they compute; for `hybrid` only a large one.
 
 ## Elm
@@ -145,7 +151,7 @@ This is the Koka backend to use; the untyped `koka` verb is the fallback for the
 
 * Functions take as many arguments as their body has leading lambdas; a saturated call is a direct call, and any other use builds curried closures, which the arrow types denote. Every function returns `pure`.
 * A monomorphic nullary constant is a `delayed` value; a polymorphic one is a nullary function.
-* The backend rejects a program with a type it cannot express (`TAny`, a type variable applied to arguments), primitive values, projections, cofixpoints and `lazy`; the untyped `koka` verb compiles those.
+* The backend rejects a program with a type it cannot express (`TAny`, a type variable applied to arguments), primitive values, projections and `lazy`; the untyped `koka` verb compiles those. Peregrine rejects cofixpoints for every backend.
 * It also rejects nested groups of mutual fixpoints, and two names that differ only in case (`pg_x_fooBar` and `pg_x_foobar`), which Koka identifies.
 * A remapped constant is called with its `re_const_arity` arguments, and its `re_const_ext`, if any, is imported.
 

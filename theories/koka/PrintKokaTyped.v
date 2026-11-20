@@ -3,7 +3,8 @@ From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Utils Require Import ResultMonad.
 From MetaRocq.Common Require Import Kernames.
 From MetaRocq.Common Require Import BasicAst.
-From MetaRocq.Erasure Require EAst ELiftSubst.
+From MetaRocq.Erasure Require EAst ELiftSubst EAstUtils.
+From Peregrine Require Import EBorrow.
 From MetaRocq.Erasure.Typed Require Import ExAst.
 From Stdlib Require Import List.
 From Stdlib.Strings Require Byte.
@@ -68,7 +69,11 @@ Definition nonempty {A} (l : list A) : bool := match l with [] => false | _ => t
 
 Section Printer.
   Context (Σ : global_env).
+  (* A remapped constant: the Koka expression and its arity.  An inductive whose
+     name is remapped is a natural number on Koka's [int] ([is_native]). *)
   Context (remap : kername -> option (string * nat)).
+  (* Borrowed parameters ([EBorrow]), printed [^x]. *)
+  Context (bms : modes).
 
   Definition lookup_mind (kn : kername) : option mutual_inductive_body :=
     match lookup_env Σ kn with
@@ -82,7 +87,11 @@ Section Printer.
     | None => None
     end.
 
+  Definition is_native (ind : inductive) : bool :=
+    match remap (inductive_mind ind) with Some _ => true | None => false end.
+
   Definition ind_type_name (ind : inductive) : kres string :=
+    if is_native ind then Ok "int" else
     match lookup_oib ind with
     | Some oib => Ok (type_name (fst (inductive_mind ind), ind_name oib))
     | None => Err ("unknown inductive " ++ string_of_kername (inductive_mind ind))
@@ -211,8 +220,26 @@ Section Printer.
     | _ => ([], t)
     end.
 
+  (* [fun x1 .. xk => (fix f ..) x1 .. xk] with a closed fixpoint is the
+     fixpoint: the constant is then printed as the top-level function of its
+     member, with the member's arity, instead of a function of [k] arguments
+     that builds a local function and a closure for the rest. *)
+  Definition eta_fix (b : EAst.term) : EAst.term :=
+    let '(ps, inner) := lambdas b in
+    let k := List.length ps in
+    match EAstUtils.decompose_app inner with
+    | (EAst.tFix mfix i, args) =>
+      if andb (Nat.ltb 0 k) (andb (Nat.eqb (List.length args) k)
+           (andb (forallb (fun '(j, a) => match a with EAst.tRel n => Nat.eqb n (k - 1 - j) | _ => false end)
+                          (combine (seq 0 k) args))
+                 (forallb (fun d => ELiftSubst.closedn (List.length mfix) (EAst.dbody d)) mfix)))
+      then EAst.tFix mfix i else b
+    | _ => b
+    end.
+
   (* The body of a constant: a top-level fixpoint is (a copy of) its member. *)
-  Definition const_body (b : EAst.term) : EAst.term :=
+  Definition const_body (b0 : EAst.term) : EAst.term :=
+    let b := eta_fix b0 in
     match b with
     | EAst.tFix mfix i =>
       match nth_error mfix i with Some d => EAst.dbody d | None => b end
@@ -264,6 +291,15 @@ Section Printer.
       apply_unary (f ++ "(" ++ concat_with ", " (firstn n args) ++ ")") (skipn n args)
     else curry f args (n - List.length args).
 
+  (* A literal of a native natural number: [S (S .. O)] *)
+  Fixpoint native_literal (t : EAst.term) : option nat :=
+    match t with
+    | EAst.tConstruct ind 0 [] => if is_native ind then Some 0 else None
+    | EAst.tApp (EAst.tConstruct ind 1 []) a =>
+      if is_native ind then option_map S (native_literal a) else None
+    | _ => None
+    end.
+
   (* The local context: names of de Bruijn variables, with the arity of the
      functions bound by a fixpoint and the arguments every call to them
      passes first (the parameters a lifted group is closed over). *)
@@ -278,8 +314,12 @@ Section Printer.
     let depth := List.length Γ in
     match t with
     | EAst.tApp f a =>
-      a' <- print_term Γ a [];;
-      print_term Γ f (a' :: pending)
+      match native_literal t with
+      | Some n => Ok (apply_unary (string_of_nat n) pending)
+      | None =>
+        a' <- print_term Γ a [];;
+        print_term Γ f (a' :: pending)
+      end
     (* [□] absorbs its arguments *)
     | EAst.tBox => Ok "()"
     | EAst.tRel n =>
@@ -312,6 +352,13 @@ Section Printer.
         end
       end
     | EAst.tConstruct ind i [] =>
+      if is_native ind then
+        match i, pending with
+        | 0, _ => Ok (apply_unary "0" pending)
+        | _, a :: rest => Ok (apply_unary ("(" ++ a ++ " + 1)") rest)
+        | _, [] => Ok "fn(pg_x) { pg_x + 1 }"
+        end
+      else
       '(cn, boxes) <- ctor_info ind i;;
       (* a field of type [□] gets [()], whatever the argument: type inference
          gives a value parameter of an inductive the type [□] *)
@@ -325,6 +372,17 @@ Section Printer.
     | EAst.tConstruct _ _ (_ :: _) => Err "constructors as blocks"
     | EAst.tCase (ind, npars) d brs =>
       d' <- print_term Γ d [];;
+      if is_native ind then
+        match brs with
+        | [(_, b0); ([na], b1)] =>
+          let v := var (name_ident na) depth in
+          let n := "pg_n" ++ string_of_nat depth in
+          b0' <- print_term Γ b0 [];;
+          b1' <- print_term ((v, None) :: Γ) b1 [];;
+          Ok (apply_unary ("(match " ++ d' ++ " { 0 -> " ++ b0' ++ "; " ++ n ++ " -> { val " ++ v ++ " = " ++ n ++ " - 1; " ++ b1' ++ " } })") pending)
+        | _ => Err "a match on a native natural number needs its two branches"
+        end
+      else
       match brs with
       | [] => Ok (apply_unary ("(fn() { val pg_d = " ++ d' ++ "; pgk_absurd() })()") pending)
       | _ =>
@@ -401,6 +459,31 @@ Section Printer.
 
   (* ----- Declarations ---------------------------------------------- *)
 
+  (* Parameter [j] of the top-level function [f], [^v] when borrowed. *)
+  (* An [int] made by [n - 1] must be dropped after a call that borrows it, so that
+     call is no tail call: a parameter of type [int] is not borrowed.  A parameter of
+     a local function whose type is not known here is not borrowed either, when
+     natural numbers are on [int]. *)
+  Definition any_native : bool :=
+    existsb (fun '(kn, _, d) =>
+               match d with
+               | InductiveDecl _ => match remap kn with Some _ => true | None => false end
+               | _ => false
+               end) Σ.
+
+  Definition param (tys : list (option string)) (f : string) (j : nat) (v : string) : string :=
+    let allowed :=
+        if any_native
+        then match nth_error tys j with
+             | Some (Some t) => negb (String.eqb t "int")
+             | _ => false
+             end
+        else true in
+    (if andb allowed (borrowed bms f j) then "^" else "") ++ v.
+
+  Definition typed_param (f : string) (j : nat) (v t : string) : string :=
+    (if andb (negb (String.eqb t "int")) (borrowed bms f j) then "^" else "") ++ v ++ " : " ++ t.
+
   Definition tvars_of (n : nat) : list string := map kty_var (seq 0 n).
 
   Fixpoint app_spine (t : EAst.term) (args : list EAst.term) : EAst.term * list EAst.term :=
@@ -415,7 +498,7 @@ Section Printer.
      its member.  The members take the constant's parameters [pre] first when
      their bodies refer to them (lambda lifting: every call passes them
      unchanged).  Koka infers the members' types. *)
-  Definition print_group (kn : kername) (pre : list string) (Γp : ctx) (mfix : EAst.mfixpoint EAst.term)
+  Definition print_group (kn : kername) (pre : list string) (Γp : ctx) (tys : list (option string)) (mfix : EAst.mfixpoint EAst.term)
     : kres (list string * ctx) :=
     let names := mapi (fun j _ => fun_name kn ++ "__m" ++ string_of_nat j) mfix in
     let arities := map (fun d => List.length pre + List.length (fst (lambdas (EAst.dbody d)))) mfix in
@@ -425,7 +508,7 @@ Section Printer.
         let '(params, inner) := lambdas (EAst.dbody d) in
         let pvars := mapi (fun j na => var (name_ident na) (base + j)) params in
         body' <- print_term (List.app (List.rev (map (fun v => (v, None)) pvars)) (List.app Γg Γp)) inner [];;
-        match List.app pre pvars with
+        match List.app pre (mapi (param tys n) pvars) with
         | [] => Err "a fixpoint without parameters"
         | ps => Ok ("fun " ++ n ++ "(" ++ concat_with ", " ps ++ ") { " ++ body' ++ " }")
         end) (combine names mfix);;
@@ -466,8 +549,9 @@ Section Printer.
     | _ => ty
     end.
 
-  Definition print_constant (kn : kername) (ty : list name * box_type) (b : EAst.term)
+  Definition print_constant (kn : kername) (ty : list name * box_type) (b0 : EAst.term)
     : kres string :=
+    let b := eta_fix b0 in
     let ty := expand_any_alias ty in
     let Γt := tvars_of (List.length (fst ty)) in
     let body := const_body b in
@@ -486,23 +570,34 @@ Section Printer.
         | EAst.tFix mfix i, _ =>
           (* the constant is its member [i] *)
           if Nat.ltb 1 (List.length mfix) then
-            '(defs, Γg) <- print_group kn [] [] mfix;;
+            '(defs, Γg) <- print_group kn [] [] [] mfix;;
             match nth_error (List.rev Γg) i with
             | Some (n, Some (k, _)) => Ok (concat_with kt_nl defs ++ kt_nl, call_known n k pvars)
             | _ => Err "fixpoint index out of range"
             end
           else body' <- print_term Γp inner [];; Ok ("", body')
         | _, (EAst.tFix mfix i, args) =>
-          if Nat.ltb 1 (List.length mfix) then
-            let closed := forallb (fun d => ELiftSubst.closedn (List.length mfix) (EAst.dbody d)) mfix in
-            let lifted := if closed then [] else pvars in
-            '(defs, Γg) <- print_group kn lifted Γp mfix;;
-            args' <- monad_map (fun a => print_term Γp a []) args;;
-            match nth_error (List.rev Γg) i with
-            | Some (n, Some (k, pre)) => Ok (concat_with kt_nl defs ++ kt_nl, call_known n k (List.app pre args'))
-            | _ => Err "fixpoint index out of range"
-            end
-          else body' <- print_term Γp inner [];; Ok ("", body')
+          (* also for a single fixpoint: Koka honours [^] only on top-level functions *)
+          let closed := forallb (fun d => ELiftSubst.closedn (List.length mfix) (EAst.dbody d)) mfix in
+          let lifted := if closed then [] else pvars in
+          (* a single fixpoint takes the types of its arguments, then the remaining arrows *)
+          let arg_tys := map (fun a => match a with
+                                       | EAst.tRel m =>
+                                         if Nat.ltb m (List.length pvars)
+                                         then nth_error doms' (List.length pvars - 1 - m)
+                                         else None
+                                       | _ => None
+                                       end) args in
+          let fix arrows t := match t with TArr a b => a :: arrows b | _ => [] end in
+          let rest_tys := map (fun a => match print_type Γt a with Ok s => Some s | Err _ => None end)
+                              (arrows res) in
+          let tys := if Nat.eqb (List.length mfix) 1 then List.app arg_tys rest_tys else [] in
+          '(defs, Γg) <- print_group kn lifted Γp tys mfix;;
+          args' <- monad_map (fun a => print_term Γp a []) args;;
+          match nth_error (List.rev Γg) i with
+          | Some (n, Some (k, pre)) => Ok (concat_with kt_nl defs ++ kt_nl, call_known n k (List.app pre args'))
+          | _ => Err "fixpoint index out of range"
+          end
         | _, _ => body' <- print_term Γp inner [];; Ok ("", body')
         end;;
       match pvars with
@@ -512,7 +607,7 @@ Section Printer.
         else Ok (pre ++ "fun " ++ fun_name kn ++ "() : pure " ++ res' ++ " { " ++ body' ++ " }")
       | _ =>
         Ok (pre ++ "fun " ++ fun_name kn ++ "(" ++
-            concat_with ", " (map (fun '(v, t) => v ++ " : " ++ t) (combine pvars doms')) ++
+            concat_with ", " (mapi (fun j '(v, t) => typed_param (fun_name kn) j v t) (combine pvars doms')) ++
             ") : pure " ++ res' ++ " { " ++ body' ++ " }")
       end
     end.
@@ -554,7 +649,83 @@ Section Printer.
     | TypeAliasDecl None => Ok None
     end.
 
+  (* ----- The functions, for borrow inference ----------------------- *)
+
+  (* A constant called as a known function of its arity. *)
+  Definition const_fn (kn : kername) : option (fid * nat) :=
+    match remap kn with
+    | Some _ => None
+    | None =>
+      if is_thunk kn then None else
+      match const_arity kn with
+      | Some (S _ as n) => Some (fun_name kn, n)
+      | _ => None
+      end
+    end.
+
+  Definition group_fns (kn : kername) (outer : nat) (mfix : EAst.mfixpoint EAst.term) : list fn_def :=
+    let names := mapi (fun j _ => fun_name kn ++ "__m" ++ string_of_nat j) mfix in
+    let ars := map (fun d => List.length (fst (lambdas (EAst.dbody d)))) mfix in
+    let funs := List.rev (map (fun '(n, a) => VFun n a) (combine names ars)) in
+    map (fun '(n, d) =>
+      let '(ps, inner) := lambdas (EAst.dbody d) in
+      {| fd_id := n; fd_arity := List.length ps; fd_body := inner;
+         fd_ctx := List.app funs (repeat VOther outer); fd_group := names |})
+      (combine names mfix).
+
+  (* The top-level functions [print_constant] prints for a constant. *)
+  Definition const_fns (kn : kername) (b0 : EAst.term) : list fn_def :=
+    let b := eta_fix b0 in
+    let '(params, inner) := lambdas (const_body b) in
+    let n := List.length params in
+    let me := fun_name kn in
+    let calls (f : string) := EAst.mkApps (EAst.tRel n) (map EAst.tRel (List.rev (seq 0 n))) in
+    match n with
+    | 0 => []
+    | _ =>
+      match b with
+      | EAst.tFix [_] 0 =>
+        [{| fd_id := me; fd_arity := n; fd_body := inner; fd_ctx := [VFun me n]; fd_group := [me] |}]
+      | EAst.tFix mfix i =>
+        let gs := group_fns kn 0 mfix in
+        let mi := fun_name kn ++ "__m" ++ string_of_nat i in
+        {| fd_id := me; fd_arity := n; fd_body := calls mi; fd_ctx := [VFun mi n]; fd_group := [me] |} :: gs
+      | _ =>
+        let gs := match EAstUtils.decompose_app inner with
+                  | (EAst.tFix mfix _, _) => group_fns kn n mfix
+                  | _ => []
+                  end in
+        {| fd_id := me; fd_arity := n; fd_body := inner; fd_ctx := []; fd_group := [me] |} :: gs
+      end
+    end.
+
+  Definition fn_table : list fn_def :=
+    List.concat (map (fun '(kn, _, decl) =>
+      match decl with
+      | ConstantDecl {| cst_body := Some b |} =>
+        match remap kn with Some _ => [] | None => const_fns kn b end
+      | _ => []
+      end) Σ).
+
 End Printer.
+
+(* Koka reuses a matched cell for a constructor of the same size: a branch
+   binding [k > 0] fields that applies a constructor to [k] arguments. *)
+Fixpoint allocates (k : nat) (t : EAst.term) {struct t} : bool :=
+  match t with
+  | EAst.tApp f a =>
+    orb (match EAstUtils.decompose_app t with
+         | (EAst.tConstruct _ _ [], args) => Nat.eqb (List.length args) k
+         | _ => false
+         end) (orb (allocates k f) (allocates k a))
+  | EAst.tLambda _ b => allocates k b
+  | EAst.tLetIn _ v b => orb (allocates k v) (allocates k b)
+  | EAst.tCase _ d brs => orb (allocates k d) (existsb (fun br => allocates k (snd br)) brs)
+  | EAst.tFix mfix _ => existsb (fun d => allocates k (EAst.dbody d)) mfix
+  | _ => false
+  end.
+
+Definition koka_reuse (k : nat) (b : EAst.term) : bool := andb (Nat.ltb 0 k) (allocates k b).
 
 (* The helpers are named [pgk_..]: every generated name starts with [pg_], [t_],
    [v_] or [C_], so none can clash with them. *)
@@ -606,7 +777,9 @@ Definition print_program (remap : kername -> option (string * nat)) (imports : l
   match first_clash [] (decl_names Σ) with
   | Some (a, b) => Err ("names that differ only in case, which Koka identifies: " ++ a ++ " and " ++ b)
   | None =>
-    decls <- monad_map (print_decl Σ remap) (List.rev Σ);;
+    let fns := fn_table Σ remap in
+    let bms := borrow_modes (const_fn Σ remap) koka_reuse fns in
+    decls <- monad_map (print_decl Σ remap bms) (List.rev Σ);;
     let present := fold_right (fun o acc => match o with Some s => s :: acc | None => acc end) [] decls in
     Ok (preamble imports module ++ kt_nl ++ concat_with kt_nl present ++ kt_nl)
   end.
