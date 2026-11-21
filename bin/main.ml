@@ -425,10 +425,16 @@ let rust_t =
   let new_arg = Arg.(value & opt (some (enum numbers)) None & info ["rust-numbers"] ~docs ~docv:"NUMBERS" ~doc) in
   let old_arg = Arg.(value & opt (some (enum numbers)) None & info ["numbers"] ~docs ~docv:"NUMBERS"
                        ~deprecated:"Use $(b,--rust-numbers) instead.") in
-  let pick n o = rust_target (match n, o with
+  let memory_doc = "The memory management of values: $(b,arena) allocates them in a bumpalo arena freed at the end of the program, $(b,rc) reference counts them (with $(b,--rust-numbers=peano) or $(b,--rust-numbers=hybrid))." in
+  let memory_arg = Arg.(value & opt (enum ["arena", false; "rc", true]) false & info ["memory"] ~docs ~docv:"MEMORY" ~doc:memory_doc) in
+  let pick n o rc =
+    let v = match n, o with
       | Some v, _ | None, Some v -> v
-      | None, None -> List.hd rust_numbers) in
-  Term.(const pick $ new_arg $ old_arg)
+      | None, None -> List.hd rust_numbers in
+    if rc && Option.is_none v.rust_rc_config
+    then `Error (false, "--memory=rc is available with --rust-numbers=peano and --rust-numbers=hybrid")
+    else `Ok (rust_target ~rc v) in
+  Term.(ret (const pick $ new_arg $ old_arg $ memory_arg))
 
 let fuel_arg =
   let docs = "EVAL OPTIONS" in

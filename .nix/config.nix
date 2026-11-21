@@ -25,7 +25,7 @@
       metarocq-erasure-plugin.override.version = "51b14e4bb5f4580f00f60208ff8dbf31f3ad6f56";
 
       # v0.2.1 ported to the MetaRocq snapshot, see rocq-peregrine.opam
-      TypedExtraction.override.version = "74dcbc960a8d4fa04496b84d6447611159bd6c70";
+      TypedExtraction.override.version = "fb3853458aee429f0ab43dda24f678d16b79056a";
       # The peregrine branch of peregrine-project/certirocq, see rocq-peregrine.opam
       CertiRocq.override.version = "eee949ef628d99d6debb5f49976c8e267d193c10";
       # CertiRocq needs coq-wasm >= 2.2.1

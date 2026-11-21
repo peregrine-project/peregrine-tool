@@ -20,6 +20,7 @@ rustConfigConv RustConfig {..} =
     (fmap stringConv rustAnyTypeSyymbol)
     rustPrintFullNames
     (fmap stringConv rustDefaultAttributes)
+    rustRefcount
 
 -- Elm backend configuration
 elmConfigConv :: ElmConfig -> ConfigUtils.Coq_elm_config'

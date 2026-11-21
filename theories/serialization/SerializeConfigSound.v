@@ -35,9 +35,10 @@ Proof.
   apply sound_class in Ea4.
   apply sound_class in Ea5.
   apply sound_class in Ea6.
+  apply sound_class in Ea7.
   unfold to_sexp, Serialize_rust_config.
   cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6.
+  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7.
   reflexivity.
 Qed.
 
@@ -56,9 +57,10 @@ Proof.
   apply sound_class in Ea4.
   apply sound_class in Ea5.
   apply sound_class in Ea6.
+  apply sound_class in Ea7.
   unfold to_sexp, Serialize_rust_config'.
   cbn.
-  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6.
+  rewrite <- Ea0, <- Ea1, <- Ea2, <- Ea3, <- Ea4, <- Ea5, <- Ea6, <- Ea7.
   reflexivity.
 Qed.
 

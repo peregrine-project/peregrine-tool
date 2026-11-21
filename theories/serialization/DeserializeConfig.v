@@ -19,13 +19,13 @@ Local Open Scope bs_scope.
 Instance Deserialize_rust_config : Deserialize rust_config :=
   fun l e =>
     Deser.match_con "rust_config" []
-      [ ("rust_config", Deser.con7_ Build_rust_config) ]
+      [ ("rust_config", Deser.con8_ Build_rust_config) ]
       l e.
 
 Instance Deserialize_rust_config' : Deserialize rust_config' :=
   fun l e =>
     Deser.match_con "rust_config" []
-      [ ("rust_config", Deser.con7_ Build_rust_config') ]
+      [ ("rust_config", Deser.con8_ Build_rust_config') ]
       l e.
 
 Instance Deserialize_elm_config : Deserialize elm_config :=
