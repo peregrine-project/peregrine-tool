@@ -11,6 +11,7 @@ From MetaRocq.Erasure Require EImplementBox.
 From Peregrine Require EImplementLazyForce.
 From Peregrine Require Import EInstanceSpecialize.
 From Peregrine Require EFieldDCE.
+From Peregrine Require ENumeralHoist.
 From Malfunction Require Pipeline.
 
 Import PCUICProgram.
@@ -392,8 +393,23 @@ Final Obligation.
 Qed.
 
 
-Program Definition run_untyped_transforms econf ind_reorder spec_inst impl_box impl_lazy_force p :=
-  run (untyped_transform_pipeline econf spec_inst impl_box impl_lazy_force) (ind_reorder, p) _.
+(** The untyped pipeline preceded by the hoisting of numerals of at least
+    [num_th] bits into global constants (ENumeralHoist.v; [num_th = 0]
+    disables it). *)
+Program Definition untyped_transform_pipeline_num {guard : abstract_guard_impl}
+  (efl := all_env_flags) num_th econf spec_inst impl_box impl_lazy_force
+  : Transform.t _ _ _ EAst.term _ _
+   (eval_eprogram_mapping EWcbvEval.default_wcbv_flags)
+   (EProgram.eval_eprogram final_wcbv_flags) :=
+  ENumeralHoist.hoist_numerals_transformation (fl := EWcbvEval.default_wcbv_flags) (efl := efl)
+    num_th eq_refl eq_refl eq_refl eq_refl eq_refl ▷
+  untyped_transform_pipeline econf spec_inst impl_box impl_lazy_force.
+Next Obligation.
+  cbn. intros. destruct H as [? [? ?]]. split; auto.
+Qed.
+
+Program Definition run_untyped_transforms num_th econf ind_reorder spec_inst impl_box impl_lazy_force p :=
+  run (untyped_transform_pipeline_num num_th econf spec_inst impl_box impl_lazy_force) (ind_reorder, p) _.
 Final Obligation.
 Admitted. (* assumed for now, check_wf should ensure this *)
 

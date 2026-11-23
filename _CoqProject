@@ -14,6 +14,7 @@ theories/Pipeline.v
 
 theories/erasure/Erasure.v
 theories/erasure/ErasureTyped.v
+theories/erasure/ENumeralHoist.v
 theories/erasure/Transforms.v
 theories/erasure/EImplementLazyForce.v
 theories/erasure/EDeclOrder.v

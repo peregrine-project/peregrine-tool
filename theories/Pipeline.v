@@ -17,6 +17,7 @@ From Peregrine Require LLVMBackend.
 From Peregrine Require EvalBackend.
 From Peregrine Require ASTBackend.
 From Peregrine Require NameSanitize.
+From Peregrine Require ENumeralHoist.
 From MetaRocq.Utils Require Import utils.
 From MetaRocq.Utils Require Import ResultMonad.
 From MetaRocq.Erasure.Typed Require Import ExAst.
@@ -112,7 +113,35 @@ Definition typed_dce (c : config) (spec_inst : bool) (p : ExAst.global_env * EAs
   : ExAst.global_env * EAst.term :=
   ETypedDCE.typed_dce spec_inst (remapped_ind c) p.
 
+(** ** Numeral hoisting (ENumeralHoist.v)
+
+    The custom attribute [PeregrineNumerals.threshold] with a decimal value
+    [n] enables the hoisting of numerals of at least [n] bits into global
+    constants on the untyped pipeline. *)
+
+Definition digit_of_byte (b : Byte.byte) : option nat :=
+  let n := Byte.to_nat b in
+  if (48 <=? n) && (n <=? 57) then Some (n - 48) else None.
+
+Fixpoint nat_of_digits (acc : nat) (s : string) : option nat :=
+  match s with
+  | String.EmptyString => Some acc
+  | String.String b s' =>
+      match digit_of_byte b with
+      | Some d => nat_of_digits (10 * acc + d) s'
+      | None => None
+      end
+  end.
+
+Definition numeral_threshold (c : config) : nat :=
+  match find (fun a => Kernames.eq_kername a.1 (ENumeralHoist.numerals_mp, "threshold"))
+              c.(custom_attributes_opts) with
+  | Some (_, s) => match nat_of_digits 0 s with Some n => n | None => 0 end
+  | None => 0
+  end.
+
 Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAst :=
+  let num_th := numeral_threshold c in
   let econf := mk_opts c typed in
   let cstr_reorder := mk_cstr_reorders c in
   let impl_box := c.(erasure_opts).(implement_box) in
@@ -132,10 +161,10 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAs
       let '(_, (env', _)) := run_typed_transforms econf cstr_reorder (infer numeric_sigs env, EAst.tBox) in
       Ok (Typed env' None)
   | Untyped env (Some t), false =>
-      let (env', t') := run_untyped_transforms econf cstr_reorder spec_inst impl_box impl_lazy (env, t) in
+      let (env', t') := run_untyped_transforms num_th econf cstr_reorder spec_inst impl_box impl_lazy (env, t) in
       Ok (Untyped env' (Some t'))
   | Untyped env None, false =>
-      let (env', _) := run_untyped_transforms econf cstr_reorder spec_inst impl_box impl_lazy (env, EAst.tBox) in
+      let (env', _) := run_untyped_transforms num_th econf cstr_reorder spec_inst impl_box impl_lazy (env, EAst.tBox) in
       Ok (Untyped env' None)
   | Typed env (Some t), true =>
       let '(_, (env', t')) := run_typed_transforms econf cstr_reorder (env, t) in
@@ -157,7 +186,7 @@ Definition apply_transforms (c : config) (p : PAst) (typed : bool) : result' PAs
 Inductive extracted_program :=
 | RustProgram : list string -> extracted_program
 | ElmProgram : string -> extracted_program
-| CProgram : (CertiRocq.Codegen.toplevel.Cprogram * list string) -> extracted_program
+| CProgram : (CertiRocq.Codegen.toplevel.Cprogram * list string * list (string * string)) -> extracted_program
 | WasmProgram : string -> extracted_program
 | LLVMProgram : string -> extracted_program
 | OCamlProgram : (list string * string) -> extracted_program
@@ -166,6 +195,23 @@ Inductive extracted_program :=
 | ASTProgram : string -> extracted_program.
 
 Definition extraction_result : Type := result' extracted_program.
+
+(** The C backend remaps every hoisted numeral constant to a nullary C
+    function [peregrine_lit_<i>], which the C writer defines in a header
+    [<output>.numerals.h] next to the generated file; the table pairs each
+    function name with the identifier of its constant, from which the writer
+    reads the value. *)
+Definition numeral_remaps (env : EAst.global_declarations)
+  : constant_remappings * list (string * string) :=
+  let lits := filter (fun d => ENumeralHoist.is_lit_name d.1) env in
+  let named := mapi (fun i d => (d.1, "peregrine_lit_" ++ string_of_nat i)) lits in
+  (map (fun '(kn, cname) =>
+          (kn, {| re_const_ext := None;
+                  re_const_arity := 0;
+                  re_const_gc := false;
+                  re_const_inl := false;
+                  re_const_s := cname |})) named,
+   map (fun '(kn, cname) => (cname, kn.2)) named).
 
 Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result :=
   let const_remaps := c.(const_remappings_opts) in
@@ -215,13 +261,19 @@ Definition run_backend (c : config) (f : string) (p : PAst) : extraction_result 
 
   | C opts =>
     p' <- PAst_to_EAst p;;
+    let '(num_remaps, num_table) := numeral_remaps p'.1 in
+    (* The remapped numeral constants are compiled as declarations only: their
+       bodies, chains of one constructor per bit, are what the hoisting avoids. *)
+    let p'' := (map (fun d => if ENumeralHoist.is_lit_name d.1
+                              then (d.1, EAst.ConstantDecl {| EAst.cst_body := None |})
+                              else d) p'.1, p'.2) in
     res <- CBackend.extract_c
-      const_remaps
+      (num_remaps ++ const_remaps)%list
       custom_attr
       opts
       f
-      p';;
-    Ok (CProgram res)
+      p'';;
+    Ok (CProgram (res.1, res.2, num_table))
 
   | Wasm opts =>
     p' <- PAst_to_EAst p;;
