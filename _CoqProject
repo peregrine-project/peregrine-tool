@@ -51,6 +51,7 @@ theories/erasure/EFirstOrderTyped.v
 theories/PipelineFirstOrder.v
 theories/PipelineCakeML.v
 theories/PipelineRust.v
+theories/PipelineRustNatBool.v
 
 theories/lean/LeanIR.v
 theories/lean/LeanCompile.v
