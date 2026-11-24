@@ -124,7 +124,7 @@ var agda_tests: TestCase[] =
         },
         {
             src: "agda/Equality.ast",
-            // Koka-typed passes now (CI, PR #160); #142 still applies to STLC
+            // Koka-typed passes now (CI, pull request 160); #142 still applies to STLC
             xfail: { "Elm": "#79: Elm prints the type name ≡ as __UU002261_, which Elm rejects" },
             main: "Equality_test",
             output_type: SimpleType.Nat,
