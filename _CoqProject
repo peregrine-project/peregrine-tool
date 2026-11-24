@@ -50,6 +50,7 @@ theories/erasure/EFirstOrderCorrect.v
 theories/erasure/EFirstOrderTyped.v
 theories/PipelineFirstOrder.v
 theories/PipelineCakeML.v
+theories/PipelineRust.v
 
 theories/lean/LeanIR.v
 theories/lean/LeanCompile.v
