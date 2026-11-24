@@ -68,17 +68,31 @@ As for OCaml, the backend checks a precondition (`cakeml_check` in [`CakeMLBacke
 
 ## Rust
 
-Rust backend extracting to surface level Rust code. The backend works on typed AST.
-Untyped input is accepted as well: the middle-end first annotates it with types by Hindley-Milner inference ([EHindleyMilner.v](/theories/erasure/EHindleyMilner.v)), reconstructing the datatype signatures (type parameters, constructor field types) from how the constructors are used in the program. It is proved that erasing the annotations gives back the input and that the annotations are well scoped; the annotations themselves are unverified. When the program is not typable this way (dependent elimination, type-level computation, an inductive used at two incompatible field types, a constant used before its declaration, unsupported term forms such as primitives) peregrine fails with a message naming the constant and the types that did not unify; provide a typed program in that case. The reconstructed signature is the most general one consistent with the uses seen, so it can be more polymorphic than the source declaration (a record field may become a type parameter), and the body of an erased type parameter is typed `()`. Only type parameters become type parameters of the output: a parameter to which some constructor application passes a value (a syntactic criterion), or that no field type mentions (a `Prop` or phantom parameter), is dropped. Typed extraction drops value and `Prop` parameters too, but keeps phantom ones. `let`-bound and local fixpoint definitions are not generalised, so a `let`-bound function used at two types is rejected, and an axiom gets the type `forall a. a`. Postponed work, including a proof that the annotations type the terms, is tracked in [#79](https://github.com/peregrine-project/peregrine-tool/issues/79).
-The backend is located in [`peregrine-project/rocq-typed-extraction`](https://github.com/peregrine-project/rocq-typed-extraction).
+The Rust backend prints a typed $\lambda_\square$ program as Rust source. The printer is `RustExtract` of [`rocq-typed-extraction`](https://github.com/peregrine-project/rocq-typed-extraction); Peregrine calls it in [`extract_rust`](/theories/backends/RustBackend.v).
 
 Output
-* A single file; written to `<file>.rs` by the CLI.
+* A single file; written to `<file>.rs` by the CLI. It contains the declarations of the program; the main term is not printed.
 * The generated Rust depends on [bumpalo](https://docs.rs/bumpalo/) v3 or later.
-* Is compiled with the [Rust compiler](https://rust-lang.org/tools/install/)
+* It is compiled with the [Rust compiler](https://rust-lang.org/tools/install/).
+
+### What is proved
+
+A function `f : nat → bool` compiled once, as the main term `f 0` of a program, becomes a constant `f'` of the environment that is printed such that for every `n`, `f'` applied to the numeral of `n` evaluates to the boolean that `f n` evaluates to in the input ([`rust_nat_bool_correct`](/theories/PipelineRustNatBool.v), and `rust_nat_bool_correct_untyped` for untyped input). Numerals and booleans are constructor terms of two inductives of the input with the shape of `nat` and `bool` (`nat_val`, `bool_val`). Dearging may remove the argument of `f` and the argument of the successor; the analysis decides this once for the whole program, and the theorem applies `f'` to the arguments it keeps.
+
+This is a corollary of the correctness of the pipeline up to the printer ([`PipelineRust.v`](/theories/PipelineRust.v)). Remove the bodies of the remapped constants from the input program, and suppose that the program then evaluates to a first-order value `v`. If Peregrine succeeds, its output is `print_program` applied to a typed environment in which the main term evaluates to a value related to `v`. The theorem is `peregrine_typed_rust_input` for typed input and `peregrine_untyped_rust_input` for untyped input. The corollary applies it to the main terms `f n`, on which the pipeline produces the environment and the dearging masks of the compilation of `f 0` (`run_nat_app`).
+
+The printer is trusted, as are the hand-written preambles of `extract_rust`, the remappings and the Rust compiler. Before printing, `eta_remapped_bodies` replaces the body of every remapped constant by `fun _ .. _ => □`. This step is outside the theorem; `eta_remapped_bodies_eval` shows that it preserves evaluation when these constants are axioms.
+
+### Untyped input
+
+Hindley-Milner inference ([EHindleyMilner.v](/theories/erasure/EHindleyMilner.v)) annotates untyped input with types. Forgetting the annotations gives back the input; the annotations themselves are not verified ([#79](https://github.com/peregrine-project/peregrine-tool/issues/79) tracks a proof that they type the terms).
+
+The inference reconstructs each datatype signature from the uses of its constructors. The result is the most general signature consistent with those uses, so it can be more polymorphic than the source declaration: a record field can become a type parameter. A parameter that some constructor application passes a value to, or that no field type mentions (a `Prop` or phantom parameter), is dropped; typed extraction drops value and `Prop` parameters as well but keeps phantom ones. The body of an erased type parameter has type `()`, and an axiom has type `forall a. a`. `let`-bound and local fixpoint definitions are not generalised, so a `let`-bound function used at two types is rejected.
+
+Inference fails on dependent elimination, type-level computation, an inductive used at two incompatible field types, a constant used before its declaration, and primitives. Peregrine then names the constant and the types that did not unify; such a program has to be given typed.
 
 ### Numeric representations
-`peregrine rust --rust-numbers=NUMBERS` selects the representation of `nat`, `positive`, `N` and `Z`. Each value is a backend configuration together with constant and inductive remappings ([theories/backends/](/theories/backends/)). The verbs `rust-gmp`, `rust-i64`, `rust-mixed`, `rust-mixed-narrow` and `rust-hybrid` are deprecated aliases of `rust --rust-numbers=gmp` and so on. `peregrine compile` with a configuration file uses no remapping unless the file gives one.
+`peregrine rust --rust-numbers=NUMBERS` selects the representation of `nat`, `positive`, `N` and `Z`. Each value is a backend configuration with constant and inductive remappings ([theories/backends/](/theories/backends/)). The verbs `rust-gmp`, `rust-i64`, `rust-mixed`, `rust-mixed-narrow` and `rust-hybrid` are deprecated aliases of `rust --rust-numbers=gmp` and so on. `peregrine compile` with a configuration file uses no remapping unless the file gives one.
 
 | `--rust-numbers` | `nat`/`positive`/`N`/`Z` | Operations | Remaps | Extra crate |
 |----------|--------------------------|------------|--------|-------------|
@@ -90,11 +104,11 @@ Output
 | `hybrid` | `Num<'a>`: one tagged word, a 63-bit integer when the value fits, else the address of an arena-allocated `rug::Integer` | tagged-word arithmetic with overflow checks, GMP on overflow or for a large argument | [RustHybridRemaps.v](/theories/backends/RustHybridRemaps.v) | rug 1 |
 
 All but `peano` also remap `bool` to the Rust `bool` and `comparison` to `std::cmp::Ordering`. `peano` remaps nothing and produces what `peregrine compile` produces with an empty configuration.
-The remapped operations are hand-written Rust strings; nothing about them is verified.
+The remapped operations are hand-written Rust strings and are not verified.
 
 * `i64` computes in `i64` and does not check overflow: a result outside the `i64` range panics in a debug build and wraps around in a release build. `Nat.pow` casts its exponent to `u32`. Use it only for programs whose numbers stay in `i64`.
-* `mixed` and `mixed-narrow` convert the arguments of the operations they run in `i64` with `to_i64().unwrap()`, which panics on an argument outside `i64`; the result of the `i64` operation is not checked, as for `i64`. [RustMixedCoherence.v](/theories/backends/RustMixedCoherence.v) proves, for a ZArith model of these operations, that they agree with the `nat` operations when arguments and result fit in `i64`; it says nothing about the emitted Rust.
-* `hybrid` keeps a value in a tagged 63-bit word while it fits and computes exactly otherwise: an operation on small arguments uses `checked_*` arithmetic on the tagged words and moves to GMP on overflow, and a result that fits is stored as a small value again. Only large values are allocated, and a number takes 8 bytes, as in `i64`. [RustHybridCoherence.v](/theories/backends/RustHybridCoherence.v) proves, for a model of these operations over `Z`, that the fast paths, floor division, the comparisons, the eliminators and every remapped function agree with the Rocq definitions; it says nothing about the emitted Rust.
+* `mixed` and `mixed-narrow` convert the arguments of the operations they run in `i64` with `to_i64().unwrap()`, which panics on an argument outside `i64`; the result of the `i64` operation is not checked, as for `i64`. [RustMixedCoherence.v](/theories/backends/RustMixedCoherence.v) proves, for a ZArith model of these operations, that they agree with the `nat` operations when arguments and result fit in `i64`. The emitted Rust is not covered.
+* `hybrid` keeps a value in a tagged 63-bit word while it fits and computes exactly otherwise: an operation on small arguments uses `checked_*` arithmetic on the tagged words and moves to GMP on overflow, and a result that fits is stored as a small value again. Only large values are allocated, and a number takes 8 bytes, as in `i64`. [RustHybridCoherence.v](/theories/backends/RustHybridCoherence.v) proves, for a model of these operations over `Z`, that the fast paths, floor division, the comparisons, the eliminators and every remapped function agree with the Rocq definitions. The emitted Rust is not covered.
 * The GMP eliminators of `gmp`, `mixed`, `mixed-narrow` and `hybrid` leak (`Box::leak`) the predecessor they compute; for `hybrid` only a large one.
 
 ## Elm
