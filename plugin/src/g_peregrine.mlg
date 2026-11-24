@@ -7,6 +7,31 @@ open Names
 open Pp
 open Stdarg
 
+(* MetaRocq cannot represent sort polymorphism and refuses to quote it.  The
+   sort-polymorphic constants reached here are library lemmas met inside the
+   bodies of relevant opaque constants; their quality variables are dropped
+   (only universe levels are quoted).  The affected parts are proofs, which
+   erasure removes. *)
+module SortMonoBase = struct
+  include Ast_quoter.ExtractedASTBaseQuoter
+  let quote_univ_instance (i : UVars.Instance.t) =
+    let _, uarr = UVars.Instance.to_array i in
+    CArray.map_to_list quote_level uarr
+  let quote_univ_context (uctx : UVars.UContext.t) =
+    let { UVars.univs = uarr; _ } = UVars.UContext.names uctx in
+    let names = CArray.map_to_list quote_name uarr in
+    let levels = UVars.UContext.instance uctx in
+    let constraints = UVars.UContext.constraints uctx in
+    (names, (quote_univ_instance levels, quote_univ_constraints (PConstraints.univs constraints)))
+  let quote_abstract_univ_context uctx =
+    let { UVars.univs = unames; _ } = UVars.AbstractContext.names uctx in
+    let levels = CArray.map_to_list quote_name unames in
+    let constraints = UVars.UContext.constraints (UVars.AbstractContext.repr uctx) in
+    (levels, quote_univ_constraints (PConstraints.univs constraints))
+end
+
+module RelevantQuoter = Quoter_relevant.Quoter(SortMonoBase)
+
 let string_of_bytestring l = Caml_bytestring.caml_string_of_bytestring l
 
 let bytestring_of_string l = Caml_bytestring.bytestring_of_caml_string l
@@ -48,7 +73,7 @@ let extract ~opaque_access c f typed =
   let env = Global.env () in
   let evm = Evd.from_env env in
   let (c, _) = Constrintern.interp_constr env evm c in
-  let prog = time "Quoting" (Ast_quoter.quote_term_rec ~bypass:false ~opaque_access env evm) (EConstr.to_constr evm c) in
+  let prog = time "Quoting" (RelevantQuoter.quote_term_rec ~bypass:true ~opaque_access env evm) (EConstr.to_constr evm c) in
   if typed
   then extract_typed prog f
   else extract_untyped prog f

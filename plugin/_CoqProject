@@ -1,3 +1,4 @@
+-arg -native-compiler -arg no
 -Q ../theories Peregrine
 
 -Q theories Peregrine.Plugin

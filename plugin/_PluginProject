@@ -117,6 +117,7 @@ src/wGraph.ml
 src/wGraph.mli
 
 
+src/quoter_relevant.ml
 src/g_peregrine.mlg
 src/peregrine_plugin.mlpack
 

@@ -3,7 +3,8 @@ From MetaRocq.Erasure Require ExAst.
 From MetaRocq.Erasure Require EProgram.
 From MetaRocq.Utils Require Import bytestring.
 From MetaRocq.Common Require Kernames.
-From Malfunction Require Serialize.
+(* Rocq 9.2 frontend-only build: verified-extraction (Malfunction) is not
+   available, so the OCaml backend's program type is a placeholder. *)
 
 Local Open Scope bs_scope.
 
@@ -46,7 +47,7 @@ Section BackendConfig.
   Definition llvm_config : Type := certirocq_config.
 
   Record ocaml_config := {
-    program_type : Malfunction.Serialize.program_type;
+    program_type : unit;
   }.
 
   Definition cakeml_config : Type := unit.

@@ -23,3 +23,6 @@
 
 *.rej
 *.orig
+
+# hand-written (not produced by the extraction)
+!quoter_relevant.ml
