@@ -151,7 +151,7 @@ Qed.
     [p0] that evaluates to a saturated first-order value [v], and Peregrine with
     the CakeML backend produces [out] without warning, then [out] is correct
     for the value [v_c] of the program handed to the backend
-    ([peregrine_untyped_fo]). *)
+    ([peregrine_untyped_fo]), without [--untyped-dearg]. *)
 Theorem peregrine_untyped_cakeml {guard : PCUICWfEnvImpl.abstract_guard_impl}
     c attrs ir io lbox p0 env t c' p' file warnings out v :
   let f := NameSanitize.get_sanitizer c' in
@@ -166,15 +166,16 @@ Theorem peregrine_untyped_cakeml {guard : PCUICWfEnvImpl.abstract_guard_impl}
   peregrine_middle_end_string c attrs ir io lbox (Serialize.string_of_PAst p0) = Ok (c', p') ->
   peregrine_backend c' p' file = Ok (warnings, CakeMLProgram out) ->
   warnings = [] ->
+  c'.(erasure_opts).(untyped_dearg) = false ->
   fo_sat (fo_arity env) v ->
   (remap_on econf = true -> remap_fo econf (fo_unboxed_value m env_s unb v_s)) ->
   eval_eprogram default_wcbv_flags (env, t) v ->
   exists env' t', p' = Untyped env' (Some t') /\ cakeml_output_correct env' t' out v_c.
 Proof.
-  intros f env_s v_s econf m unb v_c hp hs hme hb hw hsat hremap hev.
+  intros f env_s v_s econf m unb v_c hp hs hme hb hw hud hsat hremap hev.
   have hnt : needs_typed c' = false.
   { apply peregrine_backend_cakeml in hb as (opts & _ & hbo & _). unfold needs_typed. now rewrite hbo. }
-  destruct (peregrine_untyped_fo c attrs ir io lbox p0 env t c' p' v hp hs hme hnt hsat hremap hev)
+  destruct (peregrine_untyped_fo c attrs ir io lbox p0 env t c' p' v hp hs hme hnt hud hsat hremap hev)
     as (env' & t' & -> & hev').
   exists env', t'. split; [reflexivity|].
   exact (cakeml_backend_correct c' env' t' file warnings out _ hb hw hev').

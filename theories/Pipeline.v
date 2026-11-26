@@ -205,6 +205,24 @@ Definition apply_transforms {guard : PCUICWfEnvImpl.abstract_guard_impl} (c : co
   let spec_inst := c.(erasure_opts).(specialize_instances) in
   let cse := c.(erasure_opts).(cse) in
   let lift_consts := c.(erasure_opts).(lift_constants) in
+  (* [--untyped-dearg]: untyped input on an untyped backend is dearged when the
+     HM inference [infer_for_backend] succeeds on it.  The inferred environment
+     [env0] then takes the path of typed input (the [Typed env _, false]
+     branches below, with [iconf], so remapped constants keep every argument):
+     [typed_transform_pipeline] (dearging), [trans_env_transform], then the
+     untyped pipeline.  Correctness needs no property of the inferred types:
+     the correctness obligation of [dearging_transform] (Transforms.v, from
+     MetaRocq's [ExtractionCorrectness.extract_correct_gen']) is stated over
+     the evaluation of [ExAst.trans_env] of the typed environment, the types
+     only choose the masks, and the masks are checked at run time by
+     [check_dearging_precond] (dearging is the identity when the check fails).
+     [EHindleyMilner.infer_section] gives [trans_env env0 = env], so the
+     program evaluated is the input program, and [wf_infer_drop] carries the
+     well-formedness of the input over to it, as for the typed backends.
+     When inference fails, or without the flag, the untyped pipeline runs as
+     before. *)
+  let inferred env :=
+    if c.(erasure_opts).(untyped_dearg) then infer_for_backend_eq env else Err "" in
   match p as p, typed return wf_PAst p -> result' PAst with
   | Untyped env (Some t), true => fun hwf =>
       (* Typed backend on untyped (lambda-box) input: bridge to typed via the
@@ -226,13 +244,29 @@ Definition apply_transforms {guard : PCUICWfEnvImpl.abstract_guard_impl} (c : co
       let '(_, (env', _)) := r in
       Ok (Typed env' None)
   | Untyped env (Some t), false => fun hwf =>
-      r <- pipeline_pre_error (run_untyped_transforms_wf econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, t) hwf);;
-      let (env', t') := r in
-      Ok (Untyped env' (Some t'))
+      match inferred env with
+      | Ok r0 =>
+          let env0 := proj1_sig r0 in
+          r <- pipeline_pre_error (run_typed_to_untyped_transforms_wf (iconf env0) cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env0, t) (wf_infer_drop c env r0 t hwf));;
+          let (env', t') := r in
+          Ok (Untyped env' (Some t'))
+      | Err _ =>
+          r <- pipeline_pre_error (run_untyped_transforms_wf econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, t) hwf);;
+          let (env', t') := r in
+          Ok (Untyped env' (Some t'))
+      end
   | Untyped env None, false => fun hwf =>
-      r <- pipeline_pre_error (run_untyped_transforms_wf econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, no_main_term) hwf);;
-      let (env', _) := r in
-      Ok (Untyped env' None)
+      match inferred env with
+      | Ok r0 =>
+          let env0 := proj1_sig r0 in
+          r <- pipeline_pre_error (run_typed_to_untyped_transforms_wf (iconf env0) cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (drop env0, no_main_term) (wf_infer_drop c env r0 no_main_term hwf));;
+          let (env', _) := r in
+          Ok (Untyped env' None)
+      | Err _ =>
+          r <- pipeline_pre_error (run_untyped_transforms_wf econf cstr_reorder spec_inst cse lbox lift_consts impl_box impl_lazy (env, no_main_term) hwf);;
+          let (env', _) := r in
+          Ok (Untyped env' None)
+      end
   | Typed env (Some t), true => fun hwf =>
       r <- pipeline_pre_error (run_typed_transforms_wf (tconf env) cstr_reorder lbox (drop env, t) (wf_drop_remapped_bodies c env t hwf));;
       let '(_, (env', t')) := r in

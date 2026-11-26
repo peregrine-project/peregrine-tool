@@ -14,6 +14,10 @@ type passes = {
   specialize_instances  : bool option;
   share_common_subterms : bool option;
   lift_constants        : bool option;
+  (* Dearging of untyped input on the untyped backends, through the types
+     inferred for it (Pipeline.apply_transforms); not in the default pass
+     set *)
+  untyped_dearg         : bool option;
   (* Unverified lambda-box simplifications (ELboxOpts.v) *)
   unwrap_fixpoints      : bool;
   hoist_case_lambdas    : bool;
