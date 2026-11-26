@@ -19,6 +19,7 @@ Section BackendConfig.
     rust_any_type_symbol    : string;
     rust_print_full_names   : bool;
     rust_default_attributes : string;
+    rust_refcount           : bool;
   }.
 
   Record elm_config := {

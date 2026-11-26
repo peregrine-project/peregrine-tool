@@ -9,7 +9,8 @@ edition = "2021"
 bumpalo = "=3.14.0"
 lexpr = "=0.2.7"
 serde-lexpr = "=0.1.3"
-serde = "=1.0.219"
+# rc: the values of --memory=rc are Rc<T>, which the derived Serialize prints as T
+serde = { version = "=1.0.219", features = ["rc"] }
 serde_derive = "=1.0.219"
 # rust-hybrid represents large numbers with GMP
 rug = "1"

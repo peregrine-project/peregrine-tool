@@ -25,7 +25,8 @@ Instance Serialize_rust_config : Serialize rust_config :=
      to_sexp (rust_type_box_symbol o);
      to_sexp (rust_any_type_symbol o);
      to_sexp (rust_print_full_names o);
-     to_sexp (rust_default_attributes o)
+     to_sexp (rust_default_attributes o);
+     to_sexp (rust_refcount o)
     ]%sexp.
 
 Instance Serialize_rust_config' : Serialize rust_config' :=
@@ -37,7 +38,8 @@ Instance Serialize_rust_config' : Serialize rust_config' :=
      to_sexp (rust_type_box_symbol' o);
      to_sexp (rust_any_type_symbol' o);
      to_sexp (rust_print_full_names' o);
-     to_sexp (rust_default_attributes' o)
+     to_sexp (rust_default_attributes' o);
+     to_sexp (rust_refcount' o)
     ]%sexp.
 
 Instance Serialize_elm_config : Serialize elm_config :=

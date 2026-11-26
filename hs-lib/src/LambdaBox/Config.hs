@@ -15,7 +15,8 @@ data RustConfig = RustConfig
     rustTypeBoxSymbol     :: Maybe String,
     rustAnyTypeSyymbol    :: Maybe String,
     rustPrintFullNames    :: Maybe Bool,
-    rustDefaultAttributes :: Maybe String
+    rustDefaultAttributes :: Maybe String,
+    rustRefcount          :: Maybe Bool
   }
 
 -- Elm backend configuration
