@@ -29,11 +29,11 @@
     On top of the local reducer, the pass *clones* a function at call sites
     where a leading argument is a statically-known dictionary value: for [f d x]
     with [d] a closed dictionary [tConstruct] (or a [tConst] whose body unfolds
-    to one), it emits a specialized copy [f$specN] whose body is [f]'s body with
+    to one), it emits a specialized copy [f_specN] whose body is [f]'s body with
     [d] substituted in (via [spec_beta]; for a [tConst] whose body is a [tFix],
     the fixpoint is unfolded once first), so the beta/iota reductions above fire
     *inside* [f]'s body across the call boundary; the call site is redirected to
-    [f$specN x].  A dictionary argument is
+    [f_specN x].  A dictionary argument is
     recognised by the heuristic "closed constructor whose inductive is a
     single-constructor record" ([dict_value]/[is_record_ind]), which excludes
     ordinary data (nat, list, bool, ...).  Specializations are memoised in a map
@@ -99,16 +99,28 @@ Definition spec_map_subterms (f : term -> term) (t : term) : term :=
   | tBox => tBox
   end.
 
+(** Terms that evaluate to themselves without effect or cost, so that
+    substituting one for a variable used several times does not repeat work. *)
+Fixpoint spec_value (t : term) : bool :=
+  match t with
+  | tRel _ | tBox | tConst _ | tLambda _ _ | tFix _ _ => true
+  | tConstruct _ _ args => forallb spec_value args
+  | _ => false
+  end.
+
 Section specialize.
 
   (** Apply an already-reduced [body] to a spine of already-reduced [args],
-      firing beta as far as [body] is a literal lambda. *)
+      firing beta as far as [body] is a literal lambda and the argument is a
+      value: substituting any other argument would evaluate it once per use. *)
   Fixpoint spec_beta (body : term) (args : list term) {struct args} : term :=
     match args with
     | [] => body
     | a :: args =>
         match body with
-        | tLambda na body => spec_beta (body {0 := a}) args
+        | tLambda na body =>
+            if spec_value a then spec_beta (body {0 := a}) args
+            else mkApps (tLambda na body) (a :: args)
         | _ => mkApps body (a :: args)
         end
     end.
@@ -127,6 +139,7 @@ Section specialize.
         let reduced :=
           match disc' with
           | tConstruct _ c cargs =>
+              if negb (forallb spec_value cargs) then tCase (ind, npar) disc' brs' else
               match nth_error brs' c with
               (* Not [iota_red]: its [substl] assumes closed arguments, and here
                  they may refer to binders around the [tCase]. *)
@@ -148,6 +161,15 @@ Section specialize.
   Definition specialize_instances : term -> term := spec_aux [].
 
 End specialize.
+
+(** Beta does not duplicate an argument that is not a value. *)
+Example specialize_instances_beta_nonvalue (f : kername) :
+  specialize_instances
+    (tApp (tLambda nAnon (tApp (tApp (tConst f) (tRel 0)) (tRel 0)))
+          (tApp (tConst f) tBox))
+  = tApp (tLambda nAnon (tApp (tApp (tConst f) (tRel 0)) (tRel 0)))
+         (tApp (tConst f) tBox).
+Proof. reflexivity. Qed.
 
 (** Iota with open constructor arguments keeps them apart. *)
 Example specialize_instances_open_iota (i : inductive) :
@@ -178,13 +200,15 @@ Fixpoint list_eqb {A} (f : A -> A -> bool) (l1 l2 : list A) : bool :=
 Definition eqb_key (k1 k2 : dkey) : bool :=
   eqb (fst k1) (fst k2) && list_eqb (fun a b => eqb a b) (snd k1) (snd k2).
 
-(** Candidate name for the [i]-th specialization of [nm]. *)
+(** Candidate name for the [i]-th specialization of [nm].  The name is formed
+    after the backends' names are sanitized, so it uses only characters every
+    backend accepts. *)
 Definition spec_name (nm : kername) (i : nat) : kername :=
-  (nm.1, (nm.2 ++ "$spec" ++ string_of_nat i)%bs).
+  (nm.1, (nm.2 ++ "_spec" ++ string_of_nat i)%bs).
 
 (** A name for a specialization of [nm] that is declared neither in [Σ] nor
     for an earlier specialization (the names in [seen]): the first free
-    candidate from index [i] on.  [None] only when [fuel] runs out, which
+    candidate from index [i] on ([fresh_from_spec], [fresh_from_least]).  [None] only when [fuel] runs out, which
     cannot happen for [fuel > #|Σ| + #|seen|]. *)
 Fixpoint fresh_from (Σ : global_declarations) (seen : list (dkey × kername))
   (nm : kername) (fuel i : nat) {struct fuel} : option kername :=
@@ -203,7 +227,7 @@ Fixpoint fresh_from (Σ : global_declarations) (seen : list (dkey × kername))
 
 Definition fresh_name (Σ : global_declarations) (seen : list (dkey × kername))
   (nm : kername) : option kername :=
-  fresh_from Σ seen nm (S (#|Σ| + #|seen|)) #|seen|.
+  fresh_from Σ seen nm (S (#|Σ| + #|seen|)) 0.
 
 (** Is [ind] a single-constructor record (the typeclass/dictionary shape)? *)
 Definition is_record_ind (Σ : global_declarations) (ind : inductive) : bool :=
@@ -475,6 +499,7 @@ Section WfTerm.
     assert (hd : wellformed Σ k (mkApps body (a :: args))).
     { rewrite wellformed_mkApps //. apply/andP; split => //. now apply/andP; split. }
     destruct body; try exact hd.
+    destruct (spec_value a); [|exact hd].
     apply IH; auto. cbn in hb. move/andP: hb => [_ hb].
     apply (wellformed_subst [a]); cbn; [now rewrite ha|exact hb].
   Qed.
@@ -519,6 +544,7 @@ Section WfTerm.
       { simpl. rewrite length_map hcase hcs hd' /=. exact hbrs'. }
       rewrite wellformed_mkApps //. apply/andP; split; [|exact ha].
       destruct (spec_aux [] t) eqn:hdisc; try exact hc.
+      destruct (negb _); [exact hc|].
       destruct (nth_error _ n) as [br|] eqn:hnth; try exact hc.
       destruct (Nat.eqb_spec #|skipn npar args| #|br.1|) as [hlen|]; try exact hc.
       apply wellformed_subst.
@@ -666,6 +692,45 @@ Section Driver.
     intros hin. apply in_map_iff in hin as [p [hp hin]].
     enough (existsb (fun p => snd p == spec_name nm i) seen = true) by congruence.
     apply existsb_exists. exists p; split => //. rewrite hp. apply eqb_refl.
+  Qed.
+
+  (** The name chosen is the candidate of least index, from [i] on, that is
+      declared neither in [Σ] nor for an earlier specialization. *)
+  Lemma fresh_from_least seen nm fuel i c :
+    fresh_from Σ seen nm fuel i = Some c ->
+    exists n, i <= n /\ c = spec_name nm n /\
+      forall j, i <= j -> j < n ->
+        lookup_env Σ (spec_name nm j) <> None \/ In (spec_name nm j) (map snd seen).
+  Proof.
+    induction fuel in i |- *; simpl => //.
+    destruct (lookup_env Σ (spec_name nm i)) eqn:hl.
+    - intros h. destruct (IHfuel _ h) as [n [hle [-> hj]]].
+      exists n. split; [now apply Nat.lt_le_incl|split; auto]. intros j hij hjn.
+      destruct (Nat.eq_dec j i) as [->|hne]; [left; congruence|].
+      apply hj; auto. apply Nat.le_neq; split; auto.
+    - destruct (existsb _ seen) eqn:hex.
+      + intros h. destruct (IHfuel _ h) as [n [hle [-> hj]]].
+        exists n. split; [now apply Nat.lt_le_incl|split; auto]. intros j hij hjn.
+        destruct (Nat.eq_dec j i) as [->|hne].
+        * right. apply existsb_exists in hex as [p [hin hp]]. apply in_map_iff. exists p.
+          split; auto. now apply (@eqb_eq kername _ _ _) in hp.
+        * apply hj; auto. apply Nat.le_neq; split; auto.
+      + intros [= <-]. exists i. repeat split; auto. intros j hij hji.
+        exfalso. apply (Nat.lt_irrefl i). eapply Nat.le_lt_trans; tea.
+  Qed.
+
+  (** Specialized copies are named [nm_specN] for the least [N] such that the
+      name is declared neither in [Σ] nor for an earlier specialization. *)
+  Lemma fresh_name_spec seen nm c :
+    fresh_name Σ seen nm = Some c ->
+    exists n, c = spec_name nm n /\ lookup_env Σ c = None /\ ~ In c (map snd seen) /\
+      forall j, j < n ->
+        lookup_env Σ (spec_name nm j) <> None \/ In (spec_name nm j) (map snd seen).
+  Proof.
+    unfold fresh_name. intros h.
+    destruct (fresh_from_spec _ _ _ _ _ h) as [h1 h2].
+    destruct (fresh_from_least _ _ _ _ _ h) as [n [_ [-> hj]]].
+    exists n. repeat split; auto. intros j hj'. apply hj; auto. apply Nat.le_0_l.
   Qed.
 
   Lemma lookup_spec_In seen k fn :
@@ -950,6 +1015,7 @@ Section Static.
   Proof.
     induction 1; intros g g' Hg; cbn; auto.
     destruct g'; try (apply G_mkApps; [apply G_s; constructor; auto| auto]; fail).
+    destruct (spec_value y); [|apply G_mkApps; [apply G_s; constructor; auto| auto]].
     apply IHForall2. apply G_s. eapply Gs_beta; eauto.
   Qed.
 
@@ -974,6 +1040,7 @@ Section Static.
       { eapply All_F2; tea. cbn. intros x Hx. split; auto. apply (Hx [] []). constructor. }
       apply G_mkApps; [|exact Ha].
       destruct (spec_aux [] t); try (apply G_s; constructor; auto; fail).
+      destruct (negb _); [apply G_s; constructor; auto|].
       destruct nth_error eqn:hn; try (apply G_s; constructor; auto; fail).
       destruct (Nat.eqb _ _) eqn:he; [apply Nat.eqb_eq in he|]; try (apply G_s; constructor; auto; fail).
       apply G_s. eapply Gs_iota; eauto.

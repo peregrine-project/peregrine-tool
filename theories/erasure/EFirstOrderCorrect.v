@@ -274,9 +274,12 @@ Proof.
   1: eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w).
   1: eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w).
   1: eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w).
+  1: eapply fo_triple_compose with (Q := fun (_ : eprogram) v => v = w).
   - (* instance specialization *)
     apply fo_triple_optional; [auto|]. stage. subst v.
     eapply fo_gchain; [exact Hw|exact Hobs].
+  - (* pruning of unreachable constants *)
+    apply fo_triple_optional; [auto|]. stage. now subst.
   - (* common subexpressions *)
     apply fo_triple_optional; [auto|]. stage. now subst.
   - (* iota reduction *)

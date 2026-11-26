@@ -12,6 +12,7 @@ From MetaRocq.Erasure Require EImplementLazyForce ERemapInductives.
 From Peregrine Require Import EExtraFlags ENoCofix.
 From Peregrine Require Utils CheckWf.
 From Peregrine Require Import EInstanceSpecialize.
+From Peregrine Require Import EPruneConstants.
 From Peregrine Require Import ECommonSubexpr.
 From Peregrine Require Import ELboxOpts ELboxOptsWf.
 From Peregrine Require ELboxOptsSimStatic.
@@ -133,16 +134,21 @@ Qed.
 
 Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_opts) (lift_consts impl_box impl_lazy_force : bool) :=
   let efl := extra_env_flags in
-  (* Instance/dictionary specialization, then common-subexpression
-     elimination, both in the constructors-as-blocks regime of [implement_box].
+  (* Instance/dictionary specialization and the pruning of the constants it
+     leaves unused, then common-subexpression elimination, all in the
+     constructors-as-blocks regime of [implement_box].
      They run after [optional_unsafe_transforms], so betared and dead-argument
      elimination do not see their output, then the lifting of closed
-     constructor values to shared constants.  All three are off by default.
-     The semantic obligations of the specialization and of the lifting are
-     proved (EInstanceSpecialize.v with ESpecRel.v; ELiftConstants.v); those
-     of the CSE rest on axioms (ECommonSubexpr.v). *)
+     constructor values to shared constants.  All are off by default; the
+     pruning runs whenever the specialization does.
+     The semantic obligations of the specialization, of the pruning and of the
+     lifting are proved (EInstanceSpecialize.v with ESpecRel.v;
+     EPruneConstants.v; ELiftConstants.v); those of the CSE rest on axioms
+     (ECommonSubexpr.v). *)
   ETransform.optional_self_transform spec_inst
     specialize_instances_transformation ▷
+  ETransform.optional_self_transform spec_inst
+    (prune_transformation efl EImplementBox.block_wcbv_flags eq_refl eq_refl) ▷
   ETransform.optional_self_transform cse
     (cse_transformation efl EImplementBox.block_wcbv_flags) ▷
   (* Lambda-box simplifications (fixpoint eta-hoisting, case/function
@@ -171,6 +177,11 @@ Program Definition extra_unsafe_transforms (spec_inst cse : bool) (lbox : lbox_o
     (lift_constants_transformation efl EImplementBox.block_wcbv_flags) ▷
   ETransform.optional_self_transform impl_box implement_box_transformation ▷
   ETransform.optional_self_transform impl_lazy_force implement_lazy_force_transformation.
+Next Obligation.
+  cbn. intros.
+  destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
+    try assumption; try (apply switch_off_box_wf_eprogram; assumption).
+Qed.
 Next Obligation.
   cbn. intros.
   destruct spec_inst, cse, (lbox_iota lbox), (lbox_case_id lbox), (any_lbox_opts (without_case_id lbox)), lift_consts, impl_box, impl_lazy_force; cbn in *;
